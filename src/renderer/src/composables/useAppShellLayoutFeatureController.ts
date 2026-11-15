@@ -6,7 +6,7 @@ import type {
 } from '../../../shared/types.js'
 import { disposeAll } from './dispose-all.js'
 import { occludeBrowserContent, overlayExitHoldsPage } from './overlay-motion.js'
-import { usePanelDockLayout } from './usePanelDockLayout.js'
+import { usePanelDockLayout } from '../features/panels/usePanelDockLayout.js'
 import { useShellOverlayCoordinationController } from './useShellOverlayCoordinationController.js'
 import { useWindowControlsScrim } from './useWindowControlsScrim.js'
 
@@ -27,6 +27,10 @@ export interface AppShellLayoutFeatureControllerOptions {
     commandPalette: BooleanState
     helpDialog: BooleanState
     releaseHistory: BooleanState
+    /** The Task manager; the page views hide under it, as under the other dialogs. */
+    taskManager: BooleanState
+    /** The Create QR Code dialog; the page views hide under it, as under the other dialogs. */
+    qrCode: BooleanState
     workspaceEditor: BooleanState
     credentialPicker: BooleanState
     walletApproval: BooleanState
@@ -41,7 +45,6 @@ export interface AppShellLayoutFeatureControllerOptions {
     zoom: BooleanState
     activePanel: Readonly<Ref<DetachablePanelId | null>>
     addressSuggestions: BooleanState
-    tabSearch: BooleanState
     downloads: BooleanState
     history: BooleanState
     splitMenu: Ref<boolean>
@@ -67,6 +70,8 @@ export interface AppShellLayoutFeatureController {
   resizeWithKeyboard: (event: KeyboardEvent) => void
   resetSize: () => void
   fullModalOpen: ComputedRef<boolean>
+  /** Whether a surface other than Find is open, which Find coming back with its tab would close: Find waits for it. */
+  surfaceBesideFindOpen: ComputedRef<boolean>
   dispose: () => void
 }
 
@@ -79,12 +84,13 @@ export function useAppShellLayoutFeatureController(
     modals.commandPalette,
     modals.helpDialog,
     modals.releaseHistory,
+    modals.taskManager,
+    modals.qrCode,
     modals.workspaceEditor,
     modals.credentialPicker,
     modals.walletApproval,
     modals.trustedDialog,
     modals.agentSteps,
-    overlays.tabSearch,
     ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : [])
   ]
   const fullModalOpen = computed(() => fullModalStates.some((open) => open.value))
@@ -106,7 +112,8 @@ export function useAppShellLayoutFeatureController(
       modals.commandPalette,
       modals.helpDialog,
       modals.releaseHistory,
-      overlays.tabSearch,
+      modals.taskManager,
+      modals.qrCode,
       overlays.downloads,
       overlays.history,
       overlays.splitMenu,
@@ -122,6 +129,8 @@ export function useAppShellLayoutFeatureController(
       modals.commandPalette,
       modals.helpDialog,
       modals.releaseHistory,
+      modals.taskManager,
+      modals.qrCode,
       modals.workspaceEditor,
       modals.credentialPicker,
       modals.agentSteps,
@@ -131,7 +140,6 @@ export function useAppShellLayoutFeatureController(
       overlays.find,
       overlays.zoom,
       overlays.splitMenu,
-      overlays.tabSearch,
       overlays.downloads,
       overlays.bookmarks,
       overlays.history
@@ -159,6 +167,12 @@ export function useAppShellLayoutFeatureController(
       if (!layout.detachedWindow) layout.shellApi.setWindowControlsScrim(color)
     }
   })
+  // A panel in a window of its own leaves room for Find.
+  const dockedPanelOpen = (): boolean => overlays.activePanel.value !== null && !options.keepsSeparatePanelOpen()
+  const surfaceBesideFindOpen = computed(() => fullModalOpen.value || dockedPanelOpen() || [
+    overlays.siteControls, overlays.siteStorage, overlays.addressSuggestions, overlays.zoom, overlays.splitMenu,
+    overlays.downloads, overlays.bookmarks, overlays.history
+  ].some((open) => open.value))
   let disposed = false
 
   function dispose(): void {
@@ -170,6 +184,7 @@ export function useAppShellLayoutFeatureController(
   return {
     ...panelDockLayout,
     fullModalOpen,
+    surfaceBesideFindOpen,
     dispose
   }
 }

@@ -4,6 +4,7 @@ import { WORKER_EVALUATION_ACTIONS, WORKER_EVALUATION_LIMITS, type WorkerEvaluat
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'
+import { evaluateInWorker, listWorkers } from '../../../browser/worker-evaluation/browser-worker-evaluations.js'
 
 /**
  * How an evaluation stopped waiting for its script, if it did: one sent
@@ -50,12 +51,12 @@ export function registerBrowserWorkers(context: McpToolContext): void {
       const authority = { assertCurrent: () => call.requireCurrentTarget() }
       if (action === 'list') {
         if (worker !== undefined || script !== undefined || timeoutMs !== undefined) throw new Error('worker, script and timeoutMs are only for action evaluate')
-        return textResult(await manager.listWorkers(tabId, authority))
+        return textResult(await listWorkers(manager, tabId, authority))
       }
       if (worker === undefined || script === undefined) throw new Error('evaluate needs a worker handle from list and a script')
       const deadlineMs = timeoutMs ?? WORKER_EVALUATION_LIMITS.defaultTimeoutMs
       try {
-        return textResult(await manager.evaluateInWorker(tabId, worker, script, { timeoutMs: deadlineMs, signal: call.signal }, authority))
+        return textResult(await evaluateInWorker(manager, tabId, worker, script, { timeoutMs: deadlineMs, signal: call.signal }, authority))
       } catch (error) {
         if (!(error instanceof WorkerEvaluationStoppedError)) throw error
         call.settlement.stopped(error.sent)

@@ -2,8 +2,8 @@ import type { Ref } from 'vue'
 import type { AppSettings, WindowChromeState } from '../../../shared/types.js'
 import type { WindowMaterial } from '../../../shared/window-material.js'
 import { useAppearancePresentationController } from './useAppearancePresentationController.js'
-import { useDetachedPanelPresentationController } from './useDetachedPanelPresentationController.js'
-import { usePanelDockPreferenceController } from './usePanelDockPreferenceController.js'
+import { useDetachedPanelPresentationController } from '../features/panels/useDetachedPanelPresentationController.js'
+import { usePanelDockPreferenceController } from '../features/panels/usePanelDockPreferenceController.js'
 import { useTitleBarPresentationController } from './useTitleBarPresentationController.js'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string

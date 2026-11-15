@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { fillForm } from '../../../browser/agent-page-actions/form-input-and-scroll.js'
 
 export function registerBrowserFillForm(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -21,7 +22,7 @@ export function registerBrowserFillForm(context: McpToolContext): void {
     tabTool('browser_fill_form', async ({ tabId, fields }: {
       tabId?: string
       fields: Array<{ ref?: string; selector?: string; value: string | boolean }>
-    }) => textResult(await manager.fillForm(tabId, fields))),
+    }) => textResult(await fillForm(manager, tabId, fields))),
     {
       stepTarget: input => ({ ref: Array.isArray(input.fields) && input.fields.length === 1 ? (input.fields[0] as { ref?: unknown } | null)?.ref : undefined })
     }

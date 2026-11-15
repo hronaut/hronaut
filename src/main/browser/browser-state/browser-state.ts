@@ -1,33 +1,68 @@
 import type { BrowserState, BrowserTabState } from '../../../shared/types.js'
-import type { BrowserStateAccess, BrowserStateTab } from './browser-state-access.js'
+import type { Browser } from '../browser.js'
+import { orderedTabs } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { showsUntrustedCertificate } from '../certificate-errors/certificate-errors.js'
+import { persistedState } from './persisted-state.js'
+import { publishedAgentFollow } from '../agent-follow/published-agent-follow.js'
+import { navigationButtons } from '../navigation-history.js'
+
+/**
+ * The browser state as it is now, with only the workspace's tabs when one is named: everything else, such as the
+ * closed tabs, the split view and the followed agent, is still every workspace's, so a workspace's own state is
+ * getMcpGroupState's. A change still waiting to be published goes out first, unless an agent's tool call reads it
+ * (see StatePublication.beforeRead).
+ */
+export function browserState(browser: Browser, workspaceId?: string): BrowserState {
+  browser.statePublication.beforeRead()
+  return buildBrowserState(browser, workspaceId)
+}
+
+/**
+ * Tells the shell and MCP the browser state changed, and unless `persist` is
+ * false saves it a moment later, once changes stop coming. Nothing goes out
+ * while the browser closes or restores its layout.
+ */
+export function publishChange(browser: Browser, persist = true): void {
+  if (browser.destroyed || browser.window.isDestroyed() || browser.restoringLayout) return
+  browser.options.onChanged?.()
+  browser.statePublication.changed()
+  if (!persist) return
+  if (browser.persistTimer) clearTimeout(browser.persistTimer)
+  browser.persistTimer = setTimeout(() => {
+    browser.persistTimer = null
+    void browser.store.save(() => persistedState(browser)).catch((error) => console.error('[browser] Failed to persist tabs:', error))
+  }, 250)
+}
 
 /**
  * The browser state the shell and MCP see: every tab in order, the recently
  * closed tabs newest first, the active tab, the split view, the global
  * mute, lock and pause, the MCP address and profile, the workspaces and the
- * followed agent.
+ * followed agent. State publication sends what it builds.
  */
-export function getState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>): BrowserState {
-  const agentFollow = access.publishedAgentFollow()
+export function buildBrowserState(browser: Browser, workspaceId?: string): BrowserState {
+  const agentFollow = publishedAgentFollow(browser)
   return {
-    tabs: access.orderedTabs().map((tab) => toState(access, tab)),
-    closedTabs: [...access.closedTabs()].reverse().map((tab) => ({ ...tab })),
-    activeTabId: access.activeTabId(),
-    ...(access.splitView() ? { splitView: { ...access.splitView()! } } : {}),
-    allTabsMuted: access.allTabsMuted(),
-    allHumanInteractionLocked: access.allHumanInteractionLocked(),
-    agentControlLocked: access.allAgentsPaused() && !access.agentPauseOverridesAllowed(),
-    mcpUrl: access.mcpUrl(),
-    profilePath: access.options().profilePath,
-    mcpTabGroups: access.listMcpTabGroups(),
-    savedTabGroups: access.listSavedTabGroups(),
+    tabs: orderedTabs(browser).filter((tab) => workspaceId === undefined || tab.mcpGroupId === workspaceId).map((tab) => toState(browser, tab)),
+    closedTabs: [...browser.closedTabs].reverse().map((tab) => ({ ...tab })),
+    activeTabId: browser.activeTabId,
+    ...(browser.splitView ? { splitView: { ...browser.splitView } } : {}),
+    ...(browser.restingSplitViews.length ? { restingSplitViews: browser.restingSplitViews.map((split) => ({ ...split })) } : {}),
+    allTabsMuted: browser.allTabsMuted,
+    allHumanInteractionLocked: browser.allHumanInteractionLocked,
+    agentControlLocked: browser.allAgentsPaused && !browser.agentPauseOverridesAllowed,
+    mcpUrl: browser.mcpUrl,
+    profilePath: browser.options.profilePath,
+    mcpTabGroups: browser.listMcpTabGroups(),
+    savedTabGroups: browser.listSavedTabGroups(),
     ...(agentFollow ? { agentFollow } : {})
   }
 }
 
-/** One tab as the browser state shows it, from its fields and the manager's view of it. */
-function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, tab: Tab): BrowserTabState {
-  const navigation = access.navigationHistorySnapshot(tab)
+/** One tab as the browser state shows it, from its fields and the browser's view of it. */
+function toState(browser: Browser, tab: BrowserTab): BrowserTabState {
+  const navigation = navigationButtons(tab)
   const webContentsDestroyed = tab.webContents.isDestroyed()
   return {
     id: tab.id,
@@ -41,20 +76,20 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
     observationGeneration: tab.observationGeneration,
     humanInteractionGeneration: tab.humanInteractionGeneration,
     browserSessionGeneration: tab.browserSessionGeneration,
-    canGoBack: navigation.index > 0,
-    canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
-    active: tab.id === access.activeTabId(),
+    canGoBack: navigation.canGoBack,
+    canGoForward: navigation.canGoForward,
+    active: tab.id === browser.activeTabId,
     pinned: tab.pinned,
     sleeping: tab.sleeping,
     pageLifecycleState: tab.pageLifecycleState,
     humanInteractionLocked: tab.humanInteractionLocked,
     tabAgentPaused: tab.tabAgentPaused,
-    humanInteractionInputLocked: access.isHumanInteractionLocked(tab),
-    agentPaused: access.isTabAgentPaused(tab.id),
-    ...(access.isTabTakenOver(tab.id) ? { takenOverAt: tab.takeOver!.at } : {}),
+    humanInteractionInputLocked: browser.isHumanInteractionLocked(tab),
+    agentPaused: browser.isTabAgentPaused(tab.id),
+    ...(browser.isTabTakenOver(tab.id) ? { takenOverAt: tab.takeOver!.at } : {}),
     ...(tab.handedBack ? { handedBack: { ...tab.handedBack } } : {}),
     preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
-    videoRecording: access.videoRecorder().state(tab.id).status,
+    videoRecording: browser.videoRecorder.status(tab.id),
     zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
     ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
     ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
@@ -62,10 +97,11 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
     audible: tab.audible,
     tabMuted: tab.tabMuted,
     muted: tab.muted,
+    ...(tab.permissionReloadOffered === tab.documentGeneration && !tab.sleeping ? { permissionReloadOffered: true } : {}),
     devToolsOpen: !webContentsDestroyed && tab.webContents.isDevToolsOpened(),
-    ...access.emulationProjection(tab),
+    ...browser.emulationProjection(tab),
     ...(tab.networkRoutes.length ? { networkRouteCount: tab.networkRoutes.length } : {}),
-    networkConditionState: access.networkConditionState(tab.id),
+    networkConditionState: browser.networkConditionState(tab.id),
     ...(tab.inspectorIssues.length ? { inspectorIssueCount: tab.inspectorIssues.length } : {}),
     ...(tab.reproRecording ? {
       reproRecording: {
@@ -74,10 +110,10 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
         startedAt: tab.reproRecording.startedAt
       }
     } : {}),
-    pwaLifecycleActive: access.pwaLifecycleRecorder().active(tab.id),
-    ...(access.cssStatePreview().summary(tab) ? { cssStatePreview: access.cssStatePreview().summary(tab) } : {}),
-    ...(access.virtualPasskeys().summary(tab) ? { virtualPasskey: access.virtualPasskeys().summary(tab) } : {}),
-    ...(access.logpoints().summary(tab) ? { logpoints: access.logpoints().summary(tab) } : {}),
+    pwaLifecycleActive: browser.pwaLifecycleRecorder.active(tab.id),
+    ...(browser.cssStatePreview.summary(tab) ? { cssStatePreview: browser.cssStatePreview.summary(tab) } : {}),
+    ...(browser.virtualPasskeys.summary(tab) ? { virtualPasskey: browser.virtualPasskeys.summary(tab) } : {}),
+    ...(browser.logpoints.summary(tab) ? { logpoints: browser.logpoints.summary(tab) } : {}),
     ...(tab.domChangesRecording?.observationGeneration === tab.observationGeneration ? {
       domChangesRecording: {
         active: tab.domChangesRecording.active,
@@ -102,10 +138,18 @@ function toState<Tab extends BrowserStateTab>(access: BrowserStateAccess<Tab>, t
       }
     } : {}),
     ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
+    ...(!webContentsDestroyed && showsUntrustedCertificate(tab) ? { untrustedCertificate: true as const } : {}),
     ...(tab.dialog ? { dialog: { ...tab.dialog } } : {}),
     ...(tab.mcpGroupId ? {
       mcpGroupId: tab.mcpGroupId,
-      mcpGroupName: access.mcpTabGroups().get(tab.mcpGroupId)?.name ?? 'Unknown group'
+      mcpGroupName: browser.mcpTabGroups.get(tab.mcpGroupId)?.name ?? 'Unknown group'
     } : {})
   }
+}
+
+/** Records the address of Hronaut's MCP server, which the state shows, and publishes the change. */
+export function setMcpUrl(browser: Browser, url: string): BrowserState {
+  browser.mcpUrl = url
+  publishChange(browser, false)
+  return browserState(browser)
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createWorkspaceOriginLoader } from '../../src/renderer/src/composables/useWorkspaceOriginLoader.js'
+import { createWorkspaceOriginLoader } from '../../src/renderer/src/features/workspaces/useWorkspaceOriginLoader.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void

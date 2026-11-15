@@ -99,7 +99,7 @@ test('records, annotates, trims and decodes a WebM tutorial through MCP and the 
   await expect(preview).toHaveCount(0)
 })
 
-test('records across same-origin navigation and refuses cross-workspace and changed-origin access', async ({ capabilities }) => {
+test('records across same-origin navigation, refuses cross-workspace access and exports a stopped recording from another site', async ({ capabilities }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const call = async (action: string, extra: Record<string, unknown> = {}) => client.callTool({ name: 'browser_video', arguments: { tabId, action, ...extra } }) as Promise<CallToolResult>
   expect((await call('start')).isError).not.toBe(true)
@@ -110,7 +110,8 @@ test('records across same-origin navigation and refuses cross-workspace and chan
   const denied = await client.request({ method: 'tools/call', params: { name: 'browser_video', arguments: { tabId, action: 'get', workspaceId: '018f0b20-1234-7000-8000-000000000001' } } }, CallToolResultSchema)
   expect(denied.isError).toBe(true)
   await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: 'about:blank' } })
-  expect((await call('export')).isError).toBe(true)
+  const exported = await call('export')
+  expect(exported.isError, text(exported)).not.toBe(true)
   await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: fixtureUrl } })
   const after = JSON.parse(text(await call('get'))) as BrowserVideoState
   expect(after.frameCount).toBe(before.frameCount)

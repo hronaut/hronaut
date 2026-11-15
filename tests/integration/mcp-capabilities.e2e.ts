@@ -1,4 +1,4 @@
-import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
+import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/tool-catalog.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 

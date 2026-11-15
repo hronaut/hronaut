@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import QualityAuditPanel from '../../src/renderer/src/features/diagnostics/quality-audit/QualityAuditPanel.vue'
 import { useDiagnosticsController } from '../../src/renderer/src/features/diagnostics/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import { localeMessages } from '../../src/shared/i18n.js'
 import { buildBrowserQualityAudit, type BrowserQualityAuditSources } from '../../src/shared/quality-audit.js'
 import { QUALITY_AUDIT_CATEGORY_LABELS, QUALITY_AUDIT_CAVEATS, QUALITY_AUDIT_FIXED_TEXT } from '../../src/shared/quality-audit-text.js'
-import { qualityAuditTextMessages } from '../../src/shared/locales/quality-audit-text.js'
 import type { BrowserQualityAudit, BrowserTabState, SupportedLocale } from '../../src/shared/types.js'
 
 // The quality audit showed every category, summary, evidence line, finding and caveat in English, whatever the
@@ -301,7 +301,7 @@ describe('quality audit in the interface language', () => {
   })
 
   it('keeps the English messages in step with the text the audit records', () => {
-    const english = qualityAuditTextMessages['en-US']
+    const english = localeMessages['en-US'].qualityAuditText
     expect(english.fixed).toEqual(QUALITY_AUDIT_FIXED_TEXT)
     expect(english.caveats).toEqual(QUALITY_AUDIT_CAVEATS)
     expect(english.categories).toEqual(QUALITY_AUDIT_CATEGORY_LABELS)

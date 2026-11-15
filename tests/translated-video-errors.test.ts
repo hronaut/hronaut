@@ -13,7 +13,6 @@ import { VIDEO_EDIT_ERRORS, VIDEO_SCHEMA_ERRORS, validateVideoEdit, videoAnnotat
 
 // The English that browser_video has always reported; MCP results and code comparing messages keep reading it.
 const ENGLISH = {
-  busy: 'Wait for the current video operation to finish',
   previousRecording: 'Clear the previous recording before starting another',
   recordingCount: 'Clear a retained recording first (maximum three)',
   startFirst: 'Start a recording first',
@@ -40,6 +39,7 @@ const ENGLISH = {
   tabUnavailable: 'Recording tab is unavailable',
   audioUnreadable: 'Audio file could not be read. Select a non-empty regular file no larger than 10 MiB.',
   exportTimeout: 'Video export cancelled or timed out',
+  exportStopped: 'Video export stopped unexpectedly; export again',
   annotationEnd: 'Annotation end must follow its start',
   annotationText: 'Text and callout annotations require text',
   annotationPoint: 'This annotation requires x/y coordinates',

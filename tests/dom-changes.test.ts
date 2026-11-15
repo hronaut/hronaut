@@ -33,7 +33,7 @@ describe('DOM changes recorder', () => {
 
   it('supports the complete recorder lifecycle', () => {
     for (const action of ['start', 'get', 'stop', 'clear'] as const) {
-      expect(domChangesPageScript(action)).toContain(`const action = \"${action}\"`)
+      expect(domChangesPageScript(action).endsWith(`)("${action}", ${JSON.stringify(DOM_CHANGES_LIMITS)})`)).toBe(true)
     }
   })
 })

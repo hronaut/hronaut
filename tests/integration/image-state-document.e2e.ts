@@ -22,7 +22,7 @@ for (const reload of [false, true]) test(`image state ${reload ? 'rejects an alr
       const gate: Gate = { held: false, listeners: page.listenerCount('did-navigate'), release, restore: () => { page.executeJavaScriptInIsolatedWorld = original } }
       ;(globalThis as Scope).__imageDocumentGate = gate
       page.executeJavaScriptInIsolatedWorld = async function (...args) {
-        if (args[0] === 1022 && args[1][0]!.code.includes('const selector=')) { gate.held = true; await wait }
+        if (args[0] === 1022 && args[1][0]!.code.includes('function imageStateInPage(')) { gate.held = true; await wait }
         return original.apply(this, args)
       }
     }, id)

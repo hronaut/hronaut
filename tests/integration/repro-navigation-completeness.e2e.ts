@@ -2,7 +2,10 @@ import { createServer } from 'node:http'
 import type { Page } from '@playwright/test'
 import type { HronautApi } from '../../src/shared/types.js'
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { reproTargetInPage } from '../../src/main/browser/repro-recorder/repro-page.page.js'
+import { snapshotTextInPage } from '../../src/main/browser/snapshot-text.page.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
+import { pageScriptStart } from './page-script-parts.js'
 
 for (const delayed of [false, true]) {
   test(`requires action completeness for native POST replay (delayed=${delayed})`, async ({ appWindow, electronApp }) => {
@@ -20,8 +23,7 @@ for (const delayed of [false, true]) {
     try {
       const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
       const tabId = state.activeTabId!
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-      const page = electronApp.context().pages().find(page => page.url() === url)!
+      const page = await pageAt(electronApp, url)
       await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', id), tabId)
       await page.locator('input').click()
       await electronApp.evaluate(({ webContents }, url) => {
@@ -34,13 +36,14 @@ for (const delayed of [false, true]) {
         }
       }, url)
       await expect(page.locator('input')).toHaveValue('Demo')
-      if (delayed) await electronApp.evaluate(({ webContents }, url) => {
+      if (delayed) await electronApp.evaluate(({ webContents }, { url, target }) => {
         const contents = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
         const original = contents.executeJavaScript.bind(contents)
         let held = false
         Object.defineProperty(contents, 'executeJavaScript', { configurable: true, value: (code: string, gesture?: boolean) => {
           const result = original(code, gesture).catch(() => null)
-          if (!held && code.includes('const point = {')) {
+          // The click's target, read at its point rather than from the focused element.
+          if (!held && code.startsWith(target.start) && !code.includes(target.focused)) {
             held = true
             return new Promise(resolve => {
               ;(globalThis as typeof globalThis & { releaseRepro?: () => void }).releaseRepro = () => {
@@ -51,7 +54,7 @@ for (const delayed of [false, true]) {
           }
           return result
         } })
-      }, url)
+      }, { url, target: { start: pageScriptStart(reproTargetInPage), focused: `(undefined, ${pageScriptStart(snapshotTextInPage)}` } })
       await page.getByRole('button', { name: 'Submit request' }).click()
       await expect(page.locator('p')).toHaveText('Request received')
       expect(posts).toBe(1)

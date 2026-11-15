@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { normalizeSitePermissionOrigin, SitePermissionStore } from '../src/main/site-permission-store.js'
+import { normalizeSitePermissionOrigin, SitePermissionStore } from '../src/main/site-data/site-permission-store.js'
 
 const temporaryDirectories: string[] = []
 const WORK = '01912345-6789-7abc-8def-0123456789ab'
@@ -183,18 +183,60 @@ describe('SitePermissionStore', () => {
     expect(store.get(widget, 'geolocation', {} as never)).toBeUndefined()
   })
 
-  it('never saves a decision for a permission that asks every time', async () => {
+  it('never saves a decision for a permission that asks every time, or one Hronaut never uses', async () => {
     const { store } = await createStore()
-    for (const permission of ['media', 'fileSystem', 'openExternal']) {
+    // Full screen is every page's, a camera and microphone request is remembered for each device, and storage access for
+    // a whole page is refused without asking.
+    for (const permission of ['fileSystem', 'openExternal', 'fullscreen', 'media', 'top-level-storage-access']) {
       await expect(store.set(widget, permission, 'allow', { workspaceId: WORK })).rejects.toThrow('permission name')
     }
     expect(store.list()).toEqual([])
   })
 
-  it('drops a decision without a workspace, with a malformed scope, or for a permission that asks every time', async () => {
+  it('falls back to a Block the person chose for every website, after the website\'s own decision', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-permissions-test-'))
+    temporaryDirectories.push(directory)
+    let blocked: string[] = ['geolocation', 'local-network']
+    const store = new SitePermissionStore(join(directory, 'site-permissions.json'), () => blocked)
+    await store.load()
+    expect(store.effectiveDecisionFor(widget, 'geolocation', WORK)).toBe('deny')
+    expect(store.effectiveDecisionFor(widget, 'geolocation', WORK, firstSite)).toBe('deny')
+    expect(store.effectiveDecisionFor(widget, 'notifications', WORK)).toBeUndefined()
+    // Chromium's older local network request covered local network devices and apps on this device.
+    expect(store.isBlockedByDefault('local-network-access')).toBe(true)
+    expect(store.isBlockedByDefault('geolocation-approximate')).toBe(true)
+    expect(store.isBlockedByDefault('deprecated-sync-clipboard-read')).toBe(false)
+    blocked = ['loopback-network', 'clipboard-read']
+    expect(store.isBlockedByDefault('local-network-access')).toBe(true)
+    expect(store.isBlockedByDefault('local-network')).toBe(false)
+    expect(store.isBlockedByDefault('deprecated-sync-clipboard-read')).toBe(true)
+    expect(store.isBlockedByDefault('geolocation-approximate')).toBe(false)
+    expect(store.isBlockedByDefault('constructor')).toBe(false)
+    blocked = ['geolocation', 'local-network']
+    await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
+    expect(store.effectiveDecisionFor(widget, 'geolocation', WORK)).toBe('allow')
+    expect(store.effectiveDecisionFor(widget, 'geolocation', CLIENT)).toBe('deny')
+    // The default is read on every lookup and never saved as a decision.
+    blocked = []
+    expect(store.effectiveDecisionFor(widget, 'geolocation', CLIENT)).toBeUndefined()
+    expect(store.list()).toEqual([{ origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK }])
+    expect(new SitePermissionStore(join(directory, 'other.json')).isBlockedByDefault('geolocation')).toBe(false)
+  })
+
+  it('keeps the camera and the microphone apart', async () => {
+    // Camera and microphone asked on every call and were never saved; as in Chrome, each now has its own decision.
+    const { store } = await createStore()
+    await store.set(widget, 'camera', 'allow', { workspaceId: WORK })
+    await store.set(widget, 'microphone', 'deny', { workspaceId: WORK })
+    expect([store.decisionFor(widget, 'camera', WORK), store.decisionFor(widget, 'microphone', WORK)]).toEqual(['allow', 'deny'])
+    expect(store.list().map((entry) => entry.permission).sort()).toEqual(['camera', 'microphone'])
+  })
+
+  it('drops a decision without a workspace, with a malformed scope, or for a permission it never saves', async () => {
     const { path, store } = await createStore()
     await mkdir(dirname(path), { recursive: true })
     const valid = [
+      { origin: widget, permission: 'camera', decision: 'allow', workspaceId: WORK },
       { origin: widget, permission: 'geolocation', decision: 'allow', workspaceId: WORK },
       { origin: widget, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: firstSite }
     ]
@@ -210,9 +252,13 @@ describe('SitePermissionStore', () => {
         { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: `${firstSite}/page` },
         { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: 'file:///tmp/page.html' },
         { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, tabUrl: `${firstSite}/page` },
+        // An embedded website never asks to show notifications, so no decision is kept for one.
+        { origin: widget, permission: 'notifications', decision: 'allow', workspaceId: WORK, embeddedIn: firstSite },
         { origin: widget, permission: 'media', decision: 'allow', workspaceId: WORK },
         { origin: widget, permission: 'fileSystem', decision: 'allow', workspaceId: WORK },
-        { origin: widget, permission: 'openExternal', decision: 'allow', workspaceId: WORK }
+        { origin: widget, permission: 'openExternal', decision: 'allow', workspaceId: WORK },
+        { origin: widget, permission: 'fullscreen', decision: 'deny', workspaceId: WORK },
+        { origin: widget, permission: 'top-level-storage-access', decision: 'allow', workspaceId: WORK }
       ]
     }), 'utf8')
     expect(await store.load()).toEqual(valid)
@@ -223,7 +269,7 @@ describe('SitePermissionStore', () => {
     const { path, store } = await createStore()
     await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
     await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
-    await store.set(widget, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
+    await store.set(widget, 'clipboard-read', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
     // A change that arrives after the workspace went, such as a late answer, is not kept.
     const late = expect(store.set(widget, 'camera', 'allow', { workspaceId: CLIENT })).rejects.toThrow('removed')
     expect(await store.removeWorkspace(CLIENT)).toBe(2)
@@ -244,7 +290,7 @@ describe('SitePermissionStore', () => {
     const added = '01912345-678b-7abc-8def-0123456789ab'
     await store.set(widget, 'geolocation', 'allow', { workspaceId: WORK })
     await store.set(widget, 'geolocation', 'deny', { workspaceId: CLIENT })
-    await store.set(widget, 'notifications', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
+    await store.set(widget, 'clipboard-read', 'allow', { workspaceId: CLIENT, embeddedIn: firstSite })
     expect(await store.retainWorkspaces(() => null)).toBe(0)
     expect(store.list()).toHaveLength(3)
 

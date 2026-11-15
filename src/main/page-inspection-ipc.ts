@@ -1,5 +1,6 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
+import type { Browser } from './browser/browser.js'
 import { sanitizeConsoleMessages } from '../shared/debug-report.js'
 import type {
   BrowserElementInspectionOptions,
@@ -8,18 +9,26 @@ import type {
   BrowserNetworkSearchOptions,
   BrowserPageCaptureOptions
 } from '../shared/types.js'
-
-type PageInspectionIpcTabs = Pick<BrowserTabsManager,
-  | 'manageStorage' | 'inspectStorageUsage' | 'storageChanges' | 'inspectIndexedDb' | 'pwaLifecycle' | 'inspectPwa'
-  | 'snapshotDetails' | 'pickElement' | 'captureElementScreenshot' | 'screenshot' | 'elementInspection'
-  | 'cancelElementPicker' | 'consoleMessages' | 'networkRequests' | 'networkRequestDetails' | 'replayNetworkRequest'
-  | 'networkSearch' | 'networkHar' | 'saveNetworkHar' | 'captureScreenshotArea' | 'cancelScreenshotArea'>
+import { captureElementScreenshot, pickElement, cancelElementPicker } from './browser/element-picker/element-picker.js'
+import { captureScreenshotArea, cancelScreenshotArea } from './browser/screenshot-area/screenshot-area.js'
+import { consoleMessages } from './browser/console-messages/console-messages.js'
+import { networkHar, networkRequestDetails, networkRequests, networkSearch, replayNetworkRequest, saveNetworkHar } from './browser/network-inspection/network-inspection.js'
+import { personExportFile } from './browser/person-export/person-export-file.js'
+import { inspectPwa } from './browser/pwa-inspection/pwa-inspection.js'
+import { manageStorage } from './browser/site-storage/manage-storage.js'
+import { storageChanges } from './browser/site-storage/storage-changes.js'
+import { inspectIndexedDb, inspectStorageUsage } from './browser/site-storage/storage-inspection.js'
+import { elementInspection } from './browser/element-inspection/element-inspection.js'
+import { snapshotDetails } from './browser/page-snapshots/page-snapshots.js'
+import { screenshot } from './browser/screenshots/screenshots.js'
+import { pwaLifecycle } from './browser/pwa-inspection/browser-pwa-lifecycle.js'
+import { PAGE_INSPECTION_IPC } from '../shared/ipc/page-inspection.js'
 
 interface PageInspectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
-  tabs(): PageInspectionIpcTabs | null
+  handleBrowserIpc: TypedIpcMain['handle']
+  tabs(): Browser | null
   /** Writes text to the system clipboard after earlier clipboard writes, verifying it arrived. */
   copyTextToClipboard(text: string): Promise<void>
   /** Writes a PNG image to the system clipboard after earlier clipboard writes; resolves to its size. */
@@ -28,7 +37,7 @@ interface PageInspectionIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
-  host.handleBrowserIpc('browser:manage-storage', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.manageStorage, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'object' || value === null) throw new TypeError('Invalid site storage request')
     const { tabId, kind, action, key, value: storageValue, includeValues, cookieDomain, cookiePath } = value as Record<string, unknown>
@@ -42,14 +51,14 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (cookieDomain !== undefined && typeof cookieDomain !== 'string')
       || (cookiePath !== undefined && typeof cookiePath !== 'string')
     ) throw new TypeError('Invalid site storage request')
-    return host.tabs()!.manageStorage({ tabId, kind, action, key, value: storageValue, includeValues, cookieDomain, cookiePath })
+    return manageStorage(host.tabs()!, { tabId, kind, action, key, value: storageValue, includeValues, cookieDomain, cookiePath })
   })
-  host.handleBrowserIpc('browser:storage-usage', (event, tabId: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.storageUsage, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid storage usage request')
-    return host.tabs()!.inspectStorageUsage(tabId as string | undefined)
+    return inspectStorageUsage(host.tabs()!, tabId as string | undefined)
   })
-  host.handleBrowserIpc('browser:storage-changes', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.storageChanges, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid storage changes request')
     const { tabId, action, includeValues } = value as Record<string, unknown>
@@ -58,9 +67,9 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (action !== undefined && action !== 'get' && action !== 'baseline' && action !== 'compare' && action !== 'clear')
       || (includeValues !== undefined && typeof includeValues !== 'boolean')
     ) throw new TypeError('Invalid storage changes request')
-    return host.tabs()!.storageChanges(action, tabId as string | undefined, includeValues === true)
+    return storageChanges(host.tabs()!, action, tabId as string | undefined, includeValues === true)
   })
-  host.handleBrowserIpc('browser:indexeddb', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.indexedDb, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid IndexedDB request')
     const { tabId, database, objectStore, offset, limit, includeValues } = value as Record<string, unknown>
@@ -72,7 +81,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (limit !== undefined && (typeof limit !== 'number' || !Number.isFinite(limit)))
       || (includeValues !== undefined && typeof includeValues !== 'boolean')
     ) throw new TypeError('Invalid IndexedDB request')
-    return host.tabs()!.inspectIndexedDb({
+    return inspectIndexedDb(host.tabs()!, {
       tabId: tabId as string | undefined,
       database: database as string | undefined,
       objectStore: objectStore as string | undefined,
@@ -81,16 +90,16 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       includeValues: includeValues === true
     })
   })
-  host.handleBrowserIpc('browser:pwa-lifecycle', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.pwaLifecycle, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid lifecycle request')
     const { tabId, captureId, action } = value as Record<string, unknown>
     if ((tabId !== undefined && typeof tabId !== 'string') || (captureId !== undefined && typeof captureId !== 'string')
       || !['start', 'get', 'stop', 'clear'].includes(String(action))) throw new TypeError('Invalid lifecycle request')
-    return host.tabs()!.pwaLifecycle({ tabId: tabId as string | undefined, captureId: captureId as string | undefined,
+    return pwaLifecycle(host.tabs()!, { tabId: tabId as string | undefined, captureId: captureId as string | undefined,
       action: action as 'start' | 'get' | 'stop' | 'clear' })
   })
-  host.handleBrowserIpc('browser:pwa', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.pwa, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid offline app request')
     const { tabId, cacheName, query, offset, limit, includeHeaders } = value as Record<string, unknown>
@@ -102,7 +111,7 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       || (limit !== undefined && (typeof limit !== 'number' || !Number.isFinite(limit)))
       || (includeHeaders !== undefined && typeof includeHeaders !== 'boolean')
     ) throw new TypeError('Invalid offline app request')
-    return host.tabs()!.inspectPwa({
+    return inspectPwa(host.tabs()!, {
       tabId: tabId as string | undefined,
       cacheName: cacheName as string | undefined,
       query: query as string | undefined,
@@ -111,29 +120,31 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       includeHeaders: includeHeaders === true
     })
   })
-  host.handleBrowserIpc('browser:copy-snapshot', async (event, tabId: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.copySnapshot, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid snapshot tab ID')
     const maxChars = 30_000
-    const snapshot = await host.tabs()!.snapshotDetails(tabId, maxChars)
+    const snapshot = await snapshotDetails(host.tabs()!, tabId, maxChars)
     await host.copyTextToClipboard(snapshot.text)
     return { copied: true, characters: snapshot.returnedChars, truncated: snapshot.truncated }
   })
-  host.handleBrowserIpc('browser:pick-element', async (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.pickElement, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
-    const result = await host.tabs()!.pickElement(tabId)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    const result = await pickElement(host.tabs()!, tabId)
     if (result.canceled || !result.content) return { canceled: true, copied: false }
     await host.copyTextToClipboard(result.content)
     return { canceled: false, copied: true }
   })
-  host.handleBrowserIpc('browser:capture-element', async (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureElement, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
-    const screenshot = await host.tabs()!.captureElementScreenshot(tabId)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    const screenshot = await captureElementScreenshot(host.tabs()!, tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await host.copyPngToClipboard(screenshot.data)
     return { canceled: false, copied: true, width: size.width, height: size.height }
   })
-  host.handleBrowserIpc('browser:capture-page', async (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.capturePage, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid page capture options')
     const { tabId, fullPage } = value as Record<string, unknown>
@@ -147,11 +158,11 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
       ...(tabId !== undefined ? { tabId } : {}),
       ...(fullPage !== undefined ? { fullPage } : {})
     }
-    const screenshot = await host.tabs()!.screenshot(options)
-    const size = await host.copyPngToClipboard(screenshot.data)
+    const captured = await screenshot(host.tabs()!, options)
+    const size = await host.copyPngToClipboard(captured.data)
     return { copied: true, width: size.width, height: size.height }
   })
-  host.handleBrowserIpc('browser:element-inspection', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.inspectElement, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid element inspection options')
     const { tabId, ref, selector } = value as Record<string, unknown>
@@ -162,31 +173,32 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid element inspection options')
     }
-    return host.tabs()!.elementInspection(value as BrowserElementInspectionOptions)
+    return elementInspection(host.tabs()!, value as BrowserElementInspectionOptions)
   })
-  host.handleBrowserIpc('browser:cancel-element-picker', (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.cancelElementPicker, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
-    return host.tabs()!.cancelElementPicker(tabId)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    return cancelElementPicker(host.tabs()!, tabId)
   })
-  host.handleBrowserIpc('browser:console', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.consoleMessages, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid console options')
     const { tabId, clear } = value as Record<string, unknown>
     if ((tabId !== undefined && typeof tabId !== 'string') || (clear !== undefined && typeof clear !== 'boolean')) {
       throw new TypeError('Invalid console options')
     }
-    return sanitizeConsoleMessages(host.tabs()!.consoleMessages(tabId as string | undefined, clear === true))
+    return sanitizeConsoleMessages(consoleMessages(host.tabs()!, tabId as string | undefined, clear === true))
   })
-  host.handleBrowserIpc('browser:network', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.networkRequests, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network options')
     const { tabId, clear } = value as Record<string, unknown>
     if ((tabId !== undefined && typeof tabId !== 'string') || (clear !== undefined && typeof clear !== 'boolean')) {
       throw new TypeError('Invalid network options')
     }
-    return host.tabs()!.networkRequests(tabId as string | undefined, clear === true)
+    return networkRequests(host.tabs()!, tabId as string | undefined, clear === true)
   })
-  host.handleBrowserIpc('browser:network-request', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.networkRequestDetails, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network request options')
     const { tabId, requestId, maxChars } = value as Record<string, unknown>
@@ -198,9 +210,9 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network request options')
     }
-    return host.tabs()!.networkRequestDetails(tabId, requestId, maxChars as number | undefined)
+    return networkRequestDetails(host.tabs()!, tabId, requestId, maxChars as number | undefined)
   })
-  host.handleBrowserIpc('browser:network-replay', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.replayNetworkRequest, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network replay options')
     const { tabId, requestId, confirmSideEffects } = value as Record<string, unknown>
@@ -212,9 +224,9 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network replay options')
     }
-    return host.tabs()!.replayNetworkRequest(tabId, requestId, confirmSideEffects === true)
+    return replayNetworkRequest(host.tabs()!, tabId, requestId, confirmSideEffects === true)
   })
-  host.handleBrowserIpc('browser:network-search', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.searchNetwork, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network search options')
     const { tabId, query, caseSensitive, maxResults, maxRequests, maxBodyChars } = value as Record<string, unknown>
@@ -228,9 +240,9 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network search options')
     }
-    return host.tabs()!.networkSearch(value as BrowserNetworkSearchOptions)
+    return networkSearch(host.tabs()!, value as BrowserNetworkSearchOptions)
   })
-  host.handleBrowserIpc('browser:network-har', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.networkHar, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network HAR options')
     const { tabId, query, resourceType, errorsOnly, includeBodies, maxRequests, maxBodyChars } = value as Record<string, unknown>
@@ -245,9 +257,9 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network HAR options')
     }
-    return host.tabs()!.networkHar(value as BrowserNetworkHarOptions)
+    return networkHar(host.tabs()!, value as BrowserNetworkHarOptions)
   })
-  host.handleBrowserIpc('browser:save-network-har', (event, value: unknown) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.saveNetworkHar, (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network HAR save options')
     const { tabId, query, resourceType, errorsOnly, includeBodies, maxRequests, maxBodyChars, filename } = value as Record<string, unknown>
@@ -263,17 +275,20 @@ export function registerPageInspectionIpc(host: PageInspectionIpcHost): void {
     ) {
       throw new TypeError('Invalid network HAR save options')
     }
-    return host.tabs()!.saveNetworkHar(value as BrowserNetworkHarSaveOptions)
+    const browser = host.tabs()!
+    return saveNetworkHar(browser, value as BrowserNetworkHarSaveOptions, personExportFile(browser, event.sender))
   })
-  host.handleBrowserIpc('browser:capture-area', async (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.captureArea, async (event, tabId: unknown) => {
     host.assertTrustedSender(event)
-    const screenshot = await host.tabs()!.captureScreenshotArea(tabId)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    const screenshot = await captureScreenshotArea(host.tabs()!, tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await host.copyPngToClipboard(screenshot.data)
     return { canceled: false, copied: true, width: size.width, height: size.height }
   })
-  host.handleBrowserIpc('browser:cancel-area-capture', (event, tabId) => {
+  host.handleBrowserIpc(PAGE_INSPECTION_IPC.cancelAreaCapture, (event, tabId: unknown) => {
     host.assertTrustedSender(event)
-    return host.tabs()!.cancelScreenshotArea(tabId)
+    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    return cancelScreenshotArea(host.tabs()!, tabId)
   })
 }

@@ -101,15 +101,22 @@ test('saves the viewport as a PNG in downloads and returns only where it went', 
     expect((await readdir(profileDirectory)).filter(name => name.endsWith('.png')).sort()).toEqual(before)
     expect((await readdir(dirname(profileDirectory))).some(name => name === 'escape.png')).toBe(false)
 
-    // A navigation while the capture is pending rejects the export and leaves no file.
+    // A navigation while the capture is pending rejects the export and leaves no file. Every capture of the page waits
+    // until the navigation, not only the first one: an agent step's thumbnail can capture the page before the save does,
+    // and the save then captured at once and succeeded.
     await electronApp.evaluate(({ webContents }, prefix) => {
       const page = webContents.getAllWebContents().find(candidate => candidate.getURL().startsWith(prefix))!
       const original = page.capturePage.bind(page)
       const scope = globalThis as typeof globalThis & { releaseCapture?: () => void; captureHeld?: boolean }
+      const released = new Promise<void>(resolve => {
+        scope.releaseCapture = () => {
+          page.capturePage = original
+          resolve()
+        }
+      })
       page.capturePage = (async (...args: Parameters<typeof page.capturePage>) => {
-        page.capturePage = original
         scope.captureHeld = true
-        await new Promise<void>(resolve => { scope.releaseCapture = resolve })
+        await released
         return original(...args)
       }) as typeof page.capturePage
     }, origin)

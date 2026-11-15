@@ -19,6 +19,7 @@ input_hash="$(hash_files \
   src \
   build \
   electron.vite.config.ts \
+  scripts/vue-monotonic-event-time.ts \
   package.json \
   package-lock.json \
   tsconfig.json \

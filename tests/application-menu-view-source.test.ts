@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; type?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
+vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
+
+// The menu opens the source with the browser; that runs on the fake browser's stub.
+vi.mock('../src/main/browser/page-source/page-source.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-source/page-source.js')>(),
+  viewShownPageSource: (browser: { viewShownPageSource: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.viewShownPageSource(...args)
+}))
 
 // Hronaut had no View Page Source: Ctrl+U and Cmd+Option+U did nothing and no menu offered it.
 
@@ -19,6 +25,7 @@ function viewMenu(on: NodeJS.Platform) {
     text: (key) => key, showWindow, mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
     runNativeBrowserAction: (action, callback) => { actions.push(action); void callback() },
     runShortcut: vi.fn(),
+    runPageNextPane: vi.fn(),
     tabs: () => tabs as never
   }).installApplicationMenu()
   const view = installed.template.find((menu) => menu.label === 'native.menu.view')!.submenu!
@@ -45,10 +52,10 @@ describe('View Page Source in the View menu', () => {
 
   it('opens it for its key only from the main window', () => {
     const { tabs, mainWindow, showWindow, source } = viewMenu('darwin')
-    source.click!(source, { id: 2 }, { triggeredByAccelerator: true })
-    source.click!(source, undefined, { triggeredByAccelerator: true })
+    source.click!(source, { id: 2 }, { triggeredByAccelerator: true, metaKey: true, altKey: true })
+    source.click!(source, undefined, { triggeredByAccelerator: true, metaKey: true, altKey: true })
     expect(tabs.viewShownPageSource).not.toHaveBeenCalled()
-    source.click!(source, mainWindow, { triggeredByAccelerator: true })
+    source.click!(source, mainWindow, { triggeredByAccelerator: true, metaKey: true, altKey: true })
     expect(tabs.viewShownPageSource).toHaveBeenCalledOnce()
     // The key comes from the main window, which is already in view.
     expect(showWindow).not.toHaveBeenCalled()

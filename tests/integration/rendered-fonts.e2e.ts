@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserElementInspection, HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
-import { closeFixtureServer } from './fixtures.js'
+import { closeFixtureServer, pageAt } from './fixtures.js'
 
 test('inspects opted-in rendered fonts with bounded scope and preserves page and debugger owners', async ({ capabilities, electronApp, appWindow }, testInfo) => {
   const fonts = await Promise.all(['A', 'B'].map(name => readFile(`tests/fixtures/fonts/fixture-${name}.ttf`)))
@@ -25,8 +25,7 @@ test('inspects opted-in rendered fonts with bounded scope and preserves page and
   const inspect = (selector: string, args: Record<string, unknown> = {}) => call('browser_element_inspect', { selector, includeFonts: true, ...args }) as Promise<BrowserElementInspection>
   try {
     await call('browser_navigate', { url })
-    await expect.poll(() => electronApp.context().pages().some(p => p.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(p => p.url() === url)!
+    const page = await pageAt(electronApp, url)
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
     await page.locator('#focus').focus()
     const state = () => page.evaluate(() => ({ html: document.documentElement.outerHTML, focus: document.activeElement?.id, scrollX, scrollY, family: getComputedStyle(document.querySelector('#single')!).fontFamily }))

@@ -20,6 +20,11 @@ test('switches language live through Settings and persists it across restart', a
   await expect(appWindow.getByRole('heading', { name: 'Загальні' })).toBeVisible()
   await expect(appWindow.getByRole('button', { name: 'Налаштування', exact: true })).toHaveAttribute('aria-pressed', 'true')
   expect(await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.map((item) => item.label))).toContain('Редагування')
+  // The Edit menu's own items too, which Electron names only in English; macOS's also pastes as plain text and deletes.
+  const macEditItems = process.platform === 'darwin' ? ['Вставити у стилі призначення', 'Видалити'] : []
+  const editItems = await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.find((item) => item.label === 'Редагування')?.submenu?.items
+    .filter((item) => item.role).map((item) => item.label))
+  expect(editItems).toEqual(['Скасувати', 'Повторити', 'Вирізати', 'Копіювати', 'Вставити', ...macEditItems, 'Вибрати все'])
 
   const detachedPromise = electronApp.waitForEvent('window')
   await appWindow.evaluate("window.hronautPanelWindow.open('console')")
@@ -31,7 +36,7 @@ test('switches language live through Settings and persists it across restart', a
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).languagePreference).toBe('uk-UA')
 
   await closeHronaut(electronApp)
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect(restarted.window.locator('html')).toHaveAttribute('lang', 'uk-UA')
     await restarted.window.getByRole('button', { name: 'Налаштування' }).click()
@@ -81,19 +86,29 @@ test('keeps a committed language change authoritative when the Home refresh fail
   await expect(appWindow.getByRole('alert')).toHaveCount(0)
 })
 
-test('supports Russian and the additional European language choices', async ({ appWindow }, testInfo) => {
+test('supports Russian and the additional language choices', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.locator('.settings-nav-item').nth(0).click()
   await appWindow.setViewportSize({ width: 760, height: 640 })
   const selector = appWindow.locator('#setting-language')
-  await expect(selector.locator('option')).toHaveCount(8)
+  await expect(selector.locator('option')).toHaveCount(18)
 
   const additionalHeadings = {
     'ru-RU': 'Настройки',
     'de-DE': 'Einstellungen',
     'fr-FR': 'Paramètres',
     'es-ES': 'Configuración',
-    'pl-PL': 'Ustawienia'
+    'pl-PL': 'Ustawienia',
+    'it-IT': 'Impostazioni',
+    'pt-BR': 'Configurações',
+    'tr-TR': 'Ayarlar',
+    'hi-IN': 'सेटिंग',
+    'ja-JP': '設定',
+    'ko-KR': '설정',
+    'zh-CN': '设置',
+    'zh-TW': '設定',
+    'id-ID': 'Setelan',
+    'vi-VN': 'Cài đặt'
   } as const
   for (const [locale, heading] of Object.entries(additionalHeadings)) {
     await selector.selectOption(locale)

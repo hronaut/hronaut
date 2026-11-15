@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 interface DependabotGroup {
-  'dependency-type'?: string
   patterns?: string[]
   'update-types'?: string[]
 }
@@ -20,6 +19,7 @@ interface DependabotUpdate {
   }
   'open-pull-requests-limit'?: number
   ignore?: Array<{ 'dependency-name': string; versions?: string[] }>
+  allow?: Array<{ 'dependency-name': string }>
   groups?: Record<string, DependabotGroup>
   patterns?: string[]
   'multi-ecosystem-group'?: string
@@ -44,8 +44,8 @@ describe('Dependabot configuration', () => {
 
   it('checks every dependency ecosystem weekly with a ten-PR queue', () => {
     expect(config.version).toBe(2)
+    // One entry per ecosystem, so the Dependabot tab lists package.json once.
     expect(config.updates.map((update) => update['package-ecosystem'])).toEqual([
-      'npm',
       'npm',
       'docker',
       'github-actions'
@@ -68,55 +68,66 @@ describe('Dependabot configuration', () => {
       })
     }
 
-    expect(config['multi-ecosystem-groups'].playwright).toEqual({
-      'open-pull-requests-limit': 10,
-      schedule: {
-        interval: 'weekly',
-        day: 'monday',
-        time: '06:15',
-        timezone: 'Europe/Kyiv'
+    expect(config['multi-ecosystem-groups']).toEqual({
+      dependencies: {
+        'open-pull-requests-limit': 10,
+        schedule: {
+          interval: 'weekly',
+          day: 'monday',
+          time: '06:00',
+          timezone: 'Europe/Kyiv'
+        }
       }
     })
   })
 
-  it('groups compatible updates and keeps coupled Playwright versions together', () => {
-    const npm = config.updates[0]
-    expect(npm?.groups).toEqual({
-      'production-minor-patch': {
-        'dependency-type': 'production',
-        patterns: ['*'],
-        'update-types': ['minor', 'patch']
-      },
-      'development-minor-patch': {
-        'dependency-type': 'development',
-        patterns: ['*'],
-        'update-types': ['minor', 'patch']
-      }
-    })
-    expect(npm?.ignore).toEqual([
-      { 'dependency-name': '@playwright/test' },
-      { 'dependency-name': 'typescript', versions: ['7.x'] },
-      { 'dependency-name': 'electron', versions: ['44.4.x'] }
-    ])
-
-    expect(config.updates.slice(1, 3)).toMatchObject([
+  it('updates every npm package with the Playwright Docker image in one pull request', () => {
+    // Playwright and its Docker image move together, since tests/docker-playwright-version.test.ts keeps them equal.
+    // Without an allow list, the Docker entry would open a pull request of its own for every other image it finds.
+    expect(config.updates.slice(0, 2)).toEqual([
       {
         'package-ecosystem': 'npm',
-        patterns: ['@playwright/test'],
-        'multi-ecosystem-group': 'playwright'
+        directory: '/',
+        patterns: ['*'],
+        'multi-ecosystem-group': 'dependencies',
+        ignore: [{ 'dependency-name': 'typescript', versions: ['7.x'] }]
       },
       {
         'package-ecosystem': 'docker',
-        patterns: ['mcr.microsoft.com/playwright'],
-        'multi-ecosystem-group': 'playwright'
+        directory: '/',
+        allow: [{ 'dependency-name': 'playwright' }],
+        patterns: ['playwright'],
+        'multi-ecosystem-group': 'dependencies'
       }
     ])
 
-    expect(config.updates[3]?.groups).toEqual({
-      'actions-minor-patch': {
-        patterns: ['*'],
-        'update-types': ['minor', 'patch']
+    expect(config.updates[2]?.groups).toEqual({
+      actions: {
+        patterns: ['*']
       }
     })
+  })
+
+  it('names each Dockerfile.test image the way Dependabot reads it', () => {
+    // Dependabot names an image without its registry, so FROM mcr.microsoft.com/playwright:v1.65.0-noble is "playwright".
+    // An allow list or pattern that keeps the registry matches nothing, and the image is never updated.
+    const dockerfile = fs.readFileSync(path.join(process.cwd(), 'Dockerfile.test'), 'utf8')
+    const images = new Set(
+      [...dockerfile.matchAll(/^FROM\s+(\S+)/gm)]
+        .map((match) => match[1] ?? '')
+        .filter((reference) => reference.includes(':'))
+        .map((reference) => {
+          const repository = reference.slice(0, reference.lastIndexOf(':'))
+          const [registry = '', ...image] = repository.split('/')
+          return image.length > 0 && registry.includes('.') ? image.join('/') : repository
+        })
+    )
+    expect([...images]).toEqual(['playwright'])
+
+    const docker = config.updates.find((update) => update['package-ecosystem'] === 'docker')
+    for (const image of images) {
+      expect(docker?.allow).toContainEqual({ 'dependency-name': image })
+      expect(docker?.patterns).toContain(image)
+    }
   })
 })

@@ -46,6 +46,7 @@ describe('shell feedback controller', () => {
 
     controller.reportActionError(new Error("Error invoking remote method 'browser:reload': Error: Renderer disappeared"))
     controller.reportStartupFailure([])
+    controller.reportStartupRecovered()
 
     expect(showToast).toHaveBeenNthCalledWith(
       1,
@@ -58,6 +59,12 @@ describe('shell feedback controller', () => {
       'error',
       'translated:runtime.toast.startupIncomplete',
       'translated:runtime.toast.startupIncompleteDescription'
+    )
+    expect(showToast).toHaveBeenNthCalledWith(
+      3,
+      'success',
+      'translated:runtime.toast.startupRecovered',
+      'translated:runtime.toast.startupRecoveredDescription'
     )
   })
 

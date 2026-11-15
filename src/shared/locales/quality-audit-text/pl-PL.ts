@@ -1,0 +1,82 @@
+export const plPLQualityAuditText = {
+  categories: {
+    accessibility: 'Dostępność',
+    performance: 'Wydajność',
+    metadata: 'Metadane i SEO',
+    security: 'Bezpieczeństwo',
+    pwa: 'PWA i tryb offline',
+    'browser-issues': 'Problemy Chromium'
+  },
+  statuses: {
+    pass: 'zaliczono',
+    info: 'informacja',
+    warning: 'ostrzeżenie',
+    error: 'błąd',
+    'not-applicable': 'nie dotyczy'
+  },
+  severities: {
+    error: 'błąd',
+    warning: 'ostrzeżenie',
+    info: 'informacja'
+  },
+  fixed: {
+    accessibilityClear: 'Nie wykryto automatycznie naruszeń WCAG AA',
+    performanceNone: 'Podczas tej wizyty nie zaobserwowano wskaźników Web Vitals',
+    metadataClear: 'Nie znaleziono problemów z metadanymi',
+    securitySecure: 'Bezpieczny transport dokumentu głównego',
+    pwaNone: 'Nie wykryto PWA ani aplikacji offline',
+    browserIssuesClear: 'Brak zachowanych problemów Chromium',
+    webVitalsNotObserved: 'Podczas bieżącej wizyty nie zaobserwowano wskaźników Web Vitals; odśwież stronę i skorzystaj z niej przed ponownym uruchomieniem audytu.',
+    insecureTransport: 'Dokument główny nie korzysta ze sprawnego bezpiecznego transportu.',
+    certificateExpired: 'Certyfikat dokumentu głównego wygasł.',
+    certificateNotYetValid: 'Certyfikat dokumentu głównego nie jest jeszcze ważny.',
+    certificateInvalid: 'Certyfikat dokumentu głównego jest obecnie nieważny.',
+    pwaInspectionPartial: 'Część diagnostyki PWA była niedostępna w tym audycie.'
+  },
+  caveats: {
+    localDiagnostic: 'To ograniczona lokalna diagnostyka zebrana z danych Hronaut; nie jest to wynik Lighthouse ani certyfikacja.',
+    accessibilityAutomation: 'Automatyczne testy dostępności nie zastępują testów z klawiaturą, czytnikiem ekranu, powiększeniem i animacjami ani testów użyteczności z udziałem ludzi.',
+    performanceVisit: 'Wydajność odzwierciedla bieżącą lokalną wizytę i środowisko; powtórz ważne pomiary w reprezentatywnych warunkach.',
+    pwaOptional: 'PWA nie jest traktowana jako wymóg dla witryn, które nie oferują aplikacji offline.',
+    reloadIssues: 'Odśwież stronę przed odtworzeniem problemów Chromium występujących tylko przy uruchamianiu, a następnie ponownie uruchom ten audyt.'
+  },
+  text: {
+    violations: '{count} naruszenie | {count} naruszenia | {count} naruszeń',
+    violationNodes: '{count} dotkniętym węźle | {count} dotkniętych węzłach | {count} dotkniętych węzłach',
+    accessibilityViolations: '{violations} w {nodes}',
+    affectedNodes: '{count} dotknięty węzeł | {count} dotknięte węzły | {count} dotkniętych węzłów',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: 'Zaliczone reguły: {count}',
+    checksNeedReview: 'Testy do przejrzenia: {count}',
+    needsHumanReview: 'Testy dostępności wymagające sprawdzenia przez człowieka: {count}.',
+    performanceGood: 'Dobre wskaźniki Web Vitals: {good} z {total}',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: 'Ocena {name}: {rating} ({value}).',
+    resources: 'Zasoby: {count}',
+    longTasks: 'Długie zadania: {count}',
+    metadataIssues: 'Problemy z metadanymi: {count}',
+    language: 'Język: {language}',
+    languageMissing: 'Język: brak',
+    canonicalUrls: 'Kanoniczne adresy URL: {count}',
+    structuredData: 'Dane strukturalne: prawidłowe {valid} · nieprawidłowe {invalid}',
+    securityState: 'Bezpieczeństwo połączenia: {state}',
+    securityStateFinding: 'Chromium zgłosił, że połączenie dokumentu głównego jest „{state}”.',
+    transportSecure: 'Transport: bezpieczny',
+    transportInsecure: 'Transport: niezabezpieczony',
+    protocol: 'Protokół: {protocol}',
+    protocolUnavailable: 'Protokół: niedostępny',
+    certificateValid: 'Certyfikat: ważny',
+    certificateInvalid: 'Certyfikat: nieważny',
+    certificateUnavailable: 'Certyfikat: niedostępny',
+    registrations: 'Rejestracje service workerów: {count}',
+    caches: 'Pamięci podręczne: {count}',
+    manifestPresent: 'Manifest: obecny',
+    manifestMissing: 'Manifest: nie wykryto',
+    controlledYes: 'Kontrolowana przez service workera: tak',
+    controlledNo: 'Kontrolowana przez service workera: nie',
+    installabilityIssues: 'Problemy z instalowalnością: {count}',
+    installabilityFinding: 'Chromium zgłosił problem z instalowalnością PWA: {issue}.',
+    installabilityUnknown: 'Chromium zgłosił nieznany problem z instalowalnością PWA.',
+    browserIssues: 'Problemy wygenerowane przez przeglądarkę: {count}'
+  }
+}

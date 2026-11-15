@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import type { Debugger } from 'electron'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 type ProbeState = {
   debugger: Debugger
@@ -43,8 +43,7 @@ test('discovers Electron logpoint side effects and coverage domain ownership', a
   try {
     const initial = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = initial.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect.poll(() => page.evaluate('typeof compute')).toBe('function')
     const coverage = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageCodeCoverage({ tabId, action: 'start', reload: false }), tabId)
     expect(coverage.status).toBe('recording')

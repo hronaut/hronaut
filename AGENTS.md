@@ -1,8 +1,10 @@
 # Hronaut contributor instructions
 
-Hronaut is a visible, persistent Electron browser controlled through a local
-Streamable HTTP MCP server. Keep the browser useful to both its human operator
-and connected coding agents. Read `README.md` for the product overview and
+Hronaut is a visible desktop browser for coding agents, with a separate
+workspace for each project. Your everyday Chrome stays out of it, and you can
+pause and take over at any time. Agents control it through a local Streamable
+HTTP MCP server. Keep the browser useful to both its human operator and
+connected coding agents. Read `README.md` for the product overview and
 `REFERENCE.md` for detailed behavior and operational contracts.
 
 ## Runtime boundaries
@@ -33,14 +35,21 @@ tab access.
 ## Making changes
 
 - Use TypeScript and follow the existing ESM import style.
+- UI strings go in every language under `src/shared/locales/`. Run
+  `npm run format:locales` after editing them: it keeps one key per line, in
+  the order en-US has them, and the tests fail on a file it would change.
+  When you add or change an English string, translate it in every language,
+  then run `npm run locales:mark-translated`: `english-sources.json` records
+  the English text each key was translated from, and the tests fail when
+  English changed without it.
 - Prefer a self-contained module per feature. A reader should understand one
   feature, or one MCP tool, from its own folder without hopping across shared
   files. Duplicating a few lines is fine; a shared helper that couples
   unrelated features is not. Shared contracts in `src/shared/` stay the one
   source of truth for data crossing a process boundary.
 - Keep functions autonomous and clearly on one layer (main, preload, renderer
-  or shared), and aim for files under about 800 lines. When a file grows past
-  that, split it by feature, not by technical layer.
+  or shared), and keep files within 800 lines. When a file grows past that,
+  split it by feature, not by technical layer.
 - Do not branch on MCP tool names in shared code. Behavior that one tool needs
   belongs in that tool's own module, even if another tool repeats it.
 - Keep `src/renderer/src/App.vue` focused on composition. Move cohesive state
@@ -54,6 +63,43 @@ tab access.
   not expose credentials, form values, complete page source, or private browser
   data unless an existing explicit opt-in contract permits it.
 
+## Architecture rules
+
+These hold for new code and for code you move; `tests/architecture-guards.test.ts`
+checks the first six.
+
+- Files stay within 800 lines, locale files aside. The few larger today, with
+  their budgets in `tests/architecture/budgets.json`, may only shrink: move code
+  out to a feature module rather than growing them, and lower a budget when its
+  file shrinks.
+- TypeScript and Vue lines in `src/` stay within 160 characters, locale files
+  aside. The files that have longer ones, with their counts in the same budgets
+  file, may only lose them: wrap a line you touch, and lower the count.
+- Feature functions import each other directly. Do not add access objects
+  (`*-access.ts` files, or `...Access` interfaces of delegates) or `Browser`
+  methods that only pass a call on; the existing ones go away as features
+  move out of `browser/browser.ts`, and the budgets file lists the files left.
+- Imports only go down the layers: page primitives (debugger use, page
+  evaluation, input authorization, workspace scope) come first, features use
+  them, and workflows (tab sleep, tab close, window layout, workspace archive)
+  use features. No file statically imports, directly or through others, a
+  file that imports it; imports of types only do not count.
+- IPC channels are declared once in `src/shared/ipc/<feature>.ts`, typed with
+  their arguments and result, and main and the preloads use those constants
+  instead of writing channel names out; the architecture guards allow none.
+  Main registers on `TypedIpcMain` and sends events with `sendTo`
+  (`src/main/typed-ipc.ts`), so each answer and event is checked against its
+  channel; arguments from a renderer arrive as `unknown` and are checked first.
+- Code that runs in a page is a typed function in a `<feature>.page.ts` file
+  beside its feature, not a script in a template literal. `pageScript(fn, ...)`
+  (`src/shared/page-script.ts`) sends the function's own source, created in
+  strict code, with its arguments, so a page function imports only types and
+  uses nothing of its module but its parameters; pass a helper in as a function
+  argument.
+- A feature keeps the tab state it owns in one typed field of the tab, as
+  `tab.emulation` does, with its type declared beside the feature, not as
+  loose fields on the tab.
+
 ## Verification
 
 Routine improvement commits may be reviewed, committed, pushed, and merged
@@ -63,12 +109,25 @@ improvement cycles. Respect any required reviews, branch protections, and
 remaining checks; CodeQL continues independently.
 
 Full validation is required at release time. Use the existing version-bump →
-auto-tag → release pipeline: the immutable release tag runs static validation,
-all unit/component tests, the full Docker/Electron and native-dialog gate, and
-platform packaging before publication. A failed release gate blocks publication;
-fix it without overwriting a published tag. The CI workflow is manual-only for
-explicit investigations or release rehearsals, with packaging on `release/`
-branches. Never describe unexecuted checks as passing.
+auto-tag → release pipeline: the immutable release tag gets static validation,
+all unit/component tests, the full Docker/Electron, native-dialog and
+responsiveness gate, and platform packaging before publication. A failed
+release gate blocks publication; fix it without overwriting a published tag.
+The CI workflow is manual-only for explicit investigations or release
+rehearsals, with packaging on `release/` branches. When a rehearsal on a
+`release/` branch passed `npm run validate` (lint, unit/component tests,
+typecheck and the application build) and every Electron shard (including
+native dialogs and the responsiveness gate) on the tag's own tree, the release
+takes those results from it, with a notice linking the rehearsal, instead of
+running them again. The release still audits production dependencies, runs the
+MCPB tests, and builds every platform package. Dispatch the release with
+`full_tests` to run everything. Never describe unexecuted checks as passing.
+
+The responsiveness gate (`tests/integration/responsiveness.perf.ts`) measures
+the app while four agents work and fails when a measurement passes its limit.
+A missed limit is a regression to find before releasing, even when a re-run
+passes. Change a limit only with measurements that show why, and say so in the
+pull request.
 
 Install with Node.js 22 or newer:
 
@@ -117,7 +176,8 @@ Keep both Playwright image pins in `Dockerfile.test` aligned with the resolved
 `tests/docker-playwright-version.test.ts` checks this: a mismatched image can
 pass Electron-only tests while standalone browser launches cannot find a binary.
 
-It builds and runs both the Playwright Electron suite and native-dialog checks
+It builds and runs the Playwright Electron suite, native-dialog checks and the
+responsiveness gate (`tests/integration/responsiveness.perf.ts`, alone, last)
 inside the pinned Docker/Xvfb image. The single test service uses Docker's
 existing bridge network: Electron, MCP, and fixture servers communicate through
 container-local loopback. New project names and dependency cache keys therefore
@@ -130,8 +190,20 @@ dependencies. Dependency contents and install constraints still invalidate that
 cache; the final integration stage copies the original checkout and version.
 Local runs use four workers with separate Xvfb displays
 and one shared test queue after one application build, so a worker that finishes
-a short test can take the next pending case. Hosted CI gives each of eight shards
-an isolated runner with one worker to limit native focus and capture contention. Use
+a short test can take the next pending case. Hosted CI gives each of twelve shards
+an isolated runner with two workers, each on its own Xvfb display.
+Each shard lists the suite and takes its part of a split by the test durations in
+`tests/integration/durations.json` (`scripts/plan-integration-shard.ts`), so the
+shards take about the same time; a test without a recorded duration counts as the
+median one. A shard that cannot list the suite fails instead of splitting it by
+itself; titles a test list cannot name make every shard keep Playwright's split.
+Refresh the file from a CI run's `durations-electron-*` artifacts as
+CONTRIBUTING.md describes.
+When a hosted shard fails because of at most three tests (failed, or passed only
+on a retry), every other test ran, and no error came from outside a test, it
+reruns each of them three times with no retries. If every rerun passes, the
+shard passes with a "Flaky Electron tests" warning and uploads the first
+failures' traces. Fix each flake it names as you would a failing test. Use
 `HRONAUT_INTEGRATION_SHARD_WORKERS` to tune a selected hosted shard. The existing
 `HRONAUT_INTEGRATION_SHARDS` setting controls the local worker count. Set
 `HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.
@@ -176,19 +248,24 @@ through the same warm dependency volume without repeating type analysis:
 npm run test:integration:docker:fast
 ```
 
-This fast full-suite preflight includes native-dialog coverage and supports
-`HRONAUT_INTEGRATION_SHARDS=1` through `8`, but its bind-mounted source is not
-the immutable-image proof supplied by the authoritative Docker gate.
+This fast full-suite preflight includes native-dialog coverage and the
+responsiveness gate, and supports `HRONAUT_INTEGRATION_SHARDS=1` through `8`,
+but its bind-mounted source is not the immutable-image proof supplied by the
+authoritative Docker gate.
 
 ## Releases and adjacent repositories
 
 Document user-visible changes under `CHANGELOG.md`'s Unreleased section. The
 release workflow builds from an immutable `v<package version>` tag and publishes
 only after validation and platform packaging succeed; do not hand-publish local
-artifacts. A version bump also sets the version in
-`plugins/hronaut/.claude-plugin/plugin.json` and
-`extensions/vscode/package.json`, which installed plugins and extensions
-update to; auto-tag refuses to tag a bump that missed one.
+artifacts. The Claude Code plugin and the VS Code extension live in their own
+repositories, hronaut/hronaut-claude-plugin and hronaut/hronaut-vscode, with
+their own versions. They rely on the owner token file (`mcp-token` in the
+`Hronaut` profile folder) and its format, the default MCP port and the
+`HRONAUT_MCP_TOKEN`, `HRONAUT_MCP_PORT` and `HRONAUT_USER_DATA_DIR` variables,
+so a change to any of these needs a matching change there. The plugin also
+carries a copy of `skills/hronaut/SKILL.md`; update it there when the skill
+changes.
 
 The deployed commercial website is maintained separately in the sibling
 `../hronaut-page` repository. Changes there have independent tests, history,

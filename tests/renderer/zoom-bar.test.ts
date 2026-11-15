@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { flushPromises } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import ZoomBar from '../../src/renderer/src/components/ZoomBar.vue'
+import ZoomBar from '../../src/renderer/src/features/zoom/ZoomBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../src/shared/types.js'
 
@@ -163,18 +163,40 @@ describe('ZoomBar', () => {
     expect(home.view.emitted()['update:open']?.at(-1)).toEqual([false])
   })
 
-  it('allows increasing the previous 300 percent maximum', () => {
-    renderBar({ activeTab: tab('previous-maximum', { zoomPercent: 300 }) })
+  // The zoom keys and the View menu's zoom come here. Home keeps its zoom, as it does under the wheel: zoomed, its keys
+  // could not have put it back.
+  it('leaves Home at its zoom when a key or the View menu asks to zoom the page in view', async () => {
+    const home = tab('home', { url: 'hronaut://home/' })
+    const website = tab('website')
+    const browser = { setZoom: vi.fn(async () => browserState(website)) }
+    const bar = mount(ZoomBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open: false, activeTab: home, browser, acceptState: vi.fn(async () => undefined), formatPercent: (value: number) => `${value}%` }
+    })
+    const zoom = (action: 'in' | 'out' | 'reset') => (bar.vm as unknown as { setZoom(action: 'in' | 'out' | 'reset'): Promise<void> }).setZoom(action)
+    for (const action of ['in', 'out', 'reset'] as const) await zoom(action)
+    expect(browser.setZoom).not.toHaveBeenCalled()
+    await bar.setProps({ activeTab: website })
+    await zoom('in')
+    expect(browser.setZoom).toHaveBeenCalledExactlyOnceWith({ tabId: 'website', action: 'in' })
+    bar.unmount()
+  })
+
+  it('allows increasing the previous 400 percent maximum and decreasing the previous 50 percent minimum, as Chrome does', () => {
+    const previousMaximum = renderBar({ activeTab: tab('previous-maximum', { zoomPercent: 400 }) })
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeEnabled()
+    previousMaximum.view.unmount()
+    renderBar({ activeTab: tab('previous-minimum', { zoomPercent: 50 }) })
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toBeEnabled()
   })
 
   it('respects page zoom limits and clears open state on unmount', () => {
-    const minimum = renderBar({ activeTab: tab('minimum', { zoomPercent: 50 }) })
+    const minimum = renderBar({ activeTab: tab('minimum', { zoomPercent: 25 }) })
     expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
     minimum.view.unmount()
     expect(minimum.view.emitted()['update:open']?.at(-1)).toEqual([false])
 
-    renderBar({ activeTab: tab('maximum', { zoomPercent: 400 }) })
+    renderBar({ activeTab: tab('maximum', { zoomPercent: 500 }) })
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
   })
 })

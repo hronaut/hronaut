@@ -3,6 +3,7 @@ import { safeValue, textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type FileEvaluationSettlement, fileEvaluationSettlement } from './file-evaluation-settlement.js'
+import { evaluateFile } from '../../../browser/page-evaluation/evaluate-file.js'
 
 export function registerBrowserEvaluateFile(context: McpToolContext): void {
   const { capability, manager, registerWorkspaceTool, tabTool } = context
@@ -26,7 +27,7 @@ export function registerBrowserEvaluateFile(context: McpToolContext): void {
         return { ...textResult(outcome), structuredContent: outcome, isError: true }
       }
       validateFileEvaluation()
-      const outcome = await manager.evaluateFile(input.source, {
+      const outcome = await evaluateFile(manager, input.source, {
         signal: call.signal, validate: validateFileEvaluation,
         retainPublication: call.settlement.retainPublication,
         retainCompletion: call.settlement.retainCompletion,

@@ -1,31 +1,40 @@
-import { onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import type {
   AddressSuggestionOverlayTheme
 } from '../../../shared/address-suggestions.js'
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
+import type { SiteSearch } from '../../../shared/site-search.js'
 import type {
   BrowserBookmark,
   BrowserHistoryEntry,
   BrowserState,
   BrowserTabState,
   BrowsingDataSiteSummary,
-  HronautApi
+  HronautApi,
+  HronautShellApi
 } from '../../../shared/types.js'
-import { useAddressBarController } from './useAddressBarController.js'
+import { useAddressBarController } from '../features/address-bar/useAddressBarController.js'
 import { useAppSiteManagementFeatureController } from './useAppSiteManagementFeatureController.js'
-import { useBrowserTabActionsController } from './useBrowserTabActionsController.js'
+import { useBrowserTabActionsController } from '../features/tabs/useBrowserTabActionsController.js'
+import { useTabFieldFocusReturn } from '../features/tabs/useTabFieldFocusReturn.js'
 import { disposeAll } from './dispose-all.js'
-import type { SettingsSection } from './useSettingsDialogController.js'
-import { useSiteDataSummaryController } from './useSiteDataSummaryController.js'
-import type { SiteStorageShellPanel } from './useSiteStorageShellController.js'
+import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
+import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
+import { useSiteDataSummaryController } from '../features/site-controls/useSiteDataSummaryController.js'
+import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
+import type { BrowserStateGuess } from '../stores/browser-state-guesses.js'
 
 type SiteNavigationBrowserApi = Pick<
   HronautApi,
   | 'closeTab'
+  | 'focusActivePage'
   | 'navigate'
   | 'newTab'
+  | 'proceedPastCertificateError'
   | 'reload'
   | 'reorderTab'
+  | 'reorderTabs'
   | 'selectTab'
   | 'setAllTabsMuted'
   | 'setAllHumanInteractionLocked'
@@ -35,6 +44,7 @@ type SiteNavigationBrowserApi = Pick<
   | 'setTabPageLifecycle'
   | 'showWorkspaceContextMenu'
   | 'toggleDevTools'
+  | 'showDevToolsConsole'
 >
 
 type AddressOverlay = NonNullable<
@@ -45,8 +55,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
   state: Readonly<Ref<BrowserState>>
   activeTab: ComputedRef<BrowserTabState | undefined>
   browser: SiteNavigationBrowserApi
-  syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
-  isHome: () => boolean
+  syncState: (operation: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess) => Promise<void>
   collections: {
     bookmarks: Ref<BrowserBookmark[]>
     history: Ref<BrowserHistoryEntry[]>
@@ -57,12 +66,15 @@ export interface AppSiteNavigationFeatureControllerOptions {
   }
   shell: {
     setFollowAgentActivitySuspended: (suspended: boolean) => void
+    /** Main, which gives the address field or Find's the keyboard back on coming back to a tab; none in a panel window. */
+    tabFieldFocus?: Pick<HronautShellApi, 'setTabFieldFocused' | 'onTabFieldFocusReturned' | 'onKeyboardGivenBack'>
     settingsOpen: Ref<boolean>
     settingsSection: Readonly<Ref<SettingsSection>>
     updateNoticeOpen: Ref<boolean>
-    tabSearchOpen: Ref<boolean>
     zoomOpen: Ref<boolean>
     findOpen: Ref<boolean>
+    /** Whether the keyboard is in the Find bar. */
+    findFocused: Readonly<Ref<boolean>>
   }
   site: {
     keepsSeparatePanelOpen: () => boolean
@@ -72,6 +84,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
   }
   address: {
     overlay?: AddressOverlay
+    siteSearches: () => readonly SiteSearch[]
     theme: () => AddressSuggestionOverlayTheme
     locale: () => SupportedLocale
     translate: (key: string, parameters?: Record<string, string | number>, plural?: number) => string
@@ -85,11 +98,13 @@ export interface AppSiteNavigationFeatureControllerOptions {
     closeTransientPanels: () => void
     closeHelp: () => void
     closeFind: () => Promise<void>
+    /** Gives Find's field the keyboard back for the tab shown again; false when Find is not open for it. */
+    returnFindFocus: (tabId: string) => boolean
     openSettingsSection: (section: SettingsSection) => void
     loadSiteSummary: (context: { tabId: string; url: string }) => Promise<BrowsingDataSiteSummary>
+    clearSiteData: (context: { tabId: string; url: string }) => Promise<BrowsingDataSiteSummary>
     onActionError: (error: unknown) => void
-    onSelectError: (error: unknown) => void
-    onNavigateError: (error: unknown) => void
+    showToast: (tone: AppToastTone, title: string, message: string) => void
   }
 }
 
@@ -97,6 +112,7 @@ export function useAppSiteNavigationFeatureController(
   options: AppSiteNavigationFeatureControllerOptions
 ) {
   const { shell, collections, actions } = options
+  const { translate } = options.address
   const siteStorageOpen = ref(false)
   const siteStoragePanel = ref<SiteStorageShellPanel | null>(null)
   const siteControlsOpen = ref(false)
@@ -107,12 +123,13 @@ export function useAppSiteNavigationFeatureController(
       return tab && url ? { tabId: tab.id, url } : null
     },
     load: actions.loadSiteSummary,
+    clear: actions.clearSiteData,
     translate: (key) => options.address.translate(key)
   })
   const browserTabActionsController = useBrowserTabActionsController({
     state: options.state,
     activeTab: options.activeTab,
-    isHome: options.isHome,
+    isHome: () => !options.activeTab.value || isHronautHomeUrl(options.activeTab.value.url),
     browser: options.browser,
     syncState: options.syncState,
     beforeToggleDeveloperTools: () => {
@@ -120,13 +137,23 @@ export function useAppSiteNavigationFeatureController(
       shell.settingsOpen.value = false
       actions.closeTransientPanels()
     },
-    onSelectError: actions.onSelectError,
-    onNavigateError: actions.onNavigateError
+    onSelectError: (error) => actions.showToast(
+      'error',
+      translate('runtime.workspace.openFailed'),
+      friendlyUiError(error, translate('runtime.workspace.openDescription'))
+    ),
+    onNavigateError: (error) => actions.showToast(
+      'error',
+      translate('runtime.navigation.failed'),
+      friendlyUiError(error, translate('runtime.navigation.failedDescription'))
+    )
   })
   const addressBarController = useAddressBarController({
     activeTab: options.activeTab,
+    tabs: computed(() => options.state.value.tabs),
     bookmarks: collections.bookmarks,
     history: collections.history,
+    siteSearches: options.address.siteSearches,
     overlay: options.address.overlay,
     theme: options.address.theme,
     locale: options.address.locale,
@@ -139,21 +166,32 @@ export function useAppSiteNavigationFeatureController(
       collections.downloadsOpen.value = false
       collections.bookmarksOpen.value = false
       collections.historyOpen.value = false
-      shell.tabSearchOpen.value = false
       shell.zoomOpen.value = false
       if (shell.findOpen.value) void actions.closeFind()
     },
     onNavigate: browserTabActionsController.navigateAddress,
     onOpenInNewTab: browserTabActionsController.openAddressInNewTab,
+    onSwitchToTab: browserTabActionsController.selectBrowserTab,
     onRemoveVisit: collections.removeHistoryEntry,
     onRemoveVisitFailed: actions.onActionError,
     onFocusLeft: () => (siteControlsOpen.value = false)
   })
+  // Following the agents' activity waits while the person types in the address bar or Find: showing another tab would
+  // replace the address they are typing, or hide Find under them. The keyboard moving from one to the other leaves and
+  // enters within one turn, which the watch sees as one change, so following does not resume in between.
   const stopFollowAgentActivitySuspensionWatch = watch(
-    addressBarController.focused,
-    (focused) => options.shell.setFollowAgentActivitySuspended(focused),
-    { flush: 'sync', immediate: true }
+    () => addressBarController.focused.value || shell.findFocused.value,
+    (suspended) => options.shell.setFollowAgentActivitySuspended(suspended),
+    { immediate: true }
   )
+  const stopTabFieldFocusReturn = useTabFieldFocusReturn({
+    shell: shell.tabFieldFocus,
+    browserState: () => options.state.value,
+    focusedField: () => addressBarController.focused.value ? 'address' : shell.findFocused.value ? 'find' : null,
+    address: addressBarController,
+    returnFindFocus: actions.returnFindFocus,
+    focusPage: () => { void options.browser.focusActivePage().catch(() => undefined) }
+  })
   const siteManagementController = useAppSiteManagementFeatureController({
     siteDataController,
     siteControlsOpen,
@@ -167,7 +205,6 @@ export function useAppSiteNavigationFeatureController(
     downloadsOpen: collections.downloadsOpen,
     bookmarksOpen: collections.bookmarksOpen,
     historyOpen: collections.historyOpen,
-    tabSearchOpen: shell.tabSearchOpen,
     zoomOpen: shell.zoomOpen,
     addressSuggestionsOpen: addressBarController.open,
     findOpen: shell.findOpen,
@@ -195,6 +232,7 @@ export function useAppSiteNavigationFeatureController(
         stopFollowAgentActivitySuspensionWatch()
         options.shell.setFollowAgentActivitySuspended(false)
       },
+      stopTabFieldFocusReturn,
       browserTabActionsController.dispose,
       addressBarController.dispose,
       siteManagementController.dispose,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHomePage } from '../src/main/home-page.js'
+import { renderHomePage } from '../src/main/home/home-page.js'
 import { mountHome } from '../src/renderer/src/home/controller.js'
 import type { HomeBootstrap, HronautHomeApi } from '../src/shared/home.js'
 import type { McpDashboardState } from '../src/main/mcp/server.js'
@@ -202,7 +202,7 @@ describe('Home setup journey', () => {
   it('updates Cyberpunk Turbo from local status without losing the current setup focus', () => {
     const page = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="connect"]').click()
+    button('#agents-section-connect').click()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
     const themedState = { ...state, theme: 'cyberpunk-turbo' as const }
@@ -241,7 +241,7 @@ describe('Home setup journey', () => {
   it('filters guides without losing focus or replacing the selected guide and recovers from no results', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="connect"]').click()
+    button('#agents-section-connect').click()
     const search = document.querySelector<HTMLInputElement>('#agent-search')!
     search.focus()
     search.value = 'qwen'
@@ -263,32 +263,36 @@ describe('Home setup journey', () => {
 
   it('keeps the selected view and focus when new activity arrives', () => {
     const home = mount()
-    button('[data-home-view="connect"]').click()
+    button('#agents-section-connect').click()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
     home.update({ ...state, clients: [{ name: 'Example agent', version: '1', lastSeenAt: '2026-09-04T12:00:00.000Z', activeRequests: 0, requestCount: 1 }] })
     expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(false)
     expect(document.activeElement).toBe(guide)
     expect(document.querySelector('#connection-note')?.textContent).toContain('A client has been seen')
-    button('[data-home-view="overview"]').click()
+    button('#agents-section-overview').click()
     expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(true)
     expect(document.querySelector<HTMLElement>('#home-overview')?.hidden).toBe(false)
   })
 
   it('remembers a view, accepts only known destinations, and supports roving keyboard navigation', () => {
     mount()
-    button('[data-home-view="overview"]').click()
+    button('#agents-section-overview').click()
     mount()
     expect(document.querySelector<HTMLElement>('#home-overview')?.hidden).toBe(false)
-    const overview = button('[data-home-view="overview"]')
+    const overview = button('#agents-section-overview')
     overview.focus()
     overview.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
-    expect(button('[data-home-view="tools"]')).toBe(document.activeElement)
-    expect(button('[data-home-view="tools"]').getAttribute('aria-selected')).toBe('true')
+    expect(button('#agents-section-tools')).toBe(document.activeElement)
+    expect(button('#agents-section-tools').getAttribute('aria-selected')).toBe('true')
     expect(document.querySelector<HTMLElement>('#home-tools')?.hidden).toBe(false)
-    expect(button('[data-home-view="overview"]').tabIndex).toBe(-1)
-    button('[data-home-view="tools"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    expect(document.querySelector<HTMLElement>('#home-workspaces')?.hidden).toBe(false)
+    expect(button('#agents-section-overview').tabIndex).toBe(-1)
+    // Home goes to the first tab of its own list: the connected agents among Agents' sections, Tabs among the views.
+    button('#agents-section-tools').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    expect(document.querySelector<HTMLElement>('#home-connected')?.hidden).toBe(false)
+    button('#home-tab-agents').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    expect(document.querySelector<HTMLElement>('#home-tabs')?.hidden).toBe(false)
+    expect(document.querySelector<HTMLElement>('#home-workspaces')?.hidden).toBe(true)
     window.localStorage.setItem('hronaut.home.view.v2', '<invalid>')
     mount()
     expect(button('[data-home-view="workspaces"]').getAttribute('aria-selected')).toBe('true')
@@ -329,7 +333,7 @@ describe('Home setup journey', () => {
   it('restores catalog order after clearing search without replacing retained cards', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     const tools: McpDashboardState['tools'] = [
       { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
       { name: 'browser_click', category: 'Interaction', description: 'Click an element' }
@@ -350,7 +354,7 @@ describe('Home setup journey', () => {
   it('reorders refreshed tools and updates labels while retaining expanded focus and literal text', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     const tools: McpDashboardState['tools'] = [
       { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
       { name: 'browser_click<img src=x>', category: 'Interaction', description: '<b>Literal description</b>' }
@@ -373,7 +377,7 @@ describe('Home setup journey', () => {
   it('preserves an expanded tool and keyboard focus while activity updates', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     const next: McpDashboardState = { ...state, tools: [{ name: 'browser_navigate', category: 'Navigation', description: 'Open a page' }] }
     home.update(next)
     const entry = document.querySelector<HTMLDetailsElement>('#tool-grid details')!
@@ -581,12 +585,15 @@ describe('Home workspace hub', () => {
     await settle()
 
     const actions = [...document.querySelectorAll<HTMLButtonElement>('.home-workspace-card .card-menu-list button')]
-    expect(actions.map(item => item.textContent)).toEqual(['Manage', 'Copy or move data', 'Archive', 'Clear…'])
+    // Copy or move data also counts the websites with kept data after its label, and Copy key for an agent says what
+    // the key is for after its own.
+    expect(actions.map(item => item.firstChild?.textContent)).toEqual(['Manage', 'Copy or move data', 'Copy key for an agent', 'Archive', 'Clear…'])
     expect(button('[data-workspace-action="clear"]').disabled).toBe(false)
     button('[data-workspace-action="clear"]').click()
     await settle()
+    await settle()
 
-    if (full) expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
+    if (full) expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data?\n\nThis cannot be undone.')
     else expect(confirm).not.toHaveBeenCalled()
     expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project', undoable: !full })
     expect(document.querySelector('#workspace-notice')?.textContent).toBe('“Research <safe>” cleared.')
@@ -595,19 +602,44 @@ describe('Home workspace hub', () => {
     if (!full) expect(document.activeElement).toBe(button('#workspace-undo'))
   })
 
-  it.each([false, true])('asks main natively, not window.confirm, before a clear that cannot be undone (confirmed=%s)', async confirmed => {
+  it.each([
+    ['protected', (group: typeof workspace) => [{ ...group, deletionProtected: true }]],
+    ['deleted', () => []]
+  ] as const)('clears nothing when the workspace was %s while the question waited', async (_change, change) => {
     const archive = Array.from({ length: 50 }, (_, index) => ({ ...workspace, id: `archived-${index}`, savedAt: workspace.lastUsedAt, tabs: [] }))
     const full = { ...inventory, savedTabGroups: archive }
     const action = vi.fn().mockResolvedValue({ ...full, mcpTabGroups: [] })
-    const nativeConfirm = vi.fn(() => confirmed)
+    const getWorkspaces = vi.fn().mockResolvedValue(full)
+    // An agent changes the workspace while the person reads the question.
+    const nativeConfirm = vi.fn(async () => {
+      getWorkspaces.mockResolvedValue({ ...full, mcpTabGroups: change(full.mcpTabGroups[0]!) })
+      return true
+    })
+    mount({ getWorkspaces, workspaceAction: action, confirm: nativeConfirm })
+    await settle()
+
+    button('[data-workspace-action="clear"]').click()
+    await settle()
+    await settle()
+
+    expect(nativeConfirm).toHaveBeenCalledOnce()
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('asks main in Hronaut\'s dialog, not window.confirm, before a clear that cannot be undone (confirmed=%s)', async confirmed => {
+    const archive = Array.from({ length: 50 }, (_, index) => ({ ...workspace, id: `archived-${index}`, savedAt: workspace.lastUsedAt, tabs: [] }))
+    const full = { ...inventory, savedTabGroups: archive }
+    const action = vi.fn().mockResolvedValue({ ...full, mcpTabGroups: [] })
+    const nativeConfirm = vi.fn(async () => confirmed)
     const windowConfirm = vi.spyOn(window, 'confirm')
     mount({ getWorkspaces: vi.fn().mockResolvedValue(full), workspaceAction: action, confirm: nativeConfirm })
     await settle()
 
     button('[data-workspace-action="clear"]').click()
     await settle()
+    await settle()
 
-    expect(nativeConfirm).toHaveBeenCalledExactlyOnceWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
+    expect(nativeConfirm).toHaveBeenCalledExactlyOnceWith({ message: 'Permanently clear “Research <safe>”, close its pages, and delete its website data?', detail: 'This cannot be undone.' })
     expect(windowConfirm).not.toHaveBeenCalled()
     if (confirmed) expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project', undoable: false })
     else expect(action).not.toHaveBeenCalled()
@@ -744,7 +776,7 @@ describe('Home tool-reference search terms', () => {
   it('retains matching expanded cards, focus and query through dashboard updates and restores catalog order on clear', () => {
     const home = mount()
     // Only the view on screen can take focus.
-    button('[data-home-view="tools"]').click()
+    button('#agents-section-tools').click()
     home.update({ ...state, tools })
     const retained = document.querySelector<HTMLDetailsElement>('[data-tool="browser_network_request"]')!
     retained.open = true
@@ -765,5 +797,45 @@ describe('Home tool-reference search terms', () => {
     expect(document.querySelector<HTMLElement>('#tool-empty')!.hidden).toBe(true)
     expect(retained.open).toBe(true)
     expect(document.activeElement).toBe(search)
+  })
+})
+
+describe('Home status reads', () => {
+  it('counts a read with no answer after 10 s as failed and keeps reading, so Home never stops updating', async () => {
+    mounted?.dispose()
+    const html = renderHomePage({ endpoint: state.endpoint, initialState: state, locale: 'en-US' })
+    document.documentElement.innerHTML = html
+    Object.defineProperty(window, 'hronautHome', { configurable: true, value: {} })
+    const data = JSON.parse(document.querySelector('#home-bootstrap')!.textContent!) as HomeBootstrap
+    // The first read never gets an answer; the next ones do.
+    const signals: AbortSignal[] = []
+    const load = vi.fn((_url: string, init: RequestInit) => {
+      signals.push(init.signal!)
+      if (load.mock.calls.length > 1) return Promise.resolve({ ok: true, json: async () => ({ ...state, totalRequests: 7 }) })
+      return new Promise((_resolve, reject) => init.signal!.addEventListener('abort', () => reject(new Error('Aborted'))))
+    })
+    mounted = mountHome(data, {} as HronautHomeApi, load as unknown as typeof fetch)
+    await vi.advanceTimersByTimeAsync(9_999)
+    expect(load).toHaveBeenCalledOnce()
+    expect(document.querySelector('#server-state')?.textContent).not.toMatch(/unavailable/i)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(signals[0]!.aborted).toBe(true)
+    expect(document.querySelector('#server-state')?.textContent).toMatch(/unavailable/i)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('#server-state')?.textContent).not.toMatch(/unavailable/i)
+    // A read that is answered stops its limit, so it is not aborted 10 s later.
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(load.mock.calls.length).toBeGreaterThan(2)
+    expect(signals.slice(1).some(read => read.aborted)).toBe(false)
+    // Closing Home leaves no timer behind, and a read that ended no longer follows Home's lifetime.
+    mounted.dispose()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(signals.slice(1).some(read => read.aborted)).toBe(false)
+    // A refresh asked for once Home is closed reads nothing.
+    const reads = load.mock.calls.length
+    await mounted.refresh()
+    expect(load).toHaveBeenCalledTimes(reads)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

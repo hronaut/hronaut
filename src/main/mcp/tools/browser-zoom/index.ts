@@ -1,7 +1,9 @@
 import { z } from 'zod'
+import { PAGE_ZOOM_LIMITS } from '../../../../shared/page-zoom.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { readZoom, setZoomForAgent } from '../../../browser/page-zoom/page-zoom.js'
 
 export function registerBrowserZoom(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -11,14 +13,20 @@ export function registerBrowserZoom(context: McpToolContext): void {
       description: toolDescription('browser_zoom'),
       inputSchema: {
         tabId: tabIdSchema.optional(),
-        action: z.enum(['in', 'out', 'reset', 'set']).default('reset'),
-        percent: z.number().int().min(50).max(400).optional()
+        // Reading is the default, so a call that names no action never changes the zoom of the person's site.
+        action: z.enum(['get', 'in', 'out', 'reset', 'set']).default('get'),
+        percent: z.number().int().min(PAGE_ZOOM_LIMITS.min).max(PAGE_ZOOM_LIMITS.max).optional()
       }
     },
     tabTool('browser_zoom', async ({ tabId, action, percent }: {
       tabId?: string
-      action: 'in' | 'out' | 'reset' | 'set'
+      action: 'get' | 'in' | 'out' | 'reset' | 'set'
       percent?: number
-    }) => textResult(await manager.setZoom({ tabId, action, percent })))
+    }) => {
+      // A percent without set would read the zoom and leave it, which the agent would take for a change.
+      if (percent !== undefined && action !== 'set') throw new Error('percent is used only with action "set"; nothing was changed.')
+      return textResult(action === 'get' ? readZoom(manager, tabId) : await setZoomForAgent(manager, { tabId, action, percent }))
+    }),
+    { readOnly: input => input.action === undefined || input.action === 'get' }
   )
 }

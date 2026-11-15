@@ -2,7 +2,13 @@ import type { Cookie, CookiesSetDetails, WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { manageCookies } from '../src/main/browser/site-storage/cookies.js'
 import { manageStorage } from '../src/main/browser/site-storage/manage-storage.js'
-import type { SiteStorageAccess, SiteStorageTab } from '../src/main/browser/site-storage/site-storage-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
+
+// The debugger lease goes to the fake browser's, so a call to it is seen.
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', () => ({
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
 
 interface StoredCookie {
   name: string
@@ -46,18 +52,17 @@ function cookieTab(stored: StoredCookie[]) {
   })
   const session = { cookies: { get: vi.fn(async ({ url }: { url: string }) => listing(new URL(url))), remove: vi.fn(), set } }
   const webContents = { session, isDestroyed: () => false } as unknown as WebContents
-  const tab: SiteStorageTab = { id: 'tab-1', url: PAGE.href, webContents, storageComparisonGeneration: 0 }
+  const tab = { id: 'tab-1', url: PAGE.href, webContents, storageComparisonGeneration: 0 } as unknown as BrowserTab
   const context = { tabId: 'tab-1', workspaceId: null, navigationGeneration: 0, observationGeneration: 0, humanInteractionGeneration: 0, snapshotFormatVersion: 1 }
-  const access: SiteStorageAccess<SiteStorageTab> = {
-    getTab: () => tab,
-    findTab: (id) => id === tab.id ? tab : undefined,
-    findWorkspace: () => undefined,
-    inspectionPermission: () => undefined,
-    isDestroyed: () => false,
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    mcpTabGroups: new Map(),
+    inspectionPermissions: new WeakMap(),
+    destroyed: false,
     snapshotDeltaContext: () => context,
     withDebugger: vi.fn(async () => { throw new Error('No debugger in this test') })
-  }
-  return { access, tab, set, stored }
+  } as unknown as Browser
+  return { browser, tab, set, stored }
 }
 
 const EXPIRY = 1_900_000_000
@@ -73,8 +78,8 @@ function storedCookies(): StoredCookie[] {
 
 describe('site storage cookie update', () => {
   it('gives only the selected cookie the new value and keeps its domain, path, Secure, SameSite and expiry', async () => {
-    const { access, tab, set, stored } = cookieTab(storedCookies())
-    const result = await manageCookies(access, tab, PAGE, 'set', 'pref', 'updated', true, undefined, { domain: '.example.test', path: '/app' })
+    const { browser, tab, set, stored } = cookieTab(storedCookies())
+    const result = await manageCookies(browser, tab, PAGE, 'set', 'pref', 'updated', true, undefined, { domain: '.example.test', path: '/app' })
 
     expect(result.changed).toBe(true)
     expect(set).toHaveBeenCalledExactlyOnceWith({
@@ -86,8 +91,8 @@ describe('site storage cookie update', () => {
   })
 
   it('updates a host-only session cookie without giving it a domain or an expiry', async () => {
-    const { access, tab, set, stored } = cookieTab(storedCookies())
-    await manageCookies(access, tab, PAGE, 'set', 'pref', 'changed', true, undefined, { domain: 'app.example.test', path: '/' })
+    const { browser, tab, set, stored } = cookieTab(storedCookies())
+    await manageCookies(browser, tab, PAGE, 'set', 'pref', 'changed', true, undefined, { domain: 'app.example.test', path: '/' })
 
     const details = set.mock.calls[0]![0]
     expect(details).not.toHaveProperty('domain')
@@ -96,33 +101,33 @@ describe('site storage cookie update', () => {
   })
 
   it('updates a script cookie beside an HttpOnly cookie of the same name on another path', async () => {
-    const { access, tab, stored } = cookieTab(storedCookies())
-    await manageCookies(access, tab, PAGE, 'set', 'sid', 'changed', true, undefined, { domain: 'app.example.test', path: '/app' })
+    const { browser, tab, stored } = cookieTab(storedCookies())
+    await manageCookies(browser, tab, PAGE, 'set', 'sid', 'changed', true, undefined, { domain: 'app.example.test', path: '/app' })
 
     expect(stored.filter((cookie) => cookie.name === 'sid').map(({ value, path }) => `${value}${path}`).sort()).toEqual(['changed/app', 'session-secret/'])
   })
 
   it('refuses an HttpOnly, missing or ambiguous cookie before writing anything', async () => {
     const httpOnly = cookieTab(storedCookies())
-    await expect(manageCookies(httpOnly.access, httpOnly.tab, PAGE, 'set', 'sid', 'x', true, undefined, { domain: 'app.example.test', path: '/' }))
+    await expect(manageCookies(httpOnly.browser, httpOnly.tab, PAGE, 'set', 'sid', 'x', true, undefined, { domain: 'app.example.test', path: '/' }))
       .rejects.toThrow('HttpOnly cookies are protected and cannot be replaced by the storage manager.')
     expect(httpOnly.set).not.toHaveBeenCalled()
 
     const missing = cookieTab(storedCookies())
-    await expect(manageCookies(missing.access, missing.tab, PAGE, 'set', 'pref', 'x', true, undefined, { domain: 'example.test', path: '/app' }))
+    await expect(manageCookies(missing.browser, missing.tab, PAGE, 'set', 'pref', 'x', true, undefined, { domain: 'example.test', path: '/app' }))
       .rejects.toThrow('No cookie for this page matches that exact name, domain and path.')
     expect(missing.set).not.toHaveBeenCalled()
 
     const ambiguous = cookieTab([...storedCookies(), { name: 'pref', value: 'partitioned', domain: '.example.test', path: '/app', httpOnly: false, partitioned: true }])
-    await expect(manageCookies(ambiguous.access, ambiguous.tab, PAGE, 'set', 'pref', 'x', true, undefined, { domain: '.example.test', path: '/app' }))
+    await expect(manageCookies(ambiguous.browser, ambiguous.tab, PAGE, 'set', 'pref', 'x', true, undefined, { domain: '.example.test', path: '/app' }))
       .rejects.toThrow('More than one cookie has that name, domain and path, for example in another partition. It was not replaced.')
     expect(ambiguous.set).not.toHaveBeenCalled()
   })
 
   it('refuses a cookie that exists only in a partition and leaves no unpartitioned copy behind', async () => {
     const partitioned: StoredCookie = { name: 'chips', value: 'embedded', domain: '.example.test', path: '/app', httpOnly: false, secure: true, sameSite: 'no_restriction', partitioned: true }
-    const { access, tab, set, stored } = cookieTab([...storedCookies(), partitioned])
-    await expect(manageCookies(access, tab, PAGE, 'set', 'chips', 'changed', true, undefined, { domain: '.example.test', path: '/app' }))
+    const { browser, tab, set, stored } = cookieTab([...storedCookies(), partitioned])
+    await expect(manageCookies(browser, tab, PAGE, 'set', 'chips', 'changed', true, undefined, { domain: '.example.test', path: '/app' }))
       .rejects.toThrow('The selected cookie belongs to a partition, which the storage manager cannot change. It was not replaced.')
 
     expect(set).toHaveBeenCalledTimes(2)
@@ -131,13 +136,13 @@ describe('site storage cookie update', () => {
   })
 
   it('accepts a cookie selector for set and still refuses it for other actions', async () => {
-    const { access, set } = cookieTab(storedCookies())
-    await manageStorage(access, { tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'v', cookieDomain: '.example.test', cookiePath: '/app' })
+    const { browser, set } = cookieTab(storedCookies())
+    await manageStorage(browser, { tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'v', cookieDomain: '.example.test', cookiePath: '/app' })
     expect(set).toHaveBeenCalledOnce()
 
-    await expect(manageStorage(access, { tabId: 'tab-1', kind: 'cookies', action: 'get', key: 'pref', cookieDomain: '.example.test', cookiePath: '/app' }))
+    await expect(manageStorage(browser, { tabId: 'tab-1', kind: 'cookies', action: 'get', key: 'pref', cookieDomain: '.example.test', cookiePath: '/app' }))
       .rejects.toThrow('cookieDomain and cookiePath are supported only when deleting or setting one cookie')
-    await expect(manageStorage(access, { tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'v', cookieDomain: '.example.test' }))
+    await expect(manageStorage(browser, { tabId: 'tab-1', kind: 'cookies', action: 'set', key: 'pref', value: 'v', cookieDomain: '.example.test' }))
       .rejects.toThrow('Selecting one cookie requires both cookieDomain and a cookiePath starting with /')
   })
 })

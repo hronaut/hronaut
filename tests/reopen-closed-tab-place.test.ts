@@ -1,7 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
 import { rememberClosedTab, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
-import type { TabReopeningAccess, TabReopeningCreation, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
+
+vi.mock('../src/main/browser/browser-core.js', () => ({
+  orderedTabs: (browser: { orderedTabs(): unknown }) => browser.orderedTabs()
+}))
+vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', () => ({
+  reorderTab: (browser: { reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): unknown }, tabId: string, targetTabId: string, placement: 'before' | 'after') => (
+    browser.reorderTab(tabId, targetTabId, placement)
+  )
+}))
+
+type StripTab = Pick<BrowserTab, 'id' | 'url' | 'title' | 'pinned' | 'mcpGroupId' | 'zoomIsolated' | 'tabMuted' | 'tabAgentPaused' | 'humanInteractionLocked'>
 
 /**
  * Open tabs in strip order, as the tab manager keeps them: tabs outside a workspace first, pinned tabs first within
@@ -10,33 +22,32 @@ import type { TabReopeningAccess, TabReopeningCreation, TabReopeningTab } from '
  */
 function strip(tabs: { title: string; pinned?: boolean; workspace?: string }[]) {
   let created = 0
-  const open: TabReopeningTab[] = tabs.map(({ title, pinned = false, workspace }) => tab(title, pinned, workspace))
+  const open: StripTab[] = tabs.map(({ title, pinned = false, workspace }) => tab(title, pinned, workspace))
   const closedTabs: BrowserClosedTabState[] = []
-  function tab(title: string, pinned: boolean, workspace?: string): TabReopeningTab {
+  function tab(title: string, pinned: boolean, workspace?: string): StripTab {
     created += 1
     return {
       id: `tab-${created}`, url: `https://example.test/${title}`, title, pinned, zoomIsolated: false, tabMuted: false,
       tabAgentPaused: false, humanInteractionLocked: false, ...(workspace ? { mcpGroupId: workspace } : {})
     }
   }
-  function orderedTabs(): TabReopeningTab[] {
+  function orderedTabs(): StripTab[] {
     return [...open].sort((first, second) => (
       Number(first.mcpGroupId !== undefined) - Number(second.mcpGroupId !== undefined) || Number(second.pinned) - Number(first.pinned)
     ))
   }
-  const access: TabReopeningAccess<TabReopeningTab> = {
-    closedTabs: () => closedTabs,
-    detachedClosedTabs: () => new Set(),
-    tabCount: () => open.length,
+  const manager = {
+    closedTabs,
+    detachedClosedTabs: new Set<BrowserClosedTabState[]>(),
+    tabs: { get size() { return open.length } },
     orderedTabs,
-    getTab: (tabId) => open.find((candidate) => candidate.id === tabId)!,
     navigationHistorySnapshot: () => ({ entries: [], index: 0 }),
-    createTab: async (options: TabReopeningCreation) => {
+    createTab: async (options: Parameters<Browser['createTab']>[0]): Promise<StripTab> => {
       const reopened = tab(options.url.split('/').at(-1)!, options.pinned === true, options.mcpGroupId)
       open.push(reopened)
       return reopened
     },
-    reorderTab: (tabId, targetTabId, placement) => {
+    reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') => {
       const [moving, target] = [tabId, targetTabId].map((id) => open.find((candidate) => candidate.id === id)!)
       // The tab manager refuses these moves.
       if (moving!.pinned !== target!.pinned || moving!.mcpGroupId !== target!.mcpGroupId) throw new Error('Moved across a boundary')
@@ -44,20 +55,18 @@ function strip(tabs: { title: string; pinned?: boolean; workspace?: string }[]) 
       const moved = ordered.splice(ordered.findIndex((candidate) => candidate.id === tabId), 1)[0]!
       ordered.splice(ordered.findIndex((candidate) => candidate.id === targetTabId) + (placement === 'after' ? 1 : 0), 0, moved)
       open.splice(0, open.length, ...ordered)
-      return {} as never
-    },
-    getState: () => ({}) as never
+    }
   }
   return {
     titles: () => orderedTabs().map((candidate) => candidate.pinned ? `${candidate.title} (pinned)` : candidate.title),
     close: (title: string) => {
       const closing = open.find((candidate) => candidate.title === title)!
-      rememberClosedTab(access, closing)
+      rememberClosedTab(manager as unknown as Browser, closing as BrowserTab)
       open.splice(open.indexOf(closing), 1)
     },
-    reopen: (closedTabId?: string) => reopenClosedTabEntry(access, closedTabId, true),
+    reopen: (closedTabId?: string) => reopenClosedTabEntry(manager as unknown as Browser, closedTabId, true),
     closedTabs,
-    access
+    manager
   }
 }
 
@@ -127,10 +136,10 @@ describe('reopening a closed tab', () => {
   it('leaves a tab where it is when it was moved or pinned while it opened', async () => {
     const tabs = strip([{ title: 'a' }, { title: 'b' }, { title: 'c' }])
     tabs.close('a')
-    const createTab = tabs.access.createTab
-    tabs.access.createTab = async (options) => {
+    const createTab = tabs.manager.createTab
+    tabs.manager.createTab = async (options) => {
       const reopened = await createTab(options)
-      tabs.access.reorderTab(reopened.id, tabs.access.orderedTabs()[1]!.id, 'before')
+      tabs.manager.reorderTab(reopened.id, tabs.manager.orderedTabs()[1]!.id, 'before')
       return reopened
     }
     await tabs.reopen()
@@ -139,8 +148,8 @@ describe('reopening a closed tab', () => {
 
     const pinning = strip([{ title: 'p', pinned: true }, { title: 'x' }, { title: 'y' }])
     pinning.close('x')
-    const createPinnedTab = pinning.access.createTab
-    pinning.access.createTab = async (options) => {
+    const createPinnedTab = pinning.manager.createTab
+    pinning.manager.createTab = async (options) => {
       const reopened = await createPinnedTab(options)
       reopened.pinned = true
       return reopened

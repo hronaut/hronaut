@@ -13,12 +13,13 @@ function createHarness() {
     credentialPicker: ref(false),
     helpDialog: ref(false),
     releaseHistory: ref(false),
+    taskManager: ref(false),
+    qrCode: ref(false),
     settings: ref(false),
     siteStorage: ref(false),
     siteControls: ref(false),
     addressSuggestions: ref(false),
     find: ref(false),
-    tabSearch: ref(false),
     splitMenu: ref(false),
     zoom: ref(false),
     updateNotice: ref(false),
@@ -52,11 +53,14 @@ function createHarness() {
     closeWorkspaceEditor: vi.fn(() => { surfaces.workspaceEditor.value = false }),
     closeHelpDialog: vi.fn(() => { surfaces.helpDialog.value = false }),
     closeReleaseHistory: vi.fn(() => { surfaces.releaseHistory.value = false }),
+    closeTaskManager: vi.fn(() => { surfaces.taskManager.value = false }),
+    closeQrCode: vi.fn(() => { surfaces.qrCode.value = false }),
     closeAgentSteps: vi.fn(() => { surfaces.agentSteps.value = false }),
     cancelTrustedDialog: vi.fn(() => { surfaces.trustedDialog.value = false }),
     closeSettings: vi.fn(() => { surfaces.settings.value = false }),
     closeFind: vi.fn(() => { surfaces.find.value = false }),
     closeBookmarks: vi.fn(() => { surfaces.bookmarks.value = false }),
+    closeHistory: vi.fn(() => { surfaces.history.value = false }),
     closeResponsivePreview: vi.fn(() => { surfaces.responsivePreview.value = false }),
     toggleAreaCapture: vi.fn(async () => { surfaces.areaCaptureState.value = 'idle' }),
     cancelElementPicker: vi.fn(async () => { surfaces.elementPickerState.value = 'idle' }),
@@ -73,6 +77,8 @@ function createHarness() {
       credentialPicker: surfaces.credentialPicker,
       helpDialog: { open: surfaces.helpDialog, close: actions.closeHelpDialog },
       releaseHistory: { open: surfaces.releaseHistory, close: actions.closeReleaseHistory },
+      taskManager: { open: surfaces.taskManager, close: actions.closeTaskManager },
+      qrCode: { open: surfaces.qrCode, close: actions.closeQrCode },
       settings: { open: surfaces.settings, close: actions.closeSettings }
     },
     overlays: {
@@ -80,7 +86,6 @@ function createHarness() {
       siteControls: surfaces.siteControls,
       addressSuggestions: surfaces.addressSuggestions,
       find: { open: surfaces.find, close: actions.closeFind },
-      tabSearch: surfaces.tabSearch,
       splitMenu: surfaces.splitMenu,
       zoom: surfaces.zoom,
       updateNotice: surfaces.updateNotice
@@ -91,9 +96,11 @@ function createHarness() {
       bookmarksPanel: ref({
         handleEscape: actions.closeBookmarks,
         toggle: vi.fn(async () => undefined),
-        toggleCurrent: vi.fn(async () => undefined)
+        toggleCurrent: vi.fn(async () => undefined),
+        bookmarkAllTabs: vi.fn(async () => undefined)
       }),
-      historyOpen: surfaces.history
+      historyOpen: surfaces.history,
+      historyPanel: ref({ toggle: vi.fn(async () => undefined), close: actions.closeHistory })
     },
     pageTools: {
       panelOpen: surfaces.pageTools,
@@ -147,7 +154,9 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(actions.closeBookmarks).toHaveBeenCalledOnce()
     expect(surfaces.history.value).toBe(true)
 
+    // Through History's own close, which gives the page back the keyboard that was in History.
     controller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(actions.closeHistory).toHaveBeenCalledOnce()
     expect(surfaces.history.value).toBe(false)
   })
 
@@ -338,6 +347,45 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(surfaces.releaseHistory.value).toBe(false)
   })
 
+  it('keeps browser shortcuts behind the Task manager and closes it with Escape or Shift+Escape', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.taskManager.value = true
+    const shortcut = new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, cancelable: true })
+    // Shift+Escape is the menu's key for the Task manager elsewhere than macOS: under its dialog it closes it.
+    const menuKey = new KeyboardEvent('keydown', { key: 'Escape', shiftKey: true, cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(menuKey)
+
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(shortcut.defaultPrevented).toBe(true)
+    expect(menuKey.defaultPrevented).toBe(true)
+    expect(actions.closeTaskManager).toHaveBeenCalledOnce()
+    expect(surfaces.taskManager.value).toBe(false)
+
+    surfaces.taskManager.value = true
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+    controller.handleKeyDown(escape)
+    expect(actions.closeTaskManager).toHaveBeenCalledTimes(2)
+    expect(surfaces.taskManager.value).toBe(false)
+  })
+
+  it('keeps browser shortcuts behind the QR code dialog and closes it with Escape', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.qrCode.value = true
+    const shortcut = new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, cancelable: true })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(escape)
+
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(shortcut.defaultPrevented).toBe(true)
+    expect(escape.defaultPrevented).toBe(true)
+    expect(actions.closeQrCode).toHaveBeenCalledOnce()
+    expect(surfaces.qrCode.value).toBe(false)
+  })
+
   it('keeps browser shortcuts behind an agent\'s All steps and closes it with Escape', () => {
     const { controller, surfaces, actions } = createHarness()
     surfaces.agentSteps.value = true
@@ -353,34 +401,19 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(surfaces.agentSteps.value).toBe(false)
   })
 
-  it('keeps browser shortcuts behind the modal tab overview and closes it with Escape', () => {
+  // Search tabs opens Home's Tabs view, a tab rather than a modal, so its key runs as any browser shortcut does.
+  it('runs Search tabs from Ctrl/Cmd+Shift+A, and keeps it behind a modal as other shortcuts', () => {
     const { controller, surfaces, actions } = createHarness()
-    surfaces.tabSearch.value = true
-    const shortcut = new KeyboardEvent('keydown', {
-      key: 'l', ctrlKey: true, cancelable: true
-    })
-    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+    const shortcut = () => new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, shiftKey: true, cancelable: true })
 
-    controller.handleKeyDown(shortcut)
-    expect(actions.runShortcut).not.toHaveBeenCalled()
-    expect(surfaces.tabSearch.value).toBe(true)
+    const pressed = shortcut()
+    controller.handleKeyDown(pressed)
+    expect(pressed.defaultPrevented).toBe(true)
+    expect(actions.runShortcut).toHaveBeenCalledExactlyOnceWith('search-tabs')
 
-    controller.handleKeyDown(escape)
-    expect(escape.defaultPrevented).toBe(true)
-    expect(surfaces.tabSearch.value).toBe(false)
-  })
-
-  it('lets the Search tabs shortcut toggle its own modal closed', () => {
-    const { controller, surfaces, actions } = createHarness()
-    surfaces.tabSearch.value = true
-    const shortcut = new KeyboardEvent('keydown', {
-      key: 'a', ctrlKey: true, shiftKey: true, cancelable: true
-    })
-
-    controller.handleKeyDown(shortcut)
-
-    expect(shortcut.defaultPrevented).toBe(true)
-    expect(surfaces.tabSearch.value).toBe(false)
-    expect(actions.runShortcut).not.toHaveBeenCalled()
+    surfaces.commandPalette.value = true
+    controller.handleKeyDown(shortcut())
+    expect(actions.runShortcut).toHaveBeenCalledOnce()
+    expect(surfaces.commandPalette.value).toBe(true)
   })
 })

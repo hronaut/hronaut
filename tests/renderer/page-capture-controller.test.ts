@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePageCaptureController } from '../../src/renderer/src/composables/usePageCaptureController.js'
+import { usePageCaptureController } from '../../src/renderer/src/features/page-tools/usePageCaptureController.js'
 import type {
   BrowserAreaCaptureResult,
   BrowserElementCaptureResult,

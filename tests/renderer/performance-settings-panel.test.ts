@@ -2,8 +2,8 @@ import { ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import PerformanceSettingsPanel from '../../src/renderer/src/components/PerformanceSettingsPanel.vue'
-import { usePerformanceSettingsController } from '../../src/renderer/src/composables/usePerformanceSettingsController.js'
+import PerformanceSettingsPanel from '../../src/renderer/src/features/settings/PerformanceSettingsPanel.vue'
+import { usePerformanceSettingsController } from '../../src/renderer/src/features/settings/usePerformanceSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AppSettings, BrowserState, MemorySaverTimeoutMinutes, SupportedLocale } from '../../src/shared/types.js'
@@ -101,6 +101,9 @@ describe('PerformanceSettingsPanel', () => {
     expect(timeout).toBeDisabled()
     expect(enabled).toBeDisabled()
     expect(sleep).toBeDisabled()
+    // Memory Saver's save marked the whole panel busy, Graphics included, which does not wait for it.
+    expect(timeout.closest('[aria-busy="true"]')).not.toBeNull()
+    expect(screen.getByRole('region', { name: 'Graphics' }).closest('[aria-busy="true"]')).toBeNull()
 
     saving.reject(new Error('cannot persist memory saver'))
     expect(await screen.findByRole('alert')).toHaveTextContent('cannot persist memory saver')

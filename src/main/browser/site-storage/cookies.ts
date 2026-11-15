@@ -3,12 +3,14 @@ import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.
 import type { BrowserStorageItem, BrowserStorageResult } from '../../../shared/types.js'
 import { createCookieWriteOperation, type CookieWriteHooks } from '../cookie-write-operation.js'
 import { boundStorageItems } from '../storage-items.js'
-import type { SiteStorageAccess, SiteStorageTab } from './site-storage-access.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 
 /** The cookie branch of manageStorage, called after it has validated the input. */
-export async function manageCookies<Tab extends SiteStorageTab>(
-  access: SiteStorageAccess<Tab>,
-  tab: Tab,
+export async function manageCookies(
+  browser: Browser,
+  tab: BrowserTab,
   pageUrl: URL,
   action: BrowserStorageResult['action'],
   key: string | undefined,
@@ -23,17 +25,17 @@ export async function manageCookies<Tab extends SiteStorageTab>(
   // This guard covers document/workspace/control changes, not cookie-session
   // changes after MCP admission. Electron cookie events do not identify their
   // originating operation, so no own-write event exemption is inferred here.
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   const assertCurrent = (): void => {
     if (action === 'list' || action === 'get') return
     hooks?.validate()
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
       || contents.session !== session || currentWorkspace !== workspace
-      || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) {
+      || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) {
       throw new Error('Cookie storage context changed. Earlier writes are not rolled back; inspect fresh state before continuing.')
     }
   }

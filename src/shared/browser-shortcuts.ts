@@ -2,11 +2,15 @@ import { shortcutKey } from './shortcut-key.js'
 
 export type BrowserShortcutAction =
   | 'focus-address'
+  | 'focus-next-pane'
+  | 'open-home'
   | 'new-tab'
   | 'close-tab'
   | 'reopen-closed-tab'
   | 'next-tab'
   | 'previous-tab'
+  | 'move-tab-next'
+  | 'move-tab-previous'
   | `select-tab-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`
   | 'select-last-tab'
   | 'find'
@@ -18,13 +22,16 @@ export type BrowserShortcutAction =
   | 'zoom-out'
   | 'zoom-reset'
   | 'bookmark'
+  | 'bookmark-all-tabs'
   | 'visit-history'
   | 'downloads'
+  | 'task-manager'
   | 'search-tabs'
   | 'clear-browsing-data'
   | 'command-palette'
   | 'pick-element'
   | 'toggle-devtools'
+  | 'open-console'
   | 'agent-card'
   | 'toggle-full-page'
   | 'take-over'
@@ -36,6 +43,11 @@ export interface BrowserShortcutInput {
   key: string
   /** The physical key, such as Digit1; workspace keys go by it so they work in every keyboard layout. */
   code?: string
+  /**
+   * Chromium's code for the key in the person's keyboard layout, as `KeyboardEvent.keyCode` gives it; the application
+   * menu's keys go by it elsewhere than macOS.
+   */
+  keyCode?: number
   control: boolean
   meta: boolean
   alt: boolean
@@ -44,6 +56,32 @@ export interface BrowserShortcutInput {
   composing?: boolean
   /** On macOS the workspace keys use Control, since Option with a digit types a character. */
   mac?: boolean
+}
+
+/** Chromium's codes, named as on Windows, for the keys that type = and +, - and _, and / and ? on a US keyboard. */
+const VKEY_OEM_PLUS = 187
+const VKEY_OEM_MINUS = 189
+const VKEY_OEM_2 = 191
+
+/**
+ * Whether a key pressed with Option, or Alt, is the given letter. On macOS Option changes the character a key types,
+ * such as ç for C, ¬ for L or a dead key for I and U, so a key that types no plain letter goes by its place on a US
+ * keyboard.
+ */
+function optionLetter(input: BrowserShortcutInput, letter: string): boolean {
+  const key = shortcutKey(input)
+  return key === letter || (!/^[a-z]$/u.test(key) && input.code === `Key${letter.toUpperCase()}`)
+}
+
+/**
+ * Whether a key pressed with Shift elsewhere than macOS is the minus key, Chromium's VKEY_OEM_MINUS, with which Chrome
+ * zooms out on Ctrl+Shift: by that code where Hronaut's window gives it, and otherwise by the _ the key types with Shift
+ * on most keyboards, or = on a Japanese one, whose \ key also types _ and is not the minus key.
+ */
+function shiftedMinusKey(input: BrowserShortcutInput, key: string): boolean {
+  if (input.mac || !input.shift) return false
+  if (input.keyCode !== undefined) return input.keyCode === VKEY_OEM_MINUS
+  return input.code === 'Minus' ? key === '_' || key === '-' || key === '=' : key === '_' && input.code !== 'IntlRo'
 }
 
 /**
@@ -59,53 +97,156 @@ function workspaceShortcut(input: BrowserShortcutInput): BrowserShortcutAction |
 
 /**
  * Chrome's other keys for changing tabs, which Chrome keeps from websites as it keeps Ctrl+Tab: Ctrl+Page Down and
- * Ctrl+Page Up elsewhere than macOS; on macOS, Cmd+Shift+] and Cmd+Shift+[ and Cmd+Option+Right and Cmd+Option+Left.
+ * Ctrl+Page Up, on macOS too, and there also Cmd+Shift+] and Cmd+Shift+[ and Cmd+Option+Right and Cmd+Option+Left.
  */
 function chromeTabShortcut(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
-  if (input.mac) {
-    if (!input.meta || input.control) return null
-    // By the character, so a layout whose bracket key types a letter, such as German ü, gains no tab key.
-    if (input.shift && !input.alt && (input.key === '}' || input.key === ']')) return 'next-tab'
-    if (input.shift && !input.alt && (input.key === '{' || input.key === '[')) return 'previous-tab'
-    if (input.alt && !input.shift && key === 'arrowright') return 'next-tab'
-    if (input.alt && !input.shift && key === 'arrowleft') return 'previous-tab'
-    return null
+  if (input.control && !input.meta && !input.alt && !input.shift) {
+    if (key === 'pagedown') return 'next-tab'
+    if (key === 'pageup') return 'previous-tab'
   }
-  if (!input.control || input.meta || input.alt || input.shift) return null
-  return key === 'pagedown' ? 'next-tab' : key === 'pageup' ? 'previous-tab' : null
+  if (!input.mac || !input.meta || input.control) return null
+  // By the character, so a layout whose bracket key types a letter, such as German ü, gains no tab key.
+  if (input.shift && !input.alt && (input.key === '}' || input.key === ']')) return 'next-tab'
+  if (input.shift && !input.alt && (input.key === '{' || input.key === '[')) return 'previous-tab'
+  if (input.alt && !input.shift && key === 'arrowright') return 'next-tab'
+  if (input.alt && !input.shift && key === 'arrowleft') return 'previous-tab'
+  return null
+}
+
+/** The tab a held key for the next or previous tab moves to, as Chrome repeats it; null for any other held key. */
+function heldTabKeyAction(input: BrowserShortcutInput, key: string): BrowserShortcutAction | null {
+  if (input.control && !input.alt && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'
+  return chromeTabShortcut(input, key)
 }
 
 /**
- * Chrome's keys a website may keep, elsewhere than macOS: F5 reloads, Shift+F5 or Ctrl+F5 reloads without the cache,
- * Alt+D goes to the address bar, and F3 or Ctrl+G finds the next match, with Shift the previous one. A website's own
- * keys come first there, as in Chrome, where a web editor runs F5 as its debugger and Ctrl+G to go to a line and a web
- * terminal reads Alt+D, so they act only when the page in focus leaves them alone, and in Hronaut's own window as the
- * browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach the Edit menu's Find Next and Find Previous.
+ * Chrome's keys with Ctrl, or Cmd on macOS, that a website may keep on every system, since Chrome reserves only those that
+ * close, open or change tabs and windows: Ctrl/Cmd+D bookmarks the page, Ctrl+H or Cmd+Y opens history, Ctrl/Cmd+F
+ * finds, Ctrl/Cmd+L goes to the address bar, Ctrl/Cmd+R reloads, with Shift without the cache, and Ctrl/Cmd with =, +,
+ * - and 0 zoom, also on the numeric keypad. A web editor adds the next match with Ctrl+D, opens Replace with Ctrl+H,
+ * finds with Ctrl+F, selects a line with Ctrl+L and opens recent folders with Ctrl+R, a design tool duplicates with
+ * Cmd+D and zooms its canvas with Ctrl/Cmd with = and -, and a document redoes with Cmd+Y.
+ */
+export function primaryWebsiteKeptAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
+  if (input.repeat || input.composing || input.alt) return null
+  const primary = input.mac ? input.meta && !input.control : input.control && !input.meta
+  if (!primary) return null
+  const key = shortcutKey(input)
+  // Elsewhere than macOS Chrome and the application menu zoom in by Chromium's code for the key in the layout, also
+  // with Shift, so also with the + key of a German keyboard, which types * with Shift.
+  if (!input.mac && input.keyCode === VKEY_OEM_PLUS) return 'zoom-in'
+  // Ctrl+Shift+= types +; a Japanese keyboard's minus key types = with Shift, and Ctrl+Shift with it zooms out below.
+  // Shift with the keypad's + is no zoom key, as in Chrome.
+  if ((key === '+' || key === '=') && !shiftedMinusKey(input, key) && !(input.shift && input.code === 'NumpadAdd')) return 'zoom-in'
+  if (key === 'r') return input.shift ? 'reload-ignoring-cache' : 'reload'
+  if (input.shift) return null
+  if (key === 'd') return 'bookmark'
+  if (key === (input.mac ? 'y' : 'h')) return 'visit-history'
+  if (key === 'f') return 'find'
+  if (key === 'l') return 'focus-address'
+  if (key === '-') return 'zoom-out'
+  return key === '0' ? 'zoom-reset' : null
+}
+
+/**
+ * Chrome's keys a website may keep: those with Ctrl/Cmd (primaryWebsiteKeptAction), Ctrl+Shift+Page Down and
+ * Ctrl+Shift+Page Up move the tab, on macOS too, and elsewhere F5 reloads, Shift+F5 or Ctrl+F5 reloads without the
+ * cache, Alt+D and Ctrl+E go to the address bar, Alt+Home opens Home, F3 or Ctrl+G finds the next match, with Shift the
+ * previous one, Ctrl+1 to Ctrl+8 go to that website tab and Ctrl+9 to the last one, F6 or Shift+F6 goes to the next
+ * pane: from a page to the address bar, and from Hronaut's window back to the page, and Ctrl+Shift with the minus key
+ * zooms out. A website's own keys come first there, as in Chrome, where a web editor runs F5 as its debugger, Ctrl+G to
+ * go to a line, Ctrl+Shift+Page Down to move its own editor tab and Ctrl+1 to go to its first editor group, a web
+ * terminal reads Alt+D, and JupyterLab splits a cell with Ctrl+Shift+Minus, so they act only when the page in focus
+ * leaves them alone, and in Hronaut's own window as the browser's keys at once. On macOS, Cmd+G and Cmd+Shift+G reach
+ * the Edit menu's Find Next and Find Previous.
  */
 export function websiteKeptShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
-  if (input.mac || input.meta || input.repeat || input.composing) return null
+  if (input.repeat || input.composing) return null
+  const primary = primaryWebsiteKeptAction(input)
+  if (primary) return primary
   const key = shortcutKey(input)
+  if (input.meta) return null
+  if (input.control && input.shift && !input.alt) {
+    if (key === 'pagedown') return 'move-tab-next'
+    if (key === 'pageup') return 'move-tab-previous'
+  }
+  if (input.mac) return null
   if (key === 'f5' && !input.alt) {
     if (!input.control && !input.shift) return 'reload'
     if (input.control !== input.shift) return 'reload-ignoring-cache'
   }
   if (key === 'd' && input.alt && !input.control && !input.shift) return 'focus-address'
+  if (key === 'e' && input.control && !input.alt && !input.shift) return 'focus-address'
+  if (key === 'home' && input.alt && !input.control && !input.shift) return 'open-home'
+  if (key === 'f6' && !input.alt && !input.control) return 'focus-next-pane'
   if (!input.alt && ((key === 'f3' && !input.control) || (key === 'g' && input.control))) return input.shift ? 'find-previous' : 'find-next'
+  if (input.control && !input.alt && shiftedMinusKey(input, key)) return 'zoom-out'
+  if (input.control && !input.shift && !input.alt) {
+    if (/^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
+    if (key === '9') return 'select-last-tab'
+  }
   return null
+}
+
+/**
+ * The keys of Hronaut's application menu that are not browser shortcuts above, which act on the page in view or open
+ * another of Hronaut's dialogs: Print, Save Page As, View Page Source, Downloads, Bookmark All Tabs, Back, Forward and
+ * Keyboard shortcuts; on macOS also Find Next and Find Previous, which elsewhere are website-kept keys, and Settings'
+ * Cmd+,; and elsewhere Escape, which stops the page in focus loading once it leaves the key alone, as in Chrome, and
+ * Shift+Escape, which opens the Task manager.
+ * Elsewhere than macOS, Zoom In's and Keyboard shortcuts' keys also go by the key's code, as the menu matches them. A
+ * key Hronaut's window leaves alone reaches the menu, so under its own dialogs and the command palette the window keeps
+ * these from the menu as well.
+ */
+export function applicationMenuKey(input: BrowserShortcutInput): boolean {
+  if (input.repeat || input.composing) return false
+  const key = shortcutKey(input)
+  const slash = input.code === 'Slash' || key === '/' || key === '?'
+  if (input.mac) {
+    if (!input.meta || input.control) return false
+    if (input.alt) return !input.shift && (optionLetter(input, 'u') || optionLetter(input, 'l'))
+    if (input.shift) return key === 'g' || key === 'd' || slash
+    return key === 'p' || key === 's' || key === 'g' || key === '[' || key === ']' || key === ','
+  }
+  if (input.meta) return false
+  if (input.alt) return !input.control && !input.shift && (key === 'arrowleft' || key === 'arrowright')
+  if (!input.control) return key === 'escape'
+  // There the menu goes by Chromium's code for the key in the layout, so Keyboard shortcuts' Ctrl+Shift+/ is also
+  // Ctrl+Shift with the # key of a German keyboard, which has that code and types ' with Shift; Zoom In's key goes by
+  // its code in primaryWebsiteKeptAction.
+  if (input.shift && input.keyCode === VKEY_OEM_2) return true
+  if (input.shift) return slash || key === 'd'
+  return key === 'p' || key === 's' || key === 'u' || key === 'j'
+}
+
+/**
+ * Whether a key press, held or not, is one of the browser's: a browser shortcut, a key a website may keep, or another
+ * key of the application menu. Under its own dialogs and the command palette, Hronaut's window keeps these from the
+ * menu, which would act on the page behind them.
+ */
+export function isBrowserKey(input: BrowserShortcutInput): boolean {
+  const firstPress = { ...input, repeat: false }
+  return (browserShortcutAction(firstPress) ?? websiteKeptShortcutAction(firstPress)) !== null || applicationMenuKey(firstPress)
 }
 
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
   const key = shortcutKey(input)
-  if (input.repeat || input.composing) return null
+  if (input.composing) return null
+  // Held down, the keys that change tabs go on changing them, as in Chrome; every other key acts once.
+  if (input.repeat) return heldTabKeyAction(input, key)
   if (
     (key === 'f12' && !input.control && !input.meta && !input.alt && !input.shift)
     || (key === 'i' && !input.mac && input.control && input.shift && !input.meta && !input.alt)
-    || (key === 'i' && input.meta && input.alt && !input.control && !input.shift)
+    || (input.meta && input.alt && !input.control && !input.shift && optionLetter(input, 'i'))
   ) return 'toggle-devtools'
   if (
     (key === 'c' && !input.mac && input.control && input.shift && !input.meta && !input.alt)
-    || (key === 'c' && input.meta && input.alt && !input.control && !input.shift)
+    || (input.meta && input.alt && !input.control && !input.shift && optionLetter(input, 'c'))
   ) return 'pick-element'
+  if (
+    (key === 'j' && !input.mac && input.control && input.shift && !input.meta && !input.alt)
+    || (input.meta && input.alt && !input.control && !input.shift && optionLetter(input, 'j'))
+  ) return 'open-console'
   const workspace = workspaceShortcut(input)
   if (workspace) return workspace
   const tab = chromeTabShortcut(input, key)
@@ -113,30 +254,24 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (input.alt) return null
 
   if (input.control && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'
+  // Chrome's other key for closing the tab elsewhere than macOS, which a website cannot keep either.
+  if (!input.mac && input.control && !input.meta && !input.shift && key === 'f4') return 'close-tab'
   // On macOS the browser keys use Command without Control, as in Chrome, and Developer Tools takes Command+Option
   // above. Control with a key belongs to the focused field or web app there: Control+F moves the caret, Control+D
   // deletes forward and Control+H backward, and a web terminal reads Control+W or Control+R itself.
   const primary = input.mac ? input.meta && !input.control : input.control || input.meta
-  if (!input.shift && ((!input.mac && input.control && key === 'h') || (input.meta && key === 'y' && !(input.mac && input.control)))) return 'visit-history'
   if (!primary) return null
-  if (!input.shift && /^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
-  if (!input.shift && key === '9') return 'select-last-tab'
+  // Elsewhere than macOS, Ctrl with a digit is a key a website may keep (websiteKeptShortcutAction).
+  if (!input.shift && (input.mac || !input.control) && /^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
+  if (!input.shift && (input.mac || !input.control) && key === '9') return 'select-last-tab'
   if (input.shift && (key === 'delete' || key === 'backspace')) return 'clear-browsing-data'
   if (input.shift && key === 'p') return 'command-palette'
   if (input.shift && key === 'a') return 'search-tabs'
-  if (key === 'r') return input.shift ? 'reload-ignoring-cache' : 'reload'
-
-  if (key === '+' || key === '=') return 'zoom-in'
-  if (!input.shift && key === '-') return 'zoom-out'
-  if (!input.shift && key === '0') return 'zoom-reset'
   if (key === 't') return input.shift ? 'reopen-closed-tab' : 'new-tab'
   if (input.shift && key === 'f') return 'toggle-full-page'
   if (input.shift && key === 'o') return 'take-over'
   if (input.shift) return null
-  if (key === 'l') return 'focus-address'
   if (key === 'w') return 'close-tab'
-  if (key === 'f') return 'find'
-  if (key === 'd') return 'bookmark'
   if (key === '.') return 'agent-card'
   if (key === 'k') return 'switch-workspace'
   return null

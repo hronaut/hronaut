@@ -5,6 +5,7 @@ import type {
   HronautCredentialsApi,
   HronautPermissionsApi,
   HronautUpdatesApi,
+  CredentialStorageStatus,
   CredentialSummary,
   HelpMenuAction,
   SitePermissionEntry
@@ -21,22 +22,30 @@ export interface AppEventsControllerOptions {
   browserApi: Pick<
     HronautApi,
     'onUserAttentionRequested' | 'onShortcutRequested' | 'onTabGroupEditRequested' | 'onNewTabRequested' | 'onVisitHistoryRequested'
+    | 'onBookmarkAllTabsRequested'
+    | 'onQrCodeRequested'
     | 'onAddressPasteAndGo'
   >
   permissionsApi: Pick<HronautPermissionsApi, 'onChanged'>
-  credentialsApi: Pick<HronautCredentialsApi, 'onChanged'>
+  credentialsApi: Pick<HronautCredentialsApi, 'onChanged' | 'onStatusChanged'>
   updatesApi: Pick<HronautUpdatesApi, 'onOpenRequested'>
   shellApi: ShellEventsApi
   onUserAttention: () => unknown
   onShortcut: (action: BrowserShortcutAction) => unknown
   onTabGroupEdit: (groupId: string) => unknown
-  onNewTab: (workspaceId: string | undefined) => unknown
+  onNewTab: (workspaceId: string | undefined, besideTabId?: string) => unknown
   /** Opens the history panel, unless it is open. */
   onVisitHistory: () => unknown
+  /** A tab's menu asked to bookmark the tabs of its workspace, or of no workspace for null. */
+  onBookmarkAllTabs: (workspaceId: string | null) => unknown
+  /** A page's menu asked for a QR code of the page's or an image's address. */
+  onQrCode: (request: { tabId: string, address: string }) => unknown
   /** Opens the clipboard text from Paste and Go, as the address field would. */
   onAddressPasteAndGo: (text: string) => unknown
   onPermissionsChanged: (permissions: SitePermissionEntry[]) => unknown
   onCredentialsChanged: (credentials: CredentialSummary[]) => unknown
+  /** Secure storage answered after startup, as once the person unlocks a keyring that stayed locked at sign-in. */
+  onCredentialStorageChanged: (status: CredentialStorageStatus) => unknown
   onUpdateOpen: () => unknown
   onHelp: (action: HelpMenuAction) => unknown
   onClipboardFailure: (message: string) => unknown
@@ -64,13 +73,25 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
 
   const unsubscribers = registerDisposers([
     () => options.browserApi.onUserAttentionRequested(active(options.onUserAttention)),
-    () => options.browserApi.onShortcutRequested(active(options.onShortcut)),
+    // The bridge tells main once the shortcut is carried out, so it gets the shortcut's promise.
+    () => options.browserApi.onShortcutRequested((action) => {
+      if (disposed) return undefined
+      try {
+        return Promise.resolve(options.onShortcut(action)).catch(reportError)
+      } catch (error) {
+        reportError(error)
+        return undefined
+      }
+    }),
     () => options.browserApi.onTabGroupEditRequested(active(options.onTabGroupEdit)),
     () => options.browserApi.onNewTabRequested(active(options.onNewTab)),
     () => options.browserApi.onVisitHistoryRequested(active(options.onVisitHistory)),
+    () => options.browserApi.onBookmarkAllTabsRequested(active(options.onBookmarkAllTabs)),
+    () => options.browserApi.onQrCodeRequested(active(options.onQrCode)),
     () => options.browserApi.onAddressPasteAndGo(active(options.onAddressPasteAndGo)),
     () => options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
     () => options.credentialsApi.onChanged(active(options.onCredentialsChanged)),
+    () => options.credentialsApi.onStatusChanged(active(options.onCredentialStorageChanged)),
     () => options.updatesApi.onOpenRequested(active(options.onUpdateOpen)),
     () => options.shellApi.onHelpRequested(active(options.onHelp)),
     () => options.shellApi.onClipboardFailed(active(options.onClipboardFailure)),

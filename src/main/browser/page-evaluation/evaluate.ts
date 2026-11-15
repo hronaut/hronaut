@@ -2,28 +2,19 @@ import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { BrowserDialogHandlingOptions } from '../../../shared/types.js'
 import { dialogAwareEvaluateScript, releaseEvaluationDialogsScript } from '../page-scripts.js'
-import type { PageEvaluationAccess, PageEvaluationTab } from './page-evaluation-access.js'
+import { withBackgroundAgentFocusGuard } from '../agent-input-scope/focus-isolation.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-evaluation/debugger-evaluation.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
+import { EvaluationStoppedError } from './evaluation-stopped-error.js'
 
 /** How long an evaluation waits for its script, and the call's cancellation. */
 export interface EvaluationDeadline {
   timeoutMs: number
   signal?: AbortSignal
-}
-
-/** An evaluation that stopped waiting for its script because its deadline passed or its call was cancelled. */
-export class EvaluationStoppedError extends Error {
-  readonly reason: 'SCRIPT_TIMEOUT' | 'CANCELLED'
-  /** Whether the script reached the page; false when the evaluation stopped before sending it. */
-  readonly sent: boolean
-
-  constructor(reason: 'SCRIPT_TIMEOUT' | 'CANCELLED', sent: boolean, timeoutMs: number) {
-    const stopped = reason === 'SCRIPT_TIMEOUT' ? `The script did not finish within ${timeoutMs} ms` : 'The call was cancelled before the script finished'
-    const unsent = reason === 'SCRIPT_TIMEOUT' ? `The ${timeoutMs} ms deadline passed before the script was sent` : 'The call was cancelled before the script was sent'
-    super(sent ? `${stopped}. It may still be running in the page, so its effects are unknown.` : `${unsent}; nothing ran.`)
-    this.name = 'EvaluationStoppedError'
-    this.reason = reason
-    this.sent = sent
-  }
 }
 
 /**
@@ -33,10 +24,13 @@ export class EvaluationStoppedError extends Error {
  * Hronaut never takes focus for it. With a deadline it stops waiting once the
  * deadline passes or the call is cancelled, also while it waits for the
  * debugger, releasing the focus guard and the debugger. The page's script is
- * left to finish on its own, and its dialog handling ends at once.
+ * left to finish on its own, and its dialog handling ends at once, as it
+ * does whatever else ends the call after the script reached the page. When
+ * the page's print dialog or a website dialog cut the call off, it ends once
+ * that dialog closes.
  */
-export async function evaluate<Tab extends PageEvaluationTab>(access: PageEvaluationAccess<Tab>, script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
-  const webContents = access.getTab(tabId).webContents
+export async function evaluate(browser: Browser, script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
+  const webContents = getTab(browser, tabId).webContents
   if (dialog.promptText !== undefined) throw new Error('Text prompts are supported by browser_click; Electron does not implement prompt() evaluation')
   const stop = deadline && stopSignal(deadline)
   let sent = false
@@ -51,31 +45,32 @@ export async function evaluate<Tab extends PageEvaluationTab>(access: PageEvalua
   // Preserve foreground native-dialog behavior, but never let a background
   // evaluation activate Hronaut. Unexpected background dialogs are dismissed
   // inside the page wrapper; explicit dialogAction still wins.
-  if (dialog.dialogAction === undefined && access.isWindowFocused()) {
+  if (dialog.dialogAction === undefined && browser.window.isFocused()) {
     sent = true
-    return access.withBackgroundAgentFocusGuard(() => settle(webContents.executeJavaScript(script, true)))
+    return withBackgroundAgentFocusGuard(browser, () => settle(webContents.executeJavaScript(script, true)))
   }
   // DevTools owns Chromium's debugger session. Keep direct evaluation
   // available there while the native non-focusable guard blocks activation.
   if (dialog.dialogAction === undefined && (
-    access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()
+    browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()
   )) {
     sent = true
-    return access.withBackgroundAgentFocusGuard(() => settle(webContents.executeJavaScript(script, true)))
+    return withBackgroundAgentFocusGuard(browser, () => settle(webContents.executeJavaScript(script, true)))
   }
   const dialogAction = dialog.dialogAction ?? 'dismiss'
   const evaluationId = randomUUID()
   // The outer settle stops waiting for the debugger; the inner one frees it
   // for the next command while Chromium keeps waiting on the script's promise.
-  return access.withBackgroundAgentFocusGuard(() => settle(access.withDebugger(webContents, async () => {
+  return withBackgroundAgentFocusGuard(browser, () => settle(withDebugger(browser, webContents, async () => {
     unstopped()
-    const contextId = await access.mainWorldContextId(webContents)
+    const contextId = await mainWorldContextId(browser, webContents)
     unstopped()
     sent = true
     try {
-      return await settle(access.evaluateWithAttachedDebugger(webContents, dialogAwareEvaluateScript(script, dialogAction, evaluationId), contextId))
+      return await settle(evaluateWithAttachedDebugger(webContents, dialogAwareEvaluateScript(script, dialogAction, evaluationId), contextId))
     } catch (error) {
-      if (error instanceof EvaluationStoppedError) releaseEvaluationDialogs(webContents, evaluationId, contextId)
+      // However the call ended, the script may still be running, or waiting for nothing, with the page's dialogs answered.
+      if (!refusedUnsentByPageDialog(error)) releaseEvaluationDialogs(webContents, evaluationId, contextId)
       throw error
     }
   })))
@@ -103,14 +98,25 @@ function settleBeforeStop<T>(pending: Promise<T>, stop: AbortSignal, stopped: ()
   })
 }
 
+/** Whether the page's print dialog or a website dialog kept the call from reaching the page. */
+function refusedUnsentByPageDialog(error: unknown): boolean {
+  return (error instanceof PrintDialogOpenError || error instanceof WebsiteDialogOpenError) && !error.sent
+}
+
 /**
  * Returns the page's own dialogs once nothing waits for the stopped script.
  * It is sent beside the debugger lease, which a page stuck in a script would
- * otherwise hold, and a failure leaves only what the page's next load clears.
+ * otherwise hold. A page's dialog that still shows refuses it, so it is sent
+ * again once that dialog closes; any other failure leaves only what the
+ * page's next load clears.
  */
 function releaseEvaluationDialogs(webContents: WebContents, evaluationId: string, contextId: number): void {
   if (webContents.isDestroyed()) return
   webContents.debugger.sendCommand('Runtime.evaluate', {
     expression: releaseEvaluationDialogsScript(evaluationId), contextId, returnByValue: true, silent: true
-  }).catch(() => undefined)
+  }).catch((error: unknown) => {
+    const dialogClosed = error instanceof PrintDialogOpenError && !error.sent ? whenPrintDialogCloses(webContents)
+      : error instanceof WebsiteDialogOpenError && !error.sent ? whenWebsiteDialogCloses(webContents) : undefined
+    void dialogClosed?.then(() => releaseEvaluationDialogs(webContents, evaluationId, contextId))
+  })
 }

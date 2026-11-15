@@ -1,7 +1,17 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+// Rendering a hidden page, as the fixture's manager answers it.
+vi.mock('../src/main/browser/renderable-tab/renderable-tab.js', () => ({
+  withRenderableTab: (browser: { withRenderableTab(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withRenderableTab(...args)
+}))
+/** Each fixture's writer, by its downloads folder: files go to it instead of to disk. */
+const writers = vi.hoisted(() => new Map<string, (filename: string) => Promise<string>>())
+vi.mock('../src/main/browser/unique-download-file.js', () => ({
+  writeUniqueDownloadFile: (directory: string, filename: string) => writers.get(directory)!(filename)
+}))
+import { Browser } from '../src/main/browser/browser.js'
 import type { BrowserPdfOptions } from '../src/shared/types.js'
+import { savePdf } from '../src/main/browser/pdf-export/pdf-export.js'
 
 const pages = (count: number): Buffer => Buffer.from(`%PDF-1.4\n3 0 obj\n<</Type /Pages /Count ${count} /Kids []>>\nendobj\n%%EOF`, 'latin1')
 
@@ -18,18 +28,22 @@ function exporter(output: Buffer = pages(1)) {
     removeListener: vi.fn()
   }
   const tab = { id: 'tab-1', title: 'Guide', navigationGeneration: 1, webContents }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
-    options: {},
+  const downloadDirectory = `/downloads-${writers.size}`
+  writers.set(downloadDirectory, writeUniqueDownload)
+  const manager = Object.assign(Object.create(Browser.prototype), {
+    options: { downloadDirectory },
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,
     mcpTabGroups: new Map(),
     inspectionPermissions: new Map(),
     destroyed: false,
-    withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run(),
-    writeUniqueDownload
-  }) as BrowserTabsManager
+    withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run()
+  }) as Browser
   return {
-    save: (options: BrowserPdfOptions) => manager.savePdf({ tabId: tab.id, ...options }),
+    save: (options: BrowserPdfOptions) => savePdf(manager, { tabId: tab.id, ...options }),
+    saveThrough: (saveFile: (filename: string, data: Buffer, validate: () => void) => Promise<string | undefined>) => (
+      savePdf(manager, { tabId: tab.id }, undefined, undefined, saveFile)
+    ),
     printed: () => (printToPDF.mock.calls[0] as unknown[])[0],
     writeUniqueDownload
   }
@@ -82,4 +96,14 @@ it('refuses a CSS-sized PDF over 1,000 pages, or one whose pages it cannot count
 it('leaves the page count of an ordinary export alone', async () => {
   const pdf = exporter(pages(5_000))
   await expect(pdf.save({})).resolves.toMatchObject({ bytes: pages(5_000).length })
+})
+
+it('saves the PDF through the writer its caller chose, and gives null when the person chose not to save it', async () => {
+  const pdf = exporter()
+  const saveFile = vi.fn(async (_filename: string, _data: Buffer, _validate: () => void): Promise<string | undefined> => undefined)
+  expect(await pdf.saveThrough(saveFile)).toBeNull()
+  expect(saveFile).toHaveBeenCalledWith('Guide.pdf', expect.any(Buffer), expect.any(Function))
+  saveFile.mockResolvedValueOnce('/Documents/Guide.pdf')
+  expect(await pdf.saveThrough(saveFile)).toEqual({ filename: 'Guide.pdf', path: '/Documents/Guide.pdf', bytes: pages(1).length })
+  expect(pdf.writeUniqueDownload).not.toHaveBeenCalled()
 })

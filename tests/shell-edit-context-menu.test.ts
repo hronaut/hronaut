@@ -32,12 +32,12 @@ const allowed = { canUndo: true, canRedo: true, canCut: true, canCopy: true, can
 function contents(destroyed = false) {
   return {
     isDestroyed: () => destroyed,
-    undo: vi.fn(), redo: vi.fn(), cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), delete: vi.fn(), selectAll: vi.fn()
+    undo: vi.fn(), redo: vi.fn(), cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), delete: vi.fn(), selectAll: vi.fn(), replaceMisspelling: vi.fn()
   }
 }
 
 function params(overrides: Partial<ContextMenuParams>): ContextMenuParams {
-  return { isEditable: false, selectionText: '', editFlags: allowed, formControlType: 'input-text', ...overrides } as ContextMenuParams
+  return { isEditable: false, selectionText: '', editFlags: allowed, formControlType: 'input-text', misspelledWord: '', dictionarySuggestions: [], ...overrides } as ContextMenuParams
 }
 
 function click(items: MenuItemConstructorOptions[] | undefined, id: string): void {
@@ -245,5 +245,61 @@ describe('the editing menu in Hronaut\'s own window', () => {
     const target = contents(true)
     click(shellEditContextMenuItems(params({ isEditable: true }), target, (key) => key), 'paste')
     expect(target.paste).not.toHaveBeenCalled()
+  })
+})
+
+describe('the editing menu in a view Hronaut draws above the pages', () => {
+  // The agent card's answer field, drawn in its own view above the page, opened no menu on a right-click.
+  it('opens a field\'s editing menu over the main window, Copy for selected text, and nothing once the window closed', async () => {
+    const { EventEmitter } = await import('node:events')
+    const { attachOverlayEditContextMenu } = await import('../src/main/windows/shell-edit-context-menu.js')
+    const view = Object.assign(new EventEmitter(), contents())
+    let window: { isDestroyed: () => boolean } | null = { isDestroyed: () => false }
+    attachOverlayEditContextMenu(view as never, () => window as never, (key) => key)
+    shown.templates.length = 0
+
+    view.emit('context-menu', {}, params({ isEditable: true }))
+    expect(shown.templates.at(-1)?.map((item) => item.id)).toContain('paste')
+    view.emit('context-menu', {}, params({ selectionText: 'words' }))
+    expect(shown.templates.at(-1)?.map((item) => item.id)).toEqual(['copy-selection'])
+    view.emit('context-menu', {}, params({}))
+    expect(shown.templates).toHaveLength(2)
+
+    window = null
+    view.emit('context-menu', {}, params({ isEditable: true }))
+    expect(shown.templates).toHaveLength(2)
+  })
+})
+
+describe('spell checking in Hronaut\'s own fields', () => {
+  // Hronaut's own fields underlined a misspelled word, but their menu offered no suggestion and no Add to dictionary,
+  // and the Settings switch and languages never reached them.
+  it('leads a misspelled word\'s menu with its suggestions and Add to dictionary, as a page\'s field does', () => {
+    const target = contents()
+    const addWord = vi.fn()
+    const misspelled = params({ isEditable: true, misspelledWord: 'recieve', dictionarySuggestions: ['receive', 'relieve'] })
+    const items = shellEditContextMenuItems(misspelled, target, (key, parameters) => `${key}:${String(parameters?.word ?? '')}`,
+      { label: 'native.context.emoji', open: vi.fn() }, undefined, { addWord })
+    expect(items?.slice(0, 4).map((item) => item.id ?? item.type)).toEqual(['spelling-suggestion-0', 'spelling-suggestion-1', 'add-to-dictionary', 'separator'])
+    expect(items?.map((item) => item.id)).not.toContain('emoji')
+    expect(items?.[2]?.label).toBe('native.context.addDictionary:recieve')
+    click(items, 'spelling-suggestion-1')
+    expect(target.replaceMisspelling).toHaveBeenCalledExactlyOnceWith('relieve')
+    click(items, 'add-to-dictionary')
+    expect(addWord).toHaveBeenCalledExactlyOnceWith('recieve')
+    // A word spelled correctly keeps the plain editing menu.
+    expect(shellEditContextMenuItems(params({ isEditable: true }), target, (key) => key, undefined, undefined, { addWord })?.[0]?.id).toBe('undo')
+  })
+
+  it('has the session of the window and of a view above the pages follow the spell check settings', async () => {
+    const { EventEmitter } = await import('node:events')
+    const { attachOverlayEditContextMenu } = await import('../src/main/windows/shell-edit-context-menu.js')
+    const spelling = { track: vi.fn(), addWord: vi.fn() }
+    const windowSession = {}
+    attachShellEditContextMenu({ isDestroyed: () => false, webContents: { ...contents(), session: windowSession, on: vi.fn() } } as never,
+      ((key: string) => key) as never, { spelling })
+    const viewSession = {}
+    attachOverlayEditContextMenu(Object.assign(new EventEmitter(), contents(), { session: viewSession }) as never, () => null, (key) => key, spelling)
+    expect(spelling.track.mock.calls).toEqual([[windowSession], [viewSession]])
   })
 })

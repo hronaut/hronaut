@@ -16,26 +16,29 @@ import type {
   SearchEngineName
 } from '../../../shared/types.js'
 import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
+import type { SiteSearchDraft } from '../../../shared/site-search.js'
+import { DEFAULT_SECURE_DNS_MODE, type SecureDnsMode } from '../../../shared/secure-dns.js'
 import { mcpPortProblem } from '../../../shared/mcp-port.js'
 import type { AppBootstrapTask } from './useAppBootstrapController.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import { useCommercialLicenseController } from '../features/settings/support/useCommercialLicenseController.js'
 import { useLicenseAsk } from '../features/settings/support/useLicenseAsk.js'
-import { useCredentialsController } from './useCredentialsController.js'
-import { useDownloadSettingsController } from './useDownloadSettingsController.js'
-import { useMcpSettingsController } from './useMcpSettingsController.js'
-import { useMcpStatusController, type McpStatusControllerOptions } from './useMcpStatusController.js'
-import { usePerformanceSettingsController } from './usePerformanceSettingsController.js'
-import { usePrivacySettingsController } from './usePrivacySettingsController.js'
-import { useReleaseHistoryController } from './useReleaseHistoryController.js'
-import { useSearchSettingsController } from './useSearchSettingsController.js'
-import { useSettingsDialogController } from './useSettingsDialogController.js'
-import { useSettingsSectionResetController } from './useSettingsSectionResetController.js'
-import { useSitePermissionsController } from './useSitePermissionsController.js'
-import { useUpdateNoticePresentationController } from './useUpdateNoticePresentationController.js'
-import { useUpdateSettingsController } from './useUpdateSettingsController.js'
-import { useWalletsController } from './useWalletsController.js'
+import { useCredentialsController } from '../features/credentials/useCredentialsController.js'
+import { useDownloadSettingsController } from '../features/downloads/useDownloadSettingsController.js'
+import { useMcpSettingsController } from '../features/mcp/useMcpSettingsController.js'
+import { useMcpStatusController, type McpStatusControllerOptions } from '../features/mcp/useMcpStatusController.js'
+import { usePerformanceSettingsController } from '../features/settings/usePerformanceSettingsController.js'
+import { usePrivacySettingsController } from '../features/settings/usePrivacySettingsController.js'
+import { useReleaseHistoryController } from '../features/updates/useReleaseHistoryController.js'
+import { useSearchSettingsController } from '../features/settings/useSearchSettingsController.js'
+import { useSettingsDialogController } from '../features/settings/useSettingsDialogController.js'
+import { useSettingsSectionResetController } from '../features/settings/useSettingsSectionResetController.js'
+import { useSitePermissionsController } from '../features/site-controls/useSitePermissionsController.js'
+import { useUpdateNoticePresentationController } from '../features/updates/useUpdateNoticePresentationController.js'
+import { useUpdateSettingsController } from '../features/updates/useUpdateSettingsController.js'
+import { useWalletsController } from '../features/wallets/useWalletsController.js'
 import { disposeAll } from './dispose-all.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 
 interface AppSettingsFeatureStore {
   resetAppearance(): Promise<RendererSettingsState>
@@ -44,9 +47,14 @@ interface AppSettingsFeatureStore {
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
+  addSiteSearch(draft: SiteSearchDraft): Promise<AppSettings>
+  updateSiteSearch(id: string, draft: SiteSearchDraft): Promise<AppSettings>
+  removeSiteSearch(id: string): Promise<AppSettings>
+  setSecureDns(mode: SecureDnsMode, template: string): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>
+  setSitePermissionsBlockedByDefault(permissions: string[]): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
@@ -99,7 +107,7 @@ export interface AppSettingsFeatureControllerOptions {
   copyText: McpStatusControllerOptions['copyText']
   translate: Translate
   formatNumber: (value: number) => string
-  confirm: (message: string) => boolean
+  confirm: (question: Confirmation) => Promise<boolean>
   showToast: (tone: AppToastTone, title: string, message: string) => void
   onSettingError: (error: unknown) => void
 }
@@ -124,6 +132,10 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     fileSaving: {
       enabled: () => options.settings.value.allowWebsiteFileSaving,
       set: (enabled) => options.settingsStore.setAllowWebsiteFileSaving(enabled)
+    },
+    defaults: {
+      blocked: () => options.settings.value.sitePermissionsBlockedByDefault,
+      set: (permissions) => options.settingsStore.setSitePermissionsBlockedByDefault(permissions)
     },
     onError: (error) => options.showToast(
       'error',
@@ -184,7 +196,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   })
   const commercialLicenseController = useCommercialLicenseController({
     api: options.apis.license,
-    confirmDeactivate: () => options.confirm(options.translate('runtimeDetails.deactivate')),
+    confirmDeactivate: () => options.confirm(splitConfirmation(() => options.translate('runtimeDetails.deactivate'))),
     emptyKeyMessage: () => options.translate('runtime.license.enterKey'),
     formatError: (error) => friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
   })
@@ -249,7 +261,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     rotateCapabilityProfile: (id) => window.hronautSettings.rotateMcpCapabilityProfile(id),
     revokeCapabilityProfile: (id) => window.hronautSettings.revokeMcpCapabilityProfile(id),
     confirmDisableAuthentication: () => options.confirm(
-      options.translate('runtimeActions.mcp.disableConfirm')
+      splitConfirmation(() => options.translate('runtimeActions.mcp.disableConfirm'))
     ),
     copyText: options.copyText,
     translate: (key, parameters) => options.translate(key, parameters),
@@ -263,6 +275,9 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   const searchSettingsController = useSearchSettingsController({
     settings: options.settings,
     setSearchEngine: (searchEngine) => options.settingsStore.setSearchEngine(searchEngine),
+    addSiteSearch: (draft) => options.settingsStore.addSiteSearch(draft),
+    updateSiteSearch: (id, draft) => options.settingsStore.updateSiteSearch(id, draft),
+    removeSiteSearch: (id) => options.settingsStore.removeSiteSearch(id),
     onError: options.onSettingError
   })
   const walletsController = useWalletsController({
@@ -282,7 +297,12 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     resetSearch: searchSettingsController.reset,
     resetDownloads: downloadSettingsController.reset,
     resetPerformance: performanceSettingsController.reset,
-    resetPrivacySelection: privacySettingsController.resetSelection,
+    // Workspaces & data shows what to clear and Secure DNS; reset puts both back, with no provider kept.
+    resetPrivacy: async () => {
+      privacySettingsController.resetSelection()
+      await options.settingsStore.setSecureDns(DEFAULT_SECURE_DNS_MODE, '')
+      return true
+    },
     clearSitePermissions: sitePermissionsController.clear,
     resetMcp: mcpSettingsController.reset,
     resetUpdates: updateSettingsController.reset

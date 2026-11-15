@@ -26,7 +26,8 @@ export const ACTIVITY_HISTORY_LIMIT = 40
  */
 export class McpActivityHistory {
   private completedToolCalls = 0
-  private readonly activityStarts = new Map<string, McpTabActivity>()
+  /** Each unfinished activity's start, and when it started on a clock that setting the computer's clock does not change. */
+  private readonly activityStarts = new Map<string, { readonly activity: McpTabActivity; readonly at: number }>()
   private readonly recentActivity: McpToolActivity[] = []
   private readonly toolMetrics = new Map<string, McpToolMetric>()
   private readonly outcomeTotals: Partial<Record<McpActivityOutcome, number>> = {}
@@ -42,20 +43,26 @@ export class McpActivityHistory {
     }
   }
 
-  track(activity: McpTabActivity): void {
+  /**
+   * Records an activity's start or end as it happens. `at` is when, by `performance.now()`: an activity's duration is
+   * measured on it, so setting the computer's clock while it runs does not change it. Its times of day stay those of
+   * the computer's clock.
+   */
+  track(activity: McpTabActivity, at: number): void {
     if (activity.phase === 'started') {
-      this.activityStarts.set(activity.activityId, activity)
+      this.activityStarts.set(activity.activityId, { activity, at })
       // Abandoned dispatches must not retain metadata for the entire app session.
       if (this.activityStarts.size > ACTIVITY_HISTORY_LIMIT) {
         this.activityStarts.delete(this.activityStarts.keys().next().value!)
       }
       return
     }
-    const started = this.activityStarts.get(activity.activityId)
-    if (!started) return
+    const start = this.activityStarts.get(activity.activityId)
+    if (!start) return
     this.activityStarts.delete(activity.activityId)
+    const started = start.activity
     const completedAt = new Date(activity.occurredAt).toISOString()
-    const durationMs = Math.max(0, activity.occurredAt - started.occurredAt)
+    const durationMs = Math.max(0, Math.round(at - start.at))
     const result: McpActivityResult = activity.result ?? {
       outcome: activity.phase === 'finished' ? 'succeeded' : 'failed',
       reasonCode: activity.phase === 'finished' ? 'COMPLETED' : 'COMMAND_FAILED',

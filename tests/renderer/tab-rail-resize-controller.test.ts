@@ -1,6 +1,6 @@
 import { effectScope, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useTabRailResizeController } from '../../src/renderer/src/composables/useTabRailResizeController.js'
+import { useTabRailResizeController } from '../../src/renderer/src/features/tabs/useTabRailResizeController.js'
 
 const key = 'hronaut:vertical-tab-rail-width'
 const storageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
@@ -126,6 +126,13 @@ describe('tab rail resizing', () => {
     h.keyboard('Home')
     expect(h.controller.width.value).toBe(200)
     h.keyboard('End')
+    expect(h.controller.width.value).toBe(480)
+    // With Alt, Ctrl or Cmd these keys are the browser's: Alt+Home narrowed the rail instead of opening Home.
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'Home', cancelable: true, ...modifiers })
+      h.controller.resizeWithKeyboard(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
     expect(h.controller.width.value).toBe(480)
     h.controller.resetSize()
     expect(h.controller.width.value).toBe(280)

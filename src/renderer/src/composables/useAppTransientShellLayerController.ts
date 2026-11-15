@@ -1,16 +1,17 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { BrowserTabState } from '../../../shared/types.js'
-import type { AgentStepHistoryTarget } from './useAgentStepHistory.js'
-import type { CommandPaletteView } from './useCommandPaletteShellController.js'
-import { useWorkspaceEditorShellController } from './useWorkspaceEditorShellController.js'
+import type { AgentStepHistoryTarget } from '../features/agents/useAgentStepHistory.js'
+import type { CommandPaletteView } from '../features/command-palette/useCommandPaletteShellController.js'
+import { useWorkspaceEditorShellController } from '../features/workspaces/useWorkspaceEditorShellController.js'
 
 type ZoomAction = 'in' | 'out' | 'reset'
 
 export interface AppTransientShellSurface {
-  openTabSearch: () => Promise<void>
-  closeTabSearch: () => void
   openFindForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
-  closeFind: () => Promise<void>
+  /** keepMatch: the person closed Find, which leaves its match selected in the page, as in Chrome. */
+  closeFind: (options?: { keepMatch?: boolean }) => Promise<void>
+  /** Gives Find's field the keyboard back for the tab shown again; false when Find is not open for it. */
+  returnFindFocus: (tabId: string) => boolean
   openZoomForTab: (tab: BrowserTabState) => Promise<void>
   closeZoom: () => void
   setZoom: (action: ZoomAction) => Promise<void>
@@ -29,18 +30,14 @@ export function useAppTransientShellLayerController() {
   const layer = ref<AppTransientShellSurface | null>(null)
   const credentialPickerOpen = ref(false)
   const findOpen = ref(false)
+  const findFocused = ref(false)
   const zoomOpen = ref(false)
-  const tabSearchOpen = ref(false)
   const commandPaletteOpen = ref(false)
   const commandPaletteView = ref<CommandPaletteView>('commands')
   // An agent's "All steps", opened from its card; the agent stays named while the dialog closes.
   const agentStepsOpen = ref(false)
   const agentStepsTarget = shallowRef<AgentStepHistoryTarget | null>(null)
 
-  const tabSearchPanel = computed(() => {
-    const surface = layer.value
-    return surface ? { openPanel: surface.openTabSearch, close: surface.closeTabSearch } : null
-  })
   const zoomBar = computed(() => {
     const surface = layer.value
     return surface ? {
@@ -67,8 +64,8 @@ export function useAppTransientShellLayerController() {
     await layer.value?.openFindForTab(tab, again)
   }
 
-  async function closeFind(): Promise<void> {
-    await layer.value?.closeFind()
+  async function closeFind(options: { keepMatch?: boolean } = {}): Promise<void> {
+    await layer.value?.closeFind(options)
   }
 
   async function openCredentialPicker(): Promise<void> {
@@ -92,15 +89,14 @@ export function useAppTransientShellLayerController() {
     layer,
     credentialPickerOpen,
     findOpen,
+    findFocused,
     zoomOpen,
-    tabSearchOpen,
     commandPaletteOpen,
     commandPaletteView,
     agentStepsOpen,
     agentStepsTarget,
     showAgentSteps,
     closeAgentSteps,
-    tabSearchPanel,
     zoomBar,
     commandPalettePanel,
     workspaceEditorOpen: workspaceEditorController.open,
@@ -111,6 +107,7 @@ export function useAppTransientShellLayerController() {
     closeWorkspace: workspaceEditorController.close,
     openFindForTab,
     closeFind,
+    returnFindFocus: (tabId: string) => layer.value?.returnFindFocus(tabId) ?? false,
     openCredentialPicker,
     setZoom
   }

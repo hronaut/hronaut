@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BrowserCssStatePreview, type CssStatePreviewHost } from '../src/main/browser/css-state-preview.js'
+import { BrowserCssStatePreview, type CssStatePreviewHost } from '../src/main/browser/css-state-preview/css-state-preview.js'
 import { CSS_STATE_PREVIEW_LIMITS, normalizeCssStatePreviewStates } from '../src/shared/css-state-preview.js'
 
 type Handler = (params: Record<string, unknown> | undefined) => unknown
@@ -224,7 +224,13 @@ describe('forced CSS state preview', () => {
     vi.useFakeTimers()
     const f = fixture()
     await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'], durationMs: 1_000 })
-    await vi.advanceTimersByTimeAsync(999)
+    // The time left counts down on the clock the expiry runs on, whatever the wall clock does.
+    vi.setSystemTime(Date.now() + 3_600_000)
+    await vi.advanceTimersByTimeAsync(400)
+    expect((await f.preview.manage(f.tab, 'get')).preview?.remainingMs).toBe(600)
+    vi.setSystemTime(Date.now() - 7_200_000)
+    expect((await f.preview.manage(f.tab, 'get')).preview?.remainingMs).toBe(600)
+    await vi.advanceTimersByTimeAsync(599)
     expect(f.preview.active(f.tab)).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
     expect(f.preview.active(f.tab)).toBe(false)

@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PageFindController } from '../src/main/browser/page-find-controller.js'
+import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 
 afterEach(() => vi.useRealTimers())
 
@@ -10,14 +11,17 @@ function fixture() {
   let requestId = 0
   const contents = Object.assign(new EventEmitter(), {
     findInPage: vi.fn(() => ++requestId),
-    stopFindInPage: vi.fn()
+    stopFindInPage: vi.fn(),
+    executeJavaScriptInIsolatedWorld: vi.fn(() => Promise.resolve()),
+    getURL: vi.fn(() => 'https://example.test/'),
+    isLoadingMainFrame: vi.fn(() => false)
   })
   const controller = new PageFindController()
   const webContents = contents as unknown as WebContents
   return {
     contents,
     search: () => controller.search(webContents, 'needle', {}),
-    stop: () => controller.stop(webContents),
+    stop: (action?: 'clearSelection' | 'keepSelection' | 'activateSelection') => controller.stop(webContents, action),
     complete: (id = requestId, finalUpdate = true) => contents.emit('found-in-page', {}, {
       requestId: id, finalUpdate, activeMatchOrdinal: 1, matches: 3
     })
@@ -31,12 +35,13 @@ it('settles superseded searches and cancellation without retaining listeners or 
     searches.push(page.search().catch(error => error.message))
     expect(page.contents.listenerCount('found-in-page')).toBe(1)
     expect(page.contents.listenerCount('destroyed')).toBe(1)
-    expect(vi.getTimerCount()).toBe(1)
+    expect(page.contents.listenerCount('render-process-gone')).toBe(1)
   }
   page.stop()
   expect(await Promise.all(searches)).toEqual(Array(20).fill('Page search was cancelled or superseded'))
   expect(page.contents.listenerCount('found-in-page')).toBe(0)
   expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
   expect(page.contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
 })
@@ -58,15 +63,63 @@ it('ignores stale and partial results and preserves unrelated listeners', async 
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it.each(['destroy', 'timeout', 'throw'] as const)('cleans up after %s and permits another search', async (failure) => {
+// A very long page, such as a large log, takes many seconds to count its matches; Chromium then answers once, at the
+// end. The search failed after 5 seconds, so Find showed that it failed, and trying again failed the same way.
+it('waits for a page that takes long to count its matches', async () => {
+  const page = fixture()
+  const search = page.search()
+  await vi.advanceTimersByTimeAsync(60_000)
+  page.complete()
+  await expect(search).resolves.toEqual({ activeMatchOrdinal: 1, matches: 3 })
+  expect(page.contents.listenerCount('found-in-page')).toBe(0)
+  expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
+})
+
+// Chromium answers at once when it has nothing to search, such as a page whose renderer is gone, and that answer can come
+// before findInPage returns the request's id. Without a time limit, a search that missed it read Searching... forever.
+it('takes an answer Chromium sends before findInPage returns', async () => {
+  const page = fixture()
+  page.contents.findInPage.mockImplementationOnce(() => {
+    page.complete(0)
+    page.contents.emit('found-in-page', {}, { requestId: 1, finalUpdate: false, activeMatchOrdinal: 1, matches: 1 })
+    page.contents.emit('found-in-page', {}, { requestId: 1, finalUpdate: true, activeMatchOrdinal: 0, matches: 0 })
+    return 1
+  })
+  await expect(page.search()).resolves.toEqual({ activeMatchOrdinal: 0, matches: 0 })
+  expect(page.contents.listenerCount('found-in-page')).toBe(0)
+  expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
+  expect(page.stop('activateSelection')).toBe(false)
+})
+
+it('ignores an early answer to another request and waits for its own', async () => {
+  const page = fixture()
+  page.contents.findInPage.mockImplementationOnce(() => {
+    page.complete(7)
+    return 8
+  })
+  const search = page.search()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(page.contents.listenerCount('found-in-page')).toBe(1)
+  page.complete(8)
+  await expect(search).resolves.toEqual({ activeMatchOrdinal: 1, matches: 3 })
+})
+
+it.each([
+  ['destroy', 'Tab was closed while searching the page'],
+  ['renderer exit', 'The page stopped while searching it'],
+  ['throw', 'native failure']
+] as const)('cleans up after %s and permits another search', async (failure, message) => {
   const page = fixture()
   if (failure === 'throw') page.contents.findInPage.mockImplementationOnce(() => { throw new Error('native failure') })
   const failed = page.search().catch(error => error.message)
   if (failure === 'destroy') page.contents.emit('destroyed')
-  if (failure === 'timeout') await vi.advanceTimersByTimeAsync(5_000)
-  expect(await failed).toMatch(/closed|Timed out|native failure/)
+  if (failure === 'renderer exit') page.contents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 })
+  expect(await failed).toBe(message)
   expect(page.contents.listenerCount('found-in-page')).toBe(0)
   expect(page.contents.listenerCount('destroyed')).toBe(0)
+  expect(page.contents.listenerCount('render-process-gone')).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
   const next = page.search()
   page.complete()
@@ -85,4 +138,183 @@ it('keeps searches in different pages independent', async () => {
   pages[1]!.emit('found-in-page', {}, { requestId: 1, finalUpdate: true, activeMatchOrdinal: 2, matches: 4 })
   expect(await Promise.all(pending)).toEqual(['Page search was cancelled or superseded', { activeMatchOrdinal: 2, matches: 4 }])
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('clears the selection when asked, clicks only an active match a search settled on, and keeps the selection otherwise', async () => {
+  const page = fixture()
+  const settle = async (activeMatchOrdinal: number) => {
+    const search = page.search()
+    const requestId = page.contents.findInPage.mock.results.at(-1)!.value as number
+    page.contents.emit('found-in-page', {}, { requestId, finalUpdate: true, activeMatchOrdinal, matches: activeMatchOrdinal ? 3 : 0 })
+    await search
+  }
+  // Chromium clicks the page's focused element, which is the match's link only once a search found it: before, it is
+  // whatever had the focus, such as a button the person pressed. The search then ends keeping the selection, as Escape
+  // does, which may select a match the search had found, so the stop reports it.
+  const unanswered = page.search().catch(error => error.message)
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(await unanswered).toBe('Page search was cancelled or superseded')
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+
+  await settle(1)
+  expect(page.stop()).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('clearSelection')
+  await settle(1)
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
+  await settle(1)
+  expect(page.stop('keepSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+  // The search ended with it, so nothing is left to select or click.
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+
+  await settle(0)
+  expect(page.stop('activateSelection')).toBe(false)
+  expect(page.stop('keepSelection')).toBe(false)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+
+  // A match, then a search that has not answered yet.
+  await settle(1)
+  const next = page.search().catch(error => error.message)
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+  expect(await next).toBe('Page search was cancelled or superseded')
+})
+
+// The person's Ctrl+Enter went to Find, not to the page, so Chromium clicked the link with no user activation and
+// skipped the page the link left on Back, as it skips pages that move on by themselves.
+it('marks the page activated, by a script with a user gesture, when it clicks the match, and only then', async () => {
+  const page = fixture()
+  const calls: string[] = []
+  page.contents.executeJavaScriptInIsolatedWorld.mockImplementation(((worldId: number, scripts: { code: string }[], userGesture: boolean) => {
+    calls.push(`activate ${worldId} ${JSON.stringify(scripts)} ${userGesture}`)
+    // As for a page that went away meanwhile: the rejection is handled.
+    return Promise.reject(new Error('Page went away'))
+  }) as never)
+  page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+  const settle = async (activeMatchOrdinal = 1) => {
+    const search = page.search()
+    const requestId = page.contents.findInPage.mock.results.at(-1)!.value as number
+    page.contents.emit('found-in-page', {}, { requestId, finalUpdate: true, activeMatchOrdinal, matches: activeMatchOrdinal ? 3 : 0 })
+    await search
+  }
+
+  await settle()
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(calls).toEqual([`activate ${ISOLATED_WORLDS.findMatchClick} [{"code":"void 0"}] true`, 'stop activateSelection'])
+
+  // Nothing to click: no search, a search with no match, a stop that does not click, or a newer search not answered.
+  calls.length = 0
+  page.stop('activateSelection')
+  await settle(0)
+  page.stop('activateSelection')
+  await settle()
+  page.stop()
+  await settle()
+  page.stop('keepSelection')
+  await settle()
+  const unanswered = page.search().catch(() => undefined)
+  page.stop('activateSelection')
+  await unanswered
+  expect(calls).toEqual(['stop keepSelection', 'stop keepSelection', 'stop clearSelection', 'stop keepSelection', 'stop keepSelection'])
+
+  // A script sent while the page loads its next document would wait for it and activate that one instead: the match is
+  // still clicked, without the mark.
+  calls.length = 0
+  page.contents.isLoadingMainFrame.mockReturnValue(true)
+  await settle()
+  expect(page.stop('activateSelection')).toBe(true)
+  expect(calls).toEqual(['stop activateSelection'])
+})
+
+it('ends a search session before a new one finds the same text again, so its active match can still be clicked', () => {
+  const page = fixture()
+  const controller = new PageFindController()
+  const webContents = page.contents as unknown as WebContents
+  const calls: string[] = []
+  page.contents.findInPage.mockImplementation(((query: string, options: Electron.FindInPageOptions) => {
+    calls.push(`find ${query}${options.findNext ? ' new' : ''}${options.matchCase ? ' case' : ''}`)
+    return calls.length
+  }) as never)
+  page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+  const search = (query: string, options: Electron.FindInPageOptions) => { void controller.search(webContents, query, options).catch(() => undefined) }
+
+  search('pricing', { findNext: true })
+  search('pricing details', { findNext: true })
+  search('pricing details', { findNext: false })
+  search('pricing details', { findNext: true, matchCase: true })
+  search('Pricing Details', { findNext: true })
+  controller.stop(webContents)
+  search('pricing details', { findNext: true })
+
+  expect(calls).toEqual([
+    'find pricing new',
+    'find pricing details new',
+    'find pricing details',
+    // Match case switched: the same text again.
+    'stop clearSelection',
+    'find pricing details new case',
+    'stop clearSelection',
+    'find Pricing Details new',
+    'stop clearSelection',
+    // The search was stopped already.
+    'find pricing details new'
+  ])
+})
+
+it('keeps the page\'s selection, ending a session before one from that selection finds the same text again', () => {
+  const page = fixture()
+  const controller = new PageFindController()
+  const webContents = page.contents as unknown as WebContents
+  const calls: string[] = []
+  page.contents.findInPage.mockImplementation(((query: string) => { calls.push(`find ${query}`); return calls.length }) as never)
+  page.contents.stopFindInPage.mockImplementation(((action: string) => { calls.push(`stop ${action}`) }) as never)
+  const search = (query: string, fromSelection: boolean) => {
+    void controller.search(webContents, query, { findNext: true }, fromSelection).catch(() => undefined)
+  }
+
+  search('needle', false)
+  // Text selected in the page, taken up again: Chromium starts the new session from it.
+  search('Needle', true)
+  search('needle', false)
+  search('haystack', true)
+
+  expect(calls).toEqual([
+    'find needle', 'stop keepSelection', 'find Needle', 'stop clearSelection', 'find needle', 'find haystack'
+  ])
+})
+
+// Find stays with its tab while the person is elsewhere, where an agent may work in the page. Its input can move the
+// page's focus off the match, and Chromium clicks the focused element when a search ends on a match that is gone, so
+// Ctrl+Enter after coming back would click what the agent last focused, such as a Delete button.
+it('keeps the selection rather than click once an agent sent input to the page, until the person searches again', async () => {
+  const page = fixture()
+  const controller = new PageFindController()
+  const webContents = page.contents as unknown as WebContents
+  const settle = async () => {
+    const search = controller.search(webContents, 'needle', {})
+    const requestId = page.contents.findInPage.mock.results.at(-1)!.value as number
+    page.contents.emit('found-in-page', {}, { requestId, finalUpdate: true, activeMatchOrdinal: 1, matches: 3 })
+    await search
+  }
+
+  await settle()
+  controller.noteAgentInput(webContents)
+  // It may still select the match, as keeping the selection does.
+  expect(controller.stop(webContents, 'activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('keepSelection')
+  expect(page.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+
+  await settle()
+  controller.noteAgentInput(webContents)
+  await settle()
+  expect(controller.stop(webContents, 'activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
+
+  // Input before any match leaves the next search's match to click.
+  controller.noteAgentInput(webContents)
+  await settle()
+  expect(controller.stop(webContents, 'activateSelection')).toBe(true)
+  expect(page.contents.stopFindInPage).toHaveBeenLastCalledWith('activateSelection')
 })

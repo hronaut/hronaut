@@ -7,7 +7,8 @@ const UNDO_TITLE_KEYS: Record<UndoKind, string> = {
   'tabs-closed': 'undo.tabsClosed',
   'workspace-archived': 'undo.workspaceArchived',
   'workspace-closed': 'undo.workspaceClosed',
-  'bookmark-removed': 'undo.bookmarkRemoved'
+  'bookmark-removed': 'undo.bookmarkRemoved',
+  'collection-removed': 'undo.collectionRemoved'
 }
 
 export interface UndoToastsOptions {
@@ -28,7 +29,7 @@ const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image',
 function editsText(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (target instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(target.type)
-  return target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable
+  return target instanceof HTMLTextAreaElement || target.isContentEditable
 }
 
 function validOffer(offer: unknown): offer is UndoOffer {

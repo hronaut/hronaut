@@ -1,6 +1,20 @@
 # Hronaut
 
-Hronaut is a visible, persistent Electron browser that exposes durable agent workspaces through MCP. It keeps the browser open independently of any individual AI session, so people can watch, pause, and take over while agents work in separate local browser profiles.
+**English** · [Deutsch](docs/i18n/README.de-DE.md) · [Español](docs/i18n/README.es-ES.md) · [Français](docs/i18n/README.fr-FR.md) · [हिन्दी](docs/i18n/README.hi-IN.md) · [Bahasa Indonesia](docs/i18n/README.id-ID.md) · [Italiano](docs/i18n/README.it-IT.md) · [日本語](docs/i18n/README.ja-JP.md) · [한국어](docs/i18n/README.ko-KR.md) · [Polski](docs/i18n/README.pl-PL.md) · [Português (Brasil)](docs/i18n/README.pt-BR.md) · [Русский](docs/i18n/README.ru-RU.md) · [Türkçe](docs/i18n/README.tr-TR.md) · [Українська](docs/i18n/README.uk-UA.md) · [Tiếng Việt](docs/i18n/README.vi-VN.md) · [简体中文](docs/i18n/README.zh-CN.md) · [繁體中文](docs/i18n/README.zh-TW.md)
+
+**Give your coding agent its own browser. Keep yours.**
+
+Hronaut is a visible desktop browser for coding agents, with a separate workspace for each project. Your everyday Chrome stays out of it, and you can pause and take over at any time. It is for developers and agencies who let Codex, Claude Code, Cursor or another coding agent check signed-in web apps.
+
+**[Download](https://hronaut.dev/download)** · **[Setup guide](https://hronaut.dev/setup)** · **[Pricing](https://hronaut.dev/#pricing)**
+
+For Windows, macOS and Linux. 10-day free trial, no card. Then $4/month or $24/year per named user.
+
+[![Hronaut product tour: an agent checks a local cart, asks a person to confirm, and a second agent resumes the same workspace](https://raw.githubusercontent.com/hronaut/.github/main/profile/media/hronaut-tour-poster.jpg)](https://hronaut.dev/#demo)
+
+- **Your everyday Chrome stays out of it.** Agents work in Hronaut, not in the Chrome with your email and bank. They can use what you sign into in Hronaut.
+- **One workspace per project or client.** Each keeps its own cookies and sign-ins, and stays open after the chat ends.
+- **Watch it, pause it, take over.** Do the login or 2FA yourself, then hand the tab back.
 
 [![Latest release](https://img.shields.io/github/v/release/hronaut/hronaut?display_name=tag&sort=semver)](https://github.com/hronaut/hronaut/releases/latest)
 [![CI](https://github.com/hronaut/hronaut/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hronaut/hronaut/actions/workflows/ci.yml)
@@ -9,31 +23,7 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 [![License: Paid with 10-day trial](https://img.shields.io/badge/license-paid%20with%2010--day%20trial-4b5563)](LICENSE)
 [![skills.sh](https://skills.sh/b/hronaut/hronaut)](https://skills.sh/hronaut/hronaut)
 
-[Website](https://hronaut.dev) · [Setup](https://hronaut.dev/setup) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
-
-## Where Hronaut fits in your agent stack
-
-Hronaut is a local, visible MCP execution layer for agents that already have their own orchestration. The caller keeps workflow and orchestration state; Hronaut binds each browser command to a tool contract and a named local workspace with its own profile, account, origin, and tab context. People can watch, pause, approve, or take over, and the caller can require bounded browser evidence before it treats an external action as complete.
-
-| Responsibility | Owner |
-| --- | --- |
-| Plan the workflow and retain task state | Your SDK, agent framework, or application |
-| Define the requested browser operation | MCP tool contract and arguments |
-| Execute with a specific browser identity and site context | Hronaut workspace, profile, account, origin, and tab |
-| Approve or complete a consequential manual step | The person using visible Hronaut controls |
-| Decide whether the workflow may continue | The caller, using verified postcondition read-back |
-
-For example, a code-first agent can retain its own task state, ask Hronaut to submit a reviewed change in one named workspace, wait for human approval when required, and continue only after verified postcondition read-back confirms the external result.
-
-Hronaut is not an agent framework, hosted browser fleet, no-code platform, or universal production-safety guarantee. Use it when the browser should remain local, visible, and deliberately reusable; keep orchestration and final business decisions in the calling system.
-
-## See Hronaut in action
-
-[![Hronaut — the browser your coding agent can come back to](https://hronaut.dev/hronaut-social-card.png)](https://hronaut.dev/#demo)
-
-Watch the [35-second product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
-
-Not sure which browser model fits your workflow? Read the source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide), which compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
+[Website](https://hronaut.dev) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Releases](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## Start in three steps
 
@@ -82,7 +72,7 @@ Transfers include cookies and local storage, not history, saved passwords, Index
 Connect through Hronaut's local Streamable HTTP MCP endpoint. Choose the focused guide for your client, or start with the [generic setup](https://hronaut.dev/setup):
 
 - **Terminal and desktop agents:** [Codex](https://hronaut.dev/codex-browser-mcp), [Claude Code](https://hronaut.dev/claude-code-browser-mcp), [Gemini CLI](https://hronaut.dev/gemini-cli-browser-mcp), [Goose](https://hronaut.dev/goose-browser-mcp), [OpenCode](https://hronaut.dev/opencode-browser-mcp), [Devin Local](https://hronaut.dev/devin-local-browser-mcp), [Mistral Vibe](https://hronaut.dev/mistral-vibe-browser-mcp), [Grok Build](https://hronaut.dev/grok-build-browser-mcp), [Qwen Code](https://hronaut.dev/qwen-code-browser-mcp), and [Warp](https://hronaut.dev/warp-browser-mcp).
-- **Editor agents:** [Cursor](https://hronaut.dev/cursor-browser-mcp), [VS Code / GitHub Copilot](https://hronaut.dev/github-copilot-browser-mcp), [Cline](https://hronaut.dev/cline-browser-mcp), [Zoo Code](https://hronaut.dev/zoo-code-browser-mcp), [Kiro](https://hronaut.dev/kiro-browser-mcp), [Kilo Code](https://hronaut.dev/kilo-code-browser-mcp), [JetBrains Junie](https://hronaut.dev/jetbrains-junie-browser-mcp), [Zed](https://hronaut.dev/zed-browser-mcp), and [Windsurf](https://hronaut.dev/setup#client-configurations).
+- **Editor agents:** [Cursor](https://hronaut.dev/cursor-browser-mcp), [VS Code / GitHub Copilot](https://hronaut.dev/github-copilot-browser-mcp) (or the Hronaut extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hronaut.hronaut) or [Open VSX](https://open-vsx.org/extension/hronaut/hronaut)), [Cline](https://hronaut.dev/cline-browser-mcp), [Zoo Code](https://hronaut.dev/zoo-code-browser-mcp), [Kiro](https://hronaut.dev/kiro-browser-mcp), [Kilo Code](https://hronaut.dev/kilo-code-browser-mcp), [JetBrains Junie](https://hronaut.dev/jetbrains-junie-browser-mcp), [Zed](https://hronaut.dev/zed-browser-mcp), and [Windsurf](https://hronaut.dev/setup#client-configurations).
 - **Other clients:** use the [generic Streamable HTTP setup](https://hronaut.dev/setup).
 
 ## When Hronaut is the right browser
@@ -97,7 +87,23 @@ Hronaut fits when you already have a coding agent and want the browser to remain
 
 Explore the source-backed workflows for [authenticated browser handoff](https://hronaut.dev/authenticated-browser-agents), [parallel agent workspaces](https://hronaut.dev/parallel-agent-browser-workspaces), [localhost QA](https://hronaut.dev/coding-agent-localhost-browser), [local Web3 wallets](https://hronaut.dev/local-web3-wallets-for-coding-agents), and [security and release trust](https://hronaut.dev/security).
 
-Use a task-owned headless browser or automation library when the browser should be disposable or embedded inside your own agent runtime. Use a hosted browser service when you need remote regions, managed proxies, stealth, or fleet-scale execution. The [decision guide](https://hronaut.dev/browser-mcp-guide) covers the tradeoffs in more detail.
+Use a task-owned headless browser or automation library when the browser should be disposable or embedded inside your own agent runtime. Use a hosted browser service when you need remote regions, managed proxies, stealth, or fleet-scale execution. The source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
+
+## Where Hronaut fits in your agent stack
+
+Hronaut is a local, visible MCP execution layer for agents that already have their own orchestration. The caller keeps workflow and orchestration state; Hronaut binds each browser command to a tool contract and a named local workspace with its own profile, account, origin, and tab context. People can watch, pause, approve, or take over, and the caller can require bounded browser evidence before it treats an external action as complete.
+
+| Responsibility | Owner |
+| --- | --- |
+| Plan the workflow and retain task state | Your SDK, agent framework, or application |
+| Define the requested browser operation | MCP tool contract and arguments |
+| Execute with a specific browser identity and site context | Hronaut workspace, profile, account, origin, and tab |
+| Approve or complete a consequential manual step | The person using visible Hronaut controls |
+| Decide whether the workflow may continue | The caller, using verified postcondition read-back |
+
+For example, a code-first agent can retain its own task state, ask Hronaut to submit a reviewed change in one named workspace, wait for human approval when required, and continue only after verified postcondition read-back confirms the external result.
+
+Hronaut is not an agent framework, hosted browser fleet, no-code platform, or universal production-safety guarantee. Use it when the browser should remain local, visible, and deliberately reusable; keep orchestration and final business decisions in the calling system.
 
 ## Highlights
 
@@ -113,7 +119,7 @@ Use a task-owned headless browser or automation library when the browser should 
 - Independent **Follow agents** mode that keeps the active agent tab visible without taking keyboard or mouse focus. With it off, agent-created tabs, workspace tab selections, and agent-triggered popups leave the tab you are viewing in place.
 - Built-in history, bookmarks, downloads, password vault, site controls, responsive preview, visual comparison, and Chromium diagnostics.
 - Automatic update checks against public GitHub releases; downloads and installation always require user action.
-- English, Ukrainian, Russian, German, French, Spanish, and Polish interface languages.
+- English, Ukrainian, Russian, German, French, Spanish, Polish, Italian, Brazilian Portuguese, Turkish, Hindi, Japanese, Korean, Simplified Chinese, Traditional Chinese, Indonesian, and Vietnamese interface languages.
 
 ## Install
 
@@ -156,6 +162,8 @@ Get-FileHash .\PACKAGE_FILENAME -Algorithm SHA256
 
 Compare the result with the matching filename in `hashes.txt`. Attestations and hashes establish release-workflow provenance and file integrity; they do not make the Windows packages code-signed. The [release trust guide](https://hronaut.dev/security#verify-release) explains the boundary and additional checks.
 
+Each release also carries `hronaut-sbom.cdx.json`, a CycloneDX software bill of materials listing the npm packages the app ships and the bundled Electron runtime, so a vulnerability scanner can check them. It is in `hashes.txt` and attested like the packages.
+
 ## Run from source
 
 Requirements: Node.js 22 or newer and a graphical Linux, macOS, or Windows session.
@@ -181,7 +189,7 @@ turn on **Allow connections from other computers**, then fully quit and restart
 Hronaut. This listens on all IPv4 interfaces. Token authentication is on by default and
 controlled separately by **Require MCP authentication**.
 Use `http://YOUR-HRONAUT-COMPUTER-LAN-IP:47812/mcp` on the remote computer (replace
-the address and use your configured MCP port). If authentication is enabled, create a credential under
+the address and use your configured MCP port). With authentication on (the default), create a credential under
 **Capability profiles** in the same settings panel and configure your remote
 client to send `Authorization: Bearer YOUR-CREDENTIAL`. Allow the configured port
 through the host firewall. Local clients still use their existing loopback URL.
@@ -193,17 +201,22 @@ the browser profile and attach local files. Browser Origin restrictions
 remain in place; this option is for MCP clients, not arbitrary browser pages.
 
 
-Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
+Start Hronaut, then copy your client's setup from Hronaut Home. A new profile requires the owner MCP token, so a Streamable HTTP client sends it as a bearer header:
 
 ```json
 {
   "mcpServers": {
     "hronaut": {
-      "url": "http://127.0.0.1:47812/mcp"
+      "url": "http://127.0.0.1:47812/mcp",
+      "headers": {
+        "Authorization": "Bearer <token from the file Hronaut Home shows>"
+      }
     }
   }
 }
 ```
+
+Hronaut Home shows the token file for your profile; keep the token out of chat, issues and source control. A profile whose **Require MCP authentication** is off connects with the `url` alone.
 
 The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Goose, Cursor, Cline, Zoo Code, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Grok Build, Qwen Code, Warp, Windsurf, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every built-in client, including the right endpoint and authentication settings.
 
@@ -229,14 +242,14 @@ After trying it, share a short [setup report](https://github.com/hronaut/hronaut
 
 ### Claude Code plugin
 
-Claude Code users can install the Hronaut MCP server and the Hronaut Agent Skill together as a plugin from this repository:
+Claude Code users can install the Hronaut MCP server and the Hronaut Agent Skill together as a plugin. It lives in its own repository, [hronaut/hronaut-claude-plugin](https://github.com/hronaut/hronaut-claude-plugin), with its own versions:
 
 ```text
-/plugin marketplace add hronaut/hronaut
+/plugin marketplace add hronaut/hronaut-claude-plugin
 /plugin install hronaut@hronaut
 ```
 
-On Claude Code 2.1.275 or later, `/plugin install hronaut --marketplace hronaut/hronaut` does both in one step. Start Hronaut first; `/mcp` then shows Hronaut as connected. The plugin connects to `http://127.0.0.1:47812/mcp` and reads Hronaut's owner token from the token file in Hronaut's profile each time it connects, so the token is never written to Claude Code's settings or shown to the agent; on Windows without `sh` on the PATH it reads it with Windows PowerShell. If you changed Hronaut's MCP port, set `HRONAUT_MCP_PORT` for Claude Code too; if Hronaut uses another profile folder, set `HRONAUT_USER_DATA_DIR`. If you start Hronaut with `HRONAUT_MCP_TOKEN`, give Claude Code the same variable and delete the profile's `mcp-token` file if an earlier start left one, since the plugin sends the file's token first. If you added Hronaut with `claude mcp add` before, Claude Code keeps using that server and the token it stored instead of the plugin's, so remove it with `claude mcp remove hronaut --scope user`.
+On Claude Code 2.1.275 or later, `/plugin install hronaut --marketplace hronaut/hronaut-claude-plugin` does both in one step. Start Hronaut first; `/mcp` then shows Hronaut as connected. The plugin starts the `@hronaut/mcp` bridge with `npx`, so it needs Node.js 20 or later; the [plugin's README](https://github.com/hronaut/hronaut-claude-plugin#readme) covers the connection, `HRONAUT_MCP_PORT` and the owner token.
 
 ### First successful run
 
@@ -309,11 +322,11 @@ Hronaut Home generates Windsurf Cascade's user-level `~/.codeium/windsurf/mcp_co
 The official Apache-2.0 [Grok Build CLI](https://github.com/xai-org/grok-build) can connect directly to Hronaut's local HTTP MCP endpoint:
 
 ```bash
-grok mcp add --transport http hronaut http://127.0.0.1:47812/mcp
+grok mcp add --transport http hronaut http://127.0.0.1:47812/mcp --header 'Authorization: Bearer ${HRONAUT_MCP_TOKEN}'
 grok mcp doctor hronaut
 ```
 
-For a protected profile, copy the authentication-aware command from Hronaut Home. It stores an `Authorization` header that references `HRONAUT_MCP_TOKEN`; Grok expands the environment variable when loading `~/.grok/config.toml`, so the owner token is not copied into the configuration file. See xAI's [official MCP server guide](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/07-mcp-servers.md).
+Copy the command from Hronaut Home: it reads the owner token into `HRONAUT_MCP_TOKEN` first. Grok expands the variable when loading `~/.grok/config.toml`, so the token is not copied into the file. With **Require MCP authentication** off, drop the `--header` argument. See xAI's [official MCP server guide](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/07-mcp-servers.md).
 
 This local integration is for Grok Build. Hosted Grok on the web and the X bot cannot reach a loopback-only Hronaut server; Hronaut does not recommend publishing its browser-control endpoint through a public tunnel.
 
@@ -357,6 +370,8 @@ locally and copy its endpoint from Hronaut Home.
 ## License
 
 Hronaut is source-available under the [Subscription and Trial License](LICENSE). The 10-day trial starts with the first agent tool call, with no credit card required. All ongoing use requires a subscription afterward: **$4/month or $24/year per named user (50% off $48)**, with up to three active devices per seat. Agent automation is blocked after expiry; existing local data remains accessible for recovery, export, and deletion. Earlier releases retain their original terms.
+
+The Claude Code and Codex plugins, the VS Code extension and the agent skill in [skills/hronaut](skills/hronaut/SKILL.md) are separate software under the MIT License; the app itself stays under [LICENSE](LICENSE). See [what you can do without paying](https://hronaut.dev/#free).
 
 Outside contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports should follow the [security policy](.github/SECURITY.md).
 

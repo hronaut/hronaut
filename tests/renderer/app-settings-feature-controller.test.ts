@@ -55,12 +55,19 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
       setShowAgentCursor: vi.fn(async (showAgentCursor: boolean) => applySettings({ ...settings.value, showAgentCursor })),
       setPinAgentLiveStatus: vi.fn(async (pinAgentLiveStatus: boolean) => applySettings({ ...settings.value, pinAgentLiveStatus })),
       setSearchEngine: vi.fn(async (searchEngine: SearchEngineName) => applySettings({ ...settings.value, searchEngine })),
+      addSiteSearch: vi.fn(),
+      updateSiteSearch: vi.fn(),
+      removeSiteSearch: vi.fn(),
+      setSecureDns: vi.fn(async (secureDnsMode: AppSettings['secureDnsMode'], secureDnsTemplate: string) => applySettings({ ...settings.value, secureDnsMode, secureDnsTemplate })),
       setMcpRemoteAccess: vi.fn(),
     setMcpAuthentication: vi.fn(async (mcpAuthentication: boolean) => applySettings({ ...settings.value, mcpAuthentication })),
       setMcpPort: vi.fn(async (mcpPort: number) => applySettings({ ...settings.value, mcpPort })),
       setChallengeDetectionEnabled: vi.fn(async (challengeDetectionEnabled: boolean) => applySettings({ ...settings.value, challengeDetectionEnabled })),
       setOmitAgentUrlDetail: vi.fn(async (omitAgentUrlDetail: boolean) => applySettings({ ...settings.value, omitAgentUrlDetail })),
       setAllowWebsiteFileSaving: vi.fn(async (allowWebsiteFileSaving: boolean) => applySettings({ ...settings.value, allowWebsiteFileSaving })),
+      setSitePermissionsBlockedByDefault: vi.fn(async (sitePermissionsBlockedByDefault: string[]) => (
+        applySettings({ ...settings.value, sitePermissionsBlockedByDefault })
+      )),
       setMcpToolSet: vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => applySettings({ ...settings.value, mcpToolSet })),
       resetMcp: vi.fn(async () => applySettings({
         ...settings.value,
@@ -158,7 +165,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
     copyText: vi.fn(async () => true),
     translate: (key: string) => key,
     formatNumber: (value: number) => String(value),
-    confirm: vi.fn(() => true),
+    confirm: vi.fn(async () => true),
     showToast: vi.fn(),
     onSettingError: vi.fn()
   } satisfies AppSettingsFeatureControllerOptions
@@ -298,6 +305,16 @@ describe('app settings feature controller', () => {
     await loading
 
     expect(harness.controller.defaultDownloadDirectory.value).toBe('')
+  })
+
+  // Workspaces & data's Reset to default left Secure DNS as it was, although the section shows it.
+  it('puts Secure DNS back to the DNS service\'s own, with no provider kept, when Workspaces & data is reset', async () => {
+    const harness = createHarness()
+    harness.options.settings.value = { ...harness.options.settings.value, secureDnsMode: 'secure', secureDnsTemplate: 'https://dns.example/dns-query' }
+    harness.controller.settingsDialogController.openSection('privacy')
+    await expect(harness.controller.settingsDialogController.resetCurrent()).resolves.toBe(true)
+    expect(harness.options.settingsStore.setSecureDns).toHaveBeenCalledExactlyOnceWith('automatic', '')
+    expect(harness.options.settings.value).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
   })
 
   it('hands release history off from other modal surfaces instead of stacking dialogs', () => {

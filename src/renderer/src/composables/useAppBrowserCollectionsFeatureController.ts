@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import type {
   BrowserBookmark,
   BrowserHistoryEntry,
@@ -6,8 +6,11 @@ import type {
   HronautApi,
   HronautBookmarksApi,
   HronautDownloadsApi,
-  HronautHistoryApi
+  HronautHistoryApi,
+  HronautPanelWindowApi,
+  HronautShellApi
 } from '../../../shared/types.js'
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { useBrowserCollectionsController } from './useBrowserCollectionsController.js'
 import {
   useBrowserCollectionsShellController,
@@ -15,7 +18,7 @@ import {
   type HistoryShellPanel
 } from './useBrowserCollectionsShellController.js'
 
-type CollectionsBrowserApi = Pick<HronautApi, 'newTab' | 'copyText'>
+type CollectionsBrowserApi = Pick<HronautApi, 'newTab' | 'copyText' | 'focusActivePage'>
 
 export interface AppBookmarksPanelSurface extends BookmarksShellPanel {
   handleEscape: () => void
@@ -27,8 +30,20 @@ export interface AppBrowserCollectionsFeatureControllerOptions {
   bookmarksApi: HronautBookmarksApi
   historyApi: HronautHistoryApi
   settingsOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   syncState: (operation: Promise<BrowserState>) => Promise<void>
+  /** The browser state, whose tab in view and workspaces Bookmark all tabs reads. */
+  browserState?: () => Pick<BrowserState, 'tabs' | 'activeTabId' | 'mcpTabGroups'>
+  /**
+   * Settles once the shell has read the browser state and mounted its panels. A Bookmarks window main opens to ask for
+   * Bookmark all tabs' name gets the request before then; the main window has no such wait, so a request that comes
+   * before its state, which it cannot act on, does not act later over what the person did since.
+   */
+  browserStateReady?: () => Promise<void>
+  /** Whether Bookmarks shows in its own window, which then asks for Bookmark all tabs' name; never in that window. */
+  bookmarksInOwnWindow?: () => boolean
+  panelWindow?: Pick<HronautPanelWindowApi, 'bookmarkAllTabs'>
+  /** Tells main whether History is open, so that its key pressed in a page closes it without taking the keyboard. */
+  historyShown?: Pick<HronautShellApi, 'setHistoryShown'>
 }
 
 export function useAppBrowserCollectionsFeatureController(
@@ -51,20 +66,42 @@ export function useAppBrowserCollectionsFeatureController(
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen: options.tabSearchOpen,
     bookmarksPanel,
     historyPanel,
     refreshDownloads: browserCollectionsController.refreshDownloads,
     openUrl: (url) => options.syncState(options.browser.newTab({ url, active: true }))
   })
   let disposed = false
+  // Said from the start too, as after the window reloads.
+  const stopHistoryShown = watch(historyOpen, (shown) => options.historyShown?.setHistoryShown(shown), { immediate: true })
 
+  // Pages opened behind the one shown load a few at a time, so Open all does not load every bookmark together.
   async function openBookmarkInBackground(bookmark: BrowserBookmark): Promise<void> {
-    await options.syncState(options.browser.newTab({ url: bookmark.url, active: false, focus: false }))
+    await options.syncState(options.browser.newTab({ url: bookmark.url, active: false, focus: false, loadsInTurn: true }))
   }
 
   async function openHistoryEntryInBackground(entry: BrowserHistoryEntry): Promise<void> {
-    await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false }))
+    await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false, loadsInTurn: true }))
+  }
+
+  /**
+   * Bookmark all tabs for the workspace asked for, null for the tabs in no workspace, or else for the website tab in
+   * view; with Home in view there are none. The workspace's name is the one suggested for the collection.
+   */
+  async function bookmarkAllTabs(workspaceId?: string | null): Promise<void> {
+    await options.browserStateReady?.()
+    const state = options.browserState?.()
+    if (!state) return
+    const shown = state.tabs.find(tab => tab.id === state.activeTabId)
+    const id = workspaceId !== undefined ? workspaceId
+      : shown && !isHronautHomeUrl(shown.url) ? shown.mcpGroupId ?? null : undefined
+    if (id === undefined) return
+    if (options.bookmarksInOwnWindow?.()) {
+      await options.panelWindow?.bookmarkAllTabs(id)
+      return
+    }
+    const name = id === null ? undefined : state.mcpTabGroups.find(group => group.id === id)?.name
+    await shellController.bookmarkAllTabs(id, name)
   }
 
   function copyDownloadPath(path: string): Promise<void> {
@@ -79,9 +116,15 @@ export function useAppBrowserCollectionsFeatureController(
     return options.browser.copyText(entry.url)
   }
 
+  /** Gives the keyboard to the page in view, as when History closes with the keyboard in it. */
+  function returnKeyboardToPage(): void {
+    void options.browser.focusActivePage().catch(() => undefined)
+  }
+
   function dispose(): void {
     if (disposed) return
     disposed = true
+    stopHistoryShown()
     shellController.dispose()
     browserCollectionsController.dispose()
   }
@@ -101,6 +144,7 @@ export function useAppBrowserCollectionsFeatureController(
     toggleDownloads: shellController.toggleDownloads,
     toggleBookmarks: shellController.toggleBookmarks,
     toggleCurrentBookmark: shellController.toggleCurrentBookmark,
+    bookmarkAllTabs,
     toggleVisitHistory: shellController.toggleVisitHistory,
     openVisitHistory: shellController.openVisitHistory,
     openBookmark: shellController.openBookmark,
@@ -110,6 +154,7 @@ export function useAppBrowserCollectionsFeatureController(
     copyHistoryAddress,
     copyBookmarkAddress,
     copyDownloadPath,
+    returnKeyboardToPage,
     dispose
   }
 }

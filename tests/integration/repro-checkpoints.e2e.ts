@@ -3,7 +3,7 @@ import { stripVTControlCharacters } from 'node:util'
 import type { Page } from '@playwright/test'
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('exports explicit Repro expectations that fail broken CRUD and pass the corrected page', async ({ appWindow, electronApp }) => {
   let fixed = false
@@ -18,8 +18,7 @@ test('exports explicit Repro expectations that fail broken CRUD and pass the cor
   try {
     const state = await appWindow.evaluate(async url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.getByRole('button', { name: 'Create item' })).toBeVisible()
     const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
     await page.getByRole('button', { name: 'Create item' }).click()
@@ -73,8 +72,7 @@ test('exports checked-state assertions without form values and detects both brok
   try {
     const state = await appWindow.evaluate(async url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#checkbox')).toBeVisible()
     const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
     for (const [selector, condition] of [['#checkbox', 'checked'], ['#radio', 'unchecked']] as const) {
@@ -126,8 +124,7 @@ test('records rendered visibility consistent with exported Playwright assertions
   try {
     const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.getByRole('heading', { name: 'Ready' })).toBeVisible()
     const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
     for (const [selector, condition] of [['#suppressed', 'hidden'], ['#contents', 'visible'], ['#text-contents', 'visible'], ['#transparent', 'visible']] as const) {
@@ -173,8 +170,7 @@ test('matches exported text assertions when result elements contain script or st
   try {
     const state = await appWindow.evaluate(async url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#result')).toHaveText('Saved successfully')
     const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
     const report = await appWindow.evaluate(({ tabId, context }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, {
@@ -214,8 +210,7 @@ test('rejects shadow-containing text checkpoints without changing the recording 
   try {
     const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('css:light=#result')).toHaveText('Saved successfullyUpdate failed')
     const before = await page.evaluate(() => ({ light: document.querySelector('#result')!.outerHTML, shadow: document.querySelector('#host')!.shadowRoot!.innerHTML }))
     const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)

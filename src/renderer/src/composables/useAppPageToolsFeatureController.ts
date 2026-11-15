@@ -8,15 +8,15 @@ import {
 import {
   usePageCaptureController,
   type PageCaptureControllerOptions
-} from './usePageCaptureController.js'
+} from '../features/page-tools/usePageCaptureController.js'
 import {
   usePageExportController,
   type PageExportControllerOptions
-} from './usePageExportController.js'
+} from '../features/page-tools/usePageExportController.js'
 import {
   usePageToolsPresentationController,
   type PageToolsPresentationControllerOptions
-} from './usePageToolsPresentationController.js'
+} from '../features/page-tools/usePageToolsPresentationController.js'
 
 export interface AppPageToolsFeatureControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>

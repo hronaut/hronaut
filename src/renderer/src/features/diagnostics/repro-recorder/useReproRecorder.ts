@@ -25,10 +25,16 @@ export function useReproRecorder(
   const reproCopied = ref(false)
   const reproPlaywrightCopied = ref(false)
 
-  async function manageRepro(action: 'start' | 'get' | 'stop' | 'clear' | 'checkpoint', checkpoint?: BrowserReproCheckpointInput): Promise<void> {
+  /**
+   * A quiet read refreshes the recording shown without marking the panel busy, so its buttons stay enabled while a tab
+   * update refreshes it: a click on Clear just after Stop is not lost to a button disabled for the refresh.
+   */
+  async function manageRepro(
+    action: 'start' | 'get' | 'stop' | 'clear' | 'checkpoint', checkpoint?: BrowserReproCheckpointInput, quiet = false
+  ): Promise<void> {
     const request = beginRecorderRequest('repro', action)
     if (!request) return
-    reproState.value = 'loading'
+    if (!quiet) reproState.value = 'loading'
     reproError.value = ''
     if (action !== 'get') {
       reproCopied.value = false
@@ -79,7 +85,7 @@ export function useReproRecorder(
     return watch(
       () => [options.activeTab.value?.id, options.activeTab.value?.reproRecording?.active, options.activeTab.value?.reproRecording?.stepCount] as const,
       ([tabId]) => {
-        if (tabId && reproPanelOpen.value) void manageRepro('get')
+        if (tabId && reproPanelOpen.value) void manageRepro('get', undefined, true)
       }
     )
   }

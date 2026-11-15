@@ -47,8 +47,9 @@ test('fresh profiles provide a workspace rail with reachable named actions acros
       await home.emulateMedia({ colorScheme: null })
       await expect.poll(() => home.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(theme === 'dark')
       await expect(home.locator('#guide-name')).not.toBeEmpty()
-      for (const view of ['overview', 'tools', 'connect']) {
-        await home.locator('[data-home-view="' + view + '"]').click()
+      for (const view of ['tabs', 'overview', 'tools', 'connect']) {
+        if (view === 'tabs') await home.locator('#home-tab-tabs').click()
+        else { await home.locator('#home-tab-agents').click(); await home.locator('#agents-section-' + view).click() }
         await expect(home.locator('#home-' + view)).toBeVisible()
         const capture = await captureWindow(app)
         await writeFile(testInfo.outputPath('desktop-home-' + view + '-' + theme + '.png'), Buffer.from(capture, 'base64'))
@@ -75,7 +76,6 @@ test('fresh profiles provide a workspace rail with reachable named actions acros
       await window.evaluate("window.hronautSettings.setTabPosition('left')")
       for (const [trigger, panel, name] of [
         ['.page-tools-button', '.page-tools-panel', 'page-tools'],
-        ['.tab-search-button', '.tab-search-panel', 'tab-overview'],
         ['.command-palette-button', '.command-palette', 'commands'],
         ['.new-workspace', '.workspace-editor', 'workspace-editor'],
         ['.settings-button', '.settings-dialog', 'settings']
@@ -116,7 +116,10 @@ test('settings search supports keyboard selection, recovery, and a fresh search 
 test('Home view navigation supports keyboard selection, search, and recovery', async ({ electronApp }) => {
   await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
   const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+  // Connect an agent is a section of the Agents view; End and the arrows move along the sections.
+  await home.getByRole('tab', { name: 'Agents', exact: true }).click()
   const connect = home.getByRole('tab', { name: 'Connect an agent', exact: true })
+  await connect.click()
   await connect.focus()
   await connect.press('End')
   const tools = home.getByRole('tab', { name: 'Tool library', exact: true })
@@ -174,13 +177,24 @@ test('every Home view remains accessible in light and dark', async ({ appWindow,
   await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
   const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
   await home.emulateMedia({ colorScheme: null })
+  // The Tabs view lists an open tab and a recently closed one.
+  await appWindow.evaluate(async () => {
+    const api = (window as unknown as { hronaut: HronautApi }).hronaut
+    // In the background, so Home stays the tab shown.
+    await api.newTab({ url: 'data:text/html,<title>Accessible open tab</title><main>Open</main>', active: false })
+    const before = await api.getState()
+    const state = await api.newTab({ url: 'data:text/html,<title>Accessible closed tab</title><main>Closed</main>', active: false })
+    await api.closeTab(state.tabs.find(tab => !before.tabs.some(known => known.id === tab.id))!.id)
+  })
   for (const theme of ['light', 'dark']) {
     await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
     await expect.poll(() => home.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(theme === 'dark')
     await home.evaluate(axe.source)
-    for (const view of ['connect', 'overview', 'tools']) {
-      await home.locator('[data-home-view="' + view + '"]').click()
+    for (const view of ['tabs', 'connect', 'overview', 'tools']) {
+      if (view === 'tabs') await home.locator('#home-tab-tabs').click()
+      else { await home.locator('#home-tab-agents').click(); await home.locator('#agents-section-' + view).click() }
       if (view === 'tools') await home.locator('#tool-grid summary').first().click()
+      if (view === 'tabs') await expect(home.locator('#tab-results .tab-row.closed')).toHaveCount(1)
       const violations = await home.evaluate(async () => {
         const results = await (window as unknown as { axe: typeof axe }).axe.run(document, {
           runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }

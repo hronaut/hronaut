@@ -1,21 +1,37 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+// The prototype-built browser below stubs invalidateTabOverviewPreview, which closing a tab drops its overview preview with.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
+}))
+// It stubs selectTabAndWait too, which going to another tab waits on.
+vi.mock('../src/main/browser/tab-selection/tab-selection.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-selection/tab-selection.js')>(),
+  selectTabAndWait: (browser: { selectTabAndWait: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.selectTabAndWait(...args)
+}))
+import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
+import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
+import { selectTabForPerson } from '../src/main/browser/tab-selection/person-tab-switch.js'
+
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
 
 // Closing a tab opened from a page's link showed the tab to its right, where Chrome shows the page's next tab or the
 // page itself; a workspace whose remembered tab closed off screen remembered that tab too.
 
 interface Tab {
-  id: string; url: string; pinned: boolean; mcpGroupId: string; openedFromTabId?: string; openerTabId?: string
+  id: string; url: string; pinned: boolean; mcpGroupId: string; openedFromTabId?: string; openerTabId?: string; closedItself?: boolean
   webContents: { id: number; isDestroyed: () => boolean }
 }
 interface Internals {
   activeTabId: string | null
   tabs: Map<string, Tab>
   mcpTabGroups: Map<string, { id: string; activeTabId: string | null; lastUsedAt: string }>
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
-  removeTabRecord(tab: Tab): void
-  selectTabForPerson(tabId: string): Promise<unknown>
   selectTabAndWait(tabId: string): Promise<unknown>
 }
 
@@ -23,7 +39,7 @@ const forgets = () => ({ forget: vi.fn() })
 
 function fixture(spec: Array<{ id: string; from?: string; workspace?: string }>, remembered: string | null = null) {
   const group = (id: string) => ({ id, name: id, activeTabId: id === 'work' ? remembered : null, lastUsedAt: '2026-10-22T06:00:00.000Z' })
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', group('work')], ['other', group('other')]]),
     tabs: new Map(spec.map((tab, index) => [tab.id, {
       id: tab.id, url: `https://${tab.id}.example/`, pinned: false, mcpGroupId: tab.workspace ?? 'work',
@@ -31,10 +47,10 @@ function fixture(spec: Array<{ id: string; from?: string; workspace?: string }>,
       webContents: { id: index + 1, isDestroyed: () => false }
     }])),
     activeTabId: null,
-    splitView: null,
+    splitView: null, restingSplitViews: [],
     cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
     invalidateTabOverviewPreview: vi.fn(), tabOverviewSleepPreviews: new Map(), tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
-    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, deleteSnapshotBaselineForTab: vi.fn(),
+    runWalletLifecycleAction: vi.fn(), options: {}, snapshotBaselines: new Map(), snapshotBaselineIdsByTab: new Map(),
     globallyUnlockedTabIds: new Set(), globallyResumedAgentTabIds: new Set(), browserSessionAuthorityHooks: new Map(),
     mcpActivitiesByTab: new Map(), mcpActivityFollower: { removeTab: vi.fn() }, webContentsToTab: new Map()
   }) as unknown as Internals
@@ -42,8 +58,8 @@ function fixture(spec: Array<{ id: string; from?: string; workspace?: string }>,
 
 function closeShown(manager: Internals, id: string): string | undefined {
   manager.activeTabId = id
-  const { nextId } = manager.closeTabTransition(manager.tabs.get(id)!)
-  manager.removeTabRecord(manager.tabs.get(id)!)
+  const { nextId } = closeTabTransition(manager as never, manager.tabs.get(id)! as never)
+  removeTabRecord(manager as never, manager.tabs.get(id)! as never)
   return nextId
 }
 
@@ -63,15 +79,18 @@ describe('closing the shown tab opened from a page', () => {
 
   it('shows the tab beside it once the page is closed, as for any tab', () => {
     const manager = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }])
-    manager.removeTabRecord(manager.tabs.get('app')!)
+    removeTabRecord(manager as never, manager.tabs.get('app')! as never)
     expect(manager.tabs.get('one')).not.toHaveProperty('openedFromTabId')
     expect(closeShown(manager, 'one')).toBe('mail')
   })
 
-  it('still shows a popup\'s opener first', () => {
+  it('shows the next tab its page opened when the person closes a window.open tab, and the page when it closes itself', () => {
     const manager = fixture([{ id: 'app' }, { id: 'popup', from: 'app' }, { id: 'one', from: 'app' }])
     manager.tabs.get('popup')!.openerTabId = 'app'
-    expect(closeShown(manager, 'popup')).toBe('app')
+    expect(closeShown(manager, 'popup')).toBe('one')
+    const closing = fixture([{ id: 'app' }, { id: 'popup', from: 'app' }, { id: 'one', from: 'app' }])
+    Object.assign(closing.tabs.get('popup')!, { openerTabId: 'app', closedItself: true })
+    expect(closeShown(closing, 'popup')).toBe('app')
   })
 })
 
@@ -79,10 +98,10 @@ describe('a workspace whose remembered tab opened from a page closes off screen'
   it('remembers the tab closing it on screen would show', () => {
     const manager = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }, { id: 'shown', workspace: 'other' }], 'one')
     manager.activeTabId = 'shown'
-    manager.removeTabRecord(manager.tabs.get('one')!)
+    removeTabRecord(manager as never, manager.tabs.get('one')! as never)
     expect(manager.mcpTabGroups.get('work')!.activeTabId).toBe('app')
     const siblings = fixture([{ id: 'app' }, { id: 'one', from: 'app' }, { id: 'mail' }, { id: 'two', from: 'app' }], 'two')
-    siblings.removeTabRecord(siblings.tabs.get('two')!)
+    removeTabRecord(siblings as never, siblings.tabs.get('two')! as never)
     expect(siblings.mcpTabGroups.get('work')!.activeTabId).toBe('one')
   })
 })
@@ -94,7 +113,7 @@ describe('the person going to another tab', () => {
     const workspace = manager.tabs.get(to)!.mcpGroupId
     manager.mcpTabGroups.get(workspace)!.activeTabId = manager.tabs.get(workspaceShows)!.mcpGroupId === workspace ? workspaceShows : null
     manager.selectTabAndWait = vi.fn(async () => undefined)
-    void manager.selectTabForPerson(to)
+    void selectTabForPerson(manager as never, to)
     expect(manager.selectTabAndWait).toHaveBeenCalledWith(to)
     return manager
   }

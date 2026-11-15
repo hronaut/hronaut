@@ -2,6 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
 import { waitForSettledPageBounds } from './settled-page-bounds.js'
+import { homeStatus } from './home-status.js'
 
 type QueueGate = { held: boolean; commands: string[]; baseline: number; release: () => void; restore: () => void }
 type QueueScope = typeof globalThis & { wheelQueue?: QueueGate }
@@ -101,11 +102,10 @@ for (const change of ['pause', 'cancel'] as const) {
       }
       await electronApp.evaluate(() => (globalThis as QueueScope).wheelQueue!.release())
       const result = await pending
-      const terminal = () => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }
-        return state.recentActivity.filter(activity => activity.toolName === 'browser_wheel' && activity.tabId === id)
-      }, tabId)
+      const terminal = async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }>(electronApp)
+        return state.recentActivity.filter(activity => activity.toolName === 'browser_wheel' && activity.tabId === tabId)
+      }
       await expect.poll(terminal).toHaveLength(1)
       const activity = await terminal()
       const commands = await electronApp.evaluate(() => (globalThis as QueueScope).wheelQueue!.commands)

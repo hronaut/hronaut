@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
+import type { SupportedLocale } from '../../../shared/locale.js'
 import { themeColorScheme } from '../../../shared/theme.js'
 import type {
   HronautSidebarOverlayViewApi,
@@ -21,14 +22,16 @@ import type {
   UserAttentionRequest
 } from '../../../shared/types.js'
 import { installShellTooltips } from '../composables/shell-tooltips.js'
-import type { McpStatusControlsController } from '../composables/useMcpStatusController.js'
+import { createLocaleSwitch } from '../i18n.js'
+import type { McpStatusControlsController } from '../features/mcp/useMcpStatusController.js'
 import { createShellViewportMedia } from '../shell-viewport-media.js'
 import AppTopbarActions from './AppTopbarActions.vue'
-import BrowserTabsBar from './BrowserTabsBar.vue'
+import BrowserTabsBar from '../features/tabs/BrowserTabsBar.vue'
 
 const props = defineProps<{ api: HronautSidebarOverlayViewApi }>()
 
-const { locale } = useI18n({ useScope: 'global' })
+const i18n = useI18n({ useScope: 'global' })
+const switchLocale = createLocaleSwitch(i18n)
 const state = shallowRef<SidebarOverlayState | null>(null)
 const model = computed((): SidebarOverlayModel | null => state.value?.model ?? null)
 
@@ -85,6 +88,7 @@ const browserState = computed((): BrowserState => {
     closedTabs: [],
     activeTabId: rail?.activeTabId ?? null,
     ...(rail?.splitView ? { splitView: { ...rail.splitView, ratio: 0.5 } } : {}),
+    ...(rail?.restingSplitViews ? { restingSplitViews: rail.restingSplitViews.map((split) => ({ ...split, ratio: 0.5 })) } : {}),
     allTabsMuted: rail?.allTabsMuted ?? false,
     allHumanInteractionLocked: rail?.allHumanInteractionLocked ?? false,
     mcpUrl: '',
@@ -159,6 +163,9 @@ function stopWorkerCapture(tabId: string): Promise<void> {
   return Promise.resolve()
 }
 
+// The rail reads the state and the agents' tools through these, as the shell's own does.
+const readState = (): BrowserState => browserState.value
+const readMcpActivity = (): Record<string, McpTabActivity> => mcpActivityByTab.value
 const tabTooltip = (tab: BrowserTabState): string => railTabs.value.get(tab.id)?.tooltip ?? tab.title
 const describeEmulation = (tab: BrowserTabState): string => railTabs.value.get(tab.id)?.emulationDescription ?? ''
 
@@ -246,7 +253,6 @@ function onPointerUp(event: PointerEvent): void {
 function onDragStart(): void {
   dragging = true
   reportPointer()
-  send({ kind: 'drag-start' })
 }
 
 function onDragEnd(): void {
@@ -277,8 +283,8 @@ function applyDocument(next: SidebarOverlayModel): void {
   const root = document.documentElement
   root.dataset.theme = next.theme
   root.style.colorScheme = themeColorScheme(next.theme)
-  root.lang = next.locale
-  locale.value = next.locale
+  // The language the rail shows: English when the shell's could not be loaded.
+  root.lang = i18n.locale.value
   if (next.tint) root.style.setProperty('--workspace-tint', next.tint)
   else root.style.removeProperty('--workspace-tint')
   root.style.setProperty('--sidebar-overlay-top', `${next.top}px`)
@@ -287,7 +293,17 @@ function applyDocument(next: SidebarOverlayModel): void {
   bindViewportMedia(next.viewport)
 }
 
+// The language the latest state asked for, and its switch, which settles once its messages are loaded.
+let language: { locale: SupportedLocale; switched: Promise<unknown> } | undefined
+let received: SidebarOverlayState | undefined
+
 async function receive(next: SidebarOverlayState): Promise<void> {
+  received = next
+  // The rail draws in the shell's language, never in English first: a language's messages load before it draws, and
+  // a state that came meanwhile replaces this one.
+  if (language?.locale !== next.model.locale) language = { locale: next.model.locale, switched: switchLocale(next.model.locale) }
+  await language.switched
+  if (received !== next) return
   const opening = next.session !== state.value?.session
   const root = document.documentElement
   if (opening) {
@@ -322,7 +338,7 @@ function onVisibilityChange(): void {
 
 onMounted(() => {
   stopState = props.api.onState((next) => { void receive(next) })
-  stopTooltips = installShellTooltips({ showTooltip: (request) => props.api.showTooltip(request), hideTooltip: (id) => props.api.hideTooltip(id) })
+  stopTooltips = installShellTooltips({ showTooltip: (request) => props.api.showTooltip(request), hideTooltip: (id) => props.api.hideTooltip(id) }).dispose
   document.addEventListener('pointerover', onPointerOver, true)
   document.addEventListener('pointermove', onPointerOver, true)
   document.addEventListener('pointerout', onPointerOut, true)
@@ -367,7 +383,7 @@ onBeforeUnmount(() => {
       <div class="topbar">
         <BrowserTabsBar
           :key="state.session"
-          :state="browserState"
+          :read-state="readState"
           :settings-active="model.rail.settingsActive"
           :user-attention="userAttention"
           :workspace-switcher-open="model.rail.workspaceSwitcherOpen"
@@ -376,7 +392,7 @@ onBeforeUnmount(() => {
           :rail-pinned="false"
           :rail-revealed="true"
           :force-rail-collapsed="false"
-          :mcp-activity-by-tab="mcpActivityByTab"
+          :read-mcp-activity="readMcpActivity"
           :presence-api="presenceApi"
           :format-number="formatNumber"
           :tab-tooltip="tabTooltip"
@@ -401,7 +417,6 @@ onBeforeUnmount(() => {
         />
         <AppTopbarActions
           :command-palette-open="model.footer.commandPaletteOpen"
-          :tab-search-open="model.footer.tabSearchOpen"
           :downloads-open="model.footer.downloadsOpen"
           :history-open="model.footer.historyOpen"
           :settings-open="model.footer.settingsOpen"
@@ -420,7 +435,7 @@ onBeforeUnmount(() => {
           :update-state="updateState"
           :mcp-status-controller="mcpController"
           @toggle-command-palette="footer('command-palette')"
-          @toggle-tab-search="footer('tab-search')"
+          @open-home-tabs="footer('tab-search')"
           @toggle-downloads="footer('downloads')"
           @toggle-history="footer('history')"
           @toggle-all-tabs-muted="footer('all-tabs-muted')"

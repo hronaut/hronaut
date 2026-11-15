@@ -2,9 +2,9 @@ import { ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import SettingsDialog from '../../src/renderer/src/components/SettingsDialog.vue'
-import { useSearchSettingsController } from '../../src/renderer/src/composables/useSearchSettingsController.js'
-import { useSettingsDialogController } from '../../src/renderer/src/composables/useSettingsDialogController.js'
+import SettingsDialog from '../../src/renderer/src/features/settings/SettingsDialog.vue'
+import { useSearchSettingsController } from '../../src/renderer/src/features/settings/useSearchSettingsController.js'
+import { useSettingsDialogController } from '../../src/renderer/src/features/settings/useSettingsDialogController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings } from '../../src/shared/types.js'
@@ -33,6 +33,9 @@ describe('SettingsDialog', () => {
     const searchController = useSearchSettingsController({
       settings,
       setSearchEngine: vi.fn(async (searchEngine: AppSettings['searchEngine']) => (settings.value = { ...settings.value, searchEngine })),
+      addSiteSearch: vi.fn(),
+      updateSiteSearch: vi.fn(),
+      removeSiteSearch: vi.fn(),
       onError: vi.fn()
     })
     const inactiveController = {} as never
@@ -111,6 +114,9 @@ describe('SettingsDialog', () => {
     const searchController = useSearchSettingsController({
       settings,
       setSearchEngine: vi.fn(async () => settings.value),
+      addSiteSearch: vi.fn(),
+      updateSiteSearch: vi.fn(),
+      removeSiteSearch: vi.fn(),
       onError: vi.fn()
     })
     const inactiveController = {} as never
@@ -197,7 +203,7 @@ describe('SettingsDialog focus after Reset to default', () => {
     })
     const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
     const searchController = useSearchSettingsController({
-      settings, setSearchEngine: vi.fn(async () => settings.value), onError: vi.fn()
+      settings, setSearchEngine: vi.fn(async () => settings.value), addSiteSearch: vi.fn(), updateSiteSearch: vi.fn(), removeSiteSearch: vi.fn(), onError: vi.fn()
     })
     const inactiveController = {} as never
     const view = render(SettingsDialog, {

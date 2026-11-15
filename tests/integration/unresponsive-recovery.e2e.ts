@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test.use({ trace: { mode: process.env.CI ? 'retain-on-failure' : 'off', screenshots: false } })
 
@@ -26,8 +26,7 @@ for (const scenario of [
         const state = await (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true })
         return state.activeTabId!
       }, url)
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-      await expect(electronApp.context().pages().find(page => page.url() === url)!.locator('main')).toHaveText('Live replacement')
+      await expect((await pageAt(electronApp, url)).locator('main')).toHaveText('Live replacement')
       const original = await electronApp.evaluate(({ webContents }, { url, delayedExit }) => {
         const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
         const pid = page.getOSProcessId()
@@ -106,8 +105,7 @@ for (const action of ['close', 'navigate'] as const) {
       const tabId = await appWindow.evaluate(async url => (
         (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true })
       ).then(state => state.activeTabId!), url)
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-      await expect(electronApp.context().pages().find(page => page.url() === url)!.locator('main')).toHaveText('Ready')
+      await expect((await pageAt(electronApp, url)).locator('main')).toHaveText('Ready')
       await electronApp.evaluate(({ webContents }, url) => {
         const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
         const control = { page, original: page.forcefullyCrashRenderer, started: false }

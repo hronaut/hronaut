@@ -4,7 +4,7 @@ const clipboard = vi.hoisted(() => ({ readText: vi.fn(async () => '') }))
 vi.mock('electron', () => ({ clipboard }))
 
 const { addressPasteAndGo } = await import('../src/main/windows/address-paste-and-go.js')
-const { addressPasteText } = await import('../src/shared/address-paste.js')
+const { addressPasteText, pastesJavascriptScheme } = await import('../src/shared/address-paste.js')
 
 afterEach(() => { clipboard.readText.mockReset(); clipboard.readText.mockResolvedValue('') })
 
@@ -44,6 +44,15 @@ describe('text pasted into the address bar', () => {
     // Text without the scheme keeps what it starts with, and the scheme later in the text is the page's business.
     expect(addressPasteText('https://example.com/?next=javascript:void(0)')).toBe('https://example.com/?next=javascript:void(0)')
     expect(addressPasteText('javascripts:are fun')).toBe('javascripts:are fun')
+  })
+
+  it('tells whether the text starts with the javascript: scheme it drops', () => {
+    for (const text of ['javascript:alert(1)', '  JavaScript: javascript:alert(1)', 'java\nscript:alert(1)', '\u0001javascript:alert(1)', 'javascript:']) {
+      expect(pastesJavascriptScheme(text), text).toBe(true)
+    }
+    for (const text of ['https://example.com/?next=javascript:void(0)', 'javascripts:are fun', 'java\r\nscript: alert(0)', 'example.com', '']) {
+      expect(pastesJavascriptScheme(text), text).toBe(false)
+    }
   })
 })
 

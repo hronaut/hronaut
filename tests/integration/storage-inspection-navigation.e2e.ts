@@ -121,7 +121,7 @@ for (const kind of ['local-storage', 'session-storage'] as const) {
           const state = globalThis as typeof globalThis & { __storageRestore?: () => void }
           state.__storageRestore = () => { page.executeJavaScript = original }
           page.executeJavaScript = async function (...args) {
-            if (!args[0].includes('const storage = window[')) return original.apply(this, args)
+            if (!args[0].includes('function webStorageInPage(')) return original.apply(this, args)
             state.__storageRestore?.()
             if (stage === 'before execution') await page.loadURL(`${origin}/after`)
             const result = await original.apply(this, args)

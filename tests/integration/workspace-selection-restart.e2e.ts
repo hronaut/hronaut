@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import type { PersistedBrowserState } from '../../src/main/browser/tab-store.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
-import { launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
+import { hronautWindowCount, launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
 
 async function connect(profile: string, port: number): Promise<Client> {
   const token = (await readFile(join(profile, 'mcp-token'), 'utf8')).trim()
@@ -98,7 +98,7 @@ for (const homeState of ['closed', 'background', 'active'] as const) {
 for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspace', 'other-workspace', 'invalid-global', 'empty'] as const) {
   const rejectedSelection = ['invalid-workspace', 'other-workspace', 'invalid-global'].includes(selection)
   test(`${rejectedSelection ? 'preserves rejected metadata' : 'keeps startup fallback behavior'} for ${selection} selection`, async ({ profileDirectory, mcpPort }) => {
-    let instance = await launchHronaut(profileDirectory)
+    let instance = await launchHronaut(profileDirectory, mcpPort)
     try {
       const ids = await instance.window.evaluate(async () => {
         const browser = (window as unknown as { hronaut: HronautApi }).hronaut
@@ -137,7 +137,7 @@ for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspa
           const notice = await rejected.evaluate(() => (globalThis as Scope).metadataFixture.notice!)
           expect(notice.buttons).toEqual(['Quit'])
           expect(notice.message).toContain('Startup stopped')
-          expect(await rejected.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0)
+          expect(await hronautWindowCount(rejected)).toBe(0)
           await expect(fetch(`http://127.0.0.1:${mcpPort}/mcp`)).rejects.toThrow()
           expect(await readFile(path, 'utf8')).toBe(bytes)
           for (const marker of markers) expect(await readFile(marker, 'utf8')).toBe('synthetic-selection-storage')
@@ -147,7 +147,7 @@ for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspa
         } finally { await rejected.close().catch(() => undefined) }
         return
       }
-      instance = await launchHronaut(profileDirectory)
+      instance = await launchHronaut(profileDirectory, mcpPort)
       const restored = await instance.window.evaluate('window.hronaut.getState()') as BrowserState
       if (selection === 'missing-workspace' || selection === 'missing-global') {
         expect(restored.tabs.map(tab => tab.id)).toEqual([ids.a1, ids.a2, ids.b1])

@@ -115,7 +115,7 @@ const registryMetadata = {
   $schema: 'https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json',
   name: publicFacts.mcpRegistry.name,
   title: 'Hronaut Browser MCP',
-  description: 'Control visible, persistent Hronaut browser workspaces through a local MCP connection.',
+  description: 'A visible desktop browser for coding agents, with a separate workspace for each project.',
   version,
   repository: { url: 'https://github.com/hronaut/hronaut', source: 'github' },
   websiteUrl: 'https://hronaut.dev',

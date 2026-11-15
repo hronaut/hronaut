@@ -1,11 +1,14 @@
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { translate } from '../../../shared/i18n.js'
+import { translate } from '../locale-messages.js'
 import type {
   BrowserState,
+  BrowserTabState,
   NavigateOptions,
   NewTabOptions
 } from '../../../shared/types.js'
+import { guessTabSelected, type BrowserStateGuess } from './browser-state-guesses.js'
+import { reuseUnchangedBrowserState } from './browser-state-reuse.js'
 import { useSettingsStore } from './settings.js'
 
 export function emptyBrowserState(): BrowserState {
@@ -22,7 +25,9 @@ export function emptyBrowserState(): BrowserState {
 }
 
 export const useBrowserStore = defineStore('browser', () => {
-  const state = ref<BrowserState>(emptyBrowserState())
+  // Each state replaces the last as a whole, and the shell never changes one, so the state is not made deeply reactive:
+  // reading a tab's fields through Vue's proxies cost the shell more than drawing them while several agents worked.
+  const state = shallowRef<BrowserState>(emptyBrowserState())
   const settings = useSettingsStore()
   const initialized = ref(false)
   const initializing = ref(false)
@@ -32,6 +37,11 @@ export const useBrowserStore = defineStore('browser', () => {
     const activeWorkspaceId = activeTab.value?.mcpGroupId
     return state.value.mcpTabGroups.find((workspace) => workspace.id === activeWorkspaceId)
   })
+  const allHumanInteractionLocked = computed(() => state.value.allHumanInteractionLocked)
+  // Components take these instead of the state itself, which is new with every change: a component given a new state
+  // draws again whole, while one that reads it through these draws again only when what it shows of it changed.
+  const readState = (): BrowserState => state.value
+  const readTabs = (): readonly BrowserTabState[] => state.value.tabs
 
   let generation = 0
   let revision = 0
@@ -44,10 +54,21 @@ export const useBrowserStore = defineStore('browser', () => {
   }>()
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
+  // The last state main sent or answered, and the guesses of the person's actions still waiting for main, which the
+  // shell shows over it in the order they were made.
+  let authoritative = state.value
+  const guesses = new Map<number, BrowserStateGuess>()
+
+  function show(): void {
+    let next = authoritative
+    for (const guess of guesses.values()) next = guess(next)
+    state.value = reuseUnchangedBrowserState(state.value, next)
+  }
 
   function acceptAuthoritativeState(next: BrowserState): void {
     revision += 1
-    state.value = next
+    authoritative = next
+    show()
   }
 
   function detachListener(): void {
@@ -64,7 +85,10 @@ export const useBrowserStore = defineStore('browser', () => {
     initializationError.value = null
     const initialRevision = revision
     unsubscribe = window.hronaut.onStateChanged((next) => {
-      if (generation === currentGeneration) acceptAuthoritativeState(next)
+      if (generation !== currentGeneration) return
+      acceptAuthoritativeState(next)
+      // Main sends the next state once this one is drawn, so states never queue up behind a slow draw.
+      void nextTick(() => window.hronaut.stateDrawn())
     })
     initializePromise = window.hronaut.getState()
       .then((next) => {
@@ -100,10 +124,23 @@ export const useBrowserStore = defineStore('browser', () => {
     return initializePromise
   }
 
+  /** Settles once the first browser state is read; after a failed read, once a retry reads it. */
+  function whenInitialized(): Promise<void> {
+    if (initialized.value) return Promise.resolve()
+    return new Promise((resolve) => {
+      const stop = watch(initialized, (ready) => {
+        if (!ready) return
+        stop()
+        resolve()
+      })
+    })
+  }
+
   function dispose(): void {
     generation += 1
     pendingOperations.clear()
     completedOperations.clear()
+    guesses.clear()
     initializePromise = null
     initialized.value = false
     initializing.value = false
@@ -125,11 +162,19 @@ export const useBrowserStore = defineStore('browser', () => {
     acceptAuthoritativeState(result.state)
   }
 
-  async function syncOperation(operation: Promise<BrowserState>): Promise<BrowserState> {
+  /**
+   * Applies the state an action answers with, unless a newer state arrived meanwhile. With a guess of what the action
+   * will do, the shell shows that at once, over every state that arrives, until the action settles.
+   */
+  async function syncOperation(operation: Promise<BrowserState>, guess?: BrowserStateGuess): Promise<BrowserState> {
     const currentGeneration = generation
     const startingRevision = revision
     const sequence = ++operationSequence
     pendingOperations.add(sequence)
+    if (guess) {
+      guesses.set(sequence, guess)
+      show()
+    }
     try {
       const next = await operation
       if (generation === currentGeneration && revision === startingRevision) {
@@ -142,14 +187,29 @@ export const useBrowserStore = defineStore('browser', () => {
       return next
     } finally {
       pendingOperations.delete(sequence)
+      // Main's state replaces the guess, and the guesses of actions sent before this one, which main has had since:
+      // the answer when it is applied, else the newest state that arrived.
+      let guessed = false
+      for (const guessSequence of [...guesses.keys()]) {
+        if (guessSequence > sequence) continue
+        guesses.delete(guessSequence)
+        guessed = true
+      }
+      const settledRevision = revision
       reconcileOperations()
+      if (guessed && revision === settledRevision) show()
     }
+  }
+
+  /** Applies a state an operation returns, or one already in hand, unless a newer one arrived meanwhile. */
+  async function sync(next: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess): Promise<void> {
+    await syncOperation(Promise.resolve(next), guess)
   }
 
   const refresh = (): Promise<BrowserState> => syncOperation(window.hronaut.getState())
   const openHome = (): Promise<BrowserState> => syncOperation(window.hronaut.openHome())
   const newTab = (options?: NewTabOptions): Promise<BrowserState> => syncOperation(window.hronaut.newTab(options))
-  const selectTab = (tabId: string): Promise<BrowserState> => syncOperation(window.hronaut.selectTab(tabId))
+  const selectTab = (tabId: string): Promise<BrowserState> => syncOperation(window.hronaut.selectTab(tabId), guessTabSelected(tabId))
   const closeTab = (tabId: string): Promise<BrowserState> => syncOperation(window.hronaut.closeTab(tabId))
   const navigate = (options: NavigateOptions): Promise<BrowserState> => syncOperation(window.hronaut.navigate(options))
   const back = (tabId?: string): Promise<BrowserState> => syncOperation(window.hronaut.back(tabId))
@@ -160,13 +220,18 @@ export const useBrowserStore = defineStore('browser', () => {
     state,
     activeTab,
     activeWorkspace,
+    allHumanInteractionLocked,
+    readState,
+    readTabs,
     initialized,
     initializing,
     initializationError,
     initialize,
+    whenInitialized,
     dispose,
     acceptAuthoritativeState,
     syncOperation,
+    sync,
     refresh,
     openHome,
     newTab,

@@ -27,7 +27,7 @@ function blurWhenDisabled(button: HTMLButtonElement): void {
   })
 }
 
-const openView = (view: 'connect' | 'tools') => byId<HTMLButtonElement>(`home-tab-${view}`).click()
+const openView = (view: 'connect' | 'tools') => byId<HTMLButtonElement>(`agents-section-${view}`).click()
 const chooseGuide = (id: string) => query<HTMLButtonElement>(`#agent-list [data-guide="${id}"]`).click()
 
 type LinkMethod = 'openAgentGuide' | 'openVsCodeInstall' | 'openSetupHelp' | 'openSetupFeedback'

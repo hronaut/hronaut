@@ -1,0 +1,82 @@
+export const ruRUQualityAuditText = {
+  categories: {
+    accessibility: 'Доступность',
+    performance: 'Производительность',
+    metadata: 'Метаданные и SEO',
+    security: 'Безопасность',
+    pwa: 'PWA и офлайн',
+    'browser-issues': 'Проблемы Chromium'
+  },
+  statuses: {
+    pass: 'пройдено',
+    info: 'сведения',
+    warning: 'предупреждение',
+    error: 'ошибка',
+    'not-applicable': 'неприменимо'
+  },
+  severities: {
+    error: 'ошибка',
+    warning: 'предупреждение',
+    info: 'сведения'
+  },
+  fixed: {
+    accessibilityClear: 'Автоматическая проверка не нашла нарушений WCAG AA',
+    performanceNone: 'В этом посещении показатели Web Vitals не зафиксированы',
+    metadataClear: 'Проблем с метаданными не найдено',
+    securitySecure: 'Безопасная передача основного документа',
+    pwaNone: 'Признаков PWA или офлайн-приложения не обнаружено',
+    browserIssuesClear: 'Сохранённых проблем Chromium не найдено',
+    webVitalsNotObserved: 'В текущем посещении показатели Web Vitals не зафиксированы; перезагрузите страницу и поработайте с ней, прежде чем повторить аудит.',
+    insecureTransport: 'Основной документ передаётся без исправного защищённого соединения.',
+    certificateExpired: 'Срок действия сертификата основного документа истёк.',
+    certificateNotYetValid: 'Сертификат основного документа ещё не действует.',
+    certificateInvalid: 'Сертификат основного документа сейчас недействителен.',
+    pwaInspectionPartial: 'Часть диагностики PWA для этого аудита была недоступна.'
+  },
+  caveats: {
+    localDiagnostic: 'Это ограниченная локальная диагностика на основе данных Hronaut, а не оценка Lighthouse и не сертификация.',
+    accessibilityAutomation: 'Автоматическая проверка доступности не заменяет тестирование с клавиатурой, программой чтения с экрана, масштабированием и анимацией, а также проверку удобства людьми.',
+    performanceVisit: 'Производительность отражает текущее локальное посещение и окружение; повторяйте важные измерения в репрезентативных условиях.',
+    pwaOptional: 'PWA не считается обязательной для сайтов без офлайн-приложения.',
+    reloadIssues: 'Перезагрузите страницу, прежде чем воспроизводить проблемы Chromium, возникающие только при запуске, затем повторите этот аудит.'
+  },
+  text: {
+    violations: '{count} нарушение | {count} нарушения | {count} нарушений',
+    violationNodes: '{count} затронутом узле | {count} затронутых узлах | {count} затронутых узлах',
+    accessibilityViolations: '{violations} в {nodes}',
+    affectedNodes: '{count} затронутый узел | {count} затронутых узла | {count} затронутых узлов',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: 'Пройдено правил: {count}',
+    checksNeedReview: 'Проверок, требующих ручного просмотра: {count}',
+    needsHumanReview: 'Проверок доступности, которые должен оценить человек: {count}.',
+    performanceGood: 'Хорошие показатели Web Vitals: {good} из {total}',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: 'Оценка {name}: {rating} ({value}).',
+    resources: 'Ресурсов: {count}',
+    longTasks: 'Долгих задач: {count}',
+    metadataIssues: 'Проблем с метаданными: {count}',
+    language: 'Язык: {language}',
+    languageMissing: 'Язык: не указан',
+    canonicalUrls: 'Канонических URL: {count}',
+    structuredData: 'Структурированные данные: корректных {valid} · некорректных {invalid}',
+    securityState: 'Состояние соединения: {state}',
+    securityStateFinding: 'Chromium сообщил о состоянии соединения основного документа: {state}.',
+    transportSecure: 'Передача: защищена',
+    transportInsecure: 'Передача: не защищена',
+    protocol: 'Протокол: {protocol}',
+    protocolUnavailable: 'Протокол: недоступен',
+    certificateValid: 'Сертификат: действителен',
+    certificateInvalid: 'Сертификат: недействителен',
+    certificateUnavailable: 'Сертификат: недоступен',
+    registrations: 'Регистраций service worker: {count}',
+    caches: 'Кешей: {count}',
+    manifestPresent: 'Манифест: есть',
+    manifestMissing: 'Манифест: не обнаружен',
+    controlledYes: 'Под управлением service worker: да',
+    controlledNo: 'Под управлением service worker: нет',
+    installabilityIssues: 'Проблем с установкой: {count}',
+    installabilityFinding: 'Chromium сообщил о проблеме с установкой PWA: {issue}.',
+    installabilityUnknown: 'Chromium сообщил о неизвестной проблеме с установкой PWA.',
+    browserIssues: 'Проблем, обнаруженных браузером: {count}'
+  }
+}

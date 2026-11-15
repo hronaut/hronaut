@@ -1,0 +1,60 @@
+export const frFRPwaLifecycle = {
+  title: 'Historique des service workers',
+  note: 'Changements observés uniquement ; des transitions antérieures ou rapides peuvent manquer.',
+  start: 'Observer pendant 2 minutes',
+  stop: 'Arrêter l’observation',
+  refresh: 'Actualiser',
+  clear: 'Effacer l’historique',
+  active: 'Observation en cours',
+  stopped: 'Capture arrêtée',
+  waiting: 'En attente',
+  coverage: 'Couverture et confidentialité',
+  caveats: {
+    observedTimes: 'Les heures indiquent quand un changement a été observé, pas quand il a eu lieu, et une capture n’a jamais l’historique complet.',
+    polling: 'Les enregistrements sont vérifiés une fois par seconde ; des transitions précoces et des enregistrements de courte durée peuvent manquer.',
+    scope: 'Les enregistrements appartiennent à cette origine de premier niveau et à cet espace de travail, pas seulement à cet onglet.',
+    identities: 'Les identifiants des workers sont propres à cette capture et distinguent les versions d’un même script.',
+    interruption: 'Naviguer, recharger ou fermer la page, ou perdre le débogueur ou l’accès, interrompt la capture. Un arrêt ou une interruption peut omettre des événements pas encore lus.',
+    limits: 'Une capture conserve au plus 100 événements, 20 enregistrements et 100 workers pendant deux minutes au maximum ; cinq captures restent en mémoire, et en démarrer une autre supprime la plus ancienne déjà arrêtée.',
+    longUrls: 'Les adresses de plus de 2 048 caractères sont omises plutôt que d’en montrer une partie qui pourrait contenir des identifiants de connexion.',
+    metadataOnly: 'Seules les métadonnées sont observées. Hronaut ne met jamais à jour, n’envoie aucun message, n’active ni n’exécute de workers, ne vide pas de caches et ne modifie pas les autorisations.',
+    sleeping: 'Les onglets en veille ou gelés ne sont pas réveillés. La mise en veille ou le gel interrompt la capture au lieu de garder la page active.',
+    snapshot: 'Les lectures montrent le dernier instantané pris. Un historique complet ou la durée de vie entière de chaque worker n’est pas garanti.'
+  },
+  kinds: {
+    initial: 'capture démarrée',
+    'registration-initial': 'inscription présente',
+    'registration-discovered': 'inscription trouvée',
+    'registration-removed': 'inscription supprimée',
+    updatefound: 'mise à jour trouvée',
+    statechange: 'état modifié',
+    controllerchange: 'contrôleur changé'
+  },
+  workerStates: {
+    parsed: 'analysé',
+    installing: 'en cours d’installation',
+    installed: 'installé',
+    activating: 'en cours d’activation',
+    activated: 'activé',
+    redundant: 'redondant'
+  },
+  reasons: {
+    stopped: 'arrêtée à la demande',
+    replaced: 'remplacée par une nouvelle capture',
+    shutdown: 'Hronaut fermé',
+    navigation: 'la page a changé d’adresse',
+    'renderer-unavailable': 'processus de la page terminé',
+    'debugger-detached': 'débogueur détaché',
+    'duration-limit': 'limite de deux minutes atteinte',
+    'initial-read-unavailable': 'première lecture impossible',
+    'page-observer-unavailable': 'observateur de page arrêté',
+    'context-or-authority-lost': 'contexte de page perdu',
+    'worker-limit': 'limite de workers atteinte',
+    'event-limit': 'limite d’événements atteinte',
+    'registration-limit': 'limite d’inscriptions atteinte',
+    'discovery-unavailable': 'découverte des inscriptions impossible',
+    unsupported: 'service workers non pris en charge',
+    'workspace-control-changed': 'contrôle de l’espace de travail modifié',
+    'ownership-released': 'espace de travail libéré'
+  }
+}

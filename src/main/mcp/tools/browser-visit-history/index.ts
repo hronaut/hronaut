@@ -3,6 +3,7 @@ import type { BrowserHistoryEntry } from '../../../../shared/types.js'
 import { McpCapabilityAuthorizationError, type McpCapabilityProfile } from '../../capability-profile-store.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import type { McpToolContext } from '../tool-context.js'
+import { newAgentTab } from '../../../browser/new-tabs/open-new-tab.js'
 
 export function registerBrowserVisitHistory(context: McpToolContext): void {
   const {
@@ -58,7 +59,7 @@ export function registerBrowserVisitHistory(context: McpToolContext): void {
       if (!entry) throw new Error(`History entry not found: ${id}`)
       const profile = requireActiveCapabilityDispatch('browser_visit_history', { ...input, url: entry.url })
       if (action === 'remove') return textResult(visibleHistory(profile, await history.remove(id)))
-      return textResult(await manager.newAgentTab({ url: entry.url, active, mcpGroupId: workspaceId! }))
+      return textResult(await newAgentTab(manager, { url: entry.url, active, mcpGroupId: workspaceId! }))
     }),
     { tabTarget: 'none', pageOrigins: 'none' }
   )

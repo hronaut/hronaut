@@ -1,0 +1,230 @@
+import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
+import { sendTo, type TypedIpcMain } from '../typed-ipc.js'
+import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
+import { homeTabsState, runHomeTabAction } from './home-tabs.js'
+import { getTabOverviewPagePreview, getTabOverviewPreviews } from '../browser/tab-overview-previews/tab-overview-previews.js'
+import { isHronautHomeUrl } from '../browser/url.js'
+import { openVsCodeMcpInstall } from '../agents/vscode-mcp-install.js'
+import { ClaudeCodeSetup, claudeCodeConfigPath } from '../agents/claude-code-setup.js'
+import { detectAgentClients } from '../agents/agent-client-detection.js'
+import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from '../agents/setup-feedback-links.js'
+import type { McpPortRecovery } from '../mcp-runtime/mcp-port-suggestion.js'
+import type { McpTokenConfiguration } from '../mcp-runtime/mcp-token-store.js'
+import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js'
+import type { HomeSetupState } from '../../shared/claude-code-setup.js'
+import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
+import { validateTabOverviewPreviewIds, type AppSettings, type McpPortMoveResult } from '../../shared/types.js'
+import { SHELL_IPC } from '../../shared/ipc/shell.js'
+import { HOME_IPC } from '../../shared/ipc/home.js'
+
+interface HomeIpcHost {
+  /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
+  handleBrowserIpc: TypedIpcMain['handle']
+  /** Why saved workspaces could not start, if they could not; read on every check. */
+  workspaceStartupFailure(): Error | undefined
+  /** The tab manager Home reads and changes workspaces through; it also covers what `homeWorkspaceState` reads. */
+  tabs(): Parameters<typeof runHomeWorkspaceAction>[0] | null
+  mainWindow(): Pick<BrowserWindow, 'webContents'> | null
+  copyTextToClipboard(text: string): Promise<void>
+  reportClipboardFailure(error: unknown): void
+  /** The MCP endpoint; read on every use because the port can change in Settings. */
+  mcpUrl(): string
+  /** The current settings; read on every use because each committed update replaces the object. */
+  settings(): AppSettings
+  /** The token MCP clients send while authentication is on; undefined before the MCP runtime has loaded it. */
+  mcpTokenConfiguration(): Pick<McpTokenConfiguration, 'token' | 'source'> | undefined
+  /** Whether the listener takes this bearer credential instead of the token, as an active capability profile's. */
+  mcpCredentialAccepted(bearer: string): boolean
+  openExternal(url: string): Promise<void>
+  mcpPortRecovery(): Pick<McpPortRecovery, 'move'>
+  /**
+   * Asks in Hronaut's own dialog on the main window, which only the shell answers, never Home; the system dialog when
+   * the window cannot show it.
+   */
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
+  /** Gives the keyboard back to the page that asked, once the shell's dialog took it. */
+  focusAskingPage(event: IpcMainInvokeEvent): void
+  text(key: MessageKey, parameters?: MessageParameters): string
+}
+
+/** Dependencies stay lazy because handlers are registered before the window loads. */
+export function registerHomeIpc(host: HomeIpcHost): void {
+  function assertHomePageSender(event: IpcMainInvokeEvent): void {
+    if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
+    const actual = event.senderFrame?.url
+    try {
+      const url = new URL(actual ?? '')
+      if (url.protocol === 'hronaut:' && url.hostname === 'home' && (url.pathname === '/' || url.pathname === '')) return
+    } catch {
+      // Fall through to the trusted-origin error below.
+    }
+    throw new Error('Rejected IPC from a non-Home page')
+  }
+
+  /** Home's own document, not a frame inside it: for actions that change files outside Hronaut. */
+  function assertHomeMainFrame(event: IpcMainInvokeEvent): void {
+    assertHomePageSender(event)
+    if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) throw new Error('Rejected IPC from a Home subframe')
+  }
+
+  let claudeCodeSetup: ClaudeCodeSetup | null = null
+  /**
+   * Adds Hronaut to Claude Code's settings after the person confirms the exact change in a dialog main asks, which Home
+   * cannot answer for them.
+   */
+  function claudeCodeSetupService(): ClaudeCodeSetup {
+    claudeCodeSetup ??= new ClaudeCodeSetup({
+      path: claudeCodeConfigPath(),
+      endpoint: () => host.mcpUrl(),
+      credential: () => {
+        if (!host.settings().mcpAuthentication) return undefined
+        const configuration = host.mcpTokenConfiguration()
+        // An entry without the token could not connect while authentication is on.
+        if (!configuration) throw new Error('The MCP token is not loaded yet')
+        return { token: configuration.token, accepts: (bearer) => host.mcpCredentialAccepted(bearer) }
+      },
+      allowed: claudeCodeSetupAllowed,
+      confirm: async (preview, signal) => {
+        const { response } = await host.showDialog({
+          type: 'question',
+          title: host.text('native.dialog.claudeSetupTitle'),
+          message: host.text('native.dialog.claudeSetupMessage'),
+          detail: host.text('native.dialog.claudeSetupDetail', {
+            path: preview.path,
+            after: preview.after,
+            token: preview.tokenHidden ? host.text('native.dialog.claudeSetupToken') : '',
+            replaces: preview.before === null ? '' : host.text('native.dialog.claudeSetupReplaces', { before: preview.before }),
+            backup: preview.backupName
+          }),
+          buttons: [host.text('native.dialog.cancel'), host.text('native.dialog.claudeSetupConfirm')],
+          // Enter, or a key still held from Home, keeps the file as it is; the change takes a deliberate choice.
+          defaultId: 0,
+          cancelId: 0,
+          primaryId: 1,
+          noLink: true,
+          ...(signal ? { signal } : {}),
+          variant: {
+            kind: 'claude-setup',
+            path: preview.path,
+            after: preview.after,
+            before: preview.before,
+            tokenHidden: preview.tokenHidden,
+            backupName: preview.backupName
+          }
+        })
+        return response === 1 && !signal?.aborted
+      }
+    })
+    return claudeCodeSetup
+  }
+
+  /**
+   * A token given to this launch only, with HRONAUT_MCP_TOKEN, is the person's to manage: Hronaut does not save it, so
+   * it does not write it into Claude Code's settings either, and the copied command is the way.
+   */
+  function claudeCodeSetupAllowed(): boolean {
+    if (!host.settings().mcpAuthentication) return true
+    return host.mcpTokenConfiguration()?.source === 'profile'
+  }
+
+  function assertClaudeCodeSetupAllowed(): void {
+    if (!claudeCodeSetupAllowed()) throw new Error('Claude Code setup is unavailable while the MCP token comes from HRONAUT_MCP_TOKEN. Use the command instead.')
+  }
+
+  host.handleBrowserIpc(HOME_IPC.workspaces, (event) => {
+    assertHomePageSender(event)
+    return homeWorkspaceState(host.tabs()!)
+  })
+  host.handleBrowserIpc(HOME_IPC.workspaceAction, async (event, input: unknown) => {
+    assertHomePageSender(event)
+    return runHomeWorkspaceAction(host.tabs()!, input, (request) => {
+      const mainWindow = host.mainWindow()
+      if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.homeWorkspaceEditorRequested, request)
+    }, () => assertHomePageSender(event))
+  })
+  host.handleBrowserIpc(HOME_IPC.tabs, (event) => {
+    assertHomePageSender(event)
+    return homeTabsState(host.tabs()!)
+  })
+  host.handleBrowserIpc(HOME_IPC.tabPreviews, (event, value: unknown) => {
+    assertHomePageSender(event)
+    const browser = host.tabs()!
+    // Home's own tab has no preview; the frames are of website tabs only.
+    const tabIds = validateTabOverviewPreviewIds(value).filter(tabId => !isHronautHomeUrl(browser.tabs.get(tabId)?.url))
+    return getTabOverviewPreviews(browser, tabIds)
+  })
+  host.handleBrowserIpc(HOME_IPC.tabPagePreview, async (event, tabId: unknown) => {
+    assertHomePageSender(event)
+    const browser = host.tabs()!
+    const [valid] = validateTabOverviewPreviewIds([tabId])
+    if (isHronautHomeUrl(browser.tabs.get(valid!)?.url)) throw new TypeError('Invalid tab ID')
+    return getTabOverviewPagePreview(browser, valid!)
+  })
+  host.handleBrowserIpc(HOME_IPC.tabAction, async (event, action: unknown) => {
+    assertHomePageSender(event)
+    return runHomeTabAction(host.tabs()!, action)
+  })
+  host.handleBrowserIpc(HOME_IPC.copyText, async (event, value: unknown) => {
+    assertHomePageSender(event)
+    if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
+    try {
+      await host.copyTextToClipboard(value)
+    } catch (error) {
+      host.reportClipboardFailure(error)
+      throw error
+    }
+  })
+  host.handleBrowserIpc(HOME_IPC.openVsCodeInstall, async (event) => {
+    assertHomePageSender(event)
+    await openVsCodeMcpInstall({
+      endpoint: host.mcpUrl(),
+      authenticationEnabled: host.settings().mcpAuthentication,
+      openExternal: (url) => host.openExternal(url)
+    })
+  })
+  host.handleBrowserIpc(
+    HOME_IPC.openSetupHelp,
+    setupHelpHandler(assertHomePageSender, (url) => host.openExternal(url))
+  )
+  host.handleBrowserIpc(
+    HOME_IPC.openSetupFeedback,
+    setupFeedbackHandler(assertHomePageSender, (url) => host.openExternal(url))
+  )
+  host.handleBrowserIpc(
+    HOME_IPC.openAgentGuide,
+    agentGuideHandler(assertHomePageSender, (url) => host.openExternal(url))
+  )
+  host.handleBrowserIpc(HOME_IPC.useMcpPort, async (event, port: unknown): Promise<McpPortMoveResult> => {
+    assertHomeMainFrame(event)
+    return host.mcpPortRecovery().move(port)
+  })
+  host.handleBrowserIpc(HOME_IPC.setupState, async (event): Promise<HomeSetupState> => {
+    assertHomeMainFrame(event)
+    const setup = claudeCodeSetupService()
+    const [detected, claudeCode] = await Promise.all([
+      detectAgentClients(undefined, { 'claude-code': [setup.path] }),
+      claudeCodeSetupAllowed() ? setup.status() : undefined
+    ])
+    return { detected, ...(claudeCode ? { claudeCode } : {}) }
+  })
+  host.handleBrowserIpc(HOME_IPC.claudeCodePrepare, (event) => {
+    assertHomeMainFrame(event)
+    assertClaudeCodeSetupAllowed()
+    return claudeCodeSetupService().prepare(event.sender.id)
+  })
+  host.handleBrowserIpc(HOME_IPC.claudeCodeApply, async (event, planId: unknown) => {
+    assertHomeMainFrame(event)
+    assertClaudeCodeSetupAllowed()
+    // Home going away while the dialog asks, such as its tab closing, takes the question with it and writes nothing.
+    const closed = new AbortController()
+    const close = (): void => closed.abort()
+    event.sender.once('destroyed', close)
+    try {
+      return await claudeCodeSetupService().apply(planId, event.sender.id, closed.signal)
+    } finally {
+      event.sender.removeListener('destroyed', close)
+      // The dialog is drawn by the shell, which took the keyboard from Home; Home's own focus goes back with it.
+      host.focusAskingPage(event)
+    }
+  })
+}

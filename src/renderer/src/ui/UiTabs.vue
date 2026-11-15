@@ -36,6 +36,8 @@ function move(direction: number): void {
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home and Alt+Left for Back.
+  if (event.altKey || event.ctrlKey || event.metaKey) return
   if (event.key === 'ArrowRight') move(1)
   else if (event.key === 'ArrowLeft') move(-1)
   else if (event.key === 'Home') selectAt(0)

@@ -2,8 +2,8 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { fireEvent, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
-import WorkspaceSwitcher from '../../src/renderer/src/components/WorkspaceSwitcher.vue'
+import { nextTick, shallowRef } from 'vue'
+import WorkspaceSwitcher from '../../src/renderer/src/features/workspaces/WorkspaceSwitcher.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 import type { BrowserState, BrowserTabGroupState } from '../../src/shared/types.js'
@@ -85,13 +85,15 @@ async function setup(options: { state?: BrowserState; agents?: Record<string, Ag
     restoreSavedTabGroup: vi.fn(async () => browserState()),
     showError: vi.fn()
   }
+  const current = shallowRef(options.state ?? browserState())
+  const setState = async (next: BrowserState) => { current.value = next; await nextTick() }
   const mounted = mount(WorkspaceSwitcher, {
     attachTo: document.body,
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       open: false,
       'onUpdate:open': (open: boolean) => { void mounted.setProps({ open }) },
-      state: options.state ?? browserState(),
+      readState: () => current.value,
       userAttention: options.attention ?? null,
       browser: { newTab: calls.newTab, restoreSavedTabGroup: calls.restoreSavedTabGroup },
       syncState: calls.syncState,
@@ -109,7 +111,7 @@ async function setup(options: { state?: BrowserState; agents?: Record<string, Ag
     await (mounted.vm as unknown as { openPanel: () => Promise<void> }).openPanel()
     await nextTick()
   }
-  return { wrapper: mounted, calls, feed, openPanel }
+  return { wrapper: mounted, calls, feed, openPanel, setState }
 }
 
 function options(): string[] {
@@ -117,6 +119,24 @@ function options(): string[] {
 }
 
 describe('WorkspaceSwitcher', () => {
+  it('works out no workspace while closed, as pages load and change the browser state, and lists them once opened', async () => {
+    let reads = 0
+    const counted = (): BrowserState => {
+      const state = browserState()
+      const groups = state.mcpTabGroups
+      return Object.defineProperty(state, 'mcpTabGroups', { enumerable: true, get: () => { reads += 1; return groups } })
+    }
+    const { openPanel, setState } = await setup()
+    for (let change = 0; change < 3; change++) {
+      await setState(counted())
+      await nextTick()
+    }
+    expect(reads).toBe(0)
+    await openPanel()
+    expect(reads).toBeGreaterThan(0)
+    expect(options()).toContain('Docs')
+  })
+
   it('lists workspaces by who needs them and recent use, and Enter goes back to the previous one', async () => {
     const { wrapper, calls, openPanel } = await setup({ agents: { ops: [agent('Claude Code', 'working')] } })
     await openPanel()
@@ -264,14 +284,14 @@ describe('WorkspaceSwitcher', () => {
   })
 
   it('moves the selection in the order on screen when a workspace appears while it is open', async () => {
-    const { wrapper, openPanel } = await setup()
+    const { openPanel, setState } = await setup()
     await openPanel()
     expect(options()).toEqual(['Shop', 'Docs', 'Ops', 'Empty', 'Old client'])
     expect(screen.getByRole('option', { name: /^Docs/ })).toHaveAttribute('aria-selected', 'true')
 
     // An agent opens a workspace meanwhile: it is drawn last among the open ones, and the arrow keys agree.
     const next = browserState()
-    await wrapper.setProps({ state: { ...next, mcpTabGroups: [...next.mcpTabGroups, group('fresh', 'Fresh', '2026-10-16T21:00:00.000Z', { tabCount: 0 })] } })
+    await setState({ ...next, mcpTabGroups: [...next.mcpTabGroups, group('fresh', 'Fresh', '2026-10-16T21:00:00.000Z', { tabCount: 0 })] })
     expect(options()).toEqual(['Shop', 'Docs', 'Ops', 'Empty', 'Fresh', 'Old client'])
     expect(screen.getByRole('group', { name: 'Archived' })).not.toContainElement(screen.getByRole('option', { name: /^Fresh/ }))
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
@@ -320,7 +340,7 @@ describe('WorkspaceSwitcher', () => {
   })
 
   it('hands off to tab search or a new workspace, and says when there are no workspaces yet', async () => {
-    const { wrapper, openPanel } = await setup()
+    const { wrapper, openPanel, setState } = await setup()
     await openPanel()
     await userEvent.click(screen.getByRole('button', { name: 'Search tabs' }))
     expect(wrapper.emitted('searchTabs')).toHaveLength(1)
@@ -329,7 +349,7 @@ describe('WorkspaceSwitcher', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New workspace' }))
     await vi.waitFor(() => expect(wrapper.emitted('createWorkspace')).toHaveLength(1))
 
-    await wrapper.setProps({ state: { ...browserState(), activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] } })
+    await setState({ ...browserState(), activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] })
     await openPanel()
     expect(screen.getByText('No workspaces yet')).toBeVisible()
   })

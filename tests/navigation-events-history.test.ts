@@ -1,7 +1,18 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// The browser below is a stand-in that answers every call; these functions ask it instead of reading its fields.
+vi.mock('../src/main/browser/site-muting/site-muting.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/site-muting/site-muting.js')>(),
+  applySiteMuting: (browser: { applySiteMuting: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.applySiteMuting(...args)
+}))
 import { TabDiscoveryTitle } from '../src/main/browser/tab-discovery-title.js'
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
+
+// Recording a visit is a function now; it reaches the fake's stub.
+vi.mock('../src/main/browser/tab-events/page-visits.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-events/page-visits.js')>(),
+  recordVisit: (browser: { recordVisit: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.recordVisit(...args)
+}))
 
 /** A stand-in for whatever the handlers call on the tab manager: any call or property gives another stand-in. */
 function anything(): unknown {
@@ -23,29 +34,37 @@ function tabPage(options: { restored?: boolean } = {}) {
     loading: false,
     entryIndex: -1,
     entryCount: 0,
+    /** The addresses of the history entries, as far as the case gave them. */
+    entryUrls: [] as string[],
     getURL: () => contents.url,
     getTitle: () => contents.title,
     isLoading: () => contents.loading,
     isLoadingMainFrame: () => contents.loading,
     isDestroyed: () => false,
-    navigationHistory: { getActiveIndex: () => contents.entryIndex, length: () => contents.entryCount || contents.entryIndex + 1 }
+    // The ready page's form edit watcher, which finds nothing.
+    executeJavaScript: async () => undefined,
+    navigationHistory: {
+      getActiveIndex: () => contents.entryIndex,
+      length: () => contents.entryCount || contents.entryIndex + 1,
+      getEntryAtIndex: (index: number) => contents.entryUrls[index] === undefined ? null : { url: contents.entryUrls[index], title: '' }
+    }
   })
   const tab = {
     id: 'tab', url: 'about:blank', title: 'New Tab', loading: false, sleeping: false,
     discoveryTitle: new TabDiscoveryTitle(), navigationGeneration: 0, faviconRequestId: 0, pendingHistoryUrl: null,
     suppressInitialHistory: options.restored === true, navigationPolicyDenialSequence: 0, emulationContextGeneration: 0,
-    documentGeneration: 0, walletNavigationGeneration: 0
+    documentGeneration: 0, walletNavigationGeneration: 0, webContents: contents
   }
   const visits: Array<{ url: string; samePage: boolean }> = []
   const titles: string[] = []
   const fallback = anything() as Record<string | symbol, unknown>
   const answers: Record<string | symbol, unknown> = {
-    isDestroyed: () => false,
+    destroyed: false,
     recordVisit: (visited: typeof tab, samePage: boolean) => visits.push({ url: visited.url, samePage }),
-    options: () => ({ getLocale: () => 'en', onPageTitleUpdated: ({ title }: { title: string }) => titles.push(title) })
+    options: { getLocale: () => 'en', onPageTitleUpdated: ({ title }: { title: string }) => titles.push(title) }
   }
-  const access = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
-  attachNavigationEvents(access as never, tab as never, contents as never)
+  const browser = new Proxy({}, { get: (_target, key) => answers[key] ?? fallback[key] })
+  attachNavigationEvents(browser as never, tab as never, contents as never)
 
   /**
    * Commits a document at an address and history entry, which stays loading and becomes ready unless told not to. As in
@@ -55,6 +74,7 @@ function tabPage(options: { restored?: boolean } = {}) {
     contents.url = url
     contents.title = title
     contents.entryIndex = entryIndex
+    contents.entryUrls[entryIndex] = url
     if (!contents.loading) contents.emit('did-start-loading')
     contents.loading = true
     contents.emit('did-navigate', {}, url)
@@ -87,6 +107,7 @@ function tabPage(options: { restored?: boolean } = {}) {
   const changeWithinPage = (url: string, entryIndex: number) => {
     contents.url = url
     contents.entryIndex = entryIndex
+    contents.entryUrls[entryIndex] = url
     contents.emit('did-navigate-in-page', {}, url, true)
   }
   const setEntryCount = (count: number) => { contents.entryCount = count }
@@ -100,7 +121,10 @@ function tabPage(options: { restored?: boolean } = {}) {
   const removeEarlierEntry = () => {
     contents.entryCount = (contents.entryCount || contents.entryIndex + 1) - 1
     contents.entryIndex -= 1
+    contents.entryUrls.splice(0, 1)
   }
+  /** The pages a restored tab's history keeps before the page it loads again. */
+  const restoreEarlierEntries = (urls: string[]) => { contents.entryUrls.splice(0, urls.length, ...urls) }
   /** A navigation that never commits, such as a download, aborts its load. */
   const abortNavigation = (url: string) => { contents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', url, true) }
   /** Waking the tab loads its page again. */
@@ -123,7 +147,7 @@ function tabPage(options: { restored?: boolean } = {}) {
   }
   return {
     visits, titles, commit, ready, load, stopLoading, loadFrame, setTitle, changeWithinPage, setEntryCount, navigateFrame,
-    removeEarlierEntry, abortNavigation, wake, stopWaitingForWake, fallAsleep, wakeWhileAsleepLoads
+    removeEarlierEntry, restoreEarlierEntries, abortNavigation, wake, stopWaitingForWake, fallAsleep, wakeWhileAsleepLoads
   }
 }
 
@@ -262,6 +286,19 @@ describe('visits a tab gives the history', () => {
     page.changeWithinPage('https://app.example/#/', 1)
     page.changeWithinPage('https://app.example/home', 1)
     page.changeWithinPage('https://app.example/orders', 2)
+    page.stopLoading()
+    expect(page.visits).toEqual([{ url: 'https://app.example/orders', samePage: false }])
+  })
+
+  it('counts a route a restored page pushes after clearing the history removed the pages before it', () => {
+    // Clearing the history moved the page back in its history, so the route it pushed next took the page's own place
+    // and was not counted.
+    const page = tabPage({ restored: true })
+    page.restoreEarlierEntries(['https://app.example/login', 'https://app.example/start'])
+    page.commit('https://app.example/', 2, 'App')
+    page.removeEarlierEntry()
+    page.removeEarlierEntry()
+    page.changeWithinPage('https://app.example/orders', 1)
     page.stopLoading()
     expect(page.visits).toEqual([{ url: 'https://app.example/orders', samePage: false }])
   })

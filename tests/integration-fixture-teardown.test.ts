@@ -1,10 +1,11 @@
+import { EventEmitter } from 'node:events'
 import { createServer, get } from 'node:http'
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, type ElectronApplication } from '@playwright/test'
 import { describe, expect, it, vi } from 'vitest'
-import { closeFixtureServer, closeHronaut, collectRendererDiagnostics, launchHronaut } from './integration/fixtures.js'
+import { closeFixtureServer, closeHronaut, collectRendererDiagnostics, launchHronaut, pageAt } from './integration/fixtures.js'
 
 describe('integration fixture teardown', () => {
   it.each(['monitor', 'window', 'renderer'] as const)('closes a launched app when %s initialization fails', async (stage) => {
@@ -18,7 +19,8 @@ describe('integration fixture teardown', () => {
     if (stage === 'monitor') evaluate.mockRejectedValueOnce(failure)
     if (stage === 'window') firstWindow.mockRejectedValueOnce(failure)
     const close = vi.fn(async () => undefined)
-    const app = { evaluate, firstWindow, close, process: () => ({ exitCode: 0 }) } as unknown as ElectronApplication
+    const child = Object.assign(new EventEmitter(), { exitCode: 0, stderr: null, stdout: null })
+    const app = { evaluate, firstWindow, close, process: () => child } as unknown as ElectronApplication
     const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
     try {
       await expect(launchHronaut(directory)).rejects.toBe(failure)
@@ -29,10 +31,51 @@ describe('integration fixture teardown', () => {
     }
   })
 
+  it.each([
+    ['prints its native stack first', '1', ['SIGTERM', 'SIGABRT']],
+    ['is killed', undefined, ['SIGTERM', 'SIGKILL']]
+  ] as const)('a main process stuck past SIGTERM %s', async (_case, stackDumping, signals) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-stuck-main-'))
+    try {
+      const failure = new Error('simulated monitor startup failure')
+      const kills: string[] = []
+      const child = Object.assign(new EventEmitter(), {
+        exitCode: null,
+        signalCode: null as string | null,
+        stderr: null,
+        kill(signal: string) {
+          kills.push(signal)
+          // A stuck main process ignores SIGTERM; a fatal signal ends it.
+          if (signal === 'SIGTERM') return true
+          child.signalCode = signal
+          child.emit('exit', null, signal)
+          return true
+        }
+      })
+      const evaluate = vi.fn().mockRejectedValueOnce(failure).mockReturnValue(new Promise<never>(() => undefined))
+      const app = { evaluate, close: vi.fn(async () => undefined), process: () => child } as unknown as ElectronApplication
+      const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
+      try {
+        const outcome = launchHronaut(directory, undefined, 1, [], [], { ELECTRON_ENABLE_STACK_DUMPING: stackDumping }).catch(error => error)
+        await vi.waitFor(() => expect(evaluate).toHaveBeenCalledTimes(2))
+        await vi.runAllTimersAsync()
+        expect(await outcome).toBe(failure)
+        expect(kills).toEqual(signals)
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        launch.mockRestore()
+      }
+    } finally {
+      vi.useRealTimers()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('routes every HTTP fixture shutdown through the connection-draining helper', async () => {
     const integrationDirectory = 'tests/integration'
     const files = (await readdir(integrationDirectory))
-      .filter((file) => file.endsWith('.e2e.ts'))
+      .filter((file) => /\.(?:e2e|perf)\.ts$/u.test(file))
     const directCloseSites = (await Promise.all(files.map(async (file) => ({
       file,
       source: await readFile(`${integrationDirectory}/${file}`, 'utf8')
@@ -44,6 +87,30 @@ describe('integration fixture teardown', () => {
     expect(directCloseSites).toEqual([])
     expect(fixtureSource).toContain('export async function closeFixtureServer')
     expect(fixtureSource).toContain('server.closeAllConnections?.()')
+  })
+
+  // Playwright learns a page's address from its own connection to the app, which can lag behind an MCP result saying
+  // the page loaded: a test that looked the page up at once got undefined in CI.
+  it('looks website pages up by address only through pageAt, which waits for Playwright to know them', async () => {
+    const integrationDirectory = 'tests/integration'
+    const files = (await readdir(integrationDirectory))
+      .filter((file) => file.endsWith('.ts') && file !== 'fixtures.ts')
+    const immediateLookups = (await Promise.all(files.map(async (file) => ({
+      file,
+      source: await readFile(`${integrationDirectory}/${file}`, 'utf8')
+    }))))
+      .flatMap(({ file, source }) => [...source.matchAll(/\.pages\(\)\.find\([^\n]*\.url\(\)\s*===[^\n]*\)!/gu)]
+        .map((match) => `${file}:${source.slice(0, match.index).split('\n').length}`))
+
+    expect(immediateLookups).toEqual([])
+  })
+
+  it('finds a page once Playwright knows its address', async () => {
+    const pages = [{ url: () => 'about:blank' }]
+    const ready = { url: () => 'http://127.0.0.1/ready' }
+    const app = { context: () => ({ pages: () => [...pages] }) } as unknown as ElectronApplication
+    setTimeout(() => pages.push(ready), 50)
+    await expect(pageAt(app, 'http://127.0.0.1/ready')).resolves.toBe(ready)
   })
 
   it('allows recovery cleanup to close an already stopped fixture server', async () => {
@@ -80,13 +147,70 @@ describe('integration fixture teardown', () => {
     try {
       const app = { evaluate: () => new Promise<never>(() => undefined) } as unknown as ElectronApplication
       const diagnostics = collectRendererDiagnostics(app)
-      await vi.advanceTimersByTimeAsync(1_000)
+      await vi.advanceTimersByTimeAsync(2_000)
       await expect(diagnostics).resolves.toEqual({
-        unavailable: 'Main process did not respond to diagnostics within 1000ms'
+        unavailable: 'Main process did not respond to diagnostics within 2000ms'
       })
       expect(vi.getTimerCount()).toBe(0)
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  // A main process that ended mid-test left only "Main process closed before diagnostics could be collected".
+  it('says how a launch\'s main process ended and what it last logged when it closed before diagnostics', async () => {
+    const { app, child, stderr, finish } = await launchedWithFakeProcess()
+    try {
+      stderr.emit('data', '[startup] Could not open the workspace recovery window; showing the system dialog instead.\n')
+      child.exitCode = 0
+      child.emit('exit', 0, null)
+      vi.mocked(app.evaluate).mockRejectedValueOnce(new Error('Target page, context or browser has been closed'))
+      await expect(collectRendererDiagnostics(app)).resolves.toEqual({
+        unavailable: 'Main process closed before diagnostics could be collected',
+        mainProcess: {
+          exitCode: 0,
+          signal: null,
+          ranForMs: expect.any(Number),
+          lastLogLines: ['[startup] Could not open the workspace recovery window; showing the system dialog instead.']
+        }
+      })
+    } finally {
+      await finish()
+    }
+  })
+
+  it('waits for a main process whose connection closed just before it exits', async () => {
+    const { app, child, finish } = await launchedWithFakeProcess()
+    try {
+      vi.mocked(app.evaluate).mockRejectedValueOnce(new Error('Target page, context or browser has been closed'))
+      setTimeout(() => {
+        child.exitCode = 1
+        child.emit('exit', 1, null)
+      }, 50)
+      await expect(collectRendererDiagnostics(app)).resolves.toMatchObject({
+        unavailable: 'Main process closed before diagnostics could be collected',
+        mainProcess: { exitCode: 1, ranForMs: expect.any(Number) }
+      })
+    } finally {
+      await finish()
+    }
+  })
+
+  it('says what a main process that does not answer diagnostics last logged', async () => {
+    const { app, stderr, finish } = await launchedWithFakeProcess()
+    vi.useFakeTimers()
+    try {
+      stderr.emit('data', '[3779:1029/030605.268817:ERROR:dbus/bus.cc:406] Failed to connect to socket\n')
+      vi.mocked(app.evaluate).mockReturnValueOnce(new Promise<never>(() => undefined))
+      const collecting = collectRendererDiagnostics(app)
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(collecting).resolves.toEqual({
+        unavailable: 'Main process did not respond to diagnostics within 2000ms',
+        mainProcess: { exitCode: null, signal: null, ranForMs: null, lastLogLines: ['ERROR dbus/bus.cc:406'] }
+      })
+    } finally {
+      vi.useRealTimers()
+      await finish()
     }
   })
 
@@ -123,3 +247,27 @@ describe('integration fixture teardown', () => {
     }
   })
 })
+
+/** A launch whose main process is a fake the test ends, with the launch tracked as the fixture tracks a real one. */
+async function launchedWithFakeProcess() {
+  const directory = await mkdtemp(join(tmpdir(), 'hronaut-ended-main-'))
+  const stderr = new EventEmitter()
+  const child = Object.assign(new EventEmitter(), { exitCode: null as number | null, signalCode: null, stderr, stdout: null })
+  const app = {
+    evaluate: vi.fn(async () => undefined),
+    firstWindow: vi.fn(async () => ({ on: vi.fn(), waitForLoadState: vi.fn(async () => undefined), evaluate: vi.fn(async () => undefined) })),
+    close: vi.fn(async () => undefined),
+    process: () => child
+  } as unknown as ElectronApplication
+  const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
+  await launchHronaut(directory)
+  return {
+    app,
+    child,
+    stderr,
+    async finish(): Promise<void> {
+      launch.mockRestore()
+      await rm(directory, { recursive: true, force: true })
+    }
+  }
+}

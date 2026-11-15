@@ -54,7 +54,7 @@ describe('README discoverability', () => {
     expect(readme).toContain('actions/workflows/ci.yml/badge.svg?branch=main')
     expect(readme).toMatch(/source-available/i)
 
-    expect(packageJson.description).toMatch(/visible local Browser MCP/i)
+    expect(packageJson.description).toMatch(/visible desktop browser for coding agents/i)
     expect(packageJson.homepage).toBe('https://hronaut.dev')
     expect(packageJson.bugs?.url).toBe('https://github.com/hronaut/hronaut/issues')
     expect(packageJson.keywords).toEqual(expect.arrayContaining([

@@ -53,6 +53,44 @@ test('hold duration begins after a delayed down acknowledgement', async ({ capab
   } finally { await electronApp.evaluate(() => (globalThis as HoldScope).holdProbe?.release()); await pending.catch(() => undefined) }
 })
 
+test('a tab lock asked for while a held key keeps the page busy past two seconds waits for the page and applies', async ({ capabilities, electronApp, appWindow }, testInfo) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  await setupHoldPage(electronApp, fixtureUrl)
+  await observeHold(electronApp, fixtureUrl, 'delayed-ack')
+  const tabLocked = async () => appWindow.evaluate(async id => (
+    await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionLocked, tabId)
+  const pending = client.callTool({ name: 'browser_hold_key', arguments: { tabId, key: 'ArrowRight', durationMs: 120 } }) as Promise<CallToolResult>
+  let locking: Promise<unknown> | undefined
+  try {
+    // The key's down acknowledgement is held, and with it the page's debugger queue.
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as HoldScope).holdProbe!.ready)).toBe(true)
+    let lockSettled = false
+    locking = appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, true), tabId)
+      .finally(() => { lockSettled = true })
+    void locking.catch(() => undefined)
+    // The tab shows the lock at once; its barrier waits behind the held key past the two seconds after which the lock
+    // used to fail as busy.
+    await expect.poll(tabLocked).toBe(true)
+    await electronApp.evaluate(() => new Promise(resolve => setTimeout(resolve, 2500)))
+    expect(lockSettled).toBe(false)
+    expect((await holdObservation(electronApp)).relocks).toBe(0)
+    await electronApp.evaluate(() => (globalThis as HoldScope).holdProbe!.release())
+    await locking
+    const result = await pending
+    const observed = await holdObservation(electronApp)
+    await testInfo.attach('lock-while-busy', { body: JSON.stringify({ result, observed }), contentType: 'application/json' })
+    expect(await tabLocked()).toBe(true)
+    expect(observed.relocks).toBeGreaterThan(0)
+    // The lock stopped the hold, which released its key on the way.
+    expect(observed.commands.map(c => c.type)).toEqual(['rawKeyDown', 'keyUp'])
+    expect(observed.upAcknowledged).toBe(true)
+    await expect.poll(async () => (await holdObservation(electronApp)).effects?.held).toBe(false)
+  } finally {
+    await electronApp.evaluate(() => (globalThis as HoldScope).holdProbe?.release())
+    await Promise.allSettled([pending, locking])
+  }
+})
+
 test('strict hold wire schema rejects invalid input and permits a fresh valid hold', async ({ capabilities, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   await setupHoldPage(electronApp, fixtureUrl)

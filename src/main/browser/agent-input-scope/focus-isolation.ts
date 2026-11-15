@@ -1,5 +1,5 @@
 import { BrowserWindow, webContents as electronWebContents, type WebContents } from 'electron'
-import type { AgentFocusIsolationAccess } from './agent-input-scope-access.js'
+import type { Browser } from '../browser.js'
 
 /**
  * Starts keeping the window from taking focus during an agent's work while
@@ -7,43 +7,43 @@ import type { AgentFocusIsolationAccess } from './agent-input-scope-access.js'
  * after a later blur, it becomes unfocusable until the returned release runs.
  * Releasing twice does nothing.
  */
-export function beginAgentFocusIsolation(access: AgentFocusIsolationAccess): () => void {
+export function beginAgentFocusIsolation(browser: Browser): () => void {
   let guardingBackgroundFocus = false
   let released = false
   const guardWhenBackgrounded = (): void => {
     if (
       released
       || guardingBackgroundFocus
-      || access.isDestroyed()
-      || access.window().isDestroyed()
-      || access.window().isFocused()
+      || browser.destroyed
+      || browser.window.isDestroyed()
+      || browser.window.isFocused()
     ) return
     guardingBackgroundFocus = true
-    beginBackgroundAgentInputFocusGuard(access)
+    beginBackgroundAgentInputFocusGuard(browser)
   }
-  access.window().on('blur', guardWhenBackgrounded)
+  browser.window.on('blur', guardWhenBackgrounded)
   guardWhenBackgrounded()
   return () => {
     if (released) return
     released = true
-    if (!access.window().isDestroyed()) access.window().removeListener('blur', guardWhenBackgrounded)
+    if (!browser.window.isDestroyed()) browser.window.removeListener('blur', guardWhenBackgrounded)
     if (!guardingBackgroundFocus) return
-    if (!access.window().isDestroyed() && access.window().isFocused()) access.window().blur()
-    endBackgroundAgentInputFocusGuard(access)
+    if (!browser.window.isDestroyed() && browser.window.isFocused()) browser.window.blur()
+    endBackgroundAgentInputFocusGuard(browser)
   }
 }
 
 /** Makes the window unfocusable when the first background guard begins, remembering whether it was focusable. */
-function beginBackgroundAgentInputFocusGuard(access: AgentFocusIsolationAccess): void {
-  access.writeBackgroundAgentInputFocusGuardDepth(access.backgroundAgentInputFocusGuardDepth() + 1)
-  if (access.backgroundAgentInputFocusGuardDepth() !== 1 || access.window().isDestroyed()) return
-  access.writeMainWindowFocusableBeforeAgentInput(access.window().isFocusable())
-  if (access.mainWindowFocusableBeforeAgentInput()) access.window().setFocusable(false)
+function beginBackgroundAgentInputFocusGuard(browser: Browser): void {
+  browser.backgroundAgentInputFocusGuardDepth += 1
+  if (browser.backgroundAgentInputFocusGuardDepth !== 1 || browser.window.isDestroyed()) return
+  browser.mainWindowFocusableBeforeAgentInput = browser.window.isFocusable()
+  if (browser.mainWindowFocusableBeforeAgentInput) browser.window.setFocusable(false)
 }
 
 /** Runs an operation with focus isolation, releasing it however the operation ends. */
-export async function withBackgroundAgentFocusGuard<T>(access: AgentFocusIsolationAccess, operation: () => Promise<T>): Promise<T> {
-  const releaseFocusGuard = beginAgentFocusIsolation(access)
+export async function withBackgroundAgentFocusGuard<T>(browser: Browser, operation: () => Promise<T>): Promise<T> {
+  const releaseFocusGuard = beginAgentFocusIsolation(browser)
   try {
     return await operation()
   } finally {
@@ -56,25 +56,25 @@ export async function withBackgroundAgentFocusGuard<T>(access: AgentFocusIsolati
  * returns focus to the window that holds it now, or blurs the window if
  * restoring focusability activated it.
  */
-function endBackgroundAgentInputFocusGuard(access: AgentFocusIsolationAccess): void {
-  access.writeBackgroundAgentInputFocusGuardDepth(Math.max(0, access.backgroundAgentInputFocusGuardDepth() - 1))
-  if (access.backgroundAgentInputFocusGuardDepth() !== 0) return
-  const restoreFocusable = access.mainWindowFocusableBeforeAgentInput()
-  access.writeMainWindowFocusableBeforeAgentInput(true)
+function endBackgroundAgentInputFocusGuard(browser: Browser): void {
+  browser.backgroundAgentInputFocusGuardDepth = Math.max(0, browser.backgroundAgentInputFocusGuardDepth - 1)
+  if (browser.backgroundAgentInputFocusGuardDepth !== 0) return
+  const restoreFocusable = browser.mainWindowFocusableBeforeAgentInput
+  browser.mainWindowFocusableBeforeAgentInput = true
   const currentFocusOwner = BrowserWindow.getFocusedWindow()
-  if (restoreFocusable && !access.window().isDestroyed() && !access.window().isFocusable()) {
-    access.window().setFocusable(true)
+  if (restoreFocusable && !browser.window.isDestroyed() && !browser.window.isFocusable()) {
+    browser.window.setFocusable(true)
   }
   // No focused Electron window means the human may have switched to another
   // application. Never revive an owner captured before the operation.
   const focusOwner = currentFocusOwner
-  if (focusOwner && focusOwner !== access.window() && !focusOwner.isDestroyed()) {
+  if (focusOwner && focusOwner !== browser.window && !focusOwner.isDestroyed()) {
     focusOwner.focus()
-  } else if (!access.window().isDestroyed() && access.window().isFocused()) {
+  } else if (!browser.window.isDestroyed() && browser.window.isFocused()) {
     // Re-enabling focusability can activate the window on some Linux window
     // managers. An external application's window is not addressable through
     // Electron, so blur Hronaut and let the desktop restore its prior owner.
-    access.window().blur()
+    browser.window.blur()
   }
 }
 
@@ -84,7 +84,7 @@ function endBackgroundAgentInputFocusGuard(access: AgentFocusIsolationAccess): v
  * when the person was working elsewhere.
  */
 export function restoreHumanFocusAfterAgentInput(
-  access: AgentFocusIsolationAccess,
+  browser: Browser,
   targetWebContents: WebContents,
   snapshot: {
     mainWindowFocused: boolean
@@ -96,10 +96,10 @@ export function restoreHumanFocusAfterAgentInput(
   // was running.
   if (!snapshot) return
   if (!snapshot.mainWindowFocused) {
-    if (access.window().isFocused()) access.window().blur()
+    if (browser.window.isFocused()) browser.window.blur()
     return
   }
-  if (!access.window().isFocused()) return
+  if (!browser.window.isFocused()) return
   const current = electronWebContents.getFocusedWebContents()
   if (current && current.id !== targetWebContents.id && current.id !== snapshot.focusedWebContentsId) return
   if (snapshot.focusedWebContentsId === null || current?.id === snapshot.focusedWebContentsId) return

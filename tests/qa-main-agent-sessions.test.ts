@@ -62,7 +62,7 @@ async function startServer() {
 
 describe('connected agents over time', () => {
   it('drops each idle session from the list when its presence window ends, telling main without a new request', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
     const { onAgentPresenceChanged, published, initialize, names } = await startServer()
     await initialize('Agent A')
     const firstSeen = Date.now()
@@ -82,7 +82,7 @@ describe('connected agents over time', () => {
   })
 
   it('tells main when a lone client that quit without closing its session stops counting as connected', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
     const { server, onAgentPresenceChanged, published, initialize, names } = await startServer()
     await initialize('codex-mcp-client')
     await vi.waitFor(() => expect(server.getDashboardState().clients.every((client) => client.activeRequests === 0)).toBe(true))
@@ -97,8 +97,26 @@ describe('connected agents over time', () => {
     expect(published.at(-1)).toEqual([])
   })
 
+  it('keeps a session connected for its window, and then lets it go, when the wall clock steps back or forward', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
+    const { server, onAgentPresenceChanged, initialize, names } = await startServer()
+    await initialize('codex-mcp-client')
+    await vi.waitFor(() => expect(server.getDashboardState().clients.every((client) => client.activeRequests === 0)).toBe(true))
+    // As a Linux clock kept in local time is corrected soon after login: the wall clock steps an hour back.
+    vi.setSystemTime(Date.now() - 3_600_000)
+    onAgentPresenceChanged.mockClear()
+    await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_WINDOW_MS + 1_000)
+    expect(names()).toEqual([])
+    expect(onAgentPresenceChanged).toHaveBeenCalled()
+
+    await initialize('codex-mcp-client')
+    await vi.waitFor(() => expect(server.getDashboardState().clients.every((client) => client.activeRequests === 0)).toBe(true))
+    vi.setSystemTime(Date.now() + 2 * 3_600_000)
+    expect(names()).toEqual(['Codex'])
+  })
+
   it('still tells main about a window that just ended when another session finishes a request first', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
     const { server, published, initialize, listTools, names } = await startServer()
     await initialize('Agent A')
     await vi.advanceTimersByTimeAsync(10_000)
@@ -116,7 +134,7 @@ describe('connected agents over time', () => {
   })
 
   it('lists a lapsed session again as soon as it makes a request, and tells main', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] })
     const { onAgentPresenceChanged, published, initialize, listTools, names } = await startServer()
     const sessionId = await initialize('Returning Agent')
     await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_WINDOW_MS + 1_000)

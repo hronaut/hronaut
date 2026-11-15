@@ -19,8 +19,8 @@ function context(overrides: Partial<AgentPresenceContext> = {}): AgentPresenceCo
 
 /** A finished tool call, so the agent is seen working in the workspace. */
 function call(registry: AgentPresenceRegistry, client = claude, at = 1_000, workspaceId = workspace) {
-  registry.track(client, workspaceId, { activityId: `start-${at}`, toolName: 'browser_click', tabId: 'tab-1', phase: 'started', occurredAt: at, source: 'call' })
-  registry.track(client, workspaceId, { activityId: `start-${at}`, toolName: 'browser_click', tabId: 'tab-1', phase: 'finished', occurredAt: at + 10, source: 'call' })
+  registry.track(client, workspaceId, { activityId: `start-${at}`, toolName: 'browser_click', tabId: 'tab-1', phase: 'started', occurredAt: at, source: 'call' }, at)
+  registry.track(client, workspaceId, { activityId: `start-${at}`, toolName: 'browser_click', tabId: 'tab-1', phase: 'finished', occurredAt: at + 10, source: 'call' }, at + 10)
 }
 
 function answers(registry: AgentPresenceRegistry, now: number, client = claude, workspaceId = workspace) {
@@ -34,7 +34,7 @@ describe('recording your answer to an agent', () => {
     const registry = new AgentPresenceRegistry()
     call(registry)
     registry.recordAttention(claude, workspace, 'attention-1', 'tab-1', 2_000)
-    expect(registry.recordAnswer('attention-1', 'handedBack', 3_000)).toBe(true)
+    expect(registry.recordAnswer('attention-1', 'handedBack', 3_000, 3_000)).toBe(true)
     const agent = registry.derive(3_000, context())[workspace]?.[0]
     expect(agent?.recentSteps[0]).toEqual({ step: 'askYou', answer: 'handedBack', outcome: 'done', at: 3_000 })
     // All steps lists the answer too, on the tab it was about.
@@ -47,12 +47,12 @@ describe('recording your answer to an agent', () => {
     const registry = new AgentPresenceRegistry()
     call(registry)
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 2_000)
-    expect(registry.recordAnswer('attention-1', 'dismissed', 3_000)).toBe(true)
-    expect(registry.recordAnswer('attention-1', 'handedBack', 4_000)).toBe(true)
+    expect(registry.recordAnswer('attention-1', 'dismissed', 3_000, 3_000)).toBe(true)
+    expect(registry.recordAnswer('attention-1', 'handedBack', 4_000, 4_000)).toBe(true)
     expect(answers(registry, 4_000)).toEqual(['handedBack', 'dismissed'])
     // Answered another way, the request is forgotten.
-    expect(registry.recordAnswer('attention-1', 'handedBack', 5_000)).toBe(false)
-    expect(registry.recordAnswer('attention-1', 'dismissed', 5_000)).toBe(false)
+    expect(registry.recordAnswer('attention-1', 'handedBack', 5_000, 5_000)).toBe(false)
+    expect(registry.recordAnswer('attention-1', 'dismissed', 5_000, 5_000)).toBe(false)
     expect(answers(registry, 5_000)).toEqual(['handedBack', 'dismissed'])
   })
 
@@ -60,15 +60,15 @@ describe('recording your answer to an agent', () => {
     const registry = new AgentPresenceRegistry()
     call(registry)
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 2_000)
-    expect(registry.recordAnswer('attention-1', 'dismissed', 3_000)).toBe(true)
-    expect(registry.recordAnswer('attention-1', 'dismissed', 3_500)).toBe(false)
+    expect(registry.recordAnswer('attention-1', 'dismissed', 3_000, 3_000)).toBe(true)
+    expect(registry.recordAnswer('attention-1', 'dismissed', 3_500, 3_500)).toBe(false)
     expect(answers(registry, 3_500)).toEqual(['dismissed'])
   })
 
   it('records nothing for a request it never saw', () => {
     const registry = new AgentPresenceRegistry()
     call(registry)
-    expect(registry.recordAnswer('unknown', 'handedBack', 2_000)).toBe(false)
+    expect(registry.recordAnswer('unknown', 'handedBack', 2_000, 2_000)).toBe(false)
     expect(answers(registry, 2_000)).toEqual([])
   })
 
@@ -77,7 +77,7 @@ describe('recording your answer to an agent', () => {
     call(registry)
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 2_000)
     registry.removeClient(claude.id)
-    expect(registry.recordAnswer('attention-1', 'handedBack', 3_000)).toBe(false)
+    expect(registry.recordAnswer('attention-1', 'handedBack', 3_000, 3_000)).toBe(false)
     expect(registry.history(registry.clientKey(claude.id), workspace, context(), new Set())).toBeNull()
   })
 
@@ -85,7 +85,7 @@ describe('recording your answer to an agent', () => {
     const registry = new AgentPresenceRegistry()
     call(registry)
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 2_000)
-    expect(registry.recordAnswer('attention-1', 'handedBack', 3_000, (workspaceId) => workspaceId !== workspace)).toBe(false)
+    expect(registry.recordAnswer('attention-1', 'handedBack', 3_000, 3_000, (workspaceId) => workspaceId !== workspace)).toBe(false)
     expect(answers(registry, 3_000)).toEqual([])
   })
 
@@ -99,7 +99,7 @@ describe('recording your answer to an agent', () => {
     const shown = registry.derive(2_600, context({ currentAttentionId: 'attention-2' }))[workspace]
     expect(shown?.map((agent) => agent.name)).toEqual(['Cursor', 'Claude Code'])
     expect(shown?.map((agent) => agent.state)[1]).not.toBe('needs-you')
-    expect(registry.recordAnswer('attention-1', 'approved', 3_000)).toBe(true)
+    expect(registry.recordAnswer('attention-1', 'approved', 3_000, 3_000)).toBe(true)
     expect(answers(registry, 3_000)).toEqual(['approved'])
     expect(answers(registry, 3_000, cursor)).toEqual([])
   })
@@ -109,7 +109,7 @@ describe('recording your answer to an agent', () => {
     call(registry, claude, 0)
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 1_000)
     const answeredAt = AGENT_PRESENCE_WINDOW_MS - 1_000
-    expect(registry.recordAnswer('attention-1', 'handedBack', answeredAt)).toBe(true)
+    expect(registry.recordAnswer('attention-1', 'handedBack', answeredAt, answeredAt)).toBe(true)
     expect(registry.derive(answeredAt + AGENT_PRESENCE_WINDOW_MS - 1, context())[workspace]?.[0]?.state).toBe('idle')
     expect(registry.derive(answeredAt + AGENT_PRESENCE_WINDOW_MS, context())[workspace]).toBeUndefined()
   })
@@ -120,8 +120,8 @@ describe('recording your answer to an agent', () => {
     for (let index = 0; index <= AGENT_ANSWERABLE_REQUESTS_LIMIT; index += 1) {
       registry.recordAttention(claude, workspace, `attention-${index}`, undefined, 2_000 + index)
     }
-    expect(registry.recordAnswer('attention-0', 'handedBack', 5_000)).toBe(false)
-    expect(registry.recordAnswer('attention-1', 'handedBack', 5_000)).toBe(true)
+    expect(registry.recordAnswer('attention-0', 'handedBack', 5_000, 5_000)).toBe(false)
+    expect(registry.recordAnswer('attention-1', 'handedBack', 5_000, 5_000)).toBe(true)
   })
 
   it('never puts your answers in Home\'s feed', () => {
@@ -129,7 +129,7 @@ describe('recording your answer to an agent', () => {
     call(registry)
     expect(registry.latestFeedStep(claude.id, workspace)).toMatchObject({ step: 'click', outcome: 'done' })
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 2_000)
-    registry.recordAnswer('attention-1', 'handedBack', 3_000)
+    registry.recordAnswer('attention-1', 'handedBack', 3_000, 3_000)
     expect(registry.latestFeedStep(claude.id, workspace)).toBeUndefined()
   })
 })
@@ -156,7 +156,7 @@ describe('finding the request a decision came from', () => {
     registry.recordAttention(cursor, workspace, 'attention-2', undefined, 2_500)
     const attentionId = registry.decisionRequest(workspace, 'decision-1')
     expect(attentionId).toBe('attention-1')
-    expect(registry.recordAnswer(attentionId!, agentAnswerForDecision('approve-action', 'resolve'), 3_000)).toBe(true)
+    expect(registry.recordAnswer(attentionId!, agentAnswerForDecision('approve-action', 'resolve'), 3_000, 3_000)).toBe(true)
     expect(answers(registry, 3_000)).toEqual(['approved'])
     expect(registry.decisionRequest(workspace, 'decision-1')).toBeUndefined()
   })

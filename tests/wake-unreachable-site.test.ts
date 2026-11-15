@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
+// The sleeping tab's browser below stubs changed and getState, which waking publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
 // A sleeping tab whose website could not be reached could not be opened: the wake failed and sent it back to sleep,
 // though Chromium already showed the error page at its address. The e2e wake-unreachable-site drives the real app.
 
@@ -15,7 +22,7 @@ function sleepingTab(commits: string | null) {
   const entries = [ADDRESS, SLEEPING_PAGE_URL]
   let index = 1
   const webContents = {
-    isDestroyed: () => false,
+    isDestroyed: (): boolean => false,
     isLoading: () => false,
     getURL: () => entries[index],
     loadURL: vi.fn(async (url: string) => {
@@ -43,14 +50,13 @@ function sleepingTab(commits: string | null) {
     id: 'tab', url: ADDRESS, sleeping: true, loading: false, suppressInitialHistory: false, navigationGeneration: 3,
     lastActiveAt: 0, sleepNavigationHistory: { entries: [], index: 0 }, webContents
   }
-  const access = {
-    getTab: () => tab,
-    findTab: (id: string) => (id === tab.id ? tab : undefined),
-    tabOverviewSleepPreviews: () => new Map(),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    tabOverviewSleepPreviews: new Map(),
     changed: vi.fn(),
     getState: () => ({ tabs: [] })
   }
-  return { tab, entries, wake: () => wakeTab(access as never, tab.id) }
+  return { tab, entries, wake: () => wakeTab(browser as never, tab.id) }
 }
 
 describe('waking a sleeping tab whose website cannot be reached', () => {
@@ -74,5 +80,40 @@ describe('waking a sleeping tab whose website cannot be reached', () => {
     expect(tab.sleeping).toBe(true)
     expect(tab.sleepNavigationHistory).toEqual({ entries: [], index: 0 })
     expect(entries).toEqual([ADDRESS, SLEEPING_PAGE_URL])
+  })
+})
+
+describe('waking a sleeping tab whose page Electron destroys meanwhile', () => {
+  // The fallback load then called the destroyed page and threw Electron's English "Object has been destroyed", and the
+  // tab went back to sleep over the row that says its page is gone.
+  it('ends the wake, loading nothing more, and leaves the tab awake to say its page is gone', async () => {
+    const { tab, wake } = sleepingTab(null)
+    let destroyed = false
+    tab.webContents.isDestroyed = () => destroyed
+    tab.webContents.navigationHistory.goToIndex = () => {
+      destroyed = true
+      throw Object.assign(new Error('ERR_FAILED (-2)'), { errno: -2, code: 'ERR_FAILED' })
+    }
+    await expect(wake()).resolves.toBeDefined()
+    expect(tab.webContents.loadURL).not.toHaveBeenCalled()
+    expect(tab.sleeping).toBe(false)
+  })
+
+  it('ends the wake when the page is destroyed as the address loads again, and when it was destroyed already', async () => {
+    const failing = sleepingTab(null)
+    let destroyed = false
+    failing.tab.webContents.isDestroyed = () => destroyed
+    failing.tab.webContents.loadURL.mockImplementation(async () => {
+      destroyed = true
+      throw Object.assign(new Error('ERR_FAILED (-2)'), { errno: -2, code: 'ERR_FAILED' })
+    })
+    await expect(failing.wake()).resolves.toBeDefined()
+    expect(failing.tab.sleeping).toBe(false)
+
+    const gone = sleepingTab(null)
+    gone.tab.webContents.isDestroyed = () => true
+    await expect(gone.wake()).resolves.toBeDefined()
+    expect(gone.tab.sleeping).toBe(true)
+    expect(gone.tab.loading).toBe(false)
   })
 })

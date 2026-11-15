@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
-import ConsolePanel from '../../src/renderer/src/components/ConsolePanel.vue'
+import ConsolePanel from '../../src/renderer/src/features/console/ConsolePanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { filterConsoleMessages, mergeRepeatedConsoleMessage } from '../../src/shared/console-messages.js'
 import type { BrowserConsoleMessage } from '../../src/shared/types.js'

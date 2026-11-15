@@ -1,7 +1,11 @@
-import { clipboard, ClipboardItem, nativeImage, type BrowserWindow, type NativeImage, type WebContents } from 'electron'
+import { clipboard, ClipboardItem, nativeImage, type BrowserWindow, type NativeImage, type WebContents, type WebFrameMain } from 'electron'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
 import { LocalizedError, personErrorMessage } from './localized-error.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
+import { SHELL_IPC } from '../shared/ipc/shell.js'
+import { sendTo } from './typed-ipc.js'
+
+type ClipboardRecord = ConstructorParameters<typeof ClipboardItem>[0]
 
 interface ClipboardOperationsHost {
   /** Translates into the current interface language; read on every use because the language can change. */
@@ -12,13 +16,14 @@ interface ClipboardOperationsHost {
 
 /**
  * Copying text and images to the system clipboard, one operation at a time, each read back to confirm the clipboard
- * accepted it. A page image is copied by the page and then written again as a verified PNG.
+ * accepted it. A page image or video frame is copied by the page and then written again as a verified PNG.
  */
 export function createClipboardOperations(host: ClipboardOperationsHost): {
   copyTextToClipboard(text: string): Promise<void>
   reportClipboardFailure(error: unknown): void
   copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }>
-  copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void>
+  copyPageImageToClipboard(webContents: WebContents, x: number, y: number, picture?: 'image' | 'canvas'): Promise<void>
+  copyVideoFrameToClipboard(frame: WebFrameMain, x: number, y: number): Promise<void>
 } {
   let clipboardOperationQueue: Promise<void> = Promise.resolve()
 
@@ -37,20 +42,30 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   function reportClipboardFailure(error: unknown): void {
     const message = error instanceof Error ? personErrorMessage(error, host.text) : host.text('native.errors.clipboard')
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-      host.mainWindow()!.webContents.send('clipboard:failed', message)
+      sendTo(host.mainWindow()!.webContents, SHELL_IPC.clipboardFailed, message)
     }
   }
 
   async function readClipboardImage(): Promise<NativeImage> {
-    const items = await clipboard.read()
-    const item = items.find((entry) => entry.types.includes('image/png'))
-    if (!item) return nativeImage.createEmpty()
-    const blob = await item.getType('image/png')
-    if (!(blob instanceof Blob)) throw new Error('The clipboard PNG payload was not an image')
-    return nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
+    return (await readClipboardImageAndMarkup()).image
   }
 
-  async function writePngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
+  /** The PNG on the clipboard, and the `<img>` markup a page wrote beside it, as Chromium does for Copy Image. */
+  async function readClipboardImageAndMarkup(): Promise<{ image: NativeImage; html?: string }> {
+    const items = await clipboard.read()
+    const item = items.find((entry) => entry.types.includes('image/png'))
+    if (!item) return { image: nativeImage.createEmpty() }
+    const blob = await item.getType('image/png')
+    if (!(blob instanceof Blob)) throw new Error('The clipboard PNG payload was not an image')
+    const image = nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
+    if (!item.types.includes('text/html')) return { image }
+    const markup = await item.getType('text/html')
+    const html = markup instanceof Blob ? await markup.text() : ''
+    return html ? { image, html } : { image }
+  }
+
+  /** Writes a PNG, with the page's `<img>` markup beside it when it gave one, and reads the PNG back to confirm it. */
+  async function writePngToClipboard(data: Buffer, html?: string): Promise<{ width: number; height: number }> {
     const image = nativeImage.createFromBuffer(data)
     if (image.isEmpty()) throw new Error(host.text('native.errors.screenshotCreate'))
     const expectedSize = image.getSize()
@@ -60,7 +75,9 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
       // successful write when the platform clipboard silently rejects this one.
       clipboard.clear()
       await clipboard.write([new ClipboardItem({
-        'image/png': new Blob([new Uint8Array(data)], { type: 'image/png' })
+        'image/png': new Blob([new Uint8Array(data)], { type: 'image/png' }),
+        // Rich text editors paste the image from its address, as they do after Chrome's Copy Image.
+        ...(html ? { 'text/html': new Blob([html], { type: 'text/html' }) } : {})
       })])
       await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
       const copied = await readClipboardImage()
@@ -82,25 +99,79 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
     return queueClipboardOperation(() => writePngToClipboard(data))
   }
 
-  async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void> {
+  /** What the clipboard holds, by media type, so a failed copy can put it back. */
+  async function clipboardContents(): Promise<ClipboardRecord[]> {
+    try {
+      return await Promise.all((await clipboard.read()).map(async item => Object.fromEntries(
+        await Promise.all(item.types.map(async type => [type, await item.getType(type)] as const))
+      )))
+    } catch {
+      return []
+    }
+  }
+
+  async function restoreClipboard(contents: ClipboardRecord[]): Promise<void> {
+    if (contents.length === 0) return
+    try {
+      await clipboard.write(contents.map(record => new ClipboardItem(record)))
+    } catch {
+      // The copy has failed already; that is what the person hears about.
+    }
+  }
+
+  /**
+   * Has the page copy an image itself, then reads it back and writes it again as a verified PNG, keeping the `<img>`
+   * markup the page wrote beside it. Each try clears the clipboard first, so a copy that fails puts back what the
+   * person had copied before.
+   */
+  async function copyImageThePageGives(
+    pageGone: () => boolean,
+    copy: () => void,
+    rejected: 'appErrors.clipboard.imageRejected' | 'appErrors.clipboard.canvasRejected' | 'appErrors.clipboard.videoFrameRejected'
+  ): Promise<void> {
     await queueClipboardOperation(async () => {
+      if (pageGone()) throw new LocalizedError('appErrors.clipboard.pageClosed')
+      const before = await clipboardContents()
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (webContents.isDestroyed()) throw new LocalizedError('appErrors.clipboard.pageClosed')
+        if (pageGone()) {
+          await restoreClipboard(before)
+          throw new LocalizedError('appErrors.clipboard.pageClosed')
+        }
         clipboard.clear()
-        webContents.copyImageAt(x, y)
+        copy()
         await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-        const image = await readClipboardImage()
+        const { image, html } = await readClipboardImageAndMarkup()
         if (!image.isEmpty()) {
           const png = image.toPNG()
           if (png.byteLength > 0) {
-            await writePngToClipboard(png)
-            return
+            try {
+              await writePngToClipboard(png, html)
+              return
+            } catch (error) {
+              await restoreClipboard(before)
+              throw error
+            }
           }
         }
       }
-      throw new LocalizedError('appErrors.clipboard.imageRejected')
+      await restoreClipboard(before)
+      throw new LocalizedError(rejected)
     })
   }
 
-  return { copyTextToClipboard, reportClipboardFailure, copyPngToClipboard, copyPageImageToClipboard }
+  /** Copies the image or canvas at (x, y) in the page. A canvas with no picture to give copies nothing, a rejected copy. */
+  async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number, picture: 'image' | 'canvas' = 'image'): Promise<void> {
+    const rejected = picture === 'canvas' ? 'appErrors.clipboard.canvasRejected' : 'appErrors.clipboard.imageRejected'
+    await copyImageThePageGives(() => webContents.isDestroyed(), () => webContents.copyImageAt(x, y), rejected)
+  }
+
+  /**
+   * Copies the frame a video shows at (x, y), in the page's coordinates, from the frame of the page the video is in.
+   * A video with no frame to give, such as one not loaded yet, copies nothing, which reads as a rejected copy.
+   */
+  async function copyVideoFrameToClipboard(frame: WebFrameMain, x: number, y: number): Promise<void> {
+    await copyImageThePageGives(() => frame.isDestroyed() || frame.detached, () => frame.copyVideoFrameAt(x, y), 'appErrors.clipboard.videoFrameRejected')
+  }
+
+  return { copyTextToClipboard, reportClipboardFailure, copyPngToClipboard, copyPageImageToClipboard, copyVideoFrameToClipboard }
 }

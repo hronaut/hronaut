@@ -47,13 +47,12 @@ export function searchEngineLabel(engine: SearchEngineName): string {
 
 /**
  * The address Chrome's Go to opens for a selection that is one, as the address bar opens it: the whole selection, when
- * it is a web address written with `http://` or `https://`, or starting with `www.`. Any other selection is searched,
- * so a word with a dot in it, such as `Node.js`, is not taken for a site, unlike in Chrome, which knows every domain
- * ending and goes to `example.com`.
+ * it is a web address, such as `example.com` or `https://example.com/docs`. Any other selection is searched, also a
+ * word with a dot in it whose last part is no top-level domain, such as `Node.js`.
  */
 export function selectionGoToUrl(selectionText: string): string | undefined {
   const selection = selectionText.trim()
-  if (selection.length > ADDRESS_LIMIT || !/^(?:https?:\/\/|www\.)/iu.test(selection) || /\s/u.test(selection)) return undefined
+  if (selection.length > ADDRESS_LIMIT || /\s/u.test(selection)) return undefined
   const url = webAddress(wellFormed(selection))
   return url && isWebUrl(url) ? url : undefined
 }

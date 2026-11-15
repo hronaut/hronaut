@@ -1,6 +1,6 @@
 import { createServer, type ServerResponse } from 'node:http'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('refreshes a pending selection after completion without replaying its request', async ({ appWindow, electronApp }) => {
   let held: ServerResponse | undefined
@@ -21,8 +21,7 @@ test('refreshes a pending selection after completion without replaying its reque
   try {
     const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
     const tabId = state.activeTabId!
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     const retained = () => appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.listNetworkRequests(tabId), tabId)
     await retained()
     await page.evaluate(() => { void fetch('/delayed-response').then(response => response.text()) })

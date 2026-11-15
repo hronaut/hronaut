@@ -20,6 +20,6 @@ export function registerBrowserCpuProfile(context: McpToolContext): void {
     }: {
       tabId?: string
       action: 'get' | 'start' | 'stop' | 'clear'
-    }) => textResult(await manager.cpuProfile({ tabId, action })))
+    }) => textResult(await manager.profiling.cpuProfile({ tabId, action })))
   )
 }

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { nextTick, shallowRef } from 'vue'
 import BrowserPageActions from '../../src/renderer/src/components/BrowserPageActions.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
@@ -44,10 +45,11 @@ function renderActions(
   areaCaptureState: 'idle' | 'picking' | 'capturing' | 'copied' | 'error' = 'idle',
   activeTab = tab()
 ) {
-  return render(BrowserPageActions, {
+  const current = shallowRef(state(activeTab))
+  const view = render(BrowserPageActions, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
-      state: state(activeTab),
+      readState: () => current.value,
       activeTab,
       browser: {
         openSplitView: vi.fn(),
@@ -68,6 +70,7 @@ function renderActions(
       splitMenuOpen: false
     }
   })
+  return Object.assign(view, { setState: async (next: BrowserState) => { current.value = next; await nextTick() } })
 }
 
 describe('BrowserPageActions', () => {
@@ -139,7 +142,7 @@ describe('BrowserPageActions', () => {
     expect(view.emitted().toggleTabAgentPaused).toEqual([[activeTab]])
     expect(view.emitted().togglePageLifecycle).toBeUndefined()
     expect(screen.getByRole('button', { name: 'Freeze this live page for deterministic review' })).toBeEnabled()
-    await view.rerender({ state: { ...state(activeTab), agentControlLocked: true } })
+    await view.setState({ ...state(activeTab), agentControlLocked: true })
     expect(screen.getByRole('button', { name: 'Resume agents for this tab' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Freeze this live page for deterministic review' })).toBeEnabled()
   })

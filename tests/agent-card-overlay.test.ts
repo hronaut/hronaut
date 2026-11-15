@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AgentCardOverlay, placeAgentCard, type AgentCardSurface } from '../src/main/agent-card-overlay.js'
+import { AgentCardOverlay, placeAgentCard, type AgentCardSurface } from '../src/main/overlays/agent-card-overlay.js'
 import {
   parseAgentCardMeasurement,
   parseAgentCardShowRequest,

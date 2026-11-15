@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useSiteStorageShellController } from '../../src/renderer/src/composables/useSiteStorageShellController.js'
+import { useSiteStorageShellController } from '../../src/renderer/src/features/site-storage/useSiteStorageShellController.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -24,7 +24,6 @@ function createController(keepsSeparatePanelOpen = false) {
     downloadsOpen: ref(true),
     bookmarksOpen: ref(true),
     historyOpen: ref(true),
-    tabSearchOpen: ref(true),
     zoomOpen: ref(true),
     addressSuggestionsOpen: ref(true)
   }

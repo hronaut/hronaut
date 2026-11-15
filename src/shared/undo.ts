@@ -5,13 +5,13 @@ export const UNDO_OFFER_MS = 6_000
 export const MAX_ARCHIVED_WORKSPACES = 50
 
 /** What the person did that Undo puts back. */
-export type UndoKind = 'tabs-closed' | 'workspace-archived' | 'workspace-closed' | 'bookmark-removed'
+export type UndoKind = 'tabs-closed' | 'workspace-archived' | 'workspace-closed' | 'bookmark-removed' | 'collection-removed'
 
 /** Main offers to undo the person's latest reversible action; the token names that one offer. */
 export interface UndoOffer {
   token: string
   kind: UndoKind
-  /** The tab, workspace or bookmark name, or the latest one closed. */
+  /** The tab, workspace, bookmark or collection name, or the latest one closed. */
   name: string
   count: number
 }

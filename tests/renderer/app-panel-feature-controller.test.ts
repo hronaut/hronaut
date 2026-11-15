@@ -44,6 +44,7 @@ function createHarness(
     close: vi.fn(async () => undefined),
     setActive: vi.fn(async () => undefined),
     redock: vi.fn(async () => undefined),
+    bookmarkAllTabs: vi.fn(async () => undefined),
     onPanelRequested: vi.fn((listener: NonNullable<PanelListeners['requested']>) => {
       listeners.requested = listener
       return unsubscribers[0]
@@ -140,7 +141,6 @@ function createHarness(
       zoomOpen: ref(false),
       downloadsOpen: ref(false),
       historyOpen: ref(false),
-      tabSearchOpen: ref(false),
       updateNoticeOpen: ref(false),
       findOpen: ref(false),
       closeFind: vi.fn(async () => undefined)

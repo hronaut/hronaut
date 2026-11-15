@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { guardPageCallsAcrossRendererExit, RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
+import { firstLoadStarts, guardPageCallsAcrossRendererExit, holdUntilFirstLoad, RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 
 function deferred(): { promise: Promise<unknown>; resolve(value: unknown): void; reject(error: unknown): void } {
   let resolve!: (value: unknown) => void
@@ -47,6 +47,41 @@ describe('page calls across a renderer exit', () => {
     // Electron settles nothing late; if it did, the outcome is already reported.
     for (const call of calls) call.reply.reject(new Error('Target crashed'))
     await Promise.resolve()
+  })
+
+  // On Electron 45 an evaluation in flight whose renderer exited failed with "Render frame was disposed before the
+  // request completed", since Electron rejects it before it reports the exit.
+  it('reports a script that Electron rejects as its frame goes away as stopped by the renderer exit', async () => {
+    vi.useFakeTimers()
+    try {
+      const disposed = () => new Error('Render frame was disposed before the request completed')
+      const { page, state, calls, exit, restart } = fakePage()
+      const beforeReport = page.executeJavaScript('1')
+      calls[0]!.reply.reject(disposed())
+      await vi.advanceTimersByTimeAsync(0)
+      exit()
+      await expect(beforeReport).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+
+      // The page already counts as crashed, though render-process-gone has not been emitted yet.
+      restart()
+      const crashedFirst = page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }])
+      state.crashed = true
+      calls[1]!.reply.reject(disposed())
+      await expect(crashedFirst).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+
+      // A navigation replaced the document the script ran in, and no renderer exit is reported.
+      restart()
+      const navigated = page.executeJavaScript('3')
+      const failed = page.executeJavaScript('4')
+      const replaced = expect(navigated).rejects.toThrow('Render frame was disposed before the request completed')
+      calls[2]!.reply.reject(disposed())
+      calls[3]!.reply.reject(new Error('Script failed'))
+      await expect(failed).rejects.toThrow('Script failed')
+      await vi.advanceTimersByTimeAsync(100)
+      await replaced
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('rejects a capture or a print in flight when the renderer exits, and refuses both unsent while it stays gone', async () => {
@@ -143,6 +178,24 @@ describe('page calls across a renderer exit', () => {
     await expect(evaluated).resolves.toEqual({ result: 1 })
     await expect(script).rejects.toThrow('Script failed')
     await expect(isolated).resolves.toBe(2)
+  })
+
+  // A tab restored asleep loads nothing and has no renderer until it wakes, and Electron held its page's calls until
+  // then: locking every tab's input waited on it and failed as a busy page.
+  it('refuses the calls of a page held until its first load at once and unsent, and lets them through as it starts', async () => {
+    const { page, calls } = fakePage()
+    holdUntilFirstLoad(page)
+    await expect(page.executeJavaScript('1')).rejects.toMatchObject({ name: 'NotLoadedYetError', sent: false })
+    await expect(page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }])).rejects.toBeInstanceOf(RendererExitedError)
+    await expect(page.debugger.sendCommand('Page.enable')).rejects.toThrow('has not loaded its page yet')
+    await expect(page.capturePage()).rejects.toBeInstanceOf(RendererExitedError)
+    await expect(page.printToPDF({})).rejects.toBeInstanceOf(RendererExitedError)
+    // The browser process answers the input barrier without a renderer.
+    void page.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
+    expect(calls.map(call => call.args)).toEqual([['Input.setIgnoreInputEvents', { ignore: true }]])
+    firstLoadStarts(page)
+    void page.debugger.sendCommand('Page.enable')
+    expect(calls.map(call => call.args).at(-1)).toEqual(['Page.enable'])
   })
 
   it('leaves calls that settled before an exit alone', async () => {

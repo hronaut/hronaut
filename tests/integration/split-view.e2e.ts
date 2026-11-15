@@ -102,6 +102,56 @@ test('shows two live tabs, changes their layout, and exits split view', async ({
   await expect.poll(async () => (await visibleViews()).map((view) => view.title)).toEqual(['Split Alpha'])
 })
 
+// Selecting a third tab ended a split view for good. As in Chrome, its two tabs now stay paired, also across a restart:
+// selecting either of them shows both again, in the same layout, and the strip marks both meanwhile.
+test('keeps a split view\'s tabs paired while another tab is shown, and after a restart', async ({ profileDirectory, mcpPort }) => {
+  const page = (title: string) => `data:text/html,<title>${title}</title><h1>${title}</h1>`
+  let instance: HronautInstance | undefined = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    const open = async (title: string, active: boolean) => {
+      const state = await instance!.window.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(page(title))}, active: ${active} })`) as BrowserState
+      return state.tabs.find((tab) => tab.url === page(title))!.id
+    }
+    const alpha = await open('Pair Alpha', true)
+    const beta = await open('Pair Beta', false)
+    const gamma = await open('Pair Gamma', false)
+    const pageViews = () => instance!.app.evaluate(({ BrowserWindow, WebContentsView }) => (
+      (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
+        .filter((view): view is Electron.WebContentsView => view instanceof WebContentsView && !/\/(toast-overlay|agent-card|tooltip-overlay|address-overlay)\.html$/.test(view.webContents.getURL()))
+        .map((view) => view.webContents.getTitle())
+        .sort()
+    ))
+    const split = () => instance!.window.evaluate(`window.hronaut.getState().then((state) => ({
+      activeTabId: state.activeTabId, splitView: state.splitView ?? null, restingSplitViews: state.restingSplitViews ?? []
+    }))`)
+    await instance.window.evaluate(`window.hronaut.openSplitView(${JSON.stringify(beta)})`)
+    await instance.window.evaluate(`window.hronaut.updateSplitView({ orientation: 'horizontal', ratio: 0.4 })`)
+    const layout = { firstTabId: alpha, secondTabId: beta, orientation: 'horizontal', ratio: 0.4 }
+
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(gamma)})`)
+    await expect.poll(split).toEqual({ activeTabId: gamma, splitView: null, restingSplitViews: [layout] })
+    await expect.poll(pageViews).toEqual(['Pair Gamma'])
+    await expect(instance.window.getByRole('tab', { name: /^Pair Beta/ }).getByLabel('Paired in stacked split view')).toBeAttached()
+
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(beta)})`)
+    await expect.poll(split).toEqual({ activeTabId: beta, splitView: layout, restingSplitViews: [] })
+    await expect.poll(pageViews).toEqual(['Pair Alpha', 'Pair Beta'])
+    await expect(instance.window.getByRole('tab', { name: /^Pair Alpha/ }).getByLabel('Visible in stacked split view')).toBeAttached()
+
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(gamma)})`)
+    await expect.poll(split).toEqual({ activeTabId: gamma, splitView: null, restingSplitViews: [layout] })
+    await closeHronaut(instance.app)
+    instance = undefined
+    instance = await launchHronaut(profileDirectory, mcpPort)
+    await expect.poll(split).toEqual({ activeTabId: gamma, splitView: null, restingSplitViews: [layout] })
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(alpha)})`)
+    await expect.poll(split).toEqual({ activeTabId: alpha, splitView: layout, restingSplitViews: [] })
+    await expect.poll(pageViews).toEqual(['Pair Alpha', 'Pair Beta'])
+  } finally {
+    if (instance) await closeHronaut(instance.app)
+  }
+})
+
 test('keeps the active pane attached when the inactive split pane closes', async ({
   appWindow,
   electronApp
@@ -357,7 +407,8 @@ test('rejects a destroyed split target without corrupting the active tab or late
   await electronApp.evaluate(({ webContents }, url) => {
     const target = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!target) throw new Error('Destroyed split target was not found')
-    target.close()
+    // Electron's destroy, which its typings leave out, takes the page away without the page closing itself.
+    ;(target as unknown as { destroy(): void }).destroy()
   }, destroyedUrl)
 
   await appWindow.getByRole('button', { name: 'Split view', exact: true }).click()
@@ -378,7 +429,7 @@ test('rejects a destroyed split target without corrupting the active tab or late
   await electronApp.evaluate(({ webContents }, url) => {
     const active = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!active) throw new Error('Live split source was not found')
-    active.close()
+    ;(active as unknown as { destroy(): void }).destroy()
   }, activeUrl)
 
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({
@@ -414,7 +465,7 @@ test('collapses an open split when Electron destroys either native pane', async 
   await electronApp.evaluate(({ webContents }, url) => {
     const pane = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!pane) throw new Error('Split teardown pane was not found')
-    pane.close()
+    ;(pane as unknown as { destroy(): void }).destroy()
   }, secondUrl)
 
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.splitView)')).toBeUndefined()
@@ -444,7 +495,7 @@ test('collapses an open split when Electron destroys either native pane', async 
   await electronApp.evaluate(({ webContents }, url) => {
     const pane = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
     if (!pane) throw new Error('Active split teardown pane was not found')
-    pane.close()
+    ;(pane as unknown as { destroy(): void }).destroy()
   }, activeTeardownUrl)
 
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.splitView)')).toBeUndefined()

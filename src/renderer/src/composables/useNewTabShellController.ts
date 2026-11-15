@@ -13,7 +13,6 @@ export interface NewTabShellControllerOptions {
   browser: NewTabBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
   /** Starts asking for the address; the focus it returns gives way to an overlay the person opens meanwhile. */
   beginAddressFocus: () => (expectedActiveTabId: string) => Promise<unknown>
   expandTabGroup: (groupId: string) => void
@@ -23,7 +22,6 @@ export interface NewTabShellControllerOptions {
 export function useNewTabShellController(options: NewTabShellControllerOptions) {
   async function open(optionsForTab?: NewTabOptions, groupIdToExpand?: string): Promise<boolean> {
     options.settingsOpen.value = false
-    options.tabSearchOpen.value = false
     const focusAddress = options.beginAddressFocus()
 
     const operation = options.browser.newTab(optionsForTab)
@@ -43,12 +41,13 @@ export function useNewTabShellController(options: NewTabShellControllerOptions) 
     return open()
   }
 
-  async function openInWorkspace(groupId?: string): Promise<boolean> {
+  /** Opens a new tab in the workspace, right after the tab given, as Chrome's New tab to the right, or else at its end. */
+  async function openInWorkspace(groupId?: string, besideTabId?: string): Promise<boolean> {
     if (groupId === undefined) return openDefault()
     const workspace = options.state.value.mcpTabGroups.find((candidate) => candidate.id === groupId)
     if (!workspace) return false
     try {
-      return await open({ active: true, mcpGroupId: groupId }, groupId)
+      return await open({ active: true, mcpGroupId: groupId, ...(besideTabId ? { besideTabId } : {}) }, groupId)
     } catch (error) {
       options.onWorkspaceError(workspace, error)
       return false

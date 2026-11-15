@@ -2,7 +2,7 @@ import { computed, type Ref } from 'vue'
 import type { BrowserState, HronautApi } from '../../../shared/types.js'
 import { disposeAll } from './dispose-all.js'
 import { useDiagnosticLogPreservationController } from './useDiagnosticLogPreservationController.js'
-import { useMcpActivityController } from './useMcpActivityController.js'
+import { useMcpActivityController } from '../features/mcp/useMcpActivityController.js'
 
 type AppTabRuntimeBrowserApi = Pick<
   HronautApi,

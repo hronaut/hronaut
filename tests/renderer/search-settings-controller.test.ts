@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useSearchSettingsController } from '../../src/renderer/src/composables/useSearchSettingsController.js'
+import { useSearchSettingsController } from '../../src/renderer/src/features/settings/useSearchSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings } from '../../src/shared/types.js'
 
@@ -17,7 +17,7 @@ function createController() {
     return settings.value
   })
   const onError = vi.fn()
-  const controller = useSearchSettingsController({ settings, setSearchEngine, onError })
+  const controller = useSearchSettingsController({ settings, setSearchEngine, addSiteSearch: vi.fn(), updateSiteSearch: vi.fn(), removeSiteSearch: vi.fn(), onError })
   return { controller, onError, setSearchEngine, settings }
 }
 

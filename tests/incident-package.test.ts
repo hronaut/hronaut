@@ -1,7 +1,25 @@
 import { createHash } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
-import { IncidentPackages } from '../src/main/incident-package.js'
-import type { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { IncidentPackages } from '../src/main/incident/incident-package.js'
+import type { Browser } from '../src/main/browser/browser.js'
+
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/debug-report/debug-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debug-report/debug-report.js')>(),
+  debugReport: (browser: { debugReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.debugReport(...args)
+}))
+vi.mock('../src/main/browser/network-inspection/network-inspection.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/network-inspection/network-inspection.js')>(),
+  networkHar: (browser: { networkHar: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.networkHar(...args)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
+vi.mock('../src/main/browser/repro-recorder/browser-repro-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/repro-recorder/browser-repro-recorder.js')>(),
+  reproRecording: (browser: { reproRecording: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reproRecording(...args)
+}))
 
 const now = Date.parse('2026-10-01T01:00:00Z')
 function fixture() {
@@ -13,7 +31,7 @@ function fixture() {
     networkHar: vi.fn(async () => ({ log: { entries: [] }, _hronaut: { truncated: false, caveats: [] } })),
     debugReport: vi.fn(() => ({ console: [], network: [], caveats: [], truncated: { console: false, network: false } }))
   }
-  const service = new IncidentPackages(() => host as unknown as BrowserTabsManager, 'test', () => now)
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test', () => now)
   return { service, host, source, tab }
 }
 afterEach(() => vi.useRealTimers())
@@ -43,8 +61,8 @@ it('reports empty, unavailable and oversized evidence without leaking exception 
 })
 it('filters the time window and refuses expired or replaced reviews', async () => {
   const { host, source } = fixture()
-  let time = now
-  const service = new IncidentPackages(() => host as unknown as BrowserTabsManager, 'test', () => time)
+  vi.useFakeTimers({ toFake: ['performance'] })
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test', () => now)
   source.steps[0]!.occurredAt = new Date(now - 120000).toISOString()
   const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
   expect(draft.artifacts[0]?.status).toBe('empty')
@@ -52,7 +70,40 @@ it('filters the time window and refuses expired or replaced reviews', async () =
   const first = service.review(1, request)
   service.review(1, request)
   expect(() => service.export(1, draft.draftId, first.previewId)).toThrow('changed')
-  time += 600001
+  vi.advanceTimersByTime(600_001)
+  expect(() => service.review(1, request)).toThrow('expired')
+})
+it('keeps a review for ten minutes and bounds capture time, whatever the wall clock does', async () => {
+  vi.useFakeTimers()
+  const { host } = fixture()
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test')
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const request = { draftId: draft.draftId, include: ['repro'], replacements: [] }
+  vi.setSystemTime(Date.now() + 3_600_000)
+  expect(service.review(1, request).html).toContain('repro')
+  vi.setSystemTime(Date.now() - 7_200_000)
+  vi.advanceTimersByTime(600_000)
+  expect(() => service.review(1, request)).toThrow('expired')
+  host.reproRecording.mockImplementationOnce(async () => {
+    vi.setSystemTime(Date.now() + 3_600_000)
+    return { active: false, steps: [], caveats: [], truncated: false }
+  })
+  await expect(service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })).resolves.toMatchObject({ artifacts: [{ status: 'empty' }] })
+})
+it('ends a review at the expiry it shows, ten minutes after its capture started', async () => {
+  vi.useFakeTimers()
+  const { host } = fixture()
+  const service = new IncidentPackages(() => host as unknown as Browser, 'test')
+  host.reproRecording.mockImplementationOnce(async () => {
+    vi.advanceTimersByTime(20_000)
+    return { active: false, steps: [], caveats: [], truncated: false }
+  })
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const request = { draftId: draft.draftId, include: ['repro'], replacements: [] }
+  vi.advanceTimersByTime(600_000 - 20_000 - 1)
+  expect(Date.parse(draft.expiresAt) - Date.now()).toBe(1)
+  expect(service.review(1, request).html).toContain('repro')
+  vi.advanceTimersByTime(1)
   expect(() => service.review(1, request)).toThrow('expired')
 })
 it.each(['discard', 'navigate'])('rejects a capture when %s happens during a read', async action => {

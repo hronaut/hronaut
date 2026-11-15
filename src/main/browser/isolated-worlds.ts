@@ -35,7 +35,16 @@ export const ISOLATED_WORLDS = {
   textInsertion: 1028,
   textFileFill: 1029,
   pageFullscreen: 1030,
-  faviconDecoder: 1100
+  linkToHighlight: 1031,
+  suggestedPassword: 1032,
+  mediaPlayerAction: 1033,
+  tabSleep: 1034,
+  findMatchClick: 1035,
+  findFromSelection: 1036,
+  findPageKeys: 1037,
+  findSelectionText: 1038,
+  pageSave: 1039,
+  hangCheck: 1040
 } as const satisfies Record<string, number>
 
 export type IsolatedWorldName = keyof typeof ISOLATED_WORLDS

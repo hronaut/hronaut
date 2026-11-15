@@ -1,6 +1,6 @@
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
 import type { BrowserReproRecording, HronautApi } from '../../src/shared/types.js'
-import { expect, test } from './fixtures.js'
+import { expect, test, pageAt } from './fixtures.js'
 import type { Page } from '@playwright/test'
 
 test('replays a recorded light-DOM click without matching buttons inside shadow roots', async ({ appWindow, electronApp }) => {
@@ -14,8 +14,7 @@ test('replays a recorded light-DOM click without matching buttons inside shadow 
     </script>`
   const url = `data:text/html,${encodeURIComponent(html)}`
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
-  await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-  const page = electronApp.context().pages().find(page => page.url() === url)!
+  const page = await pageAt(electronApp, url)
   await expect(page.locator('#light')).toBeVisible()
   await appWindow.evaluate("window.hronaut.manageRepro('start')")
   await electronApp.evaluate(async ({ webContents }, url) => {
@@ -74,7 +73,7 @@ for (const unresolved of [false, true]) {
     const click = recording.steps.find(step => step.kind === 'click')!
     const checkpoint = recording.steps.find(step => step.kind === 'expect')!
     expect(checkpoint.expectation?.observedMatch).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     // Omit redacted data-URL navigation; execute the actual recorded checkpoint
     // and action against the existing fixture.
     const exported = formatReproAsPlaywright({ ...recording, steps: [checkpoint, click], stepCount: 2 })

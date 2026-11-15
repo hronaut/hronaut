@@ -1,30 +1,60 @@
-import type { TrustedChromeFocusAccess, TrustedChromeFocusTab } from './trusted-chrome-focus-access.js'
+import { webContents as electronWebContents, type WebContents } from 'electron'
+import { SHELL_IPC } from '../../../shared/ipc/shell.js'
+import type { ShellTabField } from '../../../shared/tab-field.js'
+import { sendTo } from '../../typed-ipc.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+
+/**
+ * A page waiting to take focus once trusted chrome closes, and how to stop waiting; no page while every page is kept from
+ * the keyboard until then.
+ */
+export interface PendingTrustedChromeFocus {
+  tab?: BrowserTab
+  cancel: () => void
+}
 
 /**
  * Trusted chrome keeps the page under it while its exit plays, so a page
  * focused then would take keys typed into the shell. The page takes focus
  * when trusted chrome closes instead, unless the human clicks or presses a
- * key in the shell first.
+ * key in the shell first. The repeats of a key still held from closing it,
+ * such as Enter on a dialog's button, are not a new key.
  */
-function focusTabAfterTrustedChrome<Tab extends TrustedChromeFocusTab>(access: TrustedChromeFocusAccess<Tab>, tab: Tab): void {
-  cancelFocusAfterTrustedChrome(access)
-  const shell = access.window().webContents
+function focusTabAfterTrustedChrome(browser: Browser, tab: BrowserTab): void {
+  const pending = browser.focusAfterTrustedChrome
+  if (pending && !pending.tab) return
+  cancelFocusAfterTrustedChrome(browser)
+  const shell = browser.window.webContents
   const onInput = (_event: Electron.Event, input: Electron.InputEvent): void => {
-    if (input.type === 'mouseDown' || input.type === 'rawKeyDown' || input.type === 'keyDown') cancelFocusAfterTrustedChrome(access)
+    const newKey = (input.type === 'rawKeyDown' || input.type === 'keyDown')
+      && !input.modifiers?.some((modifier) => modifier.toLowerCase() === 'isautorepeat')
+    if (input.type === 'mouseDown' || newKey) cancelFocusAfterTrustedChrome(browser)
   }
   shell.on('input-event', onInput)
-  access.setFocusAfterTrustedChrome({
+  browser.focusAfterTrustedChrome = {
     tab,
     cancel: () => {
       if (!shell.isDestroyed()) shell.removeListener('input-event', onInput)
     }
-  })
+  }
+}
+
+/**
+ * Keeps every page from the keyboard until trusted chrome closes, even one that was to take it then or asks for it
+ * meanwhile, such as the tab selected after another closes; a page receiving agent input still takes it. Nothing waits
+ * to take the keyboard once trusted chrome is gone.
+ */
+export function withholdFocusAfterTrustedChrome(browser: Browser): void {
+  if (!browser.browserContentOccluded) return
+  cancelFocusAfterTrustedChrome(browser)
+  browser.focusAfterTrustedChrome = { cancel: () => undefined }
 }
 
 /** Stops waiting to focus a page after trusted chrome, returning the tab that waited. */
-export function cancelFocusAfterTrustedChrome<Tab extends TrustedChromeFocusTab>(access: TrustedChromeFocusAccess<Tab>): Tab | undefined {
-  const pending = access.focusAfterTrustedChrome()
-  access.setFocusAfterTrustedChrome(undefined)
+export function cancelFocusAfterTrustedChrome(browser: Browser): BrowserTab | undefined {
+  const pending = browser.focusAfterTrustedChrome
+  browser.focusAfterTrustedChrome = undefined
   pending?.cancel()
   return pending?.tab
 }
@@ -35,17 +65,85 @@ export function cancelFocusAfterTrustedChrome<Tab extends TrustedChromeFocusTab>
  * covers the pages, the page takes focus once it closes. A page receiving
  * agent input takes focus regardless.
  */
-export function focusTabOrTrustedChrome<Tab extends TrustedChromeFocusTab>(access: TrustedChromeFocusAccess<Tab>, tab: Tab): void {
+export function focusTabOrTrustedChrome(browser: Browser, tab: BrowserTab): void {
   // Tab creation, replacement and renderer recovery also run in the
   // background. Only transfer keyboard focus inside an already active shell.
-  if (access.window().isDestroyed() || !access.window().isFocused()) return
-  if (access.isHumanInteractionLocked(tab) && !access.agentInputWebContents().has(tab.webContents.id)) {
-    access.window().webContents.focus()
+  if (browser.window.isDestroyed() || !browser.window.isFocused()) return
+  if (browser.isHumanInteractionLocked(tab) && !browser.agentInputWebContents.has(tab.webContents.id)) {
+    browser.window.webContents.focus()
     return
   }
-  if (access.browserContentOccluded() && !access.agentInputWebContents().has(tab.webContents.id)) {
-    focusTabAfterTrustedChrome(access, tab)
+  if (browser.browserContentOccluded && !browser.agentInputWebContents.has(tab.webContents.id)) {
+    focusTabAfterTrustedChrome(browser, tab)
     return
   }
   tab.webContents.focus()
+}
+
+/** The shown tab's field in the shell that has the keyboard, while the shell has it in the focused window. */
+export function shellTabFieldWithKeyboard(browser: Browser): ShellTabField | undefined {
+  const field = browser.shellTabField
+  return field && shellHasKeyboard(browser) ? field : undefined
+}
+
+/** Whether the shell has the keyboard in the focused window, in a field or elsewhere, such as on a tab's row. */
+export function shellHasKeyboard(browser: Browser): boolean {
+  if (browser.window.isDestroyed() || !browser.window.isFocused()) return false
+  const shell = browser.window.webContents
+  return !shell.isDestroyed() && shell.isFocused()
+}
+
+/**
+ * Gives the keyboard back to the field of a tab shown again that had it when the person left the tab, its address
+ * field or Find's, as Chrome gives a tab its focused view back; false when the tab's page is to take it instead, such
+ * as while trusted chrome covers the pages or an agent's input goes to the page. The shell is told before it takes the
+ * keyboard, so that the address field taking it back does not open its suggestions.
+ */
+export function returnTabFieldFocus(browser: Browser, tab: BrowserTab): boolean {
+  const field = tab.fieldFocusOnReturn
+  // Only as the tab is shown: a field it does not get back now would take the keyboard from its page later.
+  tab.fieldFocusOnReturn = undefined
+  if (!field || browser.window.isDestroyed() || !browser.window.isFocused()) return false
+  const shell = browser.window.webContents
+  if (shell.isDestroyed() || browser.browserContentOccluded || browser.isHumanInteractionLocked(tab)) return false
+  if (browser.agentInputWebContents.has(tab.webContents.id)) return false
+  sendTo(shell, SHELL_IPC.tabFieldFocusReturned, tab.id, field)
+  shell.focus()
+  return true
+}
+
+/**
+ * Gives the keyboard back to a page that asked one of Hronaut's questions, such as Home before deleting a workspace,
+ * once the question's dialog over it has closed, as a system dialog does. A click or key in the shell meanwhile keeps
+ * the focus where it went. The person answered, so pages kept from the keyboard after a sign-in that closed while they
+ * typed in it may take it again.
+ */
+export function focusPageAfterQuestion(browser: Browser, page: WebContents): void {
+  if (browser.focusAfterTrustedChrome && !browser.focusAfterTrustedChrome.tab) cancelFocusAfterTrustedChrome(browser)
+  const tabId = browser.webContentsToTab.get(page.id)
+  const tab = tabId ? browser.tabs.get(tabId) : undefined
+  if (!tab || (tab.id !== browser.activeTabId && !browser.splitViewContains(tab.id))) return
+  focusTabOrTrustedChrome(browser, tab)
+}
+
+/**
+ * The page that has the keyboard now, or that takes it once trusted chrome closes if it is still in view; null while
+ * the person is elsewhere.
+ */
+export function keyboardPage(browser: Browser): WebContents | null {
+  const waiting = browser.focusAfterTrustedChrome?.tab?.webContents
+  if (waiting && !waiting.isDestroyed()) return waiting
+  const focused = electronWebContents.getFocusedWebContents()
+  return focused && browser.webContentsToTab.has(focused.id) ? focused : null
+}
+
+/**
+ * Gives the keyboard to the page in view, or the active pane of a split view, as F6 does from Chrome's toolbar, when
+ * this window's shell asks; a panel in its own window has no page beside it. Under a lock on the person's input the
+ * shell keeps it, and under trusted chrome the page takes it once that closes.
+ */
+export function focusActivePage(browser: Browser, shell: WebContents): void {
+  if (shell !== browser.window.webContents) return
+  const tab = browser.activeTabId ? browser.tabs.get(browser.activeTabId) : undefined
+  if (tab && !tab.webContents.isDestroyed()) focusTabOrTrustedChrome(browser, tab)
 }

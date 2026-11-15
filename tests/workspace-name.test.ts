@@ -4,6 +4,12 @@ import { previewWorkspaceTemplate } from '../src/shared/workspace-template.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' } }))
 
+// The browser below stubs changed, which changing a workspace publishes through this.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
+
 const { normalizedWorkspaceName, updateMcpTabGroup } = await import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')
 
 describe('workspace names', () => {
@@ -70,21 +76,20 @@ describe('workspace names', () => {
       id: 'agent', name: 'Personal', description: '', color: 'blue', agentAccess: true, lastUsedAt: '',
       origins: [], navigationPolicy: { mode: 'all', rules: [] }
     }
-    const taken = vi.fn(() => { throw new Error('That workspace name is already used.') })
-    const access = {
-      mcpTabGroups: () => new Map([[group.id, group]]),
-      tabs: () => new Map(),
-      inspectionPermissions: () => new WeakMap(),
-      assertWorkspaceIdle: () => undefined,
-      assertWorkspaceNameAvailable: taken,
+    // Archived workspaces have both names, so checking either refuses it.
+    const tabManager = {
+      mcpTabGroups: new Map([[group.id, group]]),
+      savedTabGroups: new Map([['saved-personal', { id: 'saved-personal', name: 'personal' }], ['saved-client', { id: 'saved-client', name: 'client a' }]]),
+      tabs: new Map(),
+      inspectionPermissions: new WeakMap(),
+      workspaceOperations: new Map(),
       changed: () => undefined
     }
-    updateMcpTabGroup(access as never, 'agent', { name: 'Personal\u200B', color: 'red', agentAccess: false })
+    updateMcpTabGroup(tabManager as never, 'agent', { name: 'Personal\u200B', color: 'red', agentAccess: false })
     expect(group).toMatchObject({ name: 'Personal', color: 'red', agentAccess: false })
-    expect(taken).not.toHaveBeenCalled()
     // A changed name is made plain and checked.
-    expect(() => updateMcpTabGroup(access as never, 'agent', { name: 'Client\u2066 A' })).toThrow('already used')
-    expect(taken).toHaveBeenCalledWith('Client A', 'agent', undefined, false)
+    expect(() => updateMcpTabGroup(tabManager as never, 'agent', { name: 'Client\u2066 A' })).toThrow('A workspace named "Client A" already exists.')
+    expect(group.name).toBe('Personal')
   })
 
   it('finds a template workspace whose plain name another workspace has before importing it', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { LocalizedError } from '../src/main/localized-error.js'
-import { commitRuntimeSetting } from '../src/main/runtime-setting-commit.js'
+import { commitRuntimeSetting } from '../src/main/settings/runtime-setting-commit.js'
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void

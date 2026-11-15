@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   BrowserBookmark,
@@ -9,7 +9,10 @@ import type {
   HronautDownloadsApi,
   HronautHistoryApi
 } from '../../src/shared/types.js'
-import { useAppBrowserCollectionsFeatureController } from '../../src/renderer/src/composables/useAppBrowserCollectionsFeatureController.js'
+import {
+  useAppBrowserCollectionsFeatureController,
+  type AppBrowserCollectionsFeatureControllerOptions
+} from '../../src/renderer/src/composables/useAppBrowserCollectionsFeatureController.js'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -53,7 +56,7 @@ function historyEntry(id: string): BrowserHistoryEntry {
   }
 }
 
-function createHarness() {
+function createHarness(bookmarkAllTabsOptions: Pick<AppBrowserCollectionsFeatureControllerOptions, 'browserState' | 'browserStateReady' | 'bookmarksInOwnWindow' | 'panelWindow'> = {}) {
   let downloadsChanged: (downloads: BrowserDownloadState[]) => void = () => undefined
   const unsubscribeDownloads = vi.fn()
   const unsubscribeBookmarks = vi.fn()
@@ -64,9 +67,11 @@ function createHarness() {
     resume: vi.fn(async () => []),
     list: listDownloads,
     cancel: vi.fn(async () => []),
+    retry: vi.fn(async () => []),
     removeFinished: vi.fn(async () => []),
     clearFinished: vi.fn(async () => []),
     showInFolder: vi.fn(async () => undefined),
+    startDrag: vi.fn(async () => undefined),
     onChanged: vi.fn((listener: (downloads: BrowserDownloadState[]) => void) => {
       downloadsChanged = listener
       return unsubscribeDownloads
@@ -79,41 +84,49 @@ function createHarness() {
     addIfMissing: vi.fn(async () => []),
     updateDestination: vi.fn(async () => []),
     remove: vi.fn(async () => []),
+    exportFile: vi.fn(async () => null),
+    importFile: vi.fn(async () => null),
     onChanged: vi.fn(() => unsubscribeBookmarks)
   }
   const historyApi: HronautHistoryApi = {
     list: vi.fn(async () => []),
     remove: vi.fn(async () => []),
     clear: vi.fn(async () => []),
-    onChanged: vi.fn(() => unsubscribeHistory)
+    onChanged: vi.fn(() => unsubscribeHistory),
+    onUpdated: vi.fn(() => () => undefined),
+    siteIcons: vi.fn(async () => ({ pages: {}, icons: {} })),
+    onSiteIconsChanged: vi.fn(() => () => undefined)
   }
   const settingsOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const browserState = {} as BrowserState
   const newTabResult = Promise.resolve(browserState)
   const newTab = vi.fn(() => newTabResult)
   const copyText = vi.fn(async () => undefined)
+  const focusActivePage = vi.fn(async () => undefined)
+  const setHistoryShown = vi.fn()
   const syncState = vi.fn(async (operation: Promise<BrowserState>) => {
     await operation
   })
   const controller = useAppBrowserCollectionsFeatureController({
-    browser: { newTab, copyText },
+    browser: { newTab, copyText, focusActivePage },
     downloadsApi,
     bookmarksApi,
     historyApi,
     settingsOpen,
-    tabSearchOpen,
-    syncState
+    syncState,
+    historyShown: { setHistoryShown },
+    ...bookmarkAllTabsOptions
   })
 
   return {
     controller,
     settingsOpen,
-    tabSearchOpen,
     listDownloads,
     newTab,
     newTabResult,
     copyText,
+    focusActivePage,
+    setHistoryShown,
     syncState,
     emitDownloads: (downloads: BrowserDownloadState[]) => downloadsChanged(downloads),
     unsubscribeDownloads,
@@ -143,11 +156,33 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     h.controller.dispose()
   })
 
+  it('gives the keyboard to the page in view when History hands it back, even when the page cannot take it', async () => {
+    const h = createHarness()
+    h.controller.returnKeyboardToPage()
+    expect(h.focusActivePage).toHaveBeenCalledOnce()
+    h.focusActivePage.mockRejectedValueOnce(new Error('The window is gone.'))
+    h.controller.returnKeyboardToPage()
+    await Promise.resolve()
+    expect(h.focusActivePage).toHaveBeenCalledTimes(2)
+    h.controller.dispose()
+  })
+
+  it('tells main whether History is open, from the start, so that its key in a page closes it there', async () => {
+    const h = createHarness()
+    expect(h.setHistoryShown.mock.calls).toEqual([[false]])
+    h.controller.historyOpen.value = true
+    await nextTick()
+    h.controller.historyOpen.value = false
+    await nextTick()
+    expect(h.setHistoryShown.mock.calls).toEqual([[false], [true], [false]])
+    h.controller.dispose()
+  })
+
   it('opens a History result without requesting tab activation or focus', async () => {
     const h = createHarness()
     h.controller.historyOpen.value = true
     await h.controller.openHistoryEntryInBackground(historyEntry('docs'))
-    expect(h.newTab).toHaveBeenCalledExactlyOnceWith({ url: historyEntry('docs').url, active: false, focus: false })
+    expect(h.newTab).toHaveBeenCalledExactlyOnceWith({ url: historyEntry('docs').url, active: false, focus: false, loadsInTurn: true })
     expect(h.syncState).toHaveBeenCalledWith(h.newTabResult)
     expect(h.controller.historyOpen.value).toBe(true)
     h.controller.dispose()
@@ -157,7 +192,7 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     const h = createHarness()
     h.controller.bookmarksOpen.value = true
     await h.controller.openBookmarkInBackground(bookmark('docs'))
-    expect(h.newTab).toHaveBeenCalledWith({ url: bookmark('docs').url, active: false, focus: false })
+    expect(h.newTab).toHaveBeenCalledWith({ url: bookmark('docs').url, active: false, focus: false, loadsInTurn: true })
     expect(h.syncState).toHaveBeenCalledWith(h.newTabResult)
     expect(h.controller.bookmarksOpen.value).toBe(true)
     h.controller.dispose()
@@ -171,9 +206,10 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     harness.controller.bookmarksPanel.value = {
       toggle: bookmarksToggle,
       toggleCurrent: currentBookmarkToggle,
+      bookmarkAllTabs: vi.fn(async () => undefined),
       handleEscape: vi.fn()
     }
-    harness.controller.historyPanel.value = { toggle: historyToggle }
+    harness.controller.historyPanel.value = { toggle: historyToggle, close: vi.fn() }
 
     expect(harness.controller.downloads).toBe(harness.controller.browserCollectionsController.downloads)
     expect(harness.controller.bookmarks).toBe(harness.controller.browserCollectionsController.bookmarks)
@@ -192,7 +228,6 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     expect(bookmarksToggle).toHaveBeenCalledOnce()
     expect(harness.controller.downloadsOpen.value).toBe(false)
     expect(harness.controller.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
 
     const entry = bookmark('docs')
     await harness.controller.openBookmark(entry)
@@ -203,6 +238,69 @@ describe('useAppBrowserCollectionsFeatureController', () => {
     await harness.controller.openHistoryEntry(visited)
     expect(harness.newTab).toHaveBeenLastCalledWith({ url: visited.url, active: true })
 
+    harness.controller.dispose()
+  })
+
+  it('bookmarks the tabs of the workspace named, or of the tab in view, by the workspace\'s name, and asks nothing from Home', async () => {
+    const tab = (id: string, url: string, mcpGroupId?: string) => ({ id, url, mcpGroupId }) as BrowserState['tabs'][number]
+    const state = {
+      tabs: [tab('home', 'hronaut://home/'), tab('client-tab', 'https://client.test/', 'client'), tab('loose', 'https://loose.test/')],
+      activeTabId: 'client-tab',
+      mcpTabGroups: [{ id: 'client', name: 'Client A' }] as BrowserState['mcpTabGroups']
+    }
+    const panelWindow = { bookmarkAllTabs: vi.fn(async (_workspaceId: string | null) => undefined) }
+    let ownWindow = false
+    const harness = createHarness({ browserState: () => state, bookmarksInOwnWindow: () => ownWindow, panelWindow })
+    const bookmarkAllTabs = vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => undefined)
+    harness.controller.bookmarksPanel.value = { toggle: vi.fn(async () => undefined), toggleCurrent: vi.fn(async () => undefined), bookmarkAllTabs, handleEscape: vi.fn() }
+    harness.controller.historyOpen.value = true
+    // Its key or the command palette: the workspace of the tab in view.
+    await harness.controller.bookmarkAllTabs()
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith('client', 'Client A')
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.controller.historyOpen.value).toBe(false)
+    // A tab's menu names its workspace, or none.
+    await harness.controller.bookmarkAllTabs('client')
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith('client', 'Client A')
+    await harness.controller.bookmarkAllTabs(null)
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith(null, undefined)
+    state.activeTabId = 'loose'
+    await harness.controller.bookmarkAllTabs()
+    expect(bookmarkAllTabs).toHaveBeenLastCalledWith(null, undefined)
+    // Home is in view: there are no tabs to bookmark, so the panel is not opened.
+    state.activeTabId = 'home'
+    await harness.controller.bookmarkAllTabs()
+    expect(bookmarkAllTabs).toHaveBeenCalledTimes(4)
+    // With Bookmarks in its own window, that window asks; this one opens nothing.
+    ownWindow = true
+    state.activeTabId = 'client-tab'
+    await harness.controller.bookmarkAllTabs()
+    await harness.controller.bookmarkAllTabs(null)
+    state.activeTabId = 'home'
+    await harness.controller.bookmarkAllTabs()
+    expect(panelWindow.bookmarkAllTabs.mock.calls).toEqual([['client'], [null]])
+    expect(bookmarkAllTabs).toHaveBeenCalledTimes(4)
+    harness.controller.dispose()
+  })
+
+  it('waits for the browser state before Bookmark all tabs reads it, as a new Bookmarks window gets the request first', async () => {
+    // Before the shell reads the browser state, it knows no tabs or workspaces, and its panels are not mounted yet.
+    let state: Pick<BrowserState, 'tabs' | 'activeTabId' | 'mcpTabGroups'> = { tabs: [], activeTabId: null, mcpTabGroups: [] }
+    let ready!: () => void
+    const harness = createHarness({ browserState: () => state, browserStateReady: () => new Promise<void>(resolve => { ready = resolve }) })
+    const pending = harness.controller.bookmarkAllTabs('client')
+    const bookmarkAllTabs = vi.fn(async (_workspaceId: string | null, _suggestedName?: string) => undefined)
+    harness.controller.bookmarksPanel.value = { toggle: vi.fn(async () => undefined), toggleCurrent: vi.fn(async () => undefined), bookmarkAllTabs, handleEscape: vi.fn() }
+    state = {
+      tabs: [{ id: 'client-tab', url: 'https://client.test/', mcpGroupId: 'client' }] as BrowserState['tabs'],
+      activeTabId: 'client-tab',
+      mcpTabGroups: [{ id: 'client', name: 'Client A' }] as BrowserState['mcpTabGroups']
+    }
+    await Promise.resolve()
+    expect(bookmarkAllTabs).not.toHaveBeenCalled()
+    ready()
+    await pending
+    expect(bookmarkAllTabs).toHaveBeenCalledExactlyOnceWith('client', 'Client A')
     harness.controller.dispose()
   })
 

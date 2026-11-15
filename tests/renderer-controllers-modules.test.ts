@@ -16,10 +16,10 @@ const sourceFiles = (directory: string): string[] => readdirSync(directory, { re
   .map(entry => `${entry.parentPath.replaceAll('\\', '/')}/${entry.name}`)
   .sort()
 
-// The network controller composes the feature composables of composables/network.
+// The network controller composes the feature modules of features/network/modules.
 const network = {
-  file: 'src/renderer/src/composables/useNetworkController.ts',
-  modules: 'src/renderer/src/composables/network'
+  file: 'src/renderer/src/features/network/useNetworkController.ts',
+  modules: 'src/renderer/src/features/network/modules'
 }
 const networkModules = readdirSync(network.modules).filter(file => file.endsWith('.ts')).sort()
 const networkController = network.file.replace(/\.ts$/u, '')
@@ -65,7 +65,7 @@ describe('renderer controller modules', () => {
     const source = readFileSync(network.file, 'utf8')
     const composed = networkModules.filter(name => name.startsWith('use'))
     expect(composed.length).toBeGreaterThan(0)
-    const missing = composed.filter(name => !source.includes(`from './network/${name.replace(/\.ts$/u, '.js')}'`))
+    const missing = composed.filter(name => !source.includes(`from './modules/${name.replace(/\.ts$/u, '.js')}'`))
     expect(missing).toEqual([])
   })
 

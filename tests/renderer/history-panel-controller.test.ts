@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useHistoryPanelController } from '../../src/renderer/src/composables/useHistoryPanelController.js'
+import { useHistoryPanelController } from '../../src/renderer/src/features/history/useHistoryPanelController.js'
 import type { BrowserHistoryEntry } from '../../src/shared/types.js'
 
 function entry(id: string, title = `Page ${id}`, visitCount = 1): BrowserHistoryEntry {
@@ -20,7 +20,7 @@ function createController(initialEntries = [entry('alpha')]) {
   const removeHistoryEntry = vi.fn(async (id: string) => entries.value.filter((item) => item.id !== id))
   const clearHistory = vi.fn(async () => [])
   const openHistoryEntry = vi.fn(async () => undefined)
-  const confirmClear = vi.fn(() => true)
+  const confirmClear = vi.fn(async () => true)
   const controller = useHistoryPanelController({
     open,
     entries,
@@ -210,11 +210,12 @@ describe('history panel controller', () => {
     open.value = true
     openHistoryEntry.mockRejectedValueOnce(new Error('Could not open the page'))
 
-    await controller.openEntry(entry('alpha'))
+    // It says whether it closed History, which then gives the keyboard back to the page.
+    await expect(controller.openEntry(entry('alpha'))).resolves.toBe(false)
     expect(open.value).toBe(true)
     expect(controller.error.value).toBe('Could not open the page')
 
-    await controller.openEntry(entry('alpha'))
+    await expect(controller.openEntry(entry('alpha'))).resolves.toBe(true)
     expect(open.value).toBe(false)
   })
 
@@ -233,7 +234,7 @@ describe('history panel controller', () => {
     expect(open.value).toBe(true)
 
     finishNavigation()
-    await openingEntry
+    await expect(openingEntry).resolves.toBe(false)
 
     expect(open.value).toBe(true)
     controller.dispose()
@@ -264,7 +265,7 @@ describe('history panel controller', () => {
       entry('alpha', 'Alpha docs', 3),
       entry('beta', 'Beta page')
     ])
-    confirmClear.mockReturnValueOnce(false)
+    confirmClear.mockResolvedValueOnce(false)
 
     await controller.clear()
     expect(clearHistory).not.toHaveBeenCalled()

@@ -1,7 +1,19 @@
-import { credentialCapturePageScript } from '../credential-capture-page.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { credentialSubmissionInPage } from './credential-capture.page.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { BrowserCredentialCandidate, CredentialCaptureAccess, CredentialCaptureTab } from './credential-capture-access.js'
+import { callThroughPageDialogs } from '../page-dialog-waits.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+
+/** Credentials the person submitted in a website's sign-in form. */
+export interface BrowserCredentialCandidate {
+  origin: string
+  username: string
+  password: string
+  /** The current password a form that changes one gave, when it names no account. */
+  previousPassword?: string
+}
 
 /** The isolated world the submission watcher runs in, apart from the page's own scripts. */
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
@@ -9,17 +21,18 @@ const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 /**
  * Watches the website tab's page for a submitted sign-in form and reports the
  * credentials when the person interacted with the page in the last 15
- * seconds and the form's origin is a valid origin. After each submission it
+ * seconds, on the monotonic clock, and the form's origin is a valid origin. After each submission it
  * watches again. Nothing is watched without a submission listener.
  */
-export function watchCredentialSubmission(access: CredentialCaptureAccess, tab: CredentialCaptureTab): void {
-  if (!access.options().onCredentialSubmitted || isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) return
-  const script = credentialCapturePageScript()
-  void tab.webContents.executeJavaScriptInIsolatedWorld(CREDENTIAL_CAPTURE_WORLD_ID, [{ code: script }], false)
+export function watchCredentialSubmission(browser: Browser, tab: Pick<BrowserTab, 'url' | 'webContents' | 'lastHumanInteractionAt'>): void {
+  if (!browser.options.onCredentialSubmitted || isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) return
+  const script = pageScript(credentialSubmissionInPage)
+  // It waits for the person's submission, which a print or website dialog, such as a sign-in error, only pauses.
+  void callThroughPageDialogs(() => tab.webContents.executeJavaScriptInIsolatedWorld(CREDENTIAL_CAPTURE_WORLD_ID, [{ code: script }], false))
     .then((candidate: BrowserCredentialCandidate | null) => {
       if (!candidate) return
-      watchCredentialSubmission(access, tab)
-      if (Date.now() - tab.lastHumanInteractionAt > 15_000) return
+      watchCredentialSubmission(browser, tab)
+      if (performance.now() - tab.lastHumanInteractionAt > 15_000) return
       let currentOrigin: string | null = null
       try {
         currentOrigin = new URL(candidate.origin).origin
@@ -27,7 +40,7 @@ export function watchCredentialSubmission(access: CredentialCaptureAccess, tab: 
         return
       }
       if (currentOrigin !== candidate.origin || !candidate.password) return
-      access.options().onCredentialSubmitted?.(candidate)
+      browser.options.onCredentialSubmitted?.(candidate)
     })
     .catch(() => undefined)
 }

@@ -1,14 +1,14 @@
 import { z } from 'zod'
 import { videoInspectionFields } from './video-inspection.js'
 
-export const VIDEO_LIMITS = { durationMs: 120_000, framesPerSecond: 12, width: 1280, height: 720, bytes: 64 * 1024 * 1024, recordings: 3, annotations: 100, clips: 30 } as const
+export const VIDEO_LIMITS = { durationMs: 120_000, framesPerSecond: 30, width: 1280, height: 720, bytes: 256 * 1024 * 1024, recordings: 3, annotations: 100, clips: 30 } as const
 /** Why capture paused or stopped by itself; browser_video keeps this English, the recorder panel names it in the interface language. */
 export const VIDEO_RECORDING_NOTICES = {
   gap: 'Capture paused after a gap without frames; resume explicitly',
   conditions: 'Capture paused: keep Hronaut visible and the source tab awake, at its original origin and size, with recording access available',
   sleep: 'Capture paused for system sleep; resume explicitly',
   durationLimit: 'Recording reached its two-minute limit',
-  sizeLimit: 'Recording reached its 64 MiB limit'
+  sizeLimit: 'Recording reached its 256 MiB limit'
 } as const
 /** Why an annotation, clip, audio event or camera move is refused; browser_video keeps this English, the recorder panel names it. */
 export const VIDEO_SCHEMA_ERRORS = {
@@ -97,6 +97,13 @@ export type VideoCamera = z.output<typeof videoCameraSchema>
 export type VideoTransition = z.output<typeof videoTransitionSchema>
 export interface VideoAudioAsset { id: string; name: string; durationMs: number; provenance: string; builtin: boolean }
 export type BrowserVideoOptions = z.input<typeof videoOptionsSchema>
+/**
+ * What the shell may ask of a recording on its video channel: everything but importing audio from a path, which only
+ * the file picker does, and inspecting frames, which only agents do.
+ */
+export type ShellVideoOptions = Omit<BrowserVideoOptions, 'action' | 'audioPath'> & {
+  action?: Exclude<NonNullable<BrowserVideoOptions['action']>, 'import-audio' | 'inspect'>
+}
 /** Recording-relative monotonic milliseconds, not wall time or compositor timestamps. */
 export interface VideoTimingObservation {
   clock: 'recording-monotonic'

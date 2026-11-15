@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CommercialLicenseClient } from '../src/main/commercial-license-client.js'
+import { CommercialLicenseClient } from '../src/main/license/commercial-license-client.js'
 import fixtures from '../src/shared/license-api-fixtures.json' with { type: 'json' }
 
 describe('published license API compatibility', () => {

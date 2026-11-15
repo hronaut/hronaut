@@ -103,7 +103,7 @@ for (const theme of ['light', 'dark', 'cyberpunk']) {
 }
 
 for (const theme of ['light', 'dark']) {
-  for (const width of [1200, 760]) {
+  for (const width of [1200, 600]) {
     test(`application panels keep deliberate control styling in ${theme} at ${width}px`, async ({ appWindow, electronApp }, testInfo) => {
       test.slow()
       const server = createServer((_request, response) => {
@@ -122,7 +122,7 @@ for (const theme of ['light', 'dark']) {
         await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(width)
         for (const [trigger, surfaceName] of [
           ['.downloads-button', '.downloads-panel'], ['.history-button', '.history-panel'], ['.bookmarks-button', '.bookmarks-panel'],
-          ['.tab-search-button', '.tab-search-panel'], ['.command-palette-button', '.command-palette'],
+          ['.command-palette-button', '.command-palette'],
           ['.new-workspace', '.workspace-editor']
         ]) {
           await appWindow.locator(trigger!).click()

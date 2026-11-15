@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { LocalizedError } from '../../localized-error.js'
-import type { DebuggerLeaseAccess } from './debugger-lease-access.js'
+import type { Browser } from '../browser.js'
 
 /**
  * Runs a debugger operation on the page in its turn, attaching the debugger
@@ -10,13 +10,13 @@ import type { DebuggerLeaseAccess } from './debugger-lease-access.js'
  * every step up to the operation; without it, a debugger this call attached
  * gets its page and runtime domains enabled again afterwards.
  */
-export async function withDebugger<T>(access: DebuggerLeaseAccess, webContents: WebContents, operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
+export async function withDebugger<T>(browser: Browser, webContents: WebContents, operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
   validateAdmission?.()
-  return access.inDebuggerQueue(webContents.id, async () => {
+  return browser.debuggerQueue.run(webContents.id, async () => {
     validateAdmission?.()
-    await access.dialogMonitorAttach(webContents.id)
+    await browser.dialogMonitorAttachPromises.get(webContents.id)
     validateAdmission?.()
-    if (access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()) {
+    if (browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
       // Agents read which action waits; a person reads to close Developer Tools and try again.
       throw new LocalizedError('appErrors.pageTools.devToolsOpen', undefined, { message: 'Close Developer Tools for this tab before using this MCP action' })
     }
@@ -37,7 +37,7 @@ export async function withDebugger<T>(access: DebuggerLeaseAccess, webContents: 
     try {
       return await operation()
     } finally {
-      if (!validateAdmission && attachedHere && webContents.debugger.isAttached() && !access.isDestroyed()) {
+      if (!validateAdmission && attachedHere && webContents.debugger.isAttached() && !browser.destroyed) {
         await webContents.debugger.sendCommand('Page.enable').catch(() => undefined)
         await webContents.debugger.sendCommand('Runtime.enable').catch(() => undefined)
       }

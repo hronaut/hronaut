@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import AgentPresenceAvatars from '../../src/renderer/src/components/AgentPresenceAvatars.vue'
-import { useAgentPresence } from '../../src/renderer/src/composables/useAgentPresence.js'
+import AgentPresenceAvatars from '../../src/renderer/src/features/agents/AgentPresenceAvatars.vue'
+import { useAgentPresence } from '../../src/renderer/src/features/agents/useAgentPresence.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentCardEvent, AgentCardShowRequest, HronautAgentCardApi } from '../../src/shared/agent-card.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
@@ -167,21 +167,22 @@ describe('agent avatars in the toolbar', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'Windsurf, needs you' }))
     await nextTick()
     const { cardId, model } = card.last()
-    expect(model.reason?.answers?.map((answer) => [answer.action, answer.key])).toEqual([['hand-back', 'attention-1'], ['dismiss', 'attention-1']])
+    expect(model.reason?.answers?.map((answer) => [answer.action, answer.key])).toEqual([['hand-back', 'attention-1'], ['skip', 'attention-1'], ['dismiss', 'attention-1']])
     card.emit({ cardId, kind: 'action', action: 'hand-back', key: 'attention-1' })
+    card.emit({ cardId, kind: 'action', action: 'skip', key: 'attention-1' })
     card.emit({ cardId, kind: 'action', action: 'dismiss', key: 'attention-1' })
-    expect(view.emitted('answerAttention')).toEqual([['attention-1', 'resolved'], ['attention-1', 'dismissed']])
+    expect(view.emitted('answerAttention')).toEqual([['attention-1', 'resolved'], ['attention-1', 'skipped'], ['attention-1', 'dismissed']])
 
     // A newer request arrived while the old card's answer was on its way: that answer changes nothing.
     await view.rerender({ attentionReason: 'Approve the order.', attentionId: 'attention-2' })
     card.emit({ cardId, kind: 'action', action: 'hand-back', key: 'attention-1' })
     card.emit({ cardId, kind: 'action', action: 'hand-back' })
-    expect(view.emitted('answerAttention')).toHaveLength(2)
+    expect(view.emitted('answerAttention')).toHaveLength(3)
     // Nor does one for an agent that no longer asks.
     change({ revision: 2, workspaces: { 'workspace-a': [agent('Windsurf', { state: 'working' }), agent('Claude Code')] } })
     await nextTick()
     card.emit({ cardId, kind: 'action', action: 'hand-back', key: 'attention-2' })
-    expect(view.emitted('answerAttention')).toHaveLength(2)
+    expect(view.emitted('answerAttention')).toHaveLength(3)
   })
 
   it('opens the workspace to review a waiting decision, which the card does not answer itself', async () => {

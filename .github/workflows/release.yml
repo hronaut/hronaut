@@ -15,6 +15,11 @@ on:
         required: false
         default: false
         type: boolean
+      full_tests:
+        description: Run static validation and every Electron shard even when a release rehearsal passed them on the same tree
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -26,10 +31,14 @@ concurrency:
 jobs:
   prepare-release:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
       notes_sha: ${{ steps.release.outputs.notes_sha }}
+      rehearsal_run: ${{ steps.rehearsal.outputs.run_id }}
     steps:
       - name: Checkout selected tag
         uses: actions/checkout@v7
@@ -103,33 +112,59 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "notes_sha=$notes_sha" >> "$GITHUB_OUTPUT"
 
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # The release branch's ci.yml rehearsal runs the same static validation and Electron shards. When one passed on the
+      # tag's own tree, running them again would test the same files the same way.
+      - name: Find the release rehearsal that passed on this tree
+        id: rehearsal
+        if: github.event_name != 'workflow_dispatch' || inputs.full_tests != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/find-release-rehearsal.ts "$(git rev-parse "$GITHUB_SHA^{tree}")"
+
   test-integration:
-    name: Electron integration shard ${{ matrix.shard }}/8
+    name: Electron integration shard ${{ matrix.shard }}/12
     needs: prepare-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
+      - name: Take the shard's result from the release rehearsal
+        if: needs.prepare-release.outputs.rehearsal_run != ''
+        env:
+          REHEARSAL_RUN: ${{ needs.prepare-release.outputs.rehearsal_run }}
+        run: echo "::notice::Release rehearsal $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$REHEARSAL_RUN passed this shard on the same tree."
+
       - name: Checkout immutable release source
+        if: needs.prepare-release.outputs.rehearsal_run == ''
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Run Electron integration tests in Docker
+        if: needs.prepare-release.outputs.rehearsal_run == ''
         env:
-          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"
-          HRONAUT_INTEGRATION_SHARD_WORKERS: "1"
+          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"
+          HRONAUT_INTEGRATION_SHARD_WORKERS: "2"
           HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
+          HRONAUT_INTEGRATION_RUN_PERFORMANCE: "${{ matrix.shard == 2 }}"
         run: bash scripts/run-integration-ci.sh
 
+      # Also after a pass that needed a flaky-test recheck: the first failures' traces are what the fix needs.
       - name: Upload Electron failure diagnostics
-        if: failure()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: release-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          # Not release-*: the publish job downloads those into the release assets, and a shard that passed after a
+          # flaky-test recheck uploads its diagnostics too.
+          name: diagnostics-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: ci-artifacts/
           if-no-files-found: ignore
           retention-days: 7
@@ -154,9 +189,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Take static validation from the release rehearsal
+        if: needs.prepare-release.outputs.rehearsal_run != ''
+        env:
+          REHEARSAL_RUN: ${{ needs.prepare-release.outputs.rehearsal_run }}
+        run: echo "::notice::Release rehearsal $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$REHEARSAL_RUN passed static validation on the same tree."
+
       - name: Run static validation
+        if: needs.prepare-release.outputs.rehearsal_run == ''
         run: npm run validate
 
+      # Advisories can be published after the rehearsal, so the audit always runs.
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
@@ -190,10 +233,6 @@ jobs:
 
       - name: Test the packaged stdio-to-HTTP connection
         run: npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts
-
-      # Claude Code runs the plugin's headers helper with each system's own shell.
-      - name: Test the Claude Code plugin's headers helper
-        run: npm test -- tests/claude-code-plugin.test.ts
 
   build-mcpb:
     name: Build registry-compatible MCPB adapter
@@ -292,25 +331,15 @@ jobs:
           compression-level: 0
           retention-days: 1
 
+  # One job packages the dmg and the zip: GitHub's macOS arm64 runners are scarce, and each macOS job can wait for one
+  # until it is cancelled, which held back 3.14.12 and 3.14.17.
   build-macos:
-    name: build-macos (${{ matrix.target }})
+    name: build-macos
     needs:
       - prepare-release
       - test-integration
       - validate
       - test-mcpb
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: dmg
-            files: |
-              dist/*.dmg
-          - target: zip
-            files: |
-              dist/*.zip
-              dist/latest-mac*.yml
-              dist/*.blockmap
     runs-on: macos-latest
     # The signing secrets belong in this environment, whose deployment rules admit only release tags and branches.
     environment: macos-signing
@@ -338,9 +367,8 @@ jobs:
           # One Apple silicon runner packages both apps; npm installed only its own CPU's native packages.
           node scripts/native-packages.ts install mac
           npm run build:app
-      - name: Package, sign and notarize macOS ${{ matrix.target }} packages
+      - name: Package, sign and notarize macOS dmg and zip packages
         env:
-          PACKAGE_TARGET: ${{ matrix.target }}
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
@@ -353,15 +381,21 @@ jobs:
           trap 'rm -f "$APPLE_API_KEY"' EXIT
           (umask 077 && printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY")
           # Stops instead of packaging unsigned when the certificate is not a Developer ID Application identity.
-          npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never -c.mac.forceCodeSigning=true
+          npx electron-builder --mac dmg zip --x64 --arm64 --publish never -c.mac.forceCodeSigning=true
           node scripts/native-packages.ts check mac dist
           bash scripts/notarize-and-verify-macos.sh
-      - name: Upload macOS ${{ matrix.target }} release assets
+          # The upload below fails only when none of its files exist, so a missing dmg or zip fails here.
+          ls dist/*.dmg dist/*.zip
+      - name: Upload macOS release assets
         uses: actions/upload-artifact@v7
         with:
-          name: release-macos-${{ matrix.target }}
+          name: release-macos
           if-no-files-found: error
-          path: ${{ matrix.files }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/latest-mac*.yml
+            dist/*.blockmap
           compression-level: 0
           retention-days: 1
 
@@ -510,6 +544,11 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node scripts/release-history.ts "$VERSION" release-notes.md release-assets/release-history.json "$RELEASE_GENERATED_AT"
 
+      - name: Generate the software bill of materials
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: node scripts/release-sbom.ts release-assets/hronaut-sbom.cdx.json "$VERSION" "$RELEASE_GENERATED_AT"
+
       - name: Generate SHA-256 manifest
         run: |
           set -euo pipefail
@@ -580,6 +619,45 @@ jobs:
     uses: ./.github/workflows/publish-mcp-registry.yml
     with:
       tag: ${{ needs.prepare-release.outputs.tag }}
+
+  announce-discord:
+    name: Announce the release on Discord
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    needs:
+      - prepare-release
+      - publish-release
+      - verify-public-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The release is already public here; a failed post must not mark it failed.
+    continue-on-error: true
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up announcement runtime
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Post the published changelog section to Discord
+        env:
+          DISCORD_RELEASE_BOT_TOKEN: ${{ secrets.DISCORD_RELEASE_BOT_TOKEN }}
+          DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+          NOTES_SHA: ${{ needs.prepare-release.outputs.notes_sha }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NOTES_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Validated release-notes SHA is malformed." >&2
+            exit 1
+          fi
+          git show "$NOTES_SHA:CHANGELOG.md" > "$RUNNER_TEMP/hronaut-release-CHANGELOG.md"
+          node scripts/discord-release-announcement.ts "$VERSION" "$RUNNER_TEMP/hronaut-release-CHANGELOG.md"
 
   update-scoop-manifest:
     name: Publish verified Scoop manifest

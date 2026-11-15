@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { snapshotScript } from '../src/main/browser/page-scripts.js'
 
 function capture(selector?: string, maxChars = 1000) {
-  return window.eval(snapshotScript(maxChars, true, selector))
+  return window.eval(snapshotScript(maxChars, selector))
 }
 afterEach(() => { document.body.innerHTML = ''; vi.restoreAllMocks() })
 function fixture() {

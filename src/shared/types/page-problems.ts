@@ -5,6 +5,9 @@ export interface BrowserActionFailure {
 
 export type BrowserPageProblemKind = 'load-error' | 'renderer-gone' | 'unresponsive'
 
+/** The reason of a page that is gone for good while its tab is still open, which nothing loads again. */
+export const PAGE_DESTROYED_REASON = 'renderer-destroyed'
+
 export interface BrowserPageProblem {
   kind: BrowserPageProblemKind
   title: string
@@ -14,11 +17,15 @@ export interface BrowserPageProblem {
   errorDescription?: string
   reason?: string
   exitCode?: number
+  /** For a page whose website's certificate the tab refused: its host, and whether the person can open it anyway. */
+  certificate?: { host: string; canProceed: boolean }
 }
 
 export type BrowserJavaScriptDialogType = 'alert' | 'confirm' | 'prompt'
 
 export interface BrowserJavaScriptDialog {
+  /** This showing of the dialog; the page's next dialog, even with the same text, gets another. */
+  id: string
   type: BrowserJavaScriptDialogType
   message: string
   url: string
@@ -45,7 +52,7 @@ export interface BrowserInspectorIssue {
   firstSeenAt: string
 }
 
-/** A passively observed HTTP Basic challenge; Hronaut never answers it. */
+/** An observed HTTP Basic challenge; Hronaut may have asked the person to sign in for it. */
 export interface BrowserAuthChallengeObservation {
   observedAt: string
   scheme: 'basic'

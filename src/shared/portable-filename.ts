@@ -32,9 +32,15 @@ export function portableExportFilename(requested: string | undefined, title: str
     return result
   }
 
-  const suffix = format === 'har' ? '.sanitized.har' : extension
-  const fallback = format === 'har' ? 'network' : 'page'
-  const maxCharacters = format === 'har' ? 150 : 160
+  return format === 'har' ? portableFilename(title, '.sanitized.har', 'network', 150) : portableFilename(title, extension)
+}
+
+/**
+ * A portable file name made of the title, ending in `suffix` (such as `.html`, or nothing): without characters a file
+ * system refuses or a format character that would hide the suffix, not hidden, not a Windows device name, and short
+ * enough to take a ` (9999)` before the suffix. A title with nothing of it left gives `fallback`.
+ */
+export function portableFilename(title: string, suffix: string, fallback = 'page', maxCharacters = 160): string {
   let normalized = title
     // A format character such as a right-to-left override would show the name in another order, hiding its extension.
     // The joiners stay, as Chromium keeps them: scripts such as Persian and emoji such as 👩‍💻 need them.

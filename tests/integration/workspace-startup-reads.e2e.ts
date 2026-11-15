@@ -12,7 +12,7 @@ for (const outcome of ['success', 'rejected-metadata', 'save-failure', 'reload',
   test(`startup reads wait for the native initialization outcome: ${outcome}`, async ({ profileDirectory, mcpPort }, info) => {
     const metadata = join(profileDirectory, 'tabs.json')
     await writeFile(metadata, original)
-    const app = await launchRejected(profileDirectory, mcpPort, false, false, true, outcome === 'save-failure' ? 'before' : undefined, true)
+    const app = await launchRejected(profileDirectory, mcpPort, false, undefined, true, outcome === 'save-failure' ? 'before' : undefined, true)
     const probe = () => app.evaluate(() => (globalThis as Probe).startupReadProbe)
     try {
       await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.held))).toBe(true)

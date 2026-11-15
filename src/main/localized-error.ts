@@ -1,4 +1,5 @@
-import type { IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import type { TypedIpcMain } from './typed-ipc.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 
 interface LocalizedErrorOptions {
@@ -46,9 +47,9 @@ interface TranslatedIpcErrorsHost {
  * and every error for a website, passes through unchanged.
  */
 export function withTranslatedIpcErrors(
-  ipcMain: Pick<IpcMain, 'handle' | 'on'>,
+  ipcMain: Pick<TypedIpcMain, 'handle' | 'on'>,
   host: TranslatedIpcErrorsHost
-): Pick<IpcMain, 'handle' | 'on'> {
+): Pick<TypedIpcMain, 'handle' | 'on'> {
   return {
     handle(channel, listener) {
       ipcMain.handle(channel, async (event, ...args: unknown[]) => {
@@ -60,8 +61,7 @@ export function withTranslatedIpcErrors(
         }
       })
     },
-    on(channel, listener) {
-      return ipcMain.on(channel, listener)
-    }
+    // What a send or sync listener throws never reaches a page as a message, so it registers as it is.
+    on: ipcMain.on.bind(ipcMain)
   }
 }

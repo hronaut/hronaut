@@ -1,32 +1,74 @@
-import { app, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebFrameMain } from 'electron'
+import { app, clipboard, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebContents, type WebFrameMain } from 'electron'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
-import { pageSourceAddress } from '../page-source/page-source.js'
+import { pageSourceAddress, viewFrameSource, viewPageSource } from '../page-source/page-source.js'
 import { searchEngineLabel, selectionAddressKept, selectionGoToUrl, selectionSearchLabelText, selectionSearchQuery, selectionSearchUrl } from '../selection-search/selection-search.js'
-import type { PageContextMenuAccess, PageContextMenuTab } from './page-context-menu-access.js'
+import type { Browser } from '../browser.js'
+import { DEFAULT_SEARCH_ENGINE } from '../../../shared/search-engine.js'
+import { openDevTools } from '../devtools/devtools.js'
+import { printPage } from '../page-print/page-print.js'
+import { savePageAs } from '../page-save/page-save.js'
+import { openSplitViewAndWait } from '../split-view/split-view.js'
+import { strongPasswordSuggestion } from '../suggested-password/suggested-password.js'
+import { findTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 import { openedResourceReferrer, savedResourceReferrer } from './page-context-menu-referrer.js'
+import { readHighlightPageText } from './highlight-page-text.js'
+import { textFragmentLink } from './text-fragment-link.js'
+import { LocalizedError } from '../../localized-error.js'
+import type { MessageKey } from '../../../shared/i18n.js'
+import { mediaPlayerActionAt, type MediaPlayerAction } from './media-player-actions.js'
+import { back, forward, reload, reloadIgnoringCache } from '../page-navigation/page-navigation.js'
+import { QR_CODE_IPC } from '../../../shared/ipc/qr-code.js'
+import { sendTo } from '../../typed-ipc.js'
 
 // The fields Chrome offers the emoji picker in: an editable element, which has no form control, a text, search,
 // address, email or password input, or a text area. A number, telephone or date field takes no emoji.
 const EMOJI_FIELDS: ReadonlySet<ContextMenuParams['formControlType']> = new Set(['none', 'input-text', 'input-search', 'input-url', 'input-email', 'input-password', 'text-area'])
+// Copy link to highlight reads the page before it copies, so a copy the menu made meanwhile is newer and keeps the
+// clipboard: each copy the menu makes counts here.
+let menuCopies = 0
+// As in Chrome, an image, video or audio saves from an http or https address, and from a data or blob one the page made
+// itself, such as a chart drawn into an image. Chrome also saves from file and filesystem addresses and opens data and
+// blob ones in a new tab; Hronaut does neither, and opens only a web address in a tab.
+const SAVABLE_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:', 'data:', 'blob:'])
+function isSavableAddress(url: string): boolean {
+  try {
+    return SAVABLE_PROTOCOLS.has(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
+/** How the menu opens: its point in the window, and what runs while it is open. */
+export interface PageMenuPopup {
+  at?: { x: number, y: number }
+  /** Runs as the menu opens, and what it returns as it closes. */
+  whileOpen?: () => () => void
+}
 
 /**
- * Shows the native context menu for a right-click in the page: link, image,
- * editing and selection actions for what was clicked, with a search for the
- * selected text or a visit to a selected address, then page navigation, copy address, save, print, view source, the
- * source and reload of a frame inside the page, and inspect. Each action checks that its tab is still open.
+ * Shows the native context menu for a right-click, Menu key or Shift+F10 in the page: link, image,
+ * editing and selection actions for what was clicked, with a link to the
+ * selected text and a search for it or a visit to a selected address, then page navigation, copy address, save, print, view source, the
+ * source and reload of a frame inside the page, and inspect. No item acts on its page once another tab took its place
+ * in view, and those that act on the page check that its tab is still open. The menu opens at `popup.at` in the window,
+ * or at the pointer without one, and `popup.whileOpen` runs while it is open. A text field's Paste as Plain Text follows
+ * whether `holdsText` says the clipboard held text, and the field alone without word of it.
  */
-export function showContextMenu<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, params: ContextMenuParams): void {
+export function showContextMenu(browser: Browser, tab: BrowserTab, params: ContextMenuParams, popup: PageMenuPopup = {},
+  holdsText?: boolean): void {
   const webContents = tab.webContents
   if (webContents.isDestroyed()) return
+  const selection = browser.tabSelectionGeneration
   const groups: MenuItemConstructorOptions[][] = []
   const frame = subframe(params.frame)
   const reportActionFailure = (action: string, error: unknown): void => {
     console.error(`[browser] Could not ${action} from page context menu:`, error)
-    access.options().onActionFailed?.(action, error)
+    browser.options.onActionFailed?.(action, error)
   }
   const withLiveContents = (actionName: string, action: () => void): (() => void) => () => {
-    if (webContents.isDestroyed() || access.findTab(tab.id) !== tab) {
-      reportActionFailure(actionName, new Error('The tab is no longer available.'))
+    if (webContents.isDestroyed() || findTab(browser, tab.id) !== tab) {
+      reportActionFailure(actionName, new LocalizedError('native.errors.tabUnavailable'))
       return
     }
     try {
@@ -37,10 +79,15 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   }
   const reportCopyFailure = (kind: 'text' | 'image', error: unknown): void => {
     console.error(`[browser] Could not copy context-menu ${kind}:`, error)
-    access.options().onClipboardCopyFailed?.(error)
+    browser.options.onClipboardCopyFailed?.(error)
+  }
+  // The shell opens the Create QR Code dialog for the address, in the tab's window.
+  const requestQrCode = (address: string): void => {
+    sendTo(browser.window.webContents, QR_CODE_IPC.requested, { tabId: tab.id, address })
   }
   const copyText = (text: string): void => {
-    void access.options().copyText(text).catch((error) => reportCopyFailure('text', error))
+    menuCopies++
+    void browser.options.copyText(text).catch((error) => reportCopyFailure('text', error))
   }
   // Electron types the frame's referrer policy as a Referrer, but reports the policy name.
   const referrerPolicy = params.referrerPolicy as unknown as string | Partial<Electron.Referrer> | undefined
@@ -48,32 +95,41 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
   // A sandboxed frame or page has an opaque origin and sends no referrer, as a click in it does. It is read now, since
   // the frame can be gone by the time an item is chosen.
   const sandboxedFrame = hasOpaqueOrigin(params.frame)
-  const openBackgroundTab = (url: string): void => {
+  const createBackgroundTab = (url: string): Promise<BrowserTab> => {
     const referrer = sandboxedFrame ? undefined : openedResourceReferrer(params.frameURL, policy)
-    void access.createTab({
+    return browser.createTab({
       url,
       active: false,
       mcpGroupId: tab.mcpGroupId,
       openedFrom: { tabId: tab.id, background: true },
       ...(referrer ? { loadOptions: { httpReferrer: referrer } } : {})
     })
+  }
+  const openBackgroundTab = (url: string): void => {
+    void createBackgroundTab(url)
       .catch((error) => {
         console.error(`[browser] Could not open context-menu URL ${url}:`, error)
-        access.options().onActionFailed?.('open link in new tab', error)
+        browser.options.onActionFailed?.('open link in new tab', error)
       })
+  }
+  // Chrome's Open Link in Split View: the link opens in a new tab beside this page, which keeps the keyboard.
+  const openLinkInSplitView = (url: string): void => {
+    void createBackgroundTab(url)
+      .then((created) => showTabBeside(browser, tab, created.id))
+      .catch((error) => reportActionFailure('open link in split view', error))
   }
   const download = (url: string, linkName = ''): void => {
     const referrer = sandboxedFrame ? undefined : savedResourceReferrer(params.frameURL, url, policy)
     // Blink gives a same-origin link's `download` name, which Chrome saves the link under.
-    if (linkName) access.expectSavedLinkName(webContents, url, linkName)
+    if (linkName) browser.downloadController.expectSavedLinkName(webContents.id, url, linkName)
     if (referrer) webContents.downloadURL(url, { headers: { Referer: referrer } })
     else webContents.downloadURL(url)
   }
   // The search or address opens in front, beside the page and in its workspace, under its navigation policy, and not
   // behind trusted chrome, as View Page Source does not.
   const openSelectionTab = (actionName: string, url: string): (() => void) => withLiveContents(actionName, () => {
-    if (access.browserContentOccluded()) return
-    void access.createTab({
+    if (browser.browserContentOccluded) return
+    void browser.createTab({
       url,
       active: true,
       mcpGroupId: tab.mcpGroupId,
@@ -93,20 +149,108 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       if (selectionAddressKept(address, params.linkURL)) return []
       return [{
         id: 'go-to-selection',
-        label: access.text('native.context.goTo', { text: selectionSearchLabelText(query) }),
+        label: browser.text('native.context.goTo', { text: selectionSearchLabelText(query) }),
         click: openSelectionTab('go to the selected address', address)
       }]
     }
-    const engine = access.searchEngine()
+    const engine = browser.options.getSearchEngine?.() ?? DEFAULT_SEARCH_ENGINE
     return [{
       id: 'search-selection',
-      label: access.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
+      label: browser.text('native.context.searchFor', { engine: searchEngineLabel(engine), text: selectionSearchLabelText(query) }),
       click: openSelectionTab('search for the selection', selectionSearchUrl(query, engine))
     }]
   }
-  const copyImage = (): void => {
-    void access.options().copyImageAt(webContents, params.x, params.y)
+  // Chrome's Copy link to highlight, for text selected in the page itself: a frame inside the page has an address of its
+  // own, and Chrome makes no link for text in one either. The link is made from the page's text when the item is
+  // chosen, and from the menu's selected text when the page cannot give it. See text-fragment-link.ts.
+  const linkToHighlight = (): MenuItemConstructorOptions[] => {
+    if (frame || params.frameURL !== params.pageURL) return []
+    const selectedTextLink = textFragmentLink(params.pageURL, params.selectionText)
+    if (!selectedTextLink) return []
+    const copyLink = async (): Promise<void> => {
+      const copy = ++menuCopies
+      // Text copied some other way meanwhile, such as with Ctrl+C, is newer than the link and keeps the clipboard too.
+      const [clipboardBefore, page] = await Promise.all([clipboardText(), readHighlightPageText(webContents, params.selectionText)])
+      if (copy !== menuCopies) return
+      const clipboardNow = await clipboardText()
+      if (copy !== menuCopies || clipboardNow !== clipboardBefore) return
+      copyText((page && textFragmentLink(params.pageURL, page)) ?? selectedTextLink)
+    }
+    return [{ id: 'copy-link-to-highlight', label: browser.text('native.context.copyLinkToHighlight'), click: () => void copyLink() }]
+  }
+  const copyImage = (picture: 'image' | 'canvas' = 'image'): void => {
+    void browser.options.copyImageAt(webContents, params.x, params.y, picture)
       .catch((error) => reportCopyFailure('image', error))
+  }
+  // A video's or audio's open, save and copy of its address.
+  const addressedMediaItems = (video: boolean, openable: boolean, savable: boolean): MenuItemConstructorOptions[] => [
+    {
+      id: video ? 'open-video-new-tab' : 'open-audio-new-tab',
+      label: browser.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
+      enabled: openable,
+      click: () => openBackgroundTab(params.srcURL)
+    },
+    {
+      id: video ? 'save-video' : 'save-audio',
+      label: browser.text(video ? 'native.context.saveVideo' : 'native.context.saveAudio'),
+      enabled: savable,
+      click: withLiveContents(video ? 'save video' : 'save audio', () => download(params.srcURL))
+    },
+    {
+      id: video ? 'copy-video-address' : 'copy-audio-address',
+      label: browser.text(video ? 'native.context.copyVideoAddress' : 'native.context.copyAudioAddress'),
+      click: () => copyText(params.srcURL)
+    }
+  ]
+  // The frame of the page the video or audio is in, as it is when an item is chosen. Electron gives none once it has
+  // navigated or gone, and then, as in Chrome, nothing is done to the document now in its place.
+  const mediaFrame = (): WebFrameMain | undefined => {
+    const current = params.frame
+    return current && !current.isDestroyed() && !current.detached ? current : undefined
+  }
+  // Chrome's Loop and Show controls for a video or audio, and its Picture in picture for a video: each is checked when
+  // Chromium said so as the menu opened, and turns that off or on, for the element at the click in the frame it is in.
+  // Chromium also says when one is unavailable, such as Loop for a live stream, Picture in picture for a video whose
+  // page disallows it, or Show controls for an audio, which hiding its controls would hide.
+  const mediaPlayerItem = (id: string, label: MessageKey, action: MediaPlayerAction, available: boolean, checked: boolean): MenuItemConstructorOptions => ({
+    id,
+    type: 'checkbox',
+    label: browser.text(label),
+    checked,
+    enabled: available && Boolean(params.frame),
+    click: withLiveContents(`turn ${action} ${checked ? 'off' : 'on'}`, () => {
+      const current = mediaFrame()
+      if (!current) return
+      void mediaPlayerActionAt(webContents, current, { x: params.x, y: params.y, zoom: webContents.getZoomFactor() }, action, !checked)
+        // The page's own error is the page's, so only the action is logged.
+        .catch(() => console.error(`[browser] Could not turn ${action} ${checked ? 'off' : 'on'} from page context menu.`))
+    })
+  })
+  // Chrome's Copy Video Frame and Save Video Frame, for the frame the video shows, taken from the frame of the page the
+  // video is in, which the click's page coordinates reach even across sites. Electron tells nothing of whether the video
+  // has a frame to give, so only a video in error has them unavailable: a copy without a frame reports it failed, and a
+  // save without one saves nothing. The save goes through the downloads, as Save Video does.
+  const videoFrameItems = (): MenuItemConstructorOptions[] => {
+    const enabled = !params.mediaFlags.inError && Boolean(params.frame)
+    return [
+      {
+        id: 'copy-video-frame',
+        label: browser.text('native.context.copyVideoFrame'),
+        enabled,
+        click: withLiveContents('copy video frame', () => {
+          const current = mediaFrame()
+          if (!current) return
+          void browser.options.copyVideoFrameAt(current, params.x, params.y)
+            .catch((error) => reportCopyFailure('image', error))
+        })
+      },
+      {
+        id: 'save-video-frame',
+        label: browser.text('native.context.saveVideoFrame'),
+        enabled,
+        click: withLiveContents('save video frame', () => mediaFrame()?.saveVideoFrameAs(params.x, params.y))
+      }
+    ]
   }
 
   if (params.linkURL) {
@@ -115,18 +259,25 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     groups.push([
       {
         id: 'open-link-new-tab',
-        label: access.text('native.context.openLink'),
+        label: browser.text('native.context.openLink'),
         enabled: webLink,
         click: () => openBackgroundTab(params.linkURL)
       },
+      // Hronaut Home is never shown in split view.
+      ...isHronautHomeUrl(tab.url) ? [] : [{
+        id: 'open-link-split-view',
+        label: browser.text('native.context.openLinkSplit'),
+        enabled: webLink,
+        click: () => openLinkInSplitView(params.linkURL)
+      }],
       {
         id: 'copy-link-address',
-        label: access.text(email ? 'native.context.copyEmail' : 'native.context.copyLink'),
+        label: browser.text(email ? 'native.context.copyEmail' : 'native.context.copyLink'),
         click: () => copyText(email || params.linkURL)
       },
       {
         id: 'save-link',
-        label: access.text('native.context.saveLink'),
+        label: browser.text('native.context.saveLink'),
         enabled: webLink,
         click: withLiveContents('save link', () => download(params.linkURL, params.suggestedFilename))
       }
@@ -137,55 +288,72 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     groups.push([
       {
         id: 'open-image-new-tab',
-        label: access.text('native.context.openImage'),
+        label: browser.text('native.context.openImage'),
         enabled: isWebUrl(params.srcURL),
         click: () => openBackgroundTab(params.srcURL)
       },
       {
         id: 'copy-image',
-        label: access.text('native.context.copyImage'),
+        label: browser.text('native.context.copyImage'),
         enabled: params.hasImageContents,
-        click: copyImage
+        click: () => copyImage()
       },
       {
         id: 'copy-image-address',
-        label: access.text('native.context.copyImageAddress'),
+        label: browser.text('native.context.copyImageAddress'),
         click: () => copyText(params.srcURL)
       },
+      // As in Chrome, for an image that is not a link, whose address is http or https.
+      ...!params.linkURL && isWebUrl(params.srcURL) ? [{
+        id: 'create-qr-code-image',
+        label: browser.text('native.context.createQrCodeImage'),
+        click: withLiveContents('create a QR code', () => requestQrCode(params.srcURL))
+      }] : [],
       {
         id: 'save-image',
-        label: access.text('native.context.saveImage'),
-        enabled: isWebUrl(params.srcURL),
+        label: browser.text('native.context.saveImage'),
+        enabled: isSavableAddress(params.srcURL),
         click: withLiveContents('save image', () => download(params.srcURL))
       }
     ])
   }
 
-  // A video or audio, as in Chrome: open it in a new tab, save it or copy its address. Chromium cannot save a stream a
-  // page builds itself, such as one from a MediaSource, and Chrome then neither saves nor opens it, so neither does this.
-  // As for an image, only an http or https address opens or saves.
-  if ((params.mediaType === 'video' || params.mediaType === 'audio') && params.srcURL) {
-    const video = params.mediaType === 'video'
-    const savable = isWebUrl(params.srcURL) && params.mediaFlags.canSave
+  // A canvas copies the picture it shows, as Chrome's Copy Image does. Electron reports whether there is a picture only
+  // for an image, so the item is offered for every canvas the copy can reach. Chrome leaves it unavailable for a
+  // canvas with another website's picture in it, which the page may not read; Hronaut copies that too, for the person
+  // who asked, as Chrome copies the same picture shown as an image. The copy hit-tests from the page's own frame, which
+  // does not reach into a frame another process runs, such as one of another site, so there the item is unavailable.
+  if (params.mediaType === 'canvas') {
+    groups.push([{
+      id: 'copy-canvas-image',
+      label: browser.text('native.context.copyImage'),
+      enabled: reachableFromPage(params.frame, webContents),
+      click: () => copyImage('canvas')
+    }])
+  }
+
+  // A video or audio, as in Chrome: Loop and Show controls first, then open it in a new tab, save it or copy its
+  // address, and for a video, copy or save the frame it shows and Picture in picture. Chromium cannot save a stream a
+  // page builds itself, such as one from a MediaSource, and Chrome then neither saves nor opens it, so neither does
+  // this. As for an image, an http or https address opens and saves, and a data or blob one only saves. A video with no
+  // address, such as a camera's, still has its frame items, and an audio without one its Loop and Show controls.
+  const video = params.mediaType === 'video'
+  if (video || params.mediaType === 'audio') {
+    const flags = params.mediaFlags
     groups.push([
-      {
-        id: video ? 'open-video-new-tab' : 'open-audio-new-tab',
-        label: access.text(video ? 'native.context.openVideo' : 'native.context.openAudio'),
-        enabled: savable,
-        click: () => openBackgroundTab(params.srcURL)
-      },
-      {
-        id: video ? 'save-video' : 'save-audio',
-        label: access.text(video ? 'native.context.saveVideo' : 'native.context.saveAudio'),
-        enabled: savable,
-        click: withLiveContents(video ? 'save video' : 'save audio', () => download(params.srcURL))
-      },
-      {
-        id: video ? 'copy-video-address' : 'copy-audio-address',
-        label: access.text(video ? 'native.context.copyVideoAddress' : 'native.context.copyAudioAddress'),
-        click: () => copyText(params.srcURL)
-      }
+      mediaPlayerItem('media-loop', 'native.context.loop', 'loop', flags.canLoop, flags.isLooping),
+      mediaPlayerItem('media-controls', 'native.context.showControls', 'controls', flags.canToggleControls, flags.isControlsVisible)
     ])
+    const openable = isWebUrl(params.srcURL) && flags.canSave
+    const savable = isSavableAddress(params.srcURL) && flags.canSave
+    const items = [
+      ...params.srcURL ? addressedMediaItems(video, openable, savable) : [],
+      ...video
+        ? [...videoFrameItems(), mediaPlayerItem('picture-in-picture', 'native.context.pictureInPicture', 'picture-in-picture',
+            flags.canShowPictureInPicture, flags.isShowingPictureInPicture)]
+        : []
+    ]
+    if (items.length) groups.push(items)
   }
 
   if (params.isEditable) {
@@ -194,7 +362,7 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     if (!params.misspelledWord && EMOJI_FIELDS.has(params.formControlType) && app.isEmojiPanelSupported()) {
       groups.push([{
         id: 'emoji',
-        label: access.text(process.platform === 'darwin' ? 'native.context.emojiSymbols' : 'native.context.emoji').replaceAll('&', '&&'),
+        label: browser.text(process.platform === 'darwin' ? 'native.context.emojiSymbols' : 'native.context.emoji').replaceAll('&', '&&'),
         click: withLiveContents('open the emoji picker', () => app.showEmojiPanel())
       }])
     }
@@ -206,87 +374,148 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
       }))
       spellingItems.push({
         id: 'add-to-dictionary',
-        label: access.text('native.context.addDictionary', { word: params.misspelledWord }),
-        click: withLiveContents('add word to dictionary', () => { webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) })
+        label: browser.text('native.context.addDictionary', { word: params.misspelledWord }),
+        click: withLiveContents('add word to dictionary', () => browser.options.spellCheck?.addWord(params.misspelledWord))
       })
       groups.push(spellingItems)
     }
+    // Electron greys out Paste while the clipboard holds nothing, as Chrome does. As in Chrome, Paste as plain text, Paste
+    // and Match Style on macOS, also needs text there, and a misspelled word's menu, which leads with its suggestions,
+    // leaves it out.
+    const canPaste = params.editFlags.canPaste
     groups.push([
-      { id: 'undo', label: access.text('native.context.undo'), enabled: params.editFlags.canUndo, click: withLiveContents('undo', () => webContents.undo()) },
-      { id: 'redo', label: access.text('native.context.redo'), enabled: params.editFlags.canRedo, click: withLiveContents('redo', () => webContents.redo()) },
+      { id: 'undo', label: browser.text('native.context.undo'), enabled: params.editFlags.canUndo, click: withLiveContents('undo', () => webContents.undo()) },
+      { id: 'redo', label: browser.text('native.context.redo'), enabled: params.editFlags.canRedo, click: withLiveContents('redo', () => webContents.redo()) },
       { type: 'separator' },
-      { id: 'cut', label: access.text('native.context.cut'), enabled: params.editFlags.canCut, click: withLiveContents('cut', () => webContents.cut()) },
-      { id: 'copy', label: access.text('native.context.copy'), enabled: params.editFlags.canCopy, click: withLiveContents('copy', () => webContents.copy()) },
-      { id: 'paste', label: access.text('native.context.paste'), enabled: params.editFlags.canPaste, click: withLiveContents('paste', () => webContents.paste()) },
-      { id: 'paste-and-match-style', label: access.text('native.context.pasteMatchStyle'), enabled: params.editFlags.canPaste, click: withLiveContents('paste and match style', () => webContents.pasteAndMatchStyle()) },
-      { id: 'delete', label: access.text('native.context.delete'), enabled: params.editFlags.canDelete, click: withLiveContents('delete', () => webContents.delete()) },
+      { id: 'cut', label: browser.text('native.context.cut'), enabled: params.editFlags.canCut, click: withLiveContents('cut', () => webContents.cut()) },
+      { id: 'copy', label: browser.text('native.context.copy'), enabled: params.editFlags.canCopy, click: withLiveContents('copy', () => webContents.copy()) },
+      {
+        id: 'paste',
+        label: browser.text('native.context.paste'),
+        enabled: canPaste,
+        click: withLiveContents('paste', () => webContents.paste())
+      },
+      ...params.misspelledWord ? [] : [{
+        id: 'paste-and-match-style',
+        label: browser.text(process.platform === 'darwin' ? 'native.context.pasteMatchStyle' : 'native.context.pasteAsPlainText'),
+        enabled: canPaste && (holdsText ?? true),
+        click: withLiveContents('paste and match style', () => webContents.pasteAndMatchStyle())
+      }],
+      { id: 'delete', label: browser.text('native.context.delete'), enabled: params.editFlags.canDelete, click: withLiveContents('delete', () => webContents.delete()) },
       { type: 'separator' },
-      { id: 'select-all', label: access.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }
+      { id: 'select-all', label: browser.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }
     ])
+    // Chrome's Suggest strong password, for a password field of the page itself while passwords can be saved: Hronaut
+    // makes the password, fills it in with the field that confirms it, and offers to save it when the page submits it.
+    const suggestPassword = params.formControlType === 'input-password' && !frame ? strongPasswordSuggestion(browser, tab) : null
+    if (suggestPassword) {
+      groups.push([{
+        id: 'suggest-strong-password',
+        label: browser.text('native.context.suggestStrongPassword'),
+        click: withLiveContents('suggest a strong password', () => {
+          void suggestPassword().then((filled) => {
+            if (!filled) reportActionFailure('suggest a strong password', new LocalizedError('appErrors.credentials.suggestFailed'))
+          }, (error: unknown) => reportActionFailure('suggest a strong password', error))
+        })
+      }])
+    }
     const search = searchSelection()
     if (search.length) groups.push(search)
+    // Chrome's Spell check submenu turns checking on or off for every website, as Settings does, and, where Settings has
+    // spell check languages, opens them. A password field is never checked, so its menu has none.
+    if (params.formControlType !== 'input-password') {
+      groups.push([{
+        id: 'spell-check',
+        label: browser.text('native.context.spellCheck'),
+        submenu: [{
+          id: 'check-spelling',
+          type: 'checkbox',
+          label: browser.text('native.context.checkSpelling'),
+          checked: browser.options.spellCheck?.isEnabled() !== false,
+          click: (item) => {
+            void setSpellCheck(browser, item.checked).catch((error) => reportActionFailure('change spell check', error))
+          }
+        }, ...(browser.options.offersSpellCheckLanguages?.() === true
+          ? [{
+              id: 'spell-check-language-settings',
+              label: browser.text('native.context.spellCheckLanguageSettings'),
+              click: () => browser.options.openSpellCheckSettings?.()
+            }]
+          : [])]
+      }])
+    }
   } else if (params.selectionText) {
-    groups.push([{ id: 'copy-selection', label: access.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) }, ...searchSelection()])
+    groups.push([
+      { id: 'copy-selection', label: browser.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) },
+      ...linkToHighlight(),
+      ...searchSelection()
+    ])
   }
 
   const navigation = webContents.navigationHistory
   groups.push([
     {
       id: 'back',
-      label: access.text('native.context.back'),
+      label: browser.text('native.context.back'),
       enabled: navigation.canGoBack(),
       click: () => {
-        void access.back(tab.id).catch((error) => access.options().onActionFailed?.('go back', error))
+        void back(browser, tab.id, { byPerson: true }).catch((error) => browser.options.onActionFailed?.('go back', error))
       }
     },
     {
       id: 'forward',
-      label: access.text('native.context.forward'),
+      label: browser.text('native.context.forward'),
       enabled: navigation.canGoForward(),
       click: () => {
-        void access.forward(tab.id).catch((error) => access.options().onActionFailed?.('go forward', error))
+        void forward(browser, tab.id, { byPerson: true }).catch((error) => browser.options.onActionFailed?.('go forward', error))
       }
     },
     {
       id: 'reload',
-      label: access.text('native.context.reload'),
+      label: browser.text('native.context.reload'),
       click: () => {
-        void access.reload(tab.id).catch((error) => access.options().onActionFailed?.('reload', error))
+        void reload(browser, tab.id, { byPerson: true }).catch((error) => browser.options.onActionFailed?.('reload', error))
       }
     },
     {
       id: 'reload-ignoring-cache',
-      label: access.text('native.context.reloadWithoutCache'),
+      label: browser.text('native.context.reloadWithoutCache'),
       click: () => {
-        void access.reloadIgnoringCache(tab.id)
-          .catch((error) => access.options().onActionFailed?.('reload without cache', error))
+        void reloadIgnoringCache(browser, tab.id, { byPerson: true })
+          .catch((error) => browser.options.onActionFailed?.('reload without cache', error))
       }
     },
     {
       id: 'copy-page-address',
-      label: access.text('native.context.copyPageAddress'),
+      label: browser.text('native.context.copyPageAddress'),
       click: () => copyText(tab.url)
     },
     // Hronaut Home is Hronaut's own page, with nothing on it to save or print. Save As comes before Print, as in Chrome.
     ...isHronautHomeUrl(tab.url) ? [] : [{
       id: 'save-page',
-      label: access.text('native.context.savePage'),
+      label: browser.text('native.context.savePage'),
       click: withLiveContents('save the page', () => {
-        void access.savePage(tab).catch((error) => reportActionFailure('save the page', error))
+        void savePageAs(browser, tab).catch((error) => reportActionFailure('save the page', error))
       })
     }, {
       id: 'print',
-      label: access.text('native.context.print'),
+      label: browser.text('native.context.print'),
       click: withLiveContents('print the page', () => {
-        void access.print(tab).catch((error) => access.options().onActionFailed?.('print the page', error))
+        void printPage(browser, tab).catch((error) => browser.options.onActionFailed?.('print the page', error))
       })
     }],
+    // As in Chrome, after Print, for a web page: its address as a QR code, in Hronaut's own dialog.
+    ...isWebUrl(tab.url) ? [{
+      id: 'create-qr-code-page',
+      label: browser.text('native.context.createQrCodePage'),
+      click: withLiveContents('create a QR code', () => requestQrCode(tab.url))
+    }] : [],
     // As in Chrome, between Print and Inspect, for a web page; a page's source has no source of its own.
     ...pageSourceAddress(tab.url) ? [{
       id: 'view-page-source',
-      label: access.text('native.context.viewSource'),
+      label: browser.text('native.context.viewSource'),
       click: withLiveContents('view page source', () => {
-        void access.viewSource(tab).catch((error) => reportActionFailure('view page source', error))
+        void viewPageSource(browser, tab).catch((error) => reportActionFailure('view page source', error))
       })
     }] : [],
     // A right-click inside a frame of the page offers, as in Chrome, the frame's own source, for a frame showing a web
@@ -294,14 +523,14 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     ...frame && !isHronautHomeUrl(tab.url) ? [
       ...pageSourceAddress(params.frameURL) ? [{
         id: 'view-frame-source',
-        label: access.text('native.context.viewFrameSource'),
+        label: browser.text('native.context.viewFrameSource'),
         click: withLiveContents('view frame source', () => {
-          void access.viewFrameSource(tab, params.frameURL).catch((error) => reportActionFailure('view frame source', error))
+          void viewFrameSource(browser, tab, params.frameURL).catch((error) => reportActionFailure('view frame source', error))
         })
       }] : [],
       {
         id: 'reload-frame',
-        label: access.text('native.context.reloadFrame'),
+        label: browser.text('native.context.reloadFrame'),
         click: withLiveContents('reload the frame', () => {
           // A frame the page removed while the menu was open has nothing to reload, as in Chrome.
           if (frame.isDestroyed() || frame.detached) return
@@ -313,25 +542,52 @@ export function showContextMenu<Tab extends PageContextMenuTab>(access: PageCont
     // privileged Home bridge.
     ...isHronautHomeUrl(tab.url) ? [] : [{
       id: 'inspect-element',
-      label: access.text('native.context.inspect'),
+      label: browser.text('native.context.inspect'),
       click: () => {
-        void inspectElement(access, tab, params.x, params.y)
+        void inspectElement(browser, tab, params.x, params.y)
           .catch((error) => {
             console.error('[browser] Could not inspect the selected element:', error)
-            access.options().onActionFailed?.('inspect element', error)
+            browser.options.onActionFailed?.('inspect element', error)
           })
       }
     }]
   ])
 
-  const template = groups.flatMap((group, index) => index === 0
-    ? group
-    : [{ type: 'separator' as const }, ...group])
-  const menu = Menu.buildFromTemplate(template)
-  menu.popup({
-    window: access.window(),
-    ...(params.frame ? { frame: params.frame } : {})
+  // The person picks an item for the page they see under the menu, so none acts on its page once another tab took its
+  // place there, as an agent's tool or a tray click can bring one into view while the menu is open.
+  const leftView = (): boolean => browser.tabSelectionGeneration !== selection && findTab(browser, tab.id) === tab
+    && browser.activeTabId !== tab.id && !browser.splitViewContains(tab.id)
+  const forShownPage = (items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] => items.map((item) => {
+    const { click, submenu } = item
+    return {
+      ...item,
+      ...click ? {
+        click: (...args: Parameters<NonNullable<MenuItemConstructorOptions['click']>>) => {
+          if (!leftView()) return click(...args)
+          reportActionFailure(item.id?.replaceAll('-', ' ') ?? 'use the page menu', new LocalizedError('native.errors.tabNotShown'))
+        }
+      } : {},
+      ...Array.isArray(submenu) ? { submenu: forShownPage(submenu) } : {}
+    }
   })
+  const template = forShownPage(groups.flatMap((group, index) => index === 0
+    ? group
+    : [{ type: 'separator' as const }, ...group]))
+  const menu = Menu.buildFromTemplate(template)
+  const closed = popup.whileOpen?.()
+  try {
+    menu.popup({
+      window: browser.window,
+      ...popup.at ?? {},
+      // On Windows and Linux the menu knows whether the keyboard, a mouse or a touch opened it, as Chrome's does.
+      sourceType: params.menuSourceType,
+      ...(params.frame ? { frame: params.frame } : {}),
+      ...(closed ? { callback: closed } : {})
+    })
+  } catch (error) {
+    closed?.()
+    throw error
+  }
 }
 
 // The characters Chrome keeps escaped when it writes out an address: spaces, controls and characters that show
@@ -377,10 +633,45 @@ function hasOpaqueOrigin(frame: WebFrameMain | null | undefined): boolean {
   }
 }
 
-async function inspectElement<Tab extends PageContextMenuTab>(access: PageContextMenuAccess<Tab>, tab: Tab, x: number, y: number): Promise<void> {
-  if (access.isHumanInteractionLocked(tab) || isHronautHomeUrl(tab.url)) return
-  await access.openDevTools(tab)
+/** Whether the frame of the click runs in the page's own process, as every frame between it and the page does. */
+function reachableFromPage(frame: WebFrameMain | null | undefined, webContents: WebContents): boolean {
+  if (!frame) return false
+  try {
+    const pageProcess = webContents.mainFrame.processId
+    for (let current: WebFrameMain | null = frame; current?.parent; current = current.parent) {
+      if (current.processId !== pageProcess) return false
+    }
+    return true
+  } catch {
+    // A frame that is already gone has nothing left to copy.
+    return false
+  }
+}
+
+async function inspectElement(browser: Browser, tab: BrowserTab, x: number, y: number): Promise<void> {
+  if (browser.isHumanInteractionLocked(tab) || isHronautHomeUrl(tab.url)) return
+  await openDevTools(browser, tab)
   const webContents = tab.webContents
-  // Inspecting opens Developer Tools by itself, so check again for a tab that shows Home by now.
-  if (!webContents.isDestroyed() && !isHronautHomeUrl(tab.url)) webContents.inspectElement(Math.round(x), Math.round(y))
+  // Inspecting opens Developer Tools by itself, so check again for a tab that shows Home, or was locked, by now.
+  if (webContents.isDestroyed() || isHronautHomeUrl(tab.url) || browser.isHumanInteractionLocked(tab)) return
+  webContents.inspectElement(Math.round(x), Math.round(y))
+}
+
+/**
+ * Shows a tab beside the page's tab in split view, replacing any other split, while the page's tab is still the one
+ * shown; a tab the person went to meanwhile stays in front, and the other tab stays where it opened.
+ */
+export async function showTabBeside(browser: Browser, tab: BrowserTab, besideTabId: string): Promise<void> {
+  if (findTab(browser, tab.id) !== tab || browser.activeTabId !== tab.id) return
+  await openSplitViewAndWait(browser, besideTabId, { openedBeside: true })
+}
+
+/** Turns spell checking on or off for every website and saves it, as Settings does. */
+async function setSpellCheck(browser: Browser, enabled: boolean): Promise<void> {
+  await browser.options.spellCheck?.setEnabled(enabled)
+}
+
+// The clipboard's text, to tell whether anything was copied since; it stays in main.
+function clipboardText(): Promise<string | undefined> {
+  return clipboard.readText().catch(() => undefined)
 }

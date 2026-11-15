@@ -74,6 +74,42 @@ describe('quitting with downloads in progress', () => {
     await expect(Promise.all([first, second])).resolves.toEqual([true, true])
   })
 
+  // Restart asked "Quit Hronaut?" with Quit, as if Hronaut would not come back.
+  it('asks in its own words before Restart in Settings', async () => {
+    const { confirm, asked } = confirmation([download('progressing'), download('progressing')], async () => ({ response: 1, checkboxChecked: false }))
+    await expect(confirm('restart')).resolves.toBe(true)
+    expect(asked[0]!.options).toEqual(expect.objectContaining({
+      title: 'Restart Hronaut?',
+      message: '2 downloads are in progress.',
+      detail: 'Restarting now cancels them and deletes the unfinished files.',
+      buttons: ['Keep downloading', 'Restart'],
+      defaultId: 0,
+      cancelId: 0
+    }))
+    const one = confirmation([download('progressing')], async () => ({ response: 0, checkboxChecked: false }), {}, 'ru-RU')
+    await expect(one.confirm('restart')).resolves.toBe(false)
+    expect(one.asked[0]!.options).toEqual(expect.objectContaining({
+      title: 'Перезапустить Hronaut?',
+      detail: 'Если перезапустить сейчас, загрузка будет отменена, а недокачанный файл удалён.',
+      buttons: ['Продолжить загрузку', 'Перезапустить']
+    }))
+  })
+
+  // Quit pressed while Restart asked took Restart's answer, so Hronaut restarted instead of quitting.
+  it.each([['quit', 'restart'], ['restart', 'quit']] as const)(
+    'answers no to a request for something else while %s asks, and shows the question again',
+    async (asking, other) => {
+      let answer!: (value: MessageBoxReturnValue) => void
+      const { confirm, asked, showWindow } = confirmation([download('progressing')], () => new Promise((resolve) => { answer = resolve }))
+      const first = confirm(asking)
+      await expect(confirm(other)).resolves.toBe(false)
+      expect(asked).toHaveLength(1)
+      expect(showWindow).toHaveBeenCalledTimes(2)
+      answer({ response: 1, checkboxChecked: false })
+      await expect(first).resolves.toBe(true)
+    }
+  )
+
   it.each([
     ['behind other apps', {}],
     ['hidden in the tray', { isVisible: () => false }],

@@ -12,9 +12,16 @@ vi.mock('electron', () => ({
   }
 }))
 
+// The browser below stubs viewFrameSource, viewPageSource, which the menu reaches through this.
+vi.mock('../src/main/browser/page-source/page-source.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-source/page-source.js')>(),
+  viewFrameSource: (browser: { viewFrameSource: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.viewFrameSource(...args),
+  viewPageSource: (browser: { viewPageSource: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.viewPageSource(...args)
+}))
+
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 // A right-click inside a frame of the page offered nothing for the frame, where Chrome offers View Frame Source and
 // Reload Frame.
@@ -42,16 +49,16 @@ function openMenu(options: { url?: string; frame?: object | null; frameURL?: str
     navigationHistory: { canGoBack: () => false, canGoForward: () => false }
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url, mcpGroupId: 'client', webContents }
-  const access = {
-    findTab: () => built.closed ? undefined : tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+  const browser = {
+    get tabs() { return new Map(built.closed ? [] : [[tab.id, tab]]) },
+    window: {},
+    options: { copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
-    viewSource: vi.fn(async () => true),
+    viewPageSource: vi.fn(async () => true),
     viewFrameSource
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: url, frameURL: options.frameURL ?? FRAME, referrerPolicy: 'strict-origin-when-cross-origin',
     frame: (options.frame === undefined ? childFrame() : options.frame) as WebFrameMain | null

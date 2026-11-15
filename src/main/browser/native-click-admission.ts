@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto'
+import { pageFunctionExpression, pageScript } from '../../shared/page-script.js'
+import { nativeClickReceiverInPage, nativeClickSampleInPage, nativeClickTargetInPage } from './native-click-admission.page.js'
 import { NativeInputCleanupError } from './native-input-cleanup.js'
 import { RendererExitedError } from './renderer-exit-guard.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from './website-dialog-guard.js'
 import type { NativeInputDispatchObserver } from './native-key-hold.js'
 
-interface AttachedDebugger { sendCommand(method: string, params?: Record<string, unknown>): Promise<unknown> }
+interface AttachedDebugger { sendCommand(method: string, params?: Record<string, unknown>): Promise<unknown>; isAttached?(): boolean }
 interface Evaluation { result?: { objectId?: string; value?: unknown }; exceptionDetails?: unknown }
 export interface NativeClickProgress {
   inputCleanupFailed: boolean
@@ -18,7 +21,7 @@ export interface NativeClickProgress {
 }
 export const nativeClickProgress = (): NativeClickProgress => ({ inputCleanupFailed: false, preparationAttempted: false, moveAttempted: 0,
   moveAcknowledged: 0, downAttempted: 0, downAcknowledged: 0, upAttempted: 0, upAcknowledged: 0, targetCleanup: 'not-acquired' })
-const clickReasons = ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'TARGET_OCCLUDED', 'HIT_CHANGED',
+const clickReasons = ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'PAGE_PINCHED', 'TARGET_OCCLUDED', 'HIT_CHANGED',
   'TARGET_UNVERIFIABLE', 'HIT_UNVERIFIABLE', 'EMBEDDED_HIT_UNSUPPORTED', 'TARGET_UNAVAILABLE',
   'TARGET_CLEANUP_UNCONFIRMED', 'NATIVE_INPUT_CLEANUP_FAILED', 'CONTEXT_OR_INPUT_UNCERTAIN', 'CLICK_STATE_UNCONFIRMED'] as const
 export type NativeClickReason = typeof clickReasons[number]
@@ -46,58 +49,34 @@ export function nativeClickObserver(progress: NativeClickProgress, publish: () =
 
 // An operation-local object in an isolated realm retains the original node. No
 // page-global target registry, page-owned method call, or exported node identity.
-export function nativeClickTargetScript(target: { ref?: string; selector?: string }): string {
-  return `(() => {
-    const request = ${JSON.stringify(target)};
-    const contentType = Object.getOwnPropertyDescriptor(Document.prototype, 'contentType').get;
-    if (contentType.call(document) !== 'text/html') throw Error('TARGET_UNAVAILABLE');
-    const query = Document.prototype.querySelectorAll, item = NodeList.prototype.item;
-    const connected = Object.getOwnPropertyDescriptor(Node.prototype, 'isConnected').get;
-    const parent = Object.getOwnPropertyDescriptor(Node.prototype, 'parentNode').get;
-    const localName = Object.getOwnPropertyDescriptor(Element.prototype, 'localName').get;
-    const root = Node.prototype.getRootNode, contains = Node.prototype.contains;
-    const hit = Document.prototype.elementFromPoint, matches = Element.prototype.matches;
-    const selector = request.ref ? '[data-hronaut-ref="' + CSS.escape(request.ref) + '"]' : request.selector;
-    const resolve = () => { const nodes = query.call(document, selector); return nodes.length === 1 ? item.call(nodes, 0) : null; };
-    const original = resolve(), doc = document;
-    if (!original || root.call(original) !== doc) throw Error('TARGET_UNAVAILABLE');
-    return {
-      receiver: null,
-      sample(x, y, final) {
-        if (document !== doc || !connected.call(original) || root.call(original) !== doc || resolve() !== original) return 'TARGET_CHANGED';
-        if (matches.call(original, ':disabled')) return 'TARGET_DISABLED';
-        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return 'POINT_OUTSIDE_VIEWPORT';
-        const current = hit.call(doc, x, y);
-        if (!current || root.call(current) !== doc || !contains.call(original, current)) return 'TARGET_OCCLUDED';
-        let ancestor = current, depth = 0;
-        while (ancestor !== doc) {
-          if (!ancestor || ++depth > 64) return 'TARGET_UNVERIFIABLE';
-          if (ancestor instanceof Element && ['iframe','frame','object','embed'].includes(localName.call(ancestor).toLowerCase())) return 'EMBEDDED_HIT_UNSUPPORTED';
-          ancestor = parent.call(ancestor);
-        }
-        if (final && current !== this.receiver) return 'HIT_CHANGED';
-        if (!final) this.receiver = current;
-        return 'ADMITTED';
-      }
-    };
-  })()`
+export function nativeClickTargetScript(target: { ref?: string; selector?: string; refusePinch?: boolean }): string {
+  return pageScript(nativeClickTargetInPage, target)
 }
 
-/** Uses an ALREADY acquired debugger. Never enter BrowserDebuggerQueue here. */
-export async function acquireNativeClickAdmission(api: AttachedDebugger, target: { ref?: string; selector?: string },
-  validate: () => void, progress: NativeClickProgress, publish: () => void): Promise<{ sample(x: number, y: number): Promise<void>; dispose(): Promise<void> }> {
+/**
+ * Uses an ALREADY acquired debugger. Never enter BrowserDebuggerQueue here. The page is the one whose website dialog,
+ * such as a confirm the click opened, may hold the target's release; the target is released once that dialog closes.
+ */
+export async function acquireNativeClickAdmission(api: AttachedDebugger, target: { ref?: string; selector?: string; refusePinch?: boolean },
+  validate: () => void, progress: NativeClickProgress, publish: () => void,
+  page?: object): Promise<{ sample(x: number, y: number): Promise<void>; dispose(): Promise<void> }> {
   const group = `hronaut-native-click-${randomUUID()}`
   let disposed = false
-  const dispose = async (): Promise<void> => {
-    if (disposed) return
-    disposed = true
+  const release = async (): Promise<void> => {
     try { await api.sendCommand('Runtime.releaseObjectGroup', { objectGroup: group }); progress.targetCleanup = 'confirmed' }
     catch (cause) {
-      // The object group lived in the renderer and exited with it.
-      if (cause instanceof RendererExitedError) { progress.targetCleanup = 'confirmed'; return }
+      // The object group lived in the renderer and exited with it, or in the debugger session that ended.
+      if (cause instanceof RendererExitedError || api.isAttached?.() === false) { progress.targetCleanup = 'confirmed'; return }
+      // The page answers nothing until its website dialog closes, so the click returns now and the release waits.
+      if (cause instanceof WebsiteDialogOpenError && page) { void whenWebsiteDialogCloses(page).then(release).catch(() => undefined); return }
       progress.targetCleanup = 'unconfirmed'; throw new NativeClickAdmissionError('TARGET_CLEANUP_UNCONFIRMED', { ...progress }, cause)
     }
     finally { publish() }
+  }
+  const dispose = async (): Promise<void> => {
+    if (disposed) return
+    disposed = true
+    await release()
   }
   try {
     validate()
@@ -122,14 +101,14 @@ export async function acquireNativeClickAdmission(api: AttachedDebugger, target:
     }
     const sample = async (x: number, y: number): Promise<void> => {
       const inspect = async (final: boolean): Promise<void> => {
-        const result = await call('function(x,y,final) { return this.sample(x,y,final); }', [x, y, final])
+        const result = await call(pageFunctionExpression(nativeClickSampleInPage), [x, y, final])
         if (result.result?.value !== 'ADMITTED') {
           const reason = result.result?.value
-          throw new NativeClickAdmissionError(typeof reason === 'string' && ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'TARGET_OCCLUDED', 'HIT_CHANGED', 'EMBEDDED_HIT_UNSUPPORTED'].includes(reason) ? nativeClickReason(reason) : 'TARGET_UNVERIFIABLE', { ...progress })
+          throw new NativeClickAdmissionError(typeof reason === 'string' && ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'PAGE_PINCHED', 'TARGET_OCCLUDED', 'HIT_CHANGED', 'EMBEDDED_HIT_UNSUPPORTED'].includes(reason) ? nativeClickReason(reason) : 'TARGET_UNVERIFIABLE', { ...progress })
         }
       }
       await inspect(false)
-      const receiver = await call('function() { return this.receiver; }', [], false)
+      const receiver = await call(pageFunctionExpression(nativeClickReceiverInPage), [], false)
       if (!receiver.result?.objectId) throw new NativeClickAdmissionError('HIT_UNVERIFIABLE', { ...progress })
       // CDP can transport attributes/text even at depth zero. Consume only
       // receiver kind/root/frame metadata; never publish the raw descriptor.

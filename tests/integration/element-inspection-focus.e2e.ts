@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserElementInspection, BrowserState, HronautApi } from '../../src/shared/types.js'
 import { formatElementInspectionForAgent } from '../../src/shared/element-inspection.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
@@ -48,8 +48,7 @@ test('observes keyboard focus and restoration without changing the page or expos
     const opened = JSON.parse(text(await call('browser_new_tab', { url, active: true }))) as BrowserState
     const tabId = opened.activeTabId!
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id), tabId)
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#modalopener')).toBeVisible()
     await expect.poll(() => page.locator('#frame').evaluate((frame: HTMLIFrameElement) => Boolean(frame.contentDocument?.querySelector('input')))).toBe(true)
     const observe = async (selector: string) => {

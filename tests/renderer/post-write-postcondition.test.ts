@@ -36,6 +36,8 @@ it('bounds private inputs and treats selector payloads as data', () => {
   expect(() => read({ expectedAccount: '' })).toThrow(/account/)
   expect(() => read({ expectedText: 'é'.repeat(257) })).toThrow(/bound/)
   expect(() => read({ expectedOrigin: 'https://user:secret@example.invalid' })).toThrow(/origin/)
+  expect(() => read({ accountSelector: 'é'.repeat(129) })).toThrow(/selector/)
+  expect(() => read({ stateSelector: 'é'.repeat(129) })).toThrow(/selector/)
   expect(read({ stateSelector: '";window.injected=true;//' })).toBe('unavailable')
   expect((window as unknown as { injected?: boolean }).injected).toBeUndefined()
 })

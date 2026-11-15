@@ -9,6 +9,30 @@ describe('isHronautHomeUrl', () => {
     expect(isHronautHomeUrl('hronaut://home@other.example/')).toBe(false)
     expect(isHronautHomeUrl('hronaut://homepage/')).toBe(false)
   })
+
+  it('parses an address once while it is asked about again, and keeps answering right after many others', () => {
+    const Parser = globalThis.URL
+    let parses = 0
+    globalThis.URL = class extends Parser { constructor(...input: ConstructorParameters<typeof URL>) { super(...input); parses += 1 } }
+    try {
+      for (let round = 0; round < 3; round++) {
+        expect(isHronautHomeUrl('hronaut://home/?repeat')).toBe(true)
+        expect(isHronautHomeUrl('https://example.test/repeat')).toBe(false)
+      }
+      expect(parses).toBe(2)
+      for (let index = 0; index < 600; index++) isHronautHomeUrl(`https://example.test/${index}`)
+      expect(isHronautHomeUrl('hronaut://home/?repeat')).toBe(true)
+      expect(isHronautHomeUrl('hronaut://home@other.example/?repeat')).toBe(false)
+      // A long address, such as a data: page, is parsed each time instead of being kept.
+      const long = `data:text/html,${'x'.repeat(4096)}`
+      parses = 0
+      expect(isHronautHomeUrl(long)).toBe(false)
+      expect(isHronautHomeUrl(long)).toBe(false)
+      expect(parses).toBe(2)
+    } finally {
+      globalThis.URL = Parser
+    }
+  })
 })
 
 describe('normalizeAddress', () => {
@@ -102,6 +126,69 @@ describe('normalizeAddress', () => {
     expect(normalizeAddress(input)).toBe(expected)
   })
 
+  it.each([
+    ['intranet/', 'http://intranet/'],
+    ['go/', 'http://go/'],
+    ['My-PC/', 'http://My-PC/'],
+    ['go/docs/', 'http://go/docs/'],
+    ['intranet/?q=1', 'http://intranet/?q=1'],
+    ['wiki/#top', 'http://wiki/#top'],
+    ['wiki/page?id=4', 'http://wiki/page?id=4'],
+    ['wiki/page#intro', 'http://wiki/page#intro'],
+    ['wiki?id=4#intro', 'http://wiki?id=4#intro']
+  ])('opens a one-word host name with a path ending in a slash, or two of a path, query and fragment, as a local website: %s', (input, expected) => {
+    // It was searched for.
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it.each(['intranet', 'and/or', 'w/o', 'n/a', '1/', '-x/', 'go/docs', 'why?', 'why?not', 'and/or?', 'C#', 'F#/', 'to do/'])(
+    'still searches a word, or a word with only a path, a query or a fragment after it: %s', (input) => {
+      expect(webAddress(input)).toBeUndefined()
+    }
+  )
+
+  it('opens localhost followed by a slash over HTTP, as before', () => {
+    expect(normalizeAddress('localhost/')).toBe('http://localhost/')
+  })
+
+  it.each([
+    ['view-source:example.com', 'view-source:https://example.com'],
+    ['VIEW-SOURCE:example.com/docs', 'view-source:https://example.com/docs'],
+    ['view-source: localhost:3000', 'view-source:http://localhost:3000'],
+    ['view-source:devbox:3000/app', 'view-source:http://devbox:3000/app'],
+    ['view-source:192.168.1.1', 'view-source:http://192.168.1.1'],
+    ['view-source:https://example.com/', 'view-source:https://example.com/'],
+    ['view-source:intranet/', 'view-source:http://intranet/']
+  ])('reads the page of a view-source: address as a typed address, as in Chrome: %s', (input, expected) => {
+    // It stayed `view-source:example.com`, whose page was not read as an address.
+    expect(normalizeAddress(input)).toBe(expected)
+    // An agent's workspace tab may open it, as it may open the explicit form.
+    expect(isAgentWorkspaceNavigationUrl(normalizeAddress(input))).toBe(true)
+  })
+
+  it.each([
+    'view-source:',
+    'view-source:cheap flights',
+    'view-source:file:///tmp/notes.txt',
+    'view-source:tel:911',
+    'view-source:view-source:example.com',
+    'view-source: view-source:example.com',
+    'view-source:user:pass@example.com',
+    'view-source:javascript:alert(1)',
+    'view-source:hronaut://home',
+    'view-source:data:text/html,hi'
+  ])('keeps a view-source: address of no web page as typed: %s', (input) => {
+    expect(normalizeAddress(input)).toBe(input)
+  })
+
+  it('keeps a long chain of view-source: addresses as typed at once, as Chrome does', () => {
+    // Each one was read in turn, so a long chain blocked the window for seconds and then overflowed the stack.
+    const input = `${'view-source:'.repeat(200_000)}example.com`
+    const started = performance.now()
+    expect(webAddress(input)).toBe(input)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
   it.each(['tel:911', 'SMS:12345', 'sip:1001', 'facetime-audio:5551', 'web+demo:12', 'http:3000', 'HTTPS:443'])(
     'keeps %s as typed', (input) => {
       expect(normalizeAddress(input)).toBe(input)
@@ -175,6 +262,49 @@ describe('normalizeAddress', () => {
     ['1.2.3.4', 'https://1.2.3.4']
   ])('still opens %s: a full address, a trailing slash, or a local address with a port or path', (input, expected) => {
     expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it.each([
+    'node.js', 'index.html', 'package.json', 'browser.tabs.closeButtons', 'nas.lan', 'NODE.JS', 'node.js.', 'next.js/docs',
+    'node.js?v=22', 'node.js#install', 'printer.home', 'site.invalid', 'site.invalid/', 'site.invalid:80/a?b'
+  ])('searches %s, a dotted name whose last part is no top-level domain, as Chrome does', (input) => {
+    // These opened as sites, such as https://node.js, which no server answers.
+    expect(normalizeAddress(input)).toBe(`https://www.google.com/search?q=${encodeURIComponent(input)}`)
+  })
+
+  it.each([
+    ['nas.lan/', 'http://nas.lan/'],
+    ['nas.lan\\', 'http://nas.lan\\'],
+    ['node.js/docs/', 'http://node.js/docs/'],
+    ['nas.lan:5000', 'http://nas.lan:5000'],
+    ['nas.lan:443/', 'https://nas.lan:443/'],
+    ['wiki.corp/page?id=4', 'http://wiki.corp/page?id=4'],
+    ['docs.lan/guide#install', 'http://docs.lan/guide#install'],
+    ['wiki.corp?page=4#top', 'http://wiki.corp?page=4#top'],
+    ['example.com', 'https://example.com'],
+    ['Example.COM.', 'https://Example.COM.'],
+    ['README.md', 'https://README.md'],
+    ['app.dev', 'https://app.dev'],
+    ['bbc.co.uk', 'https://bbc.co.uk'],
+    ['site.example', 'http://site.example'],
+    ['abcdefghijklmnop.onion', 'http://abcdefghijklmnop.onion'],
+    ['api.test', 'http://api.test'],
+    ['printer.local', 'http://printer.local'],
+    ['db.internal', 'http://db.internal'],
+    ['nas.home.arpa', 'http://nas.home.arpa'],
+    ['dev.localhost', 'http://dev.localhost'],
+    ['\u4f8b\u5b50.\u4e2d\u56fd', 'https://\u4f8b\u5b50.\u4e2d\u56fd']
+  ])('still opens %s: a known or special-use top-level domain, a port, a trailing slash, or two of a path, a query and a fragment', (
+    input, expected
+  ) => {
+    // One under no top-level domain, which no public certificate can name, opens over HTTP, as in Chrome.
+    expect(normalizeAddress(input)).toBe(expected)
+  })
+
+  it('shows the source of a page under no top-level domain, as Chrome reads any name after view-source:', () => {
+    expect(normalizeAddress('view-source:node.js')).toBe('view-source:http://node.js')
+    expect(normalizeAddress('view-source:nas.lan/admin')).toBe('view-source:http://nas.lan/admin')
+    expect(normalizeAddress('view-source:example.com')).toBe('view-source:https://example.com')
   })
 
   it('searches email-shaped input instead of treating it as URL credentials', () => {

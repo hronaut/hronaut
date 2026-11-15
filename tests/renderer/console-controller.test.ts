@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useConsoleController } from '../../src/renderer/src/composables/useConsoleController.js'
+import { useConsoleController } from '../../src/renderer/src/features/console/useConsoleController.js'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import type { BrowserConsoleMessage, BrowserTabState } from '../../src/shared/types.js'
 

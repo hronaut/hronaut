@@ -4,6 +4,8 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { workspaceIdSchema } from '../../tool-schemas.js'
 import { workspacePreflight } from '../../workspace-preflight.js'
 import type { McpToolContext } from '../tool-context.js'
+import { getMcpGroupState, tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
+import { isTabAgentPaused } from '../../../browser/agent-pause/agent-pause.js'
 
 export function registerBrowserPreflight(context: McpToolContext): void {
   const {
@@ -35,19 +37,19 @@ export function registerBrowserPreflight(context: McpToolContext): void {
         // Audit admission can await disk I/O. Recheck ownership afterwards.
         let workspace
         try { workspace = requireAgentWorkspace(workspaceId) } catch { return unavailable() }
-        const state = manager.getMcpGroupState(workspaceId)
+        const state = getMcpGroupState(manager, workspaceId)
         const selected = state.tabs.find(tab => tab.id === (tabId ?? state.activeTabId))
         const attention = getUserAttention()
         const attentionRequired = !!attention && (
           attention.workspaceId === workspaceId
           || (attention.workspaceId === undefined && attention.tabId !== undefined
-            && manager.tabBelongsToMcpGroup(workspaceId, attention.tabId))
+            && tabBelongsToMcpGroup(manager, workspaceId, attention.tabId))
         )
         return textResult(workspacePreflight({
           authorized: true,
           tab: selected ? { url: selected.url, loading: selected.loading, sleeping: selected.sleeping } : null,
           policy: workspace.navigationPolicy,
-          expectedOrigin, paused: selected ? (manager.isTabAgentPaused?.(selected.id) ?? getPaused()) : getPaused(), attentionRequired
+          expectedOrigin, paused: selected ? isTabAgentPaused(manager, selected.id) : getPaused(), attentionRequired
         }))
       }
       return auditReceipts ? auditReceipts.execute(workspaceId, {

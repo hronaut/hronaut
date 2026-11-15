@@ -1,0 +1,60 @@
+export const deDEPwaLifecycle = {
+  title: 'Service-Worker-Verlauf',
+  note: 'Nur beobachtete Änderungen; frühere oder schnelle Übergänge können fehlen.',
+  start: '2 Minuten beobachten',
+  stop: 'Worker-Beobachtung stoppen',
+  refresh: 'Aktualisieren',
+  clear: 'Verlauf löschen',
+  active: 'Worker werden beobachtet',
+  stopped: 'Aufzeichnung beendet',
+  waiting: 'Wartend',
+  coverage: 'Abdeckung und Datenschutz',
+  caveats: {
+    observedTimes: 'Zeiten zeigen, wann eine Änderung beobachtet wurde, nicht wann sie geschah, und eine Aufzeichnung hat nie den vollständigen Verlauf.',
+    polling: 'Registrierungen werden einmal pro Sekunde geprüft, daher können frühe Übergänge und kurzlebige Registrierungen fehlen.',
+    scope: 'Registrierungen gehören zu diesem Top-Level-Ursprung und Arbeitsbereich, nicht nur zu diesem Tab.',
+    identities: 'Worker-Kennungen gelten nur für diese Aufzeichnung und unterscheiden Versionen desselben Skripts.',
+    interruption: 'Navigieren, Neuladen oder Schließen der Seite sowie der Verlust des Debuggers oder des Zugriffs unterbrechen die Aufzeichnung. Beim Stoppen oder einer Unterbrechung können noch nicht gelesene Ereignisse fehlen.',
+    limits: 'Eine Aufzeichnung behält höchstens 100 Ereignisse, 20 Registrierungen und 100 Worker für bis zu zwei Minuten; fünf Aufzeichnungen bleiben im Speicher, und eine neue entfernt die älteste beendete.',
+    longUrls: 'Adressen mit mehr als 2.048 Zeichen werden ausgelassen, statt eine Adresse, die Zugangsdaten enthalten kann, teilweise zu zeigen.',
+    metadataOnly: 'Es werden nur Metadaten beobachtet. Hronaut aktualisiert, benachrichtigt, aktiviert oder startet nie Worker, leert keine Caches und ändert keine Berechtigungen.',
+    sleeping: 'Schlafende oder eingefrorene Tabs werden nicht geweckt. Ruhezustand oder Einfrieren unterbricht die Aufzeichnung, statt die Seite aktiv zu halten.',
+    snapshot: 'Abrufe zeigen die zuletzt erfasste Momentaufnahme. Ein vollständiger Verlauf oder die gesamte Lebensdauer jedes Workers ist nicht garantiert.'
+  },
+  kinds: {
+    initial: 'Aufzeichnung gestartet',
+    'registration-initial': 'Registrierung vorhanden',
+    'registration-discovered': 'Registrierung gefunden',
+    'registration-removed': 'Registrierung entfernt',
+    updatefound: 'Update gefunden',
+    statechange: 'Status geändert',
+    controllerchange: 'Controller gewechselt'
+  },
+  workerStates: {
+    parsed: 'geparst',
+    installing: 'wird installiert',
+    installed: 'installiert',
+    activating: 'wird aktiviert',
+    activated: 'aktiviert',
+    redundant: 'veraltet'
+  },
+  reasons: {
+    stopped: 'auf Anforderung gestoppt',
+    replaced: 'durch neue Aufzeichnung ersetzt',
+    shutdown: 'Hronaut beendet',
+    navigation: 'Seite hat navigiert',
+    'renderer-unavailable': 'Seitenprozess beendet',
+    'debugger-detached': 'Debugger getrennt',
+    'duration-limit': 'Zwei-Minuten-Limit erreicht',
+    'initial-read-unavailable': 'erstes Auslesen fehlgeschlagen',
+    'page-observer-unavailable': 'Seitenbeobachter beendet',
+    'context-or-authority-lost': 'Seitenkontext verloren',
+    'worker-limit': 'Worker-Limit erreicht',
+    'event-limit': 'Ereignislimit erreicht',
+    'registration-limit': 'Registrierungslimit erreicht',
+    'discovery-unavailable': 'Registrierungssuche fehlgeschlagen',
+    unsupported: 'Service Worker nicht unterstützt',
+    'workspace-control-changed': 'Arbeitsbereichssteuerung geändert',
+    'ownership-released': 'Arbeitsbereich freigegeben'
+  }
+}

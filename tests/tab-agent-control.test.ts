@@ -1,20 +1,33 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState } from '../src/shared/types.js'
 import { requireTabAgentControl } from '../src/main/mcp/tab-agent-control.js'
+
+// The fake browsers below stub the functions the check goes through; these reach their stubs.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused(...args),
+  isTabTakenOver: (browser: { isTabTakenOver: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver(...args),
+  hasPausedAgentTab: (browser: { hasPausedAgentTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  getMcpGroupState: (browser: { getMcpGroupState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpGroupState(...args)
+}))
 
 function fixture(global = true) {
   const paused = new Set(['blocked'])
   const state = { activeTabId: 'allowed', tabs: [{ id: 'allowed' }, { id: 'blocked' }] } as BrowserState
   const manager = {
-    getState: () => state,
+    hasPausedAgentTab: () => state.tabs.some(tab => paused.has(tab.id)),
     getMcpGroupState: (id: string) => {
       if (id !== 'workspace') throw new Error('Unknown workspace')
       return state
     },
-    isTabAgentPaused: (id: string) => paused.has(id)
+    isTabAgentPaused: (id: string) => paused.has(id),
+    isTabTakenOver: () => false
   }
   return { paused, state, check: (name: string, input: Record<string, unknown>, targeted = false, resolved?: string) =>
-    requireTabAgentControl(manager, global, name, input, targeted, resolved) }
+    requireTabAgentControl(manager as never, global, name, input, targeted, resolved) }
 }
 
 describe('per-tab agent authorization', () => {
@@ -56,12 +69,12 @@ describe('a tab the person took over', () => {
     const paused = new Set(['taken'])
     const state = { activeTabId: 'taken', tabs: [{ id: 'free' }, { id: 'taken' }] } as BrowserState
     const manager = {
-      getState: () => state,
+      hasPausedAgentTab: () => state.tabs.some(tab => paused.has(tab.id)),
       getMcpGroupState: () => state,
       isTabAgentPaused: (id: string) => paused.has(id),
       isTabTakenOver: (id: string) => id === 'taken'
     }
-    return (input: Record<string, unknown>) => requireTabAgentControl(manager, global, 'browser_click', input, true)
+    return (input: Record<string, unknown>) => requireTabAgentControl(manager as never, global, 'browser_click', input, true)
   }
 
   it('tells the agent the person has control and how it hears of the hand back', () => {

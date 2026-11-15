@@ -1,0 +1,185 @@
+import { EventEmitter } from 'node:events'
+import { describe, expect, it, vi } from 'vitest'
+import { BrowserDebuggerQueue } from '../src/main/browser/debugger-queue.js'
+import {
+  closeWebsiteDialogBox, closeWebsiteDialogBoxOfDestroyedPage, handleDialog, WebsiteDialogChangedError, withOptionalDialogHandling
+} from '../src/main/browser/website-dialogs/website-dialogs.js'
+
+// The debugger reports a website dialog before Electron handles it. Electron shows a box for an alert or confirm, and
+// answers a page asking before it unloads, or a prompt, itself at once. Answering through the debugger closes the
+// dialog but not Electron's box, which Hronaut closes as the dialog closes.
+
+type DialogType = 'alert' | 'confirm' | 'prompt' | 'beforeunload'
+
+function fixture() {
+  const events: string[] = []
+  let showing = false
+  let attached = true
+  const debuggerEvents = new EventEmitter()
+  const close = (by: string) => {
+    showing = false
+    events.push(`closed by ${by}`)
+    debuggerEvents.emit('message', {}, 'Page.javascriptDialogClosed', {})
+  }
+  const webContents = Object.assign(new EventEmitter(), {
+    id: 7,
+    isDestroyed: () => false,
+    isDevToolsOpened: () => false,
+    debugger: Object.assign(debuggerEvents, {
+      isAttached: () => attached,
+      attach: vi.fn(() => { attached = true }),
+      /** As opening the page's Developer Tools detaches it. */
+      detach: () => { attached = false },
+      // Chromium closes the dialog, and reports it closed, before the command returns.
+      sendCommand: vi.fn(async (method: string, params?: { accept: boolean }) => {
+        if (method !== 'Page.handleJavaScriptDialog') return {}
+        if (!showing) throw new Error('No dialog is showing')
+        close(params?.accept ? 'accept' : 'dismiss')
+        return {}
+      })
+    })
+  })
+  webContents.on('-cancel-dialogs', () => events.push('box closed'))
+  // As the page's debugger events do.
+  debuggerEvents.on('message', (_event: unknown, method: string) => {
+    if (method === 'Page.javascriptDialogClosed') closeWebsiteDialogBox(webContents as never)
+  })
+  const tab: { id: string, webContents: typeof webContents, dialog?: { id?: string, type: DialogType, message: string } } = { id: 'tab-1', webContents }
+  const debuggerQueue = new BrowserDebuggerQueue()
+  const dialogMonitorAttachPromises = new Map<number, Promise<void>>()
+  const browser = {
+    destroyed: false,
+    debuggerQueue,
+    dialogMonitorAttachPromises,
+    devToolsOpening: new Set<number>(),
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id
+  } as never
+
+  /** The page opens a dialog; Electron handles it once the debugger's listeners and their microtasks have run. */
+  function pageOpens(type: DialogType, electron: 'shows a box' | 'answers it' | 'turns it down'): void {
+    showing = true
+    debuggerEvents.emit('message', {}, 'Page.javascriptDialogOpening', { type, message: 'Unsaved draft' })
+    setImmediate(() => {
+      if (electron === 'shows a box') events.push('box shown')
+      else if (showing) close(electron === 'answers it' ? 'Electron' : 'Electron, the site is blocked')
+    })
+  }
+  return { events, webContents, tab, browser, debuggerQueue, dialogMonitorAttachPromises, pageOpens, close }
+}
+
+describe('answering website dialogs through the debugger', () => {
+  it.each(['alert', 'confirm'] as const)('answers an agent\'s %s once its box shows, and closes the box', async (type) => {
+    const f = fixture()
+    await withOptionalDialogHandling(f.browser, f.webContents as never, { dialogAction: 'accept' }, async () => {
+      f.pageOpens(type, 'shows a box')
+    })
+    expect(f.events).toEqual(['box shown', 'closed by accept', 'box closed'])
+  })
+
+  it.each(['beforeunload', 'prompt'] as const)('answers an agent\'s %s before Electron answers it itself', async (type) => {
+    const f = fixture()
+    await withOptionalDialogHandling(f.browser, f.webContents as never, { dialogAction: 'accept', promptText: 'typed' }, async () => {
+      f.pageOpens(type, 'answers it')
+    })
+    expect(f.events).toEqual(['closed by accept', 'box closed'])
+    expect(f.webContents.debugger.sendCommand).toHaveBeenCalledWith('Page.handleJavaScriptDialog', { accept: true, promptText: 'typed' })
+  })
+
+  it('leaves an alert Electron turned down at once, as for a blocked site, without failing the agent\'s action', async () => {
+    const f = fixture()
+    await expect(withOptionalDialogHandling(f.browser, f.webContents as never, { dialogAction: 'accept' }, async () => {
+      f.pageOpens('alert', 'turns it down')
+      return 'clicked'
+    })).resolves.toBe('clicked')
+    expect(f.events).toEqual(['closed by Electron, the site is blocked'])
+    expect(f.webContents.debugger.sendCommand).not.toHaveBeenCalledWith('Page.handleJavaScriptDialog', expect.anything())
+  })
+
+  it('closes the box of an alert the agent answers with browser_dialog', async () => {
+    const f = fixture()
+    f.pageOpens('alert', 'shows a box')
+    await new Promise((resolve) => setImmediate(resolve))
+    await handleDialog(f.browser, 'dismiss', f.tab.id)
+    expect(f.events).toEqual(['box shown', 'closed by dismiss', 'box closed'])
+  })
+
+  // A page that alerts as monitoring is set up holds that set-up, which every debugger operation waits for.
+  it('answers a dialog the page shows without waiting for monitoring set-up or earlier page commands', async () => {
+    const f = fixture()
+    f.dialogMonitorAttachPromises.set(7, new Promise(() => undefined))
+    void f.debuggerQueue.run(7, () => new Promise<void>(() => undefined))
+    f.pageOpens('alert', 'shows a box')
+    f.tab.dialog = { type: 'alert', message: 'Unsaved draft' }
+    await new Promise((resolve) => setImmediate(resolve))
+    await expect(handleDialog(f.browser, 'accept', f.tab.id)).resolves.toEqual({ handled: true, action: 'accept' })
+    expect(f.events).toEqual(['box shown', 'closed by accept', 'box closed'])
+  })
+
+  // The agent read a confirm; the person answered it, and the page asked another one, which took the agent's answer.
+  it('answers only the dialog the agent read when it names it', async () => {
+    const f = fixture()
+    const read = '5f0c8a1e-2b3d-4e6f-8a9b-0c1d2e3f4a5b'
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: read, type: 'confirm', message: 'Save the draft?' }
+    await new Promise((resolve) => setImmediate(resolve))
+    f.close('the person')
+    f.tab.dialog = undefined
+    await expect(handleDialog(f.browser, 'accept', f.tab.id, read))
+      .rejects.toThrow(WebsiteDialogChangedError)
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', type: 'confirm', message: 'Delete the draft?' }
+    await new Promise((resolve) => setImmediate(resolve))
+    await expect(handleDialog(f.browser, 'accept', f.tab.id, read))
+      .rejects.toThrow('Hronaut no longer sees the dialog you read showing; nothing was answered.')
+    expect(f.webContents.debugger.sendCommand).not.toHaveBeenCalledWith('Page.handleJavaScriptDialog', expect.anything())
+    await expect(handleDialog(f.browser, 'dismiss', f.tab.id, '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d')).resolves.toEqual({ handled: true, action: 'dismiss' })
+    expect(f.events).toEqual(['box shown', 'closed by the person', 'box shown', 'closed by dismiss', 'box closed'])
+  })
+
+  // Without the debugger attached, the answer waits its turn behind page commands, and the page may show another dialog
+  // meanwhile.
+  it('answers nothing when the dialog the agent named changed while its answer waited its turn', async () => {
+    const f = fixture()
+    const read = '5f0c8a1e-2b3d-4e6f-8a9b-0c1d2e3f4a5b'
+    f.webContents.debugger.detach()
+    let releaseEarlierCommand = (): void => undefined
+    void f.debuggerQueue.run(7, () => new Promise<void>((resolve) => { releaseEarlierCommand = resolve }))
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: read, type: 'confirm', message: 'Save the draft?' }
+    await new Promise((resolve) => setImmediate(resolve))
+    const answering = handleDialog(f.browser, 'accept', f.tab.id, read)
+    f.close('the person')
+    f.pageOpens('confirm', 'shows a box')
+    f.tab.dialog = { id: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', type: 'confirm', message: 'Delete the draft?' }
+    releaseEarlierCommand()
+    await expect(answering).rejects.toThrow(WebsiteDialogChangedError)
+    expect(f.webContents.debugger.sendCommand).not.toHaveBeenCalledWith('Page.handleJavaScriptDialog', expect.anything())
+  })
+
+  it('closes no box for a dialog the person answered in it', async () => {
+    const f = fixture()
+    f.pageOpens('confirm', 'shows a box')
+    await new Promise((resolve) => setImmediate(resolve))
+    f.close('the person')
+    expect(f.events).toEqual(['box shown', 'closed by the person'])
+  })
+
+  it('closes no box later when an answer found no dialog', async () => {
+    const f = fixture()
+    await expect(handleDialog(f.browser, 'accept', f.tab.id)).rejects.toThrow('No dialog is showing')
+    f.pageOpens('alert', 'shows a box')
+    await new Promise((resolve) => setImmediate(resolve))
+    f.close('the person')
+    expect(f.events).toEqual(['box shown', 'closed by the person'])
+  })
+
+  // Electron closes no box when a page is destroyed, as when an agent closed the tab, and the box kept the window disabled.
+  it('closes the box of a dialog whose page was destroyed', async () => {
+    const f = fixture()
+    f.pageOpens('alert', 'shows a box')
+    await new Promise((resolve) => setImmediate(resolve))
+    closeWebsiteDialogBoxOfDestroyedPage(f.webContents as never)
+    expect(f.events).toEqual(['box shown', 'box closed'])
+  })
+})

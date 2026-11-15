@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// Redesign QA for #872: Home as mission control. Each workspace card's live status and its in-place update, the card
-// menu, the tab tiles, the greeting, and Undo after archive and clear. The connected agents list has its own file.
+// Redesign QA for #872 and HRO-65: each workspace card's live status and its in-place update, the card menu, the tab
+// tiles, the card's header, the list itself, Home's header, the Agents view, the needs-you line, and Undo after archive
+// and clear. The connected agents list has its own file.
 import { describe, expect, it, vi } from 'vitest'
 import type { HomeDashboard, HomeWorkspaceActivity } from '../src/shared/home.js'
 import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
@@ -116,6 +117,57 @@ describe('Workspace card menu (#872)', () => {
     return { home, menu, workspaceAction, summary: query('summary', menu), open: query<HTMLButtonElement>('[data-workspace-action="open"]', card('Acme Store')) }
   }
 
+  it('stays open, with its items and the focus on them, while an agent browses: only the tiles and counts change', async () => {
+    const cart = { id: 'a', mcpGroupId: 'shop', title: 'Cart', url: 'https://shop.example/cart' }
+    let workspaces = inventory({ tabs: [cart] })
+    const getWorkspaces = vi.fn(async () => workspaces)
+    mountTestHome({ workspaces, api: { getWorkspaces } })
+    await flush()
+    const node = card('Acme Store')
+    const header = query('header', node)
+    const menu = query<HTMLDetailsElement>('.card-menu', node)
+    menu.open = true
+    const clear = query<HTMLButtonElement>('[data-workspace-action="clear"]', menu)
+    clear.focus()
+    expect(words(query('.card-tabs', node))).toBe('SCart')
+    expect(cardStatus('Acme Store').text).toBe('Last used 1 hour ago')
+    const keeps = () => {
+      expect(query('header', node)).toBe(header)
+      expect(query('[data-workspace-action="clear"]', node)).toBe(clear)
+      expect(menu.open).toBe(true)
+      expect(document.activeElement).toBe(clear)
+    }
+
+    // The agent opens another page on the same site, which also marks the workspace as just used.
+    const reads = getWorkspaces.mock.calls.length
+    const used = { ...shop, lastUsedAt: isoMinutesAgo(0) }
+    workspaces = inventory({ mcpTabGroups: [used, docs], tabs: [{ ...cart, title: 'Payment', url: 'https://shop.example/pay' }] })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(getWorkspaces.mock.calls.length).toBeGreaterThan(reads)
+    expect(words(query('.card-tabs', node))).toBe('SPayment')
+    expect(cardStatus('Acme Store').text).toBe('Last used now')
+    keeps()
+
+    // It opens a second tab on another site: the card's tab count and its menu's website count follow.
+    workspaces = inventory({
+      mcpTabGroups: [{ ...used, storageOriginCount: 2 }, docs],
+      tabs: [cart, { ...cart, id: 'b', title: 'Docs', url: 'https://docs.example/' }]
+    })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(words(query('.card-count', node))).toBe('2 tabs')
+    expect(words(query('.card-menu-note', node))).toBe('2 known websites')
+    expect(words(query('.card-tabs', node))).toBe('SCartDDocs')
+    keeps()
+
+    // A setting changes what the menu shows, so the card is drawn again, still open on the same item.
+    workspaces = inventory({ mcpTabGroups: [{ ...used, storageOriginCount: 2, hiddenFromSidebar: true }, docs], tabs: [cart] })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(query('header', node)).not.toBe(header)
+    expect(query<HTMLDetailsElement>('.card-menu', node).open).toBe(true)
+    expect(document.activeElement).toBe(query('[data-workspace-action="clear"]', node))
+    expect(words(query('.card-count', node))).toBe('1 tab')
+  })
+
   it('names its button after the workspace', async () => {
     const { summary } = await mountWithMenu()
     expect(summary.getAttribute('aria-label')).toBe('More actions for Acme Store')
@@ -220,6 +272,32 @@ describe('Workspace card menu (#872)', () => {
     expect(document.activeElement).toBe(summary)
     expect(workspaceAction).toHaveBeenCalledWith({ view: 'edit', workspaceId: 'shop' })
   })
+
+  it('copies the key for an agent through main and says where to paste it, only while agents may use the workspace', async () => {
+    const personal = { ...docs, agentAccess: false }
+    const workspaces = inventory({ mcpTabGroups: [shop, personal], savedTabGroups: [archivedWorkspace(openWorkspace('old', { name: 'Old' }))] })
+    const workspaceAction = vi.fn().mockResolvedValue(workspaces)
+    mountTestHome({ workspaces, api: { workspaceAction } })
+    await flush()
+    const copy = query<HTMLButtonElement>('[data-workspace-action="copy-agent-key"]', card('Acme Store'))
+    expect(copy.getAttribute('aria-label')).toBe('Copy key for an agent')
+    expect(words(byId(copy.getAttribute('aria-describedby')!))).toBe('Paste it into an agent’s chat to continue in this workspace.')
+    // The sites count keeps its own note, which the card updates as the agent browses.
+    expect(words(query('.card-menu-note', card('Acme Store')))).toBe('0 known websites')
+    expect(card('Docs').querySelector('[data-workspace-action="copy-agent-key"]')).toBeNull()
+    query<HTMLButtonElement>('#workspaces-archived').click()
+    await flush()
+    expect(card('Old').querySelector('[data-workspace-action="copy-agent-key"]')).toBeNull()
+    query<HTMLButtonElement>('#workspaces-open').click()
+    await flush()
+
+    query<HTMLDetailsElement>('.card-menu', card('Acme Store')).open = true
+    query<HTMLButtonElement>('[data-workspace-action="copy-agent-key"]', card('Acme Store')).click()
+    await flush()
+    expect(workspaceAction).toHaveBeenCalledExactlyOnceWith({ view: 'copy-agent-key', workspaceId: 'shop' })
+    expect(words(byId('workspace-notice'))).toBe('Key for “Acme Store” copied. Paste it into your agent’s chat.')
+    expect(byId('workspace-undo').hidden).toBe(true)
+  })
 })
 
 describe('Workspace card tab tiles (#872)', () => {
@@ -242,7 +320,7 @@ describe('Workspace card tab tiles (#872)', () => {
     expect(tiles().filter(tile => tile.matches('.card-tab:not(.card-tab-more)')).map(tile => words(tile.querySelector('.card-tab-title'))))
       .toEqual(tabs(shown).map(tab => tab.title))
     expect(card('Acme Store').querySelector('.card-tab-more')?.textContent ?? null).toBe(more)
-    expect(words(query('.card-meta', card('Acme Store')))).toBe(`${count === 1 ? '1 tab' : `${count} tabs`} · 0 known websites`)
+    expect(words(query('.card-count', card('Acme Store')))).toBe(count === 1 ? '1 tab' : `${count} tabs`)
   })
 
   it('says a workspace has no open pages yet', async () => {
@@ -310,44 +388,319 @@ describe('Workspace card tab tiles (#872)', () => {
   })
 })
 
-describe('Home greeting and agent chips (#872)', () => {
-  it.each([
-    [0, 0, 'Good evening'], [4, 59, 'Good evening'], [5, 0, 'Good morning'], [11, 59, 'Good morning'],
-    [12, 0, 'Good afternoon'], [17, 59, 'Good afternoon'], [18, 0, 'Good evening'], [23, 30, 'Good evening']
-  ])('greets at %i:%i local time with "%s"', async (hour, minute, greeting) => {
-    vi.setSystemTime(new Date(2026, 8, 13, hour, minute, 0))
-    mountTestHome()
+describe('Workspace card header and list (HRO-65)', () => {
+  // A badge is named by its tooltip alone, so a screen reader reads its name once.
+  const badges = (name: string) => [...card(name).querySelectorAll<HTMLElement>('.card-badge')]
+    .map(badge => ({ role: badge.getAttribute('role'), label: badge.getAttribute('aria-label'), tooltip: badge.title, icon: Boolean(badge.querySelector('svg')) }))
+
+  it('keeps the name\'s row for the name and its menu, with the tab count and each setting as a named icon on a line under it', async () => {
+    const guarded = openWorkspace('guarded', {
+      name: 'Guarded', agentAccess: false, hiddenFromSidebar: true, deletionProtected: true, navigationPolicy: { mode: 'restricted', rules: [] }
+    })
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [shop, guarded], tabs: [{ id: 'a', mcpGroupId: 'guarded', title: 'Cart', url: 'https://shop.example/' }] }) })
     await flush()
-    expect(words(byId('home-view-title'))).toBe(greeting)
+    const header = query('header', card('Guarded'))
+    expect([...header.children].map(child => child.className || child.tagName.toLowerCase())).toEqual(['workspace-dot', 'h2', 'card-menu'])
+    const facts = query('.card-facts', card('Guarded'))
+    expect(facts.previousElementSibling).toBe(header)
+    expect([...facts.children].map(child => child.className)).toEqual(['card-count', 'card-badge', 'card-badge', 'card-badge', 'card-badge'])
+    expect(words(query('.card-count', facts))).toBe('1 tab')
+    expect(badges('Guarded')).toEqual([
+      'Direct agent access off · Sign-in copying allowed', 'Hidden from sidebar', 'Deletion protected', 'Selected sites only'
+    ].map(tooltip => ({ role: 'img', label: null, tooltip, icon: true })))
+    expect(badges('Acme Store')).toEqual([])
+    expect(card('Guarded').querySelector('.card-meta, .home-workspace-badges')).toBeNull()
   })
 
-  it('greets only on the Workspaces view', async () => {
-    const home = mountTestHome()
+  it('shows an archived workspace\'s settings the same way', async () => {
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace({ ...shop, deletionProtected: true })] }) })
     await flush()
-    byId<HTMLButtonElement>('home-tab-connect').click()
-    expect(words(byId('home-view-title'))).toBe(home.data.messages.home.connect.heading)
+    byId<HTMLButtonElement>('workspaces-archived').click()
+    expect(badges('Acme Store').map(badge => badge.tooltip)).toEqual(['Deletion protected'])
+  })
+
+  it('names the settings only its icons show in its menu too, where the keyboard reaches them', async () => {
+    const guarded = openWorkspace('guarded', {
+      name: 'Guarded', agentAccess: false, hiddenFromSidebar: true, navigationPolicy: { mode: 'restricted', rules: [] }
+    })
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [shop, guarded] }) })
+    await flush()
+    const facts = (name: string) => [...card(name).querySelectorAll<HTMLElement>('.card-menu .card-menu-fact')]
+      .map(fact => ({ text: words(fact), icon: Boolean(fact.querySelector('svg')) }))
+    expect(facts('Guarded')).toEqual([
+      { text: 'Direct agent access off · Sign-in copying allowed', icon: true }, { text: 'Selected sites only', icon: true }
+    ])
+    // Hidden and protected already read in the menu as checked boxes.
+    expect(query<HTMLInputElement>('[data-workspace-preference="hiddenFromSidebar"]', card('Guarded')).checked).toBe(true)
+    expect(facts('Acme Store')).toEqual([])
+  })
+
+  it.each([[0, '0 known websites'], [1, '1 known website'], [3, '3 known websites']])(
+    'counts %i websites with kept data on Copy or move data, not on the card', async (sites, text) => {
+      mountTestHome({ workspaces: inventory({ mcpTabGroups: [{ ...shop, storageOriginCount: sites }] }) })
+      await flush()
+      const transfer = query<HTMLButtonElement>('[data-workspace-action="transfer"]', card('Acme Store'))
+      expect(words(query('.card-menu-note', transfer))).toBe(text)
+      expect(words(transfer)).toBe(`Copy or move data${text}`)
+      // The item keeps its name; the count is its description.
+      expect(transfer.getAttribute('aria-label')).toBe('Copy or move data')
+      expect(byId(transfer.getAttribute('aria-describedby')!)).toBe(query('.card-menu-note', transfer))
+      const outsideMenu = card('Acme Store').cloneNode(true) as HTMLElement
+      outsideMenu.querySelector('.card-menu')!.remove()
+      expect(words(outsideMenu)).not.toContain('known website')
+    })
+
+  it('lists only workspaces: no tile for a new one and no standing hint, while Create workspace stays in the toolbar', async () => {
+    mountTestHome({ workspaces: inventory() })
+    await flush()
+    expect([...byId('workspace-grid').children].map(child => child.className)).toEqual(['home-workspace-card', 'home-workspace-card'])
+    expect(document.querySelector('#workspace-hint, .new-workspace-tile')).toBeNull()
+    expect(query('.workspace-toolbar [data-workspace-action="create"]').textContent).toBe('Create workspace')
+    byId<HTMLButtonElement>('workspaces-archived').click()
+    expect(words(byId('workspace-grid'))).toBe('No archived workspacesArchived workspaces keep their tabs and sign-ins. Restore one whenever you need it.')
+  })
+})
+
+describe('One header for every view (HRO-65)', () => {
+  it.each([[0, 0], [9, 30], [14, 5], [21, 45]])('names the Workspaces view, never a greeting, at %i:%i local time', async (hour, minute) => {
+    vi.setSystemTime(new Date(2026, 8, 13, hour, minute, 0))
+    mountTestHome({ workspaces: inventory() })
+    await flush()
+    expect(words(byId('home-view-title'))).toBe('Workspaces')
+  })
+
+  it('names each of the three views', async () => {
+    mountTestHome({ workspaces: inventory() })
+    await flush()
+    expect([...document.querySelectorAll('.home-navigation [role=tab]')].map(words)).toEqual(['Tabs', 'Workspaces', 'Agents'])
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(words(byId('home-view-title'))).toBe('Agents')
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    expect(words(byId('home-view-title'))).toBe('Tabs')
     byId<HTMLButtonElement>('home-tab-workspaces').click()
-    expect(words(byId('home-view-title'))).toBe('Good morning')
+    expect(words(byId('home-view-title'))).toBe('Workspaces')
+  })
+
+  it.each<{ name: string; workspaces: HomeWorkspaceState; summary: string }>([
+    { name: 'no workspace', workspaces: emptyWorkspaces, summary: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.' },
+    { name: 'open workspaces', workspaces: inventory(), summary: '2 open' },
+    { name: 'open and archived workspaces', workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] }), summary: '1 open · 1 archived' },
+    { name: 'archived workspaces only', workspaces: inventory({ mcpTabGroups: [], savedTabGroups: [archivedWorkspace(shop)] }), summary: '0 open · 1 archived' }
+  ])('counts $name under the Workspaces name', async ({ workspaces, summary }) => {
+    mountTestHome({ workspaces, dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } } })
+    await flush()
+    expect(words(byId('home-view-description'))).toBe(summary)
+  })
+
+  // One workspace read "1 abiertos" in Spanish.
+  it.each([
+    ['es-ES', '1 abierto · 1 archivado', '2 abiertos · 2 archivados'],
+    ['fr-FR', '1 ouvert · 1 archivé', '2 ouverts · 2 archivés'],
+    ['it-IT', '1 aperta · 1 archiviata', '2 aperte · 2 archiviate'],
+    ['pt-BR', '1 aberto · 1 arquivado', '2 abertos · 2 arquivados']
+  ] as const)('counts one workspace and several in %s', async (locale, one, two) => {
+    const archived = (id: string) => archivedWorkspace(openWorkspace(id, { name: `Old ${id}` }))
+    const home = mountTestHome({ locale, workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archived('a')] }) })
+    await flush()
+    expect(words(byId('home-view-description'))).toBe(one)
+    home.setWorkspaces(inventory({ savedTabGroups: [archived('a'), archived('b')] }))
+    await home.page.refresh()
+    await flush()
+    expect(words(byId('home-view-description'))).toBe(two)
+  })
+
+  it('counts again when a workspace is archived', async () => {
+    const home = mountTestHome({ workspaces: inventory() })
+    await flush()
+    home.setWorkspaces(inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] }))
+    await home.page.refresh()
+    await flush()
+    expect(words(byId('home-view-description'))).toBe('1 open · 1 archived')
   })
 
   it.each<{ name: string; live: Partial<HomeDashboard>; summary: string }>([
-    { name: 'no agent', live: {}, summary: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.' },
+    { name: 'no agent', live: {}, summary: 'Choose a client, copy the setup, then create a named workspace before browsing.' },
     { name: 'one agent', live: { agents: [agent('a', 'Codex', 'idle')] }, summary: '1 agent connected.' },
-    {
-      name: 'two agents and one workspace that needs you',
-      live: { agents: [agent('a', 'Codex', 'idle'), agent('b', 'Claude Code', 'needs-you')], workspaceActivity: { shop: activity('needs-you', 'b', 'askYou'), docs: activity('working', 'a') } },
-      summary: '2 agents connected. 1 workspace needs you.'
-    },
-    {
-      name: 'two workspaces that need you',
-      live: { agents: [agent('b', 'Claude Code', 'needs-you')], workspaceActivity: { shop: activity('needs-you', 'b', 'askYou'), docs: activity('needs-you', 'b', 'askYou') } },
-      summary: '1 agent connected. 2 workspaces need you.'
-    },
-    { name: 'agents while the server is paused', live: { status: 'paused', paused: true, agents: [agent('a', 'Codex', 'idle')] }, summary: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.' }
-  ])('sums up $name under the greeting', async ({ live, summary }) => {
+    { name: 'three agents', live: { agents }, summary: '3 agents connected.' },
+    { name: 'agents while the server is paused', live: { status: 'paused', paused: true, agents: [agent('a', 'Codex', 'idle')] }, summary: 'Choose a client, copy the setup, then create a named workspace before browsing.' }
+  ])('sums up $name under the Agents name', async ({ live, summary }) => {
     mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, ...live } })
     await flush()
+    byId<HTMLButtonElement>('agents-section-connected').click()
+    expect(words(byId('home-view-title'))).toBe('Agents')
     expect(words(byId('home-view-description'))).toBe(summary)
+  })
+})
+
+describe('Agents view (HRO-65)', () => {
+  const sections = () => [...document.querySelectorAll<HTMLElement>('.agent-sections [role=tab]')]
+  const shown = () => ['home-tabs', 'home-workspaces', 'home-agents-view', 'home-connected', 'home-connect', 'home-overview', 'home-tools'].filter(id => !byId(id).hidden)
+
+  it('holds the connected agents with their live activity, connecting one, the overview and the tool library', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    expect(sections().map(words)).toEqual(['Connected agents', 'Connect an agent', 'Overview', 'Tool library'])
+    expect(byId('home-connected').contains(byId('home-agents'))).toBe(true)
+    expect(byId('home-connected').contains(byId('live-activity'))).toBe(true)
+    expect(byId('home-workspaces').querySelector('#home-agents, #live-activity')).toBeNull()
+  })
+
+  it.each<{ name: string; live: Partial<HomeDashboard>; section: string }>([
+    { name: 'the connected agents once one is connected', live: { agents }, section: 'home-connected' },
+    { name: 'connecting one while none is', live: {}, section: 'home-connect' }
+  ])('opens on $name', async ({ live, section }) => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, ...live } })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', section])
+    expect(byId('home-tab-agents').getAttribute('aria-selected')).toBe('true')
+    expect(byId(section.replace('home-', 'agents-section-')).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('opens on the section last shown there, after another view and after a reload', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    byId<HTMLButtonElement>('agents-section-tools').click()
+    byId<HTMLButtonElement>('home-tab-workspaces').click()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-tools'])
+    byId<HTMLButtonElement>('home-tab-workspaces').click()
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    expect(shown()).toEqual(['home-workspaces'])
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-tools'])
+  })
+
+  it('moves along its sections with the arrow keys, Home and End', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    byId<HTMLButtonElement>('agents-section-connected').click()
+    const press = (key: string) => (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+    byId('agents-section-connected').focus()
+    press('ArrowRight')
+    expect(document.activeElement).toBe(byId('agents-section-connect'))
+    expect(shown()).toEqual(['home-agents-view', 'home-connect'])
+    press('End')
+    expect(document.activeElement).toBe(byId('agents-section-tools'))
+    press('ArrowRight')
+    expect(document.activeElement).toBe(byId('agents-section-connected'))
+    press('ArrowLeft')
+    expect(document.activeElement).toBe(byId('agents-section-tools'))
+    expect(sections().map(tab => tab.tabIndex)).toEqual([-1, -1, -1, 0])
+  })
+
+  it('opens from the status, on the agents it counts', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents } })
+    await flush()
+    byId<HTMLButtonElement>('server-state').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
+    expect(document.activeElement).toBe(byId('agents-section-connected'))
+  })
+
+  // Every way into setup showed Connect an agent last, so the status and the Agents tab kept opening the setup guide.
+  it('opens on the connected agents, not on connecting one, once an agent is connected', async () => {
+    const home = mountTestHome({ workspaces: inventory() })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connect'])
+    byId<HTMLButtonElement>('home-tab-workspaces').click()
+    home.show({ ...baseDashboard, agents })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
+    byId<HTMLButtonElement>('agents-section-connect').click()
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    byId<HTMLButtonElement>('server-state').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
+    byId<HTMLButtonElement>('agents-section-connect').click()
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    expect(shown()).toEqual(['home-agents-view', 'home-connected'])
+  })
+})
+
+describe('Needs-you line (HRO-65)', () => {
+  const lines = () => [...document.querySelectorAll<HTMLElement>('#home-needs-you .needs-you-line')]
+
+  it('names the agent and workspace waiting for the person over every view, and opens that workspace', async () => {
+    const workspaceAction = vi.fn().mockResolvedValue(inventory())
+    mountTestHome({ workspaces: inventory(), api: { workspaceAction }, dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou'), docs: activity('working', 'codex') } } })
+    await flush()
+    expect(byId('home-needs-you').hidden).toBe(false)
+    expect(lines().map(line => [words(query('.needs-you-words', line)), words(query('button', line))])).toEqual([['Claude Code needs you in Acme Store', 'Open workspace']])
+    expect(byId('home-needs-you').hasAttribute('aria-live')).toBe(false)
+    for (const view of ['tabs', 'agents', 'workspaces']) {
+      byId<HTMLButtonElement>(`home-tab-${view}`).click()
+      expect(byId('home-needs-you').hidden).toBe(false)
+    }
+    query<HTMLButtonElement>('button', lines()[0]).click()
+    await flush()
+    expect(workspaceAction).toHaveBeenCalledWith({ view: 'open', workspaceId: 'shop' })
+  })
+
+  it('shows one line for each workspace that needs the person, and none once they are answered', async () => {
+    const home = mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou'), docs: activity('needs-you', 'gone', 'askYou') } } })
+    await flush()
+    expect(lines().map(line => words(query('.needs-you-words', line)))).toEqual(['Claude Code needs you in Acme Store', 'Agent needs you in Docs'])
+    home.show({ ...baseDashboard, agents, workspaceActivity: { shop: activity('working', 'claude') } })
+    await flush()
+    expect(lines()).toEqual([])
+    expect(byId('home-needs-you').hidden).toBe(true)
+  })
+
+  it('keeps its button and the focus on it while Home refreshes', async () => {
+    const live = { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } }
+    const home = mountTestHome({ workspaces: inventory(), dashboard: live })
+    await flush()
+    const button = query<HTMLButtonElement>('#home-needs-you button')
+    button.focus()
+    home.show({ ...live, workspaceActivity: { ...live.workspaceActivity, docs: activity('working', 'codex') } })
+    await flush()
+    expect(query('#home-needs-you button')).toBe(button)
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('names the workspace each line\'s button opens', async () => {
+    mountTestHome({ workspaces: inventory(), dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou'), docs: activity('needs-you', 'codex', 'askYou') } } })
+    await flush()
+    expect(lines().map(line => query('button', line).getAttribute('aria-label'))).toEqual(['Open Acme Store', 'Open Docs'])
+  })
+
+  it('gives the keyboard to the view\'s tab when the line it was on goes', async () => {
+    const live = { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } }
+    const home = mountTestHome({ workspaces: inventory(), dashboard: live })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-tabs').click()
+    query<HTMLButtonElement>('#home-needs-you button').focus()
+    home.show({ ...live, workspaceActivity: { shop: activity('working', 'claude') } })
+    await flush()
+    expect(byId('home-needs-you').hidden).toBe(true)
+    expect(document.activeElement).toBe(byId('home-tab-tabs'))
+  })
+
+  // The error line sat in the Workspaces view, so a workspace that went away while it was opened from another view said
+  // nothing, and focus went to a field hidden with that view.
+  it('says why a workspace did not open from another view, and keeps the keyboard on that view', async () => {
+    const workspaceAction = vi.fn().mockRejectedValue(new Error('Workspace is no longer available.'))
+    mountTestHome({ workspaces: inventory(), api: { workspaceAction }, dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } } })
+    await flush()
+    byId<HTMLButtonElement>('home-tab-agents').click()
+    const open = query<HTMLButtonElement>('#home-needs-you button')
+    open.focus()
+    open.click()
+    await flush()
+    const error = byId('workspace-error')
+    expect(byId('home-workspaces').contains(error)).toBe(false)
+    expect(error.hidden).toBe(false)
+    expect(words(error)).toBe('Workspace is no longer available.')
+    expect(byId('home-agents-view').hidden).toBe(false)
+  })
+
+  it('says nothing about an archived workspace', async () => {
+    mountTestHome({ workspaces: inventory({ mcpTabGroups: [docs], savedTabGroups: [archivedWorkspace(shop)] }), dashboard: { ...baseDashboard, agents, workspaceActivity: { shop: activity('needs-you', 'claude', 'askYou') } } })
+    await flush()
+    expect(byId('home-needs-you').hidden).toBe(true)
   })
 })
 
@@ -430,9 +783,9 @@ describe('Undo after archive and clear (#872)', () => {
     const after = inventory({ mcpTabGroups: [docs], savedTabGroups: full })
     const workspaceAction = vi.fn().mockResolvedValue(after)
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const home = mountTestHome({ workspaces: before, api: { workspaceAction } })
+    // Main still reports the workspace when Home reads the workspaces again after the yes; the clear returns the rest.
+    mountTestHome({ workspaces: before, api: { workspaceAction } })
     await flush()
-    home.setWorkspaces(after)
     query<HTMLButtonElement>('[data-workspace-action="clear"]', card('Acme Store')).click()
     await flush()
     expect(workspaceAction).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'shop', undoable: false })

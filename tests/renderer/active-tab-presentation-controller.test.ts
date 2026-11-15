@@ -109,6 +109,20 @@ describe('active tab presentation controller', () => {
     expect(controller.currentBookmark.value?.id).toBe('bookmark')
   })
 
+  it('follows the shown page’s connection, as the address bar shows it', () => {
+    const { controller, activeTab } = create()
+    expect(controller.activeSecurity.value).toBe('secure')
+    activeTab.value = tab({ url: 'http://192.168.1.20:3000/' })
+    expect(controller.activeSecurity.value).toBe('not-secure')
+    activeTab.value = tab({ url: 'http://localhost:5173/' })
+    expect(controller.activeSecurity.value).toBe('local')
+    activeTab.value = tab({ url: 'hronaut://home/' })
+    expect(controller.activeSecurity.value).toBeNull()
+    // An HTTPS page whose certificate the person chose to trust anyway is not secure, as in Chrome.
+    activeTab.value = tab({ url: 'https://staging.example/', untrustedCertificate: true })
+    expect(controller.activeSecurity.value).toBe('not-secure')
+  })
+
   it('shows Site controls only the decisions for the tab’s workspace and page', () => {
     // Site controls listed every decision for the website, from every workspace and every page that embedded it.
     const { controller, sitePermissions, activeTab } = create(tab({ mcpGroupId: 'isolated' }))
@@ -193,6 +207,59 @@ describe('active tab presentation controller', () => {
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.heading]')
   })
 
+  it('shows on the toolbar only downloads of this run, not those kept from before the restart', () => {
+    // After a restart the button showed a days-old download as just finished, with every kept one counted.
+    const { controller, downloads } = create()
+    const kept = { id: 'kept', url: 'https://example.test/old', filename: 'old.zip', state: 'completed' as const, receivedBytes: 2, totalBytes: 2, startedAt: '2026-08-20T00:00:00.000Z', fromEarlierRun: true }
+    downloads.value = [kept]
+    expect(controller.toolbarDownloads.value).toEqual([])
+    expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.heading]')
+    downloads.value = [{ ...kept, id: 'new', filename: 'new.zip', startedAt: '2026-08-22T00:00:00.000Z', fromEarlierRun: undefined }, kept]
+    expect(controller.toolbarDownloads.value.map(({ id }) => id)).toEqual(['new'])
+    expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.complete:new.zip]')
+  })
+
+  it('keeps each tab’s tooltip until the tab, the language, or the lock or split view it mentions changes', () => {
+    // The shell reads every tab's tooltip on each change of the browser state; translating them all again for 45
+    // loading tabs took a fifth of the window's time while they loaded.
+    const locale = ref('en')
+    let translations = 0
+    const translate = (key: string, parameters?: Record<string, unknown>): string => {
+      translations += 1
+      return `${locale.value}:${key}${parameters ? `:${Object.values(parameters).join(',')}` : ''}`
+    }
+    const shown = tab({ mcpGroupName: 'Research' })
+    const browserState = ref(state(shown))
+    const controller = useActiveTabPresentationController({
+      state: browserState,
+      activeTab: ref(shown),
+      sitePermissions: ref([]),
+      credentials: ref([]),
+      downloads: ref([]),
+      bookmarks: ref([]),
+      translate,
+      formatNumber: (value) => String(value),
+      describeEmulation: () => ''
+    })
+    const first = controller.tabTooltip(shown)
+    expect(first).toContain('en:runtimeDetails.tab.workspace:Research')
+    translations = 0
+    // Another state of the browser in which this tab did not change.
+    browserState.value = { ...state(shown), mcpUrl: 'http://127.0.0.1:1/mcp' }
+    expect(controller.tabTooltip(shown)).toBe(first)
+    expect(translations).toBe(0)
+
+    browserState.value = { ...state(shown), allHumanInteractionLocked: true }
+    expect(controller.tabTooltip(shown)).toContain('en:runtimeDetails.tab.locked')
+    browserState.value = { ...state(shown), splitView: { firstTabId: shown.id, secondTabId: 'other', orientation: 'horizontal', ratio: 0.5 } }
+    expect(controller.tabTooltip(shown)).toContain('en:runtimeDetails.tab.split')
+    expect(controller.tabTooltip({ ...shown, pinned: true })).toContain('en:runtimeDetails.tab.pinned')
+
+    locale.value = 'de'
+    expect(controller.tabTooltip(shown)).toContain('de:runtimeDetails.tab.workspace:Research')
+    expect(controller.tabTooltip(shown)).not.toContain('en:')
+  })
+
   it('includes protected tab state in tooltips and formats renderer failures', () => {
     const active = tab({
       title: '',
@@ -220,5 +287,33 @@ describe('active tab presentation controller', () => {
     expect(controller.tabTooltip(active)).toContain('[runtimeDetails.tab.routes:#2]')
     expect(controller.tabTooltip(active)).toContain('[runtimeDetails.tab.workspace:Research]')
     expect(controller.pageProblemDetails(active)).toBe('[runtimeDetails.tab.exit:crashed,#9]')
+  })
+
+  // The split view's pane that was not active showed a blank page when its page could not open: only the active tab's
+  // problem was shown.
+  it('shows the problem of each shown page, naming its pane in a split view', () => {
+    const problem = (title: string) => ({ kind: 'load-error' as const, title, message: 'Try again later.', url: 'https://example.test/' })
+    const active = tab({ id: 'active' })
+    const { controller, browserState, activeTab } = create(active)
+    const other = tab({ id: 'other', active: false, pageProblem: problem('Other failed') })
+    const view = (tabs: BrowserTabState[], splitView?: BrowserState['splitView']) => {
+      browserState.value = { ...browserState.value, tabs, ...(splitView ? { splitView } : {}) }
+    }
+    const shown = () => controller.shownPageProblems.value.map(({ tab, pane }) => [tab.id, pane])
+    expect(shown()).toEqual([])
+    activeTab.value = tab({ id: 'active', pageProblem: problem('Active failed') })
+    expect(shown()).toEqual([['active', undefined]])
+
+    view([activeTab.value, other], { firstTabId: 'active', secondTabId: 'other', orientation: 'vertical', ratio: 0.5 })
+    expect(shown()).toEqual([['active', 'left'], ['other', 'right']])
+    activeTab.value = active
+    expect(shown()).toEqual([['other', 'right']])
+    view([other, active], { firstTabId: 'other', secondTabId: 'active', orientation: 'horizontal', ratio: 0.5 })
+    expect(shown()).toEqual([['other', 'top']])
+    expect(controller.shownPageProblems.value[0]?.tab.pageProblem?.title).toBe('Other failed')
+
+    // A split view the shown tab is not in, as while Home or another tab is shown, shows only that tab's.
+    activeTab.value = tab({ id: 'third' })
+    expect(shown()).toEqual([])
   })
 })

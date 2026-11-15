@@ -1,6 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+// The prototype-built browser below stubs createNewTab, which opening a new tab goes through.
+vi.mock('../src/main/browser/new-tabs/new-tabs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/new-tabs.js')>(),
+  createNewTab: (browser: { createNewTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createNewTab(...args)
+}))
+// The prototype-built browser below stubs invalidateTabOverviewPreview, which closing a tab drops its overview preview with.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  invalidateTabOverviewPreview: (browser: { invalidateTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.invalidateTabOverviewPreview(...args)
+}))
+import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
+import { removeTabRecord } from '../src/main/browser/tab-close/remove-tab-record.js'
+import { newTab } from '../src/main/browser/new-tabs/open-new-tab.js'
+import { markTabActiveInGroup, writeActiveTabId } from '../src/main/browser/tab-selection/active-tab.js'
+
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
 
 // A new tab from + or Ctrl/Cmd+T, closed right away, showed the tab beside it (the workspace's last tab), where Chrome
 // shows the tab the person was on.
@@ -14,18 +34,13 @@ interface Internals {
   tabs: Map<string, Tab>
   mcpTabGroups: Map<string, { id: string; activeTabId: string | null; lastUsedAt: string }>
   createNewTab: (options: unknown, selectVisible: boolean, onCreated?: (tab: Tab) => void) => Promise<unknown>
-  newTab(options?: { active?: boolean; url?: string }, selectVisible?: boolean): Promise<unknown>
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
-  removeTabRecord(tab: Tab): void
-  markTabActiveInGroup(tab: Tab): void
-  writeActiveTabId(tabId: string | null): void
 }
 
 const forgets = () => ({ forget: vi.fn() })
 
 function fixture(spec: Array<{ id: string; workspace?: string | null; returnsTo?: string }>) {
   const group = (id: string) => ({ id, name: id, activeTabId: null, lastUsedAt: '2026-10-22T07:00:00.000Z' })
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', group('work')], ['other', group('other')]]),
     tabs: new Map(spec.map((tab, index) => [tab.id, {
       id: tab.id, url: `https://${tab.id}.example/`, pinned: false,
@@ -34,10 +49,10 @@ function fixture(spec: Array<{ id: string; workspace?: string | null; returnsTo?
       webContents: { id: index + 1, isDestroyed: () => false }
     }])),
     activeTabId: null,
-    splitView: null,
+    splitView: null, restingSplitViews: [],
     cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
     invalidateTabOverviewPreview: vi.fn(), tabOverviewSleepPreviews: new Map(), tabOverviewPreviewCaptures: { cancelPending: vi.fn() },
-    tabOverviewPreviewableTabs: new Set(), runWalletLifecycleAction: vi.fn(), options: {}, deleteSnapshotBaselineForTab: vi.fn(),
+    runWalletLifecycleAction: vi.fn(), options: {}, snapshotBaselines: new Map(), snapshotBaselineIdsByTab: new Map(),
     globallyUnlockedTabIds: new Set(), globallyResumedAgentTabIds: new Set(), browserSessionAuthorityHooks: new Map(),
     mcpActivitiesByTab: new Map(), mcpActivityFollower: { removeTab: vi.fn() }, webContentsToTab: new Map()
   }) as unknown as Internals
@@ -49,7 +64,7 @@ describe('a new tab the person opens', () => {
     manager.activeTabId = shown
     const created: Tab = { id: 'new', url: 'about:blank', pinned: false, mcpGroupId: workspace, webContents: { id: 9, isDestroyed: () => false } }
     manager.createNewTab = vi.fn(async (_options, _selectVisible, onCreated) => { onCreated?.(created) })
-    await manager.newTab(options, selectVisible)
+    await newTab(manager as never, options, selectVisible)
     return created
   }
 
@@ -72,14 +87,14 @@ describe('closing a new tab', () => {
   it('shows the tab the person was on rather than the tab beside it', () => {
     const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'three' }, { id: 'new', returnsTo: 'one' }])
     manager.activeTabId = 'new'
-    expect(manager.closeTabTransition(manager.tabs.get('new')!).nextId).toBe('one')
+    expect(closeTabTransition(manager as never, manager.tabs.get('new')! as never).nextId).toBe('one')
   })
 
   it('shows the tab beside it once that tab is closed', () => {
     const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'three' }, { id: 'new', returnsTo: 'one' }])
-    manager.removeTabRecord(manager.tabs.get('one')!)
+    removeTabRecord(manager as never, manager.tabs.get('one')! as never)
     manager.activeTabId = 'new'
-    expect(manager.closeTabTransition(manager.tabs.get('new')!).nextId).toBe('three')
+    expect(closeTabTransition(manager as never, manager.tabs.get('new')! as never).nextId).toBe('three')
   })
 
   it('shows the tab beside it once another tab showed, as in Chrome', () => {
@@ -87,20 +102,20 @@ describe('closing a new tab', () => {
     manager.activeTabId = 'new'
     manager.mcpTabGroups.get('work')!.activeTabId = 'new'
     // An agent's tab becomes its workspace's tab without showing, which leaves the shown new tab as it was.
-    manager.markTabActiveInGroup(manager.tabs.get('two')!)
-    manager.writeActiveTabId('new')
+    markTabActiveInGroup(manager as never, manager.tabs.get('two')! as never)
+    writeActiveTabId(manager as never, 'new')
     expect(manager.tabs.get('new')!.returnsToTabId).toBe('one')
-    manager.writeActiveTabId('two')
+    writeActiveTabId(manager as never, 'two')
     expect(manager.tabs.get('new')).not.toHaveProperty('returnsToTabId')
-    manager.writeActiveTabId('new')
-    expect(manager.closeTabTransition(manager.tabs.get('new')!).nextId).toBe('three')
+    writeActiveTabId(manager as never, 'new')
+    expect(closeTabTransition(manager as never, manager.tabs.get('new')! as never).nextId).toBe('three')
   })
 
   it('makes its workspace remember the tab the person was on when it closes off screen', () => {
     const manager = fixture([{ id: 'one' }, { id: 'two' }, { id: 'new', returnsTo: 'one' }, { id: 'elsewhere', workspace: 'other' }])
     manager.mcpTabGroups.get('work')!.activeTabId = 'new'
     manager.activeTabId = 'elsewhere'
-    manager.removeTabRecord(manager.tabs.get('new')!)
+    removeTabRecord(manager as never, manager.tabs.get('new')! as never)
     expect(manager.mcpTabGroups.get('work')!.activeTabId).toBe('one')
   })
 })

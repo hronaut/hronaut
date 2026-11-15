@@ -1,18 +1,21 @@
 import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import type { BrowserStorageOptions, BrowserStorageResult } from '../../../shared/types.js'
 import type { CookieWriteHooks } from '../cookie-write-operation.js'
 import { boundStorageItems } from '../storage-items.js'
 import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from '../web-storage-operation.js'
 import { manageCookies } from './cookies.js'
-import type { SiteStorageAccess, SiteStorageTab } from './site-storage-access.js'
+import { webStorageInPage, type WebStorageAnswer } from './manage-storage.page.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
 
 const MAX_STORAGE_KEY_CHARS = 512
 const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
 
 /** Lists, reads, sets, deletes or clears local storage, session storage or cookies for one HTTP(S) tab's origin. */
-export async function manageStorage<Tab extends SiteStorageTab>(access: SiteStorageAccess<Tab>, options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
-  const tab = access.getTab(options.tabId)
+export async function manageStorage(browser: Browser, options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
+  const tab = getTab(browser, options.tabId)
   const action = options.action ?? 'list'
   const pageUrl = new URL(tab.url)
   if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
@@ -50,51 +53,30 @@ export async function manageStorage<Tab extends SiteStorageTab>(access: SiteStor
   }
 
   if (options.kind === 'cookies') {
-    return manageCookies(access, tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks,
+    return manageCookies(browser, tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks,
       exactCookie ? { domain: options.cookieDomain!, path: options.cookiePath! } : undefined)
   }
 
   const contents = tab.webContents
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   const assertCurrent = (): void => {
     webStorageHooks?.validate()
-    const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-    if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+    const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
       || currentWorkspace !== workspace
-      || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-      || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))) {
+      || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+      || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))) {
       throw new Error('Storage context changed. Earlier changes are not rolled back; inspect fresh state before continuing.')
     }
   }
   webStorageHooks?.retainPublication(assertCurrent)
   const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
-  const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(`(() => {
-      if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
-        return { pageChanged: true };
-      }
-      const storage = window[${JSON.stringify(storageName)}];
-      const action = ${JSON.stringify(action)};
-      const key = ${JSON.stringify(key)};
-      const value = ${JSON.stringify(options.value)};
-      let changed = false;
-      if (action === 'set') { storage.setItem(key, value); changed = true; }
-      else if (action === 'delete') { changed = storage.getItem(key) !== null; storage.removeItem(key); }
-      else if (action === 'clear') { changed = storage.length > 0; storage.clear(); }
-      const items = [];
-      if (action === 'get') {
-        const itemValue = storage.getItem(key);
-        if (itemValue !== null) items.push([key, itemValue]);
-      } else {
-        for (let index = 0; index < storage.length; index += 1) {
-          const itemKey = storage.key(index);
-          if (itemKey !== null) items.push([itemKey, storage.getItem(itemKey) ?? '']);
-        }
-        items.sort((left, right) => left[0].localeCompare(right[0]));
-      }
-      return { changed, itemCount: storage.length, items };
-    })()`, false), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+  const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(
+    pageScript(webStorageInPage, pageUrl.href, storageName, action, key, options.value),
+    false
+  ), webStorageHooks?.progress) as WebStorageAnswer
   if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
   const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
   return {

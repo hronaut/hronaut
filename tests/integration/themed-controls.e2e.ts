@@ -85,18 +85,11 @@ for (const theme of ['light', 'dark']) {
     await editor.getByRole('button', { name: 'Cancel' }).click()
     await expect(editor).toBeHidden()
 
-    // The result type filter appears once there is a tab to filter.
+    // Page tools belong to a website tab.
     await appWindow.evaluate(async () => {
       const api = (window as unknown as { hronaut: HronautApi }).hronaut
       await api.newTab({ url: 'data:text/html,<title>Controls fixture</title>', active: true })
     })
-    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-    const tabs = appWindow.getByRole('dialog', { name: 'Tabs' })
-    await expect(tabs).toBeVisible()
-    await expectThemedSelect(tabs.getByRole('combobox', { name: 'Result type' }))
-    await appWindow.keyboard.press('Escape')
-    await expect(tabs).toBeHidden()
-
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const dockPicker = appWindow.getByRole('combobox', { name: 'Dock page tools' })
     await expectThemedSelect(dockPicker)

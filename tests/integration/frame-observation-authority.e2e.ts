@@ -26,7 +26,7 @@ for(const variant of ['timeout','contention'])test(`frame observation preserves 
         const gate:Gate={entered:false,releases:0,release,restore:()=>{p.debugger.sendCommand=original}}
         ;(globalThis as typeof globalThis&{__frameNativeGate?:Gate}).__frameNativeGate=gate
         p.debugger.sendCommand=async(method,params,session)=>{
-          if(method==='Runtime.evaluate'&&String(params?.expression).includes('].read()')&&!gate.entered){gate.entered=true;await wait}
+          if(method==='Runtime.evaluate'&&String(params?.expression).includes('function readHeldFrameInPage(')&&!gate.entered){gate.entered=true;await wait}
           const result=await original(method,params,session)
           if(method==='Runtime.releaseObjectGroup'&&String(params?.objectGroup).startsWith('hronaut-frame-'))gate.releases++
           return result

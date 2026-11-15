@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FrameProvenance, committedHttpOrigin, type ObservedFrame } from '../src/main/browser/frame-provenance.js'
+import { FrameProvenance, committedHttpOrigin, type ObservedFrame } from '../src/main/browser/frame-observation/frame-provenance.js'
 const parent = { id: 'parent', loaderId: 'p1', url: 'http://example.test/parent' }
 const child = { id: 'child', loaderId: 'c1', parentId: 'parent', url: 'http://example.test/child' }
 function commit(p: FrameProvenance, frame: ObservedFrame, status = 200) {

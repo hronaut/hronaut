@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import { describe, expect, it } from 'vitest'
-import PanelResizeHandle from '../../src/renderer/src/components/PanelResizeHandle.vue'
+import PanelResizeHandle from '../../src/renderer/src/features/panels/PanelResizeHandle.vue'
 
 describe('PanelResizeHandle', () => {
   it('presents its current dock range and delegates pointer, keyboard, and reset input', async () => {

@@ -1,0 +1,60 @@
+export const trTRPwaLifecycle = {
+  title: 'Service worker geçmişi',
+  note: 'Yalnızca gözlenen değişiklikler; daha önceki veya hızlı geçişler eksik olabilir.',
+  start: '2 dakika boyunca gözlemle',
+  stop: 'Worker gözlemini durdur',
+  refresh: 'Yenile',
+  clear: 'Geçmişi temizle',
+  active: 'Worker’lar gözlemleniyor',
+  stopped: 'Yakalama durduruldu',
+  waiting: 'Bekleniyor',
+  coverage: 'Kapsam ve gizlilik',
+  caveats: {
+    observedTimes: 'Zamanlar, değişikliğin gerçekleştiği anı değil gözlendiği anı gösterir; bir yakalama hiçbir zaman geçmişin tamamını içermez.',
+    polling: 'Kayıtlar saniyede bir denetlenir; bu nedenle erken geçişler ve kısa ömürlü kayıtlar gözden kaçabilir.',
+    scope: 'Kayıtlar yalnızca bu sekmeye değil, bu üst düzey kaynağa ve çalışma alanına aittir.',
+    identities: 'Worker kimlikleri bu yakalamaya özeldir ve aynı komut dosyasının sürümlerini birbirinden ayırır.',
+    interruption: 'Sayfada gezinmek, sayfayı yeniden yüklemek veya kapatmak ya da hata ayıklayıcının veya erişimin kaybedilmesi yakalamayı keser. Durdurma veya kesinti, henüz okunmamış olayların kaybolmasına neden olabilir.',
+    limits: 'Bir yakalama en fazla iki dakika boyunca en fazla 100 olay, 20 kayıt ve 100 worker saklar; bellekte beş yakalama tutulur ve yenisini başlatmak durdurulmuş en eski yakalamayı kaldırır.',
+    longUrls: '2.048 karakterden uzun adresler, kimlik bilgisi taşıyabilecek bir adresin bir kısmını göstermek yerine tamamen dışarıda bırakılır.',
+    metadataOnly: 'Yalnızca meta veriler gözlemlenir. Hronaut hiçbir zaman worker’ları güncellemez, onlara mesaj göndermez, etkinleştirmez veya çalıştırmaz; önbellekleri temizlemez veya izinleri değiştirmez.',
+    sleeping: 'Uykudaki veya dondurulmuş sekmeler uyandırılmaz. Uyku veya dondurma, sayfayı etkin tutmak yerine yakalamayı keser.',
+    snapshot: 'Okumalar, alınan son anlık görüntüyü gösterir. Geçmişin tamamı veya her worker’ın tüm ömrü garanti edilmez.'
+  },
+  kinds: {
+    initial: 'yakalama başladı',
+    'registration-initial': 'kayıt mevcut',
+    'registration-discovered': 'kayıt bulundu',
+    'registration-removed': 'kayıt kaldırıldı',
+    updatefound: 'güncelleme bulundu',
+    statechange: 'durum değişti',
+    controllerchange: 'denetleyici değişti'
+  },
+  workerStates: {
+    parsed: 'ayrıştırıldı',
+    installing: 'yükleniyor',
+    installed: 'yüklendi',
+    activating: 'etkinleştiriliyor',
+    activated: 'etkinleştirildi',
+    redundant: 'gereksiz'
+  },
+  reasons: {
+    stopped: 'istek üzerine durduruldu',
+    replaced: 'yeni bir yakalamayla değiştirildi',
+    shutdown: 'Hronaut kapandı',
+    navigation: 'sayfada gezinildi',
+    'renderer-unavailable': 'sayfa işlemi sona erdi',
+    'debugger-detached': 'hata ayıklayıcı ayrıldı',
+    'duration-limit': 'iki dakikalık sınıra ulaşıldı',
+    'initial-read-unavailable': 'ilk okuma başarısız oldu',
+    'page-observer-unavailable': 'sayfa gözlemcisi durdu',
+    'context-or-authority-lost': 'sayfa bağlamı veya erişim kaybedildi',
+    'worker-limit': 'worker sınırına ulaşıldı',
+    'event-limit': 'olay sınırına ulaşıldı',
+    'registration-limit': 'kayıt sınırına ulaşıldı',
+    'discovery-unavailable': 'kayıt keşfi başarısız oldu',
+    unsupported: 'service worker’lar desteklenmiyor',
+    'workspace-control-changed': 'çalışma alanı denetimi değişti',
+    'ownership-released': 'çalışma alanı serbest bırakıldı'
+  }
+}

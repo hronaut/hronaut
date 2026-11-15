@@ -1,6 +1,9 @@
-import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
+import { sendTo, type TypedIpcMain } from './typed-ipc.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
 import { DETACHABLE_PANEL_IDS, PANEL_DOCKS, type DetachablePanelId, type PanelDock } from '../shared/types.js'
+import { PANEL_WINDOW_IPC } from '../shared/ipc/panel-window.js'
+import { SHELL_IPC } from '../shared/ipc/shell.js'
 
 interface PanelWindowIpcHost {
   /** Admits only the main window's shell document, not a detached panel window. */
@@ -19,6 +22,7 @@ interface PanelWindowIpcHost {
   panelWindowRefs: Pick<PanelWindowRefs, 'window' | 'panel' | 'redocking'>
   detachedPanelTitle(panel: DetachablePanelId): string
   mainWindow(): Pick<BrowserWindow, 'isDestroyed' | 'webContents'> | null
+  sendToPanelWindow(channel: string, ...args: unknown[]): void
 }
 
 function isDetachablePanelId(value: unknown): value is DetachablePanelId {
@@ -33,31 +37,39 @@ function isPanelDock(value: unknown): value is PanelDock {
  * The detached panel window: open it, close it, switch its panel and dock the panel again. Dependencies stay
  * lazy because handlers are registered before the window loads.
  */
-export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: PanelWindowIpcHost): void {
-  ipcMain.handle('panel-window:open', async (event, panel: unknown) => {
+export function registerPanelWindowIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: PanelWindowIpcHost): void {
+  ipcMain.handle(PANEL_WINDOW_IPC.open, async (event, panel: unknown) => {
     host.assertMainShellSender(event)
     if (!isDetachablePanelId(panel)) throw new TypeError('Invalid detachable panel')
     await host.openPanelWindow(panel)
   })
-  ipcMain.handle('panel-window:close', (event) => {
+  ipcMain.handle(PANEL_WINDOW_IPC.close, (event) => {
     host.assertTrustedSender(event)
     host.closePanelWindow()
   })
-  ipcMain.handle('panel-window:set-active', (event, panel: unknown) => {
+  ipcMain.handle(PANEL_WINDOW_IPC.setActive, (event, panel: unknown) => {
     host.assertPanelShellSender(event)
     if (!isDetachablePanelId(panel)) throw new TypeError('Invalid detachable panel')
     host.panelWindowRefs.panel = panel
     host.panelWindowRefs.window?.setTitle(host.detachedPanelTitle(panel))
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-      host.mainWindow()!.webContents.send('panel-window:active-panel', panel)
+      sendTo(host.mainWindow()!.webContents, PANEL_WINDOW_IPC.activePanel, panel)
     }
   })
-  ipcMain.handle('panel-window:redock', (event, panel: unknown, dock: unknown) => {
+  // Bookmark all tabs with Bookmarks in its own window: the name is asked for there, once it shows Bookmarks. Main
+  // sends the request after the window has loaded and been told to show Bookmarks, on the same channel as a tab's menu.
+  ipcMain.handle(PANEL_WINDOW_IPC.bookmarkAllTabs, async (event, workspaceId: unknown) => {
+    host.assertMainShellSender(event)
+    if (workspaceId !== null && typeof workspaceId !== 'string') throw new TypeError('Invalid workspace')
+    await host.openPanelWindow('bookmarks')
+    host.sendToPanelWindow(SHELL_IPC.bookmarkAllTabsRequested, workspaceId)
+  })
+  ipcMain.handle(PANEL_WINDOW_IPC.redock, (event, panel: unknown, dock: unknown) => {
     host.assertPanelShellSender(event)
     if (!isDetachablePanelId(panel) || !isPanelDock(dock) || dock === 'window') throw new TypeError('Invalid panel redock request')
     host.panelWindowRefs.redocking = true
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-      host.mainWindow()!.webContents.send('panel-window:redock-requested', { panel, dock })
+      sendTo(host.mainWindow()!.webContents, PANEL_WINDOW_IPC.redockRequested, { panel, dock })
     }
     host.panelWindowRefs.window?.close()
   })

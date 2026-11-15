@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { inspectorIssues } from '../../../browser/inspector-issues/inspector-issues.js'
 
 export function registerBrowserIssues(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -15,6 +16,6 @@ export function registerBrowserIssues(context: McpToolContext): void {
       }
     },
     tabTool('browser_issues', async ({ tabId, action }: { tabId?: string; action: 'list' | 'clear' }) =>
-      textResult(await manager.inspectorIssues(tabId, action === 'clear')))
+      textResult(await inspectorIssues(manager, tabId, action === 'clear')))
   )
 }

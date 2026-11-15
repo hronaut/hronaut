@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
-import { useSettingsWorkspaceLists } from '../../src/renderer/src/composables/useSettingsWorkspaceLists.js'
+import { useSettingsWorkspaceLists } from '../../src/renderer/src/features/settings/useSettingsWorkspaceLists.js'
 import type { BrowserState } from '../../src/shared/types.js'
 
 function browserState(): BrowserState {
@@ -18,6 +18,24 @@ describe('useSettingsWorkspaceLists', () => {
       { id: 'open-1', name: 'Client A', archived: false, tabCount: 3, storageOriginCount: 2 },
       { id: 'saved-1', name: 'Client B', archived: true, tabCount: 2, storageOriginCount: 5 }
     ])
+  })
+
+  it('keeps each list while what it holds stays equal, so Settings does not draw again for other changes', () => {
+    const state = ref(browserState())
+    const { walletWorkspaces, dataWorkspaces } = useSettingsWorkspaceLists(state)
+    const before = { wallet: walletWorkspaces.value, data: dataWorkspaces.value }
+    // A workspace's agent took a step: its time changed, which neither list shows.
+    state.value = {
+      ...state.value,
+      mcpTabGroups: [{ ...state.value.mcpTabGroups[0], lastUsedAt: '2026-11-05T19:00:00.000Z' }]
+    }
+    expect(walletWorkspaces.value).toBe(before.wallet)
+    expect(dataWorkspaces.value).toBe(before.data)
+    // Its tab count is shown with its browsing data.
+    state.value = { ...state.value, mcpTabGroups: [{ ...state.value.mcpTabGroups[0], tabCount: 4 }] }
+    expect(walletWorkspaces.value).toBe(before.wallet)
+    expect(dataWorkspaces.value).not.toBe(before.data)
+    expect(dataWorkspaces.value[0]).toMatchObject({ id: 'open-1', tabCount: 4 })
   })
 
   it('follows the browser state when it changes', () => {

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { mcpToolCatalogForSet } from '../../src/main/mcp/server.js'
+import { mcpToolCatalogForSet } from '../../src/main/mcp/tool-catalog.js'
 import { expect, test } from './fixtures.js'
 
 async function listTools(mcpPort: number, mcpToken: string): Promise<string[]> {

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useSplitViewShellController } from '../../src/renderer/src/composables/useSplitViewShellController.js'
+import { useSplitViewShellController } from '../../src/renderer/src/features/split-view/useSplitViewShellController.js'
 
 describe('useSplitViewShellController', () => {
   it('starts closed and closes competing shell surfaces before opening', () => {

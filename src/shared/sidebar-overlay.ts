@@ -80,11 +80,20 @@ export interface SidebarOverlayAgent {
   state: AgentPresenceState
 }
 
+/** Which two tabs a split view holds and how it shows them. */
+export interface SidebarOverlaySplitView {
+  firstTabId: string
+  secondTabId: string
+  orientation: 'vertical' | 'horizontal'
+}
+
 export interface SidebarOverlayRail {
   tabs: SidebarOverlayTab[]
   workspaces: SidebarOverlayWorkspace[]
   activeTabId: string | null
-  splitView?: { firstTabId: string; secondTabId: string; orientation: 'vertical' | 'horizontal' }
+  splitView?: SidebarOverlaySplitView
+  /** The split views put aside, whose tabs stay paired. */
+  restingSplitViews?: SidebarOverlaySplitView[]
   allHumanInteractionLocked: boolean
   allTabsMuted: boolean
   agentFollow?: { tabId: string; agentName: string }
@@ -103,7 +112,6 @@ export interface SidebarOverlayRail {
 /** The rail's footer commands and what their buttons show. */
 export interface SidebarOverlayFooter {
   commandPaletteOpen: boolean
-  tabSearchOpen: boolean
   downloadsOpen: boolean
   historyOpen: boolean
   settingsOpen: boolean
@@ -199,7 +207,6 @@ export type SidebarOverlayIntent =
   | { kind: 'switch-workspace' }
   | { kind: 'stay-here' }
   | { kind: 'toggle-rail-pinned' }
-  | { kind: 'drag-start' }
   | { kind: 'scroll'; top: number }
   | { kind: 'dismiss' }
   | { kind: 'footer'; action: SidebarOverlayFooterAction }
@@ -369,17 +376,22 @@ function parseAgent(value: unknown): SidebarOverlayAgent {
   }
 }
 
+function parseSplitView(value: unknown): SidebarOverlaySplitView {
+  const split = record(value) ?? invalid('split view')
+  if (split.orientation !== 'vertical' && split.orientation !== 'horizontal') invalid('split view')
+  return { firstTabId: identifier(split.firstTabId, 'split view'), secondTabId: identifier(split.secondTabId, 'split view'), orientation: split.orientation }
+}
+
 function parseRail(value: unknown): SidebarOverlayRail {
   const rail = record(value) ?? invalid('rail')
   const tabs = list(rail.tabs, 'tabs', SIDEBAR_OVERLAY_MAX_TABS).map(parseTab)
   const workspaces = list(rail.workspaces, 'workspaces', SIDEBAR_OVERLAY_MAX_WORKSPACES).map(parseWorkspace)
   const activeTabId = rail.activeTabId === null ? null : identifier(rail.activeTabId, 'active tab')
-  let splitView: SidebarOverlayRail['splitView']
-  if (rail.splitView !== undefined) {
-    const split = record(rail.splitView) ?? invalid('split view')
-    if (split.orientation !== 'vertical' && split.orientation !== 'horizontal') invalid('split view')
-    splitView = { firstTabId: identifier(split.firstTabId, 'split view'), secondTabId: identifier(split.secondTabId, 'split view'), orientation: split.orientation }
-  }
+  const splitView = rail.splitView !== undefined ? parseSplitView(rail.splitView) : undefined
+  // Each tab is in one split view at most.
+  const restingSplitViews = rail.restingSplitViews !== undefined
+    ? list(rail.restingSplitViews, 'split views', Math.floor(SIDEBAR_OVERLAY_MAX_TABS / 2)).map(parseSplitView)
+    : undefined
   let agentFollow: SidebarOverlayRail['agentFollow']
   if (rail.agentFollow !== undefined) {
     const follow = record(rail.agentFollow) ?? invalid('follow')
@@ -409,6 +421,7 @@ function parseRail(value: unknown): SidebarOverlayRail {
     workspaces,
     activeTabId,
     ...(splitView ? { splitView } : {}),
+    ...(restingSplitViews?.length ? { restingSplitViews } : {}),
     allHumanInteractionLocked: flag(rail.allHumanInteractionLocked, 'rail'),
     allTabsMuted: flag(rail.allTabsMuted, 'rail'),
     ...(agentFollow ? { agentFollow } : {}),
@@ -479,7 +492,6 @@ function parseFooter(value: unknown): SidebarOverlayFooter {
   const mcp = record(footer.mcp) ?? invalid('MCP')
   return {
     commandPaletteOpen: flag(footer.commandPaletteOpen, 'footer'),
-    tabSearchOpen: flag(footer.tabSearchOpen, 'footer'),
     downloadsOpen: flag(footer.downloadsOpen, 'footer'),
     historyOpen: flag(footer.historyOpen, 'footer'),
     settingsOpen: flag(footer.settingsOpen, 'footer'),
@@ -555,7 +567,6 @@ export function parseSidebarOverlayIntent(value: unknown): SidebarOverlayIntent 
     case 'switch-workspace':
     case 'stay-here':
     case 'toggle-rail-pinned':
-    case 'drag-start':
     case 'dismiss':
       return { kind: source.kind }
     case 'select-tab':

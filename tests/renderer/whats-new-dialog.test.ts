@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
 import { computed, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WhatsNewDialog from '../../src/renderer/src/components/WhatsNewDialog.vue'
+import WhatsNewDialog from '../../src/renderer/src/features/updates/WhatsNewDialog.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AppReleaseHistoryEntry } from '../../src/shared/types.js'
 

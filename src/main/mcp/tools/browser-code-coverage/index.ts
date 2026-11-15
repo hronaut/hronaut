@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { codeCoverage } from '../../../browser/profiling/browser-profiling.js'
 
 export function registerBrowserCodeCoverage(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -26,6 +27,6 @@ export function registerBrowserCodeCoverage(context: McpToolContext): void {
       action: 'get' | 'start' | 'stop' | 'clear'
       mode: 'function' | 'block'
       reload: boolean
-    }) => textResult(await manager.codeCoverage({ tabId, action, mode, reload })))
+    }) => textResult(await codeCoverage(manager, { tabId, action, mode, reload })))
   )
 }

@@ -40,6 +40,14 @@ function topDialogPanel(): HTMLElement | null {
   return activeDialogs.at(-1)?.panel.value ?? null
 }
 
+/**
+ * Whether the focus is in a dialog drawn over every modal that keeps its own focus, such as Hronaut's confirmation over
+ * the workspace editor. Pulling the focus back into the modal under it would put Enter on that modal's controls.
+ */
+function inDialogAboveModals(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[data-above-modals]') !== null
+}
+
 function isFocusable(element: HTMLElement): boolean {
   if (element.tabIndex < 0 || element.matches(':disabled')
     || element.closest('[hidden], [inert], [aria-hidden="true"]')) return false
@@ -84,7 +92,7 @@ function handleModalKeydown(event: KeyboardEvent): void {
     || event.metaKey
   ) return
   const panel = topDialogPanel()
-  if (!panel) return
+  if (!panel || inDialogAboveModals(event.target)) return
   const focusable = focusableElements(panel)
   const activeElement = panel.ownerDocument.activeElement
   const first = focusable[0]
@@ -99,7 +107,7 @@ function handleModalKeydown(event: KeyboardEvent): void {
 
 function handleModalFocusIn(event: FocusEvent): void {
   const panel = topDialogPanel()
-  if (!panel || (event.target instanceof Node && panel.contains(event.target))) return
+  if (!panel || (event.target instanceof Node && panel.contains(event.target)) || inDialogAboveModals(event.target)) return
   focusInside(panel)
 }
 
@@ -109,7 +117,8 @@ async function focusTopDialogAfterWindowActivation(operationGeneration: number):
   const applicationFocused = await applicationHasFocus()
   if (operationGeneration !== reactivationGeneration || !applicationFocused) return
   const panel = topDialogPanel()
-  if (!panel || panel.contains(panel.ownerDocument.activeElement)) return
+  const active = panel?.ownerDocument.activeElement ?? null
+  if (!panel || panel.contains(active) || inDialogAboveModals(active)) return
   panel.focus({ preventScroll: true })
 }
 

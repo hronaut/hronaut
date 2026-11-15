@@ -1,21 +1,41 @@
 import { browserConsoleLevel, mergeRepeatedConsoleMessage } from '../../../shared/console-messages.js'
 import { sanitizeConsoleMessage } from '../../../shared/debug-report.js'
 import type { BrowserConsoleMessage } from '../../../shared/types.js'
-import type {
-  BrowserConsoleCaptureSource,
-  BrowserConsoleMessageRecord,
-  ConsoleCapture,
-  ConsoleMessagesAccess,
-  ConsoleMessagesTab
-} from './console-messages-access.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+
+/** The capture paths that can report a console message; one message can arrive through several. */
+export type BrowserConsoleCaptureSource = 'electron' | 'runtime-console' | 'runtime' | 'log' | 'preload' | 'lifecycle'
+
+/** A captured console message, with the runtime's formatted presentation when it has one. */
+export interface ConsoleCapture extends BrowserConsoleMessage {
+  presentation?: string
+}
+
+/** A retained console message, with the capture paths that reported it and its observation generation. */
+export interface BrowserConsoleMessageRecord extends ConsoleCapture {
+  captureSources: Set<BrowserConsoleCaptureSource>
+  observationGeneration: number
+}
+
+/**
+ * The tab fields console messages read and write. The retained and pending
+ * messages belong to the tab, so the browser's navigation, observation and
+ * close handling stay authoritative for clearing them.
+ */
+export interface ConsoleMessagesTab {
+  observationGeneration: number
+  consoleMessages: BrowserConsoleMessageRecord[]
+  pendingRuntimeConsoleMessages: ConsoleCapture[]
+}
 
 /**
  * The tab's console messages for its current observation generation, with
  * capture bookkeeping removed and each message sanitized. With clear, the
  * retained and pending runtime messages are dropped after they are read.
  */
-export function consoleMessages(access: ConsoleMessagesAccess, tabId?: string, clear = false): BrowserConsoleMessage[] {
-  const tab = access.getTab(tabId)
+export function consoleMessages(browser: Browser, tabId?: string, clear = false): BrowserConsoleMessage[] {
+  const tab = getTab(browser, tabId)
   const messages = tab.consoleMessages
     .filter(message => message.observationGeneration === tab.observationGeneration)
     .map((message) => {

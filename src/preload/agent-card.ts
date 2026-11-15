@@ -1,5 +1,7 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge } from 'electron'
 import type { AgentCardMeasurement, AgentCardState, AgentCardViewMessage } from '../shared/agent-card.js'
+import { AGENT_CARD_VIEW_IPC } from '../shared/ipc/agent-card.js'
+import { send, subscribe } from './bridges/ipc.js'
 
 export interface HronautAgentCardViewApi {
   onState(listener: (state: AgentCardState) => void): () => void
@@ -8,13 +10,9 @@ export interface HronautAgentCardViewApi {
 }
 
 const api: HronautAgentCardViewApi = {
-  onState: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: AgentCardState): void => listener(state)
-    ipcRenderer.on('agent-card-view:state', handler)
-    return () => ipcRenderer.removeListener('agent-card-view:state', handler)
-  },
-  measured: (measurement) => ipcRenderer.send('agent-card-view:measured', measurement),
-  send: (message) => ipcRenderer.send('agent-card-view:message', message)
+  onState: (listener) => subscribe(AGENT_CARD_VIEW_IPC.state, (state) => listener(state)),
+  measured: (measurement) => send(AGENT_CARD_VIEW_IPC.measured, measurement),
+  send: (message) => send(AGENT_CARD_VIEW_IPC.message, message)
 }
 
 contextBridge.exposeInMainWorld('hronautAgentCardView', api)

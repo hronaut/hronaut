@@ -26,7 +26,13 @@ vi.mock('electron', () => {
         on: (name: string, listener: (...args: unknown[]) => void) => events.on(name, listener),
         once: (name: string, listener: (...args: unknown[]) => void) => events.once(name, listener),
         removeListener: (name: string, listener: (...args: unknown[]) => void) => events.removeListener(name, listener),
+        off: (name: string, listener: (...args: unknown[]) => void) => events.off(name, listener),
+        emit: (name: string) => events.emit(name),
+        isFocused: () => electronFocus.id === id,
+        isLoadingMainFrame: () => false,
         focus: () => { focused.push(String(id)); electronFocus.id = id },
+        isLoading: () => false,
+        getURL: () => '',
         loadURL: () => Promise.resolve(),
         navigationHistory: { restore: () => Promise.resolve() }
       }
@@ -40,28 +46,59 @@ vi.mock('electron', () => {
   }
 })
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+// The prototype-built browser below stubs changed and getState; split view publishes through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+
+// It also stubs the workspace's navigation check and observation generation, the session hooks and the page events,
+// which createTab runs through these.
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertWorkspaceNavigationAllowed(...args)
+}))
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  workspaceObservationGeneration: (browser: { workspaceObservationGeneration: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceObservationGeneration(...args)
+}))
+vi.mock('../src/main/browser/session-hooks/session-hooks.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/session-hooks/session-hooks.js')>(),
+  installSessionHooks: (browser: { installSessionHooks: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.installSessionHooks(...args)
+}))
+vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
+  attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
+}))
+const { Browser } = await import('../src/main/browser/browser.js')
 const { McpActivityFollowController } = await import('../src/main/browser/mcp-activity-follow-controller.js')
+const { selectTabPassively } = await import('../src/main/browser/agent-follow/passive-selection.js')
+const { openSplitView } = await import('../src/main/browser/split-view/split-view.js')
+const { pageFullscreenShown } = await import('../src/main/browser/page-fullscreen/page-fullscreen.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
 
-interface Tab { id: string; webContents: { id: number; isDestroyed(): boolean }; sleeping: boolean }
+interface Tab { id: string; webContents: { id: number; isDestroyed(): boolean; emit(name: string): void; getURL(): string }; sleeping: boolean }
 /** The manager's private state these cases set up and read. */
 interface Manager {
   tabs: Map<string, Tab>
   activeTabId: string | null
   splitView: unknown
   tabSelectionGeneration: number
+  window: { contentView: { addChildView: (view: { webContents: unknown }) => void } }
   followAgentActivity: boolean
   browserContentOccluded: boolean
   followAgentActivitySuspended: boolean
   mcpActivityFollower: InstanceType<typeof McpActivityFollowController>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  openSplitView(tabId: string): unknown
-  selectTabPassively(tabId: string): boolean
-  pageFullscreenShown(): boolean
   wakeTab(tabId: string): Promise<unknown>
 }
 
@@ -74,7 +111,7 @@ function workspace(id: string, storageId: string) {
 
 /** The real tab manager's tab creation, selection, split view and passive selection, with Electron's views faked. */
 function browser(): Manager {
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, restoringLayout: false,
     options: { partition: 'persist:hronaut' },
     window: {
@@ -83,7 +120,8 @@ function browser(): Manager {
       contentView: { children: [], addChildView: vi.fn(), removeChildView: vi.fn() }
     },
     tabs: new Map(), closedTabs: [], detachedClosedTabs: new Set(), workspaceOperations: new Map(),
-    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, splitViewGeneration: 0,
+    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, restingSplitViews: [], splitViewGeneration: 0,
+    splitDivider: { persistedRatio: (ratio: number) => ratio },
     tabSelectionGeneration: 0, toolbarHeight: 60, contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(),
     browserContentOccluded: false, followAgentActivity: true, followAgentActivitySuspended: false, mcpActivitiesByTab: new Map(),
@@ -91,18 +129,17 @@ function browser(): Manager {
     mcpTabGroups: new Map([[PERSON, workspace(PERSON, '8e3da8ea-cba4-41c2-9619-a6e04a493a44')], [AGENT, workspace(AGENT, '9e3da8ea-cba4-41c2-9619-a6e04a493a45')]]),
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] }
+    getState: () => ({}), text: (key: string) => key
   }) as Manager
   // Follow agents, wired as the manager's constructor wires it.
   manager.mcpActivityFollower = new McpActivityFollowController({
     isEnabled: () => manager.followAgentActivity,
-    isOccluded: () => manager.browserContentOccluded || manager.followAgentActivitySuspended || manager.pageFullscreenShown(),
+    isOccluded: () => manager.browserContentOccluded || manager.followAgentActivitySuspended || pageFullscreenShown(manager as never),
     getSelectionGeneration: () => manager.tabSelectionGeneration,
     tabExists: (tabId) => manager.tabs.get(tabId)?.webContents.isDestroyed() === false,
     canSelectWithoutWake: (tabId) => manager.tabs.get(tabId)?.sleeping === false,
     wakeTab: (tabId) => manager.wakeTab(tabId),
-    selectTabPassively: (tabId) => manager.selectTabPassively(tabId),
+    selectTabPassively: (tabId) => selectTabPassively(manager as never, tabId),
     onError: (error) => { throw error }
   })
   return manager
@@ -123,7 +160,7 @@ describe('Follow agents with the person\'s split view', () => {
     const agentTab = await manager.createTab({ url: 'https://agent.example/run', mcpGroupId: AGENT, active: false })
     // The person shows the agent's tab beside their own notes and types in the notes.
     manager.selectTab(notes.id)
-    manager.openSplitView(agentTab.id)
+    openSplitView(manager as never, agentTab.id)
     const split = structuredClone(manager.splitView)
     expect(electronFocus.id).toBe(notes.webContents.id)
     focused.length = 0
@@ -140,12 +177,41 @@ describe('Follow agents with the person\'s split view', () => {
     const reference = await manager.createTab({ url: 'https://notes.example/reference', mcpGroupId: PERSON, active: false })
     const agentTab = await manager.createTab({ url: 'https://agent.example/run', mcpGroupId: AGENT, active: false })
     manager.selectTab(notes.id)
-    manager.openSplitView(reference.id)
+    openSplitView(manager as never, reference.id)
     focused.length = 0
 
     agentCall(manager, agentTab.id)
 
     expect({ activeTabId: manager.activeTabId, focused, keyboardFocusIn: electronFocus.id })
       .toEqual({ activeTabId: agentTab.id, focused: ['shell'], keyboardFocusIn: 1 })
+  })
+
+  it('keeps keyboard focus out of the page paired with an agent\'s tab, which shows beside it again', async () => {
+    const manager = browser()
+    const notes = await manager.createTab({ url: 'https://notes.example/draft', mcpGroupId: PERSON, active: false })
+    const agentTab = await manager.createTab({ url: 'https://agent.example/run', mcpGroupId: AGENT, active: false })
+    const result = await manager.createTab({ url: 'https://agent.example/result', mcpGroupId: AGENT, active: false })
+    // The agent's two tabs were in a split view, which the person put aside to go back to their notes.
+    manager.selectTab(agentTab.id)
+    openSplitView(manager as never, result.id)
+    manager.selectTab(notes.id)
+    focused.length = 0
+    // Its page shows its document, and attaching its view gives it the keyboard a moment later, as Electron does on some
+    // Linux compositors once the attachment settles.
+    result.webContents.getURL = () => 'https://agent.example/result'
+    manager.window.contentView.addChildView = (view) => {
+      if (view.webContents !== result.webContents) return
+      setImmediate(() => {
+        electronFocus.id = result.webContents.id
+        result.webContents.emit('focus')
+      })
+    }
+
+    agentCall(manager, agentTab.id)
+    await new Promise((resolve) => setImmediate(resolve))
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, keyboardFocusIn: electronFocus.id })
+      .toEqual({ splitView: expect.objectContaining({ firstTabId: agentTab.id, secondTabId: result.id }), activeTabId: agentTab.id, keyboardFocusIn: 1 })
   })
 })

@@ -23,7 +23,7 @@ export class WorkspaceWriteLeaseError extends Error {
 interface WorkspaceWriteLease {
   ownerId: string
   generation: string
-  expiresAt: number
+  /** When the lease ends unless renewed, by `performance.now()`: setting the computer's clock does not move it. */
   deadlineMonotonic: number
   activeMutation: boolean
   revoked: boolean
@@ -42,7 +42,6 @@ export class WorkspaceWriteLeaseRegistry {
     const lease: WorkspaceWriteLease = current ?? {
       ownerId,
       generation: randomUUID(),
-      expiresAt: 0,
       deadlineMonotonic: 0,
       activeMutation: false,
       revoked: false
@@ -134,13 +133,14 @@ export class WorkspaceWriteLeaseRegistry {
   }
 
   private renew(lease: WorkspaceWriteLease): void {
-    lease.expiresAt = Date.now() + WorkspaceWriteLeaseRegistry.LIFETIME_MS
     lease.deadlineMonotonic = performance.now() + WorkspaceWriteLeaseRegistry.LIFETIME_MS
   }
 
   private expire(workspaceId: string): void {
     const lease = this.leases.get(workspaceId)
-    if (lease && (lease.deadlineMonotonic <= performance.now() || lease.expiresAt <= Date.now())) {
+    // Only the lease's own lifetime ends it. Setting the computer's clock forward, as when a clock kept in local time is
+    // corrected soon after login, must not take every agent's lease, and the result of a call running then with it.
+    if (lease && lease.deadlineMonotonic <= performance.now()) {
       if (lease.activeMutation) lease.revoked = true
       else this.leases.delete(workspaceId)
     }
@@ -152,7 +152,8 @@ export class WorkspaceWriteLeaseRegistry {
       status: own ? 'owned' : 'busy',
       holder: own ? 'self' : 'other',
       mode: 'exclusive-write',
-      expiresAt: new Date(lease.expiresAt).toISOString(),
+      // The lease's end as a time of day on the computer's clock as it is now.
+      expiresAt: new Date(Date.now() + Math.max(0, lease.deadlineMonotonic - performance.now())).toISOString(),
       ...(own ? { generation: lease.generation } : {})
     }
   }

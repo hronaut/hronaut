@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from '@playwright/test'
@@ -38,7 +38,7 @@ const save = (content: string): string => `(async () => {
   }
 })()`
 
-test('saves to a file just emptied, as a website\'s Save dialog leaves it, and to no other file, as in Chrome', async ({ appWindow, capabilities, electronApp, profileDirectory }) => {
+test('saves to a file just emptied, as a website\'s Save dialog leaves it, and to no other file, as in Chrome', async ({ appWindow, capabilities, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const onPage = <T>(script: string): Promise<T> => electronApp.evaluate(({ webContents }, { url, script }) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === url)!.executeJavaScript(script, true)
@@ -49,33 +49,37 @@ test('saves to a file just emptied, as a website\'s Save dialog leaves it, and t
     expect(JSON.parse(text(dropped))).toMatchObject({ status: 'DROPPED', files: 1 })
     await expect.poll(() => onPage('window.dropped !== null')).toBe(true)
   }
-  const folder = join(profileDirectory, 'file-saving')
-  await mkdir(folder, { recursive: true })
-  // Chromium empties the file the person picks in the Save dialog before handing it to the website.
-  const picked = join(folder, 'picked.txt')
-  await writeFile(picked, '', 'utf8')
-  const notes = join(folder, 'notes.txt')
-  await writeFile(notes, 'First draft', 'utf8')
-  const oldEmpty = join(folder, 'old-empty.txt')
-  await writeFile(oldEmpty, '', 'utf8')
-  const lastYear = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
-  await utimes(oldEmpty, lastYear, lastYear)
-  await recordPrompts(appWindow)
+  // Outside Hronaut's profile, whose files Chromium never lets a website write.
+  const folder = await mkdtemp(join(tmpdir(), 'hronaut-file-saving-'))
+  try {
+    // Chromium empties the file the person picks in the Save dialog before handing it to the website.
+    const picked = join(folder, 'picked.txt')
+    await writeFile(picked, '', 'utf8')
+    const notes = join(folder, 'notes.txt')
+    await writeFile(notes, 'First draft', 'utf8')
+    const oldEmpty = join(folder, 'old-empty.txt')
+    await writeFile(oldEmpty, '', 'utf8')
+    const lastYear = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+    await utimes(oldEmpty, lastYear, lastYear)
+    await recordPrompts(appWindow)
 
-  await drop(picked)
-  expect(await onPage(save('Saved'))).toBe('saved')
-  expect(await readFile(picked, 'utf8')).toBe('Saved')
-  // The website keeps saving there once the file has content, as an editor does with Ctrl+S.
-  expect(await onPage(save('Saved again'))).toBe('saved')
-  expect(await readFile(picked, 'utf8')).toBe('Saved again')
+    await drop(picked)
+    expect(await onPage(save('Saved'))).toBe('saved')
+    expect(await readFile(picked, 'utf8')).toBe('Saved')
+    // The website keeps saving there once the file has content, as an editor does with Ctrl+S.
+    expect(await onPage(save('Saved again'))).toBe('saved')
+    expect(await readFile(picked, 'utf8')).toBe('Saved again')
 
-  await drop(notes)
-  expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
-  expect(await readFile(notes, 'utf8')).toBe('First draft')
-  await drop(oldEmpty)
-  expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
-  expect(await readFile(oldEmpty, 'utf8')).toBe('')
-  expect(await prompts(appWindow)).toEqual([])
+    await drop(notes)
+    expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
+    expect(await readFile(notes, 'utf8')).toBe('First draft')
+    await drop(oldEmpty)
+    expect(await onPage(save('Overwritten'))).toBe('NotAllowedError')
+    expect(await readFile(oldEmpty, 'utf8')).toBe('')
+    expect(await prompts(appWindow)).toEqual([])
+  } finally {
+    await rm(folder, { recursive: true, force: true })
+  }
 })
 
 test('saves to a file the person opened or dropped only while their switch is on', async ({ appWindow, capabilities, electronApp }) => {

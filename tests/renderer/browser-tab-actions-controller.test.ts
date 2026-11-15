@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useBrowserTabActionsController } from '../../src/renderer/src/composables/useBrowserTabActionsController.js'
+import { useBrowserTabActionsController } from '../../src/renderer/src/features/tabs/useBrowserTabActionsController.js'
 import type { BrowserState, BrowserTabState, NewTabOptions } from '../../src/shared/types.js'
 
 function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
@@ -56,7 +56,9 @@ function createHarness() {
     navigate: vi.fn(async (_options: { url: string; tabId?: string }) => state.value),
     newTab: vi.fn(async (_options?: NewTabOptions) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
+    proceedPastCertificateError: vi.fn(async (_tabId: string) => state.value),
     reorderTab: vi.fn(async (_tabId: string, _targetTabId: string, _placement: 'before' | 'after') => state.value),
+    reorderTabs: vi.fn(async (_tabIds: readonly string[], _targetTabId: string, _placement: 'before' | 'after') => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
     setAllTabsMuted: vi.fn(async (_muted: boolean) => state.value),
     setAllHumanInteractionLocked: vi.fn(async (_locked: boolean) => state.value),
@@ -65,9 +67,10 @@ function createHarness() {
     setTabPageLifecycle: vi.fn(async (_tabId: string, _lifecycle: 'active' | 'frozen') => state.value),
     setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
     showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined),
-    toggleDevTools: vi.fn(async (_tabId?: string) => true)
+    toggleDevTools: vi.fn(async (_tabId?: string) => true),
+    showDevToolsConsole: vi.fn(async (_tabId?: string) => true)
   }
-  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => {
+  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState, _guess?: (state: BrowserState) => BrowserState) => {
     state.value = await operation
   })
   const onSelectError = vi.fn()
@@ -213,7 +216,7 @@ describe('browser tab actions controller', () => {
   it('targets the current tab for navigation and page-problem retry', async () => {
     const harness = createHarness()
     await harness.controller.navigateAddress('https://next.test/')
-    await harness.controller.retryActivePageProblem()
+    await harness.controller.retryPageProblem('active')
     expect(harness.browser.navigate).toHaveBeenCalledWith({ url: 'https://next.test/', tabId: 'active' })
     expect(harness.browser.reload).not.toHaveBeenCalled()
 
@@ -223,8 +226,55 @@ describe('browser tab actions controller', () => {
       message: 'Try again',
       url: 'https://example.test/'
     } })
-    await harness.controller.retryActivePageProblem()
+    await harness.controller.retryPageProblem('active')
     expect(harness.browser.reload).toHaveBeenCalledWith('active')
+  })
+
+  // The split view's pane that is not active showed no problem and had no Try again of its own.
+  it('tries again, or opens anyway, the page of the split view\'s other pane, and only one with that problem', async () => {
+    const harness = createHarness()
+    const other = tab({ id: 'other', active: false, pageProblem: {
+      kind: 'load-error',
+      title: 'Your connection is not private',
+      message: 'Someone might be trying to steal your information from staging.example.',
+      url: 'https://staging.example/',
+      certificate: { host: 'staging.example', canProceed: true }
+    } })
+    harness.state.value = { ...harness.state.value, tabs: [harness.activeTab.value!, other] }
+    await harness.controller.retryPageProblem('other')
+    expect(harness.browser.reload).toHaveBeenCalledExactlyOnceWith('other')
+    await harness.controller.proceedPastPageCertificateError('other')
+    expect(harness.browser.proceedPastCertificateError).toHaveBeenCalledExactlyOnceWith('other')
+    // The active tab has no problem, and a tab that is gone has nothing to try again.
+    await harness.controller.retryPageProblem('active')
+    await harness.controller.retryPageProblem('gone')
+    await harness.controller.proceedPastPageCertificateError('active')
+    expect(harness.browser.reload).toHaveBeenCalledOnce()
+    expect(harness.browser.proceedPastCertificateError).toHaveBeenCalledOnce()
+  })
+
+  it('asks main to open the shown page anyway only when the certificate its tab refused allows it', async () => {
+    const harness = createHarness()
+    const refused = (canProceed: boolean) => tab({ pageProblem: {
+      kind: 'load-error',
+      title: 'Your connection is not private',
+      message: 'Someone might be trying to steal your information from staging.example.',
+      url: 'https://staging.example/',
+      certificate: { host: 'staging.example', canProceed }
+    } })
+    await harness.controller.proceedPastPageCertificateError('active')
+    harness.activeTab.value = refused(false)
+    await harness.controller.proceedPastPageCertificateError('active')
+    expect(harness.browser.proceedPastCertificateError).not.toHaveBeenCalled()
+    harness.activeTab.value = refused(true)
+    await harness.controller.proceedPastPageCertificateError('active')
+    expect(harness.browser.proceedPastCertificateError).toHaveBeenCalledExactlyOnceWith('active')
+    expect(harness.syncState).toHaveBeenCalled()
+    // A failure is reported as a navigation's.
+    const failure = new Error('Tab not found')
+    harness.browser.proceedPastCertificateError.mockRejectedValueOnce(failure)
+    await harness.controller.proceedPastPageCertificateError('active')
+    expect(harness.onNavigateError).toHaveBeenCalledExactlyOnceWith(failure)
   })
 
   it('keeps tab close available while preserving page interaction guards', async () => {
@@ -248,17 +298,48 @@ describe('browser tab actions controller', () => {
     harness.activeTab.value = mutedTab
     await harness.controller.showWorkspaceContextMenu('workspace')
     await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'second', placement: 'after' })
+    // A drag of selected tabs moves them all.
+    await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'third', placement: 'before', tabIds: ['first', 'second'] })
     await harness.controller.toggleTabMuted(mutedTab)
     await harness.controller.toggleAllTabsMuted()
     await harness.controller.toggleTabHumanInteraction()
     await harness.controller.toggleAllHumanInteraction()
 
     expect(harness.browser.showWorkspaceContextMenu).toHaveBeenCalledWith('workspace')
-    expect(harness.browser.reorderTab).toHaveBeenCalledWith('first', 'second', 'after')
+    expect(harness.browser.reorderTab).toHaveBeenCalledExactlyOnceWith('first', 'second', 'after')
+    expect(harness.browser.reorderTabs).toHaveBeenCalledExactlyOnceWith(['first', 'second'], 'third', 'before')
     expect(harness.browser.setTabMuted).toHaveBeenCalledWith('active', false)
     expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(true)
     expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', true)
     expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledWith(true)
+  })
+
+  // The shell shows these at once, before main answers; main's state replaces the guess once the action settles.
+  it('hands the store a guess of what selecting, moving and muting a tab will do', async () => {
+    const harness = createHarness()
+    const first = tab({ id: 'first' })
+    const second = tab({ id: 'second', active: false })
+    const third = tab({ id: 'third', active: false })
+    const before: BrowserState = { ...browserState(first), tabs: [first, second, third] }
+    harness.state.value = before
+    const guessed = () => {
+      const guess = harness.syncState.mock.lastCall?.[1]
+      expect(guess).toBeTypeOf('function')
+      return guess!(before)
+    }
+
+    await harness.controller.selectBrowserTab('second')
+    expect(guessed().activeTabId).toBe('second')
+    harness.state.value = before
+    await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'third', placement: 'after' })
+    expect(guessed().tabs.map((candidate) => candidate.id)).toEqual(['second', 'third', 'first'])
+    harness.state.value = before
+    await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'third', placement: 'after', tabIds: ['first', 'second'] })
+    expect(guessed().tabs.map((candidate) => candidate.id)).toEqual(['third', 'first', 'second'])
+    harness.state.value = before
+    await harness.controller.toggleTabMuted(second)
+    expect(harness.browser.setTabMuted).toHaveBeenCalledWith('second', true)
+    expect(guessed().tabs[1].muted).toBe(true)
   })
 
   it('serializes global audio toggles against mixed and then authoritative tab state', async () => {
@@ -518,6 +599,25 @@ describe('browser tab actions controller', () => {
     await harness.controller.toggleDeveloperTools()
     expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
     expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
+  })
+
+  it('opens the Console of Developer Tools as the toggle opens them, not on Home or a locked tab', async () => {
+    const harness = createHarness()
+    harness.home.value = true
+    await harness.controller.showDeveloperToolsConsole()
+    harness.home.value = false
+    harness.activeTab.value = tab({ humanInteractionInputLocked: true })
+    harness.state.value.tabs = [harness.activeTab.value]
+    await harness.controller.showDeveloperToolsConsole()
+    expect(harness.browser.showDevToolsConsole).not.toHaveBeenCalled()
+    expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
+
+    harness.activeTab.value = tab()
+    harness.state.value.tabs = [harness.activeTab.value]
+    await harness.controller.showDeveloperToolsConsole()
+    expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
+    expect(harness.browser.showDevToolsConsole).toHaveBeenCalledWith('active')
+    expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
   })
 
   it('allows Developer Tools for an effective per-tab global-lock exception', async () => {

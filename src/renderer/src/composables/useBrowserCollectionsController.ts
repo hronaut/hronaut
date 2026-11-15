@@ -1,12 +1,16 @@
-import { ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import type {
   HronautBookmarksApi,
   HronautDownloadsApi,
   HronautHistoryApi,
+  BookmarkImportResult,
   BrowserBookmark,
   BrowserDownloadState,
+  BrowserHistoryChanges,
   BrowserHistoryEntry
 } from '../../../shared/types.js'
+import { withHistoryChanges } from '../../../shared/visit-history.js'
+import { SiteIconIndex, withSiteIconChanges, type SiteIconChanges, type SiteIcons } from '../../../shared/site-icons.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
 interface BrowserCollectionsControllerOptions {
@@ -21,6 +25,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   const downloads = ref<BrowserDownloadState[]>([])
   const bookmarks = ref<BrowserBookmark[]>([])
   const history = ref<BrowserHistoryEntry[]>([])
+  /** The icons tabs showed for the pages in the history and bookmarks, once History or Bookmarks first opens. */
+  const siteIconList = shallowRef<SiteIcons>({ pages: {}, icons: {} })
+  const siteIcons = computed(() => new SiteIconIndex(siteIconList.value))
   const knownDownloadIds = new Set<string>()
   let downloadsRevision = 0
   let bookmarksRevision = 0
@@ -28,6 +35,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   let downloadsRequestSequence = 0
   let bookmarksRequestSequence = 0
   let historyRequestSequence = 0
+  let historyListed = false
+  let siteIconsListed = false
+  let siteIconsListing: Promise<void> | undefined
   let initialized = false
   let initializePromise: Promise<void> | undefined
   let subscriptionsAttached = false
@@ -41,7 +51,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
 
   function acceptDownloads(next: BrowserDownloadState[], notify: boolean): void {
     if (disposed) return
-    const hasNewDownload = notify && next.some((download) => !knownDownloadIds.has(download.id))
+    // One kept from before the restart is not new, even when a change arrives before the first list.
+    const hasNewDownload = notify && next.some((download) => !download.fromEarlierRun && !knownDownloadIds.has(download.id))
     downloadsRevision += 1
     downloads.value = next
     replaceKnownDownloadIds(next)
@@ -57,7 +68,37 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   function acceptHistory(next: BrowserHistoryEntry[]): void {
     if (disposed) return
     historyRevision += 1
+    historyListed = true
     history.value = next
+  }
+
+  /** Puts in the pages visited or retitled lately. One that arrives before the first list is already in that list. */
+  function acceptHistoryChanges(changes: BrowserHistoryChanges): void {
+    if (disposed || !historyListed) return
+    acceptHistory(withHistoryChanges(history.value, changes))
+  }
+
+  /** Puts in the pages' icons that changed. One that changes before the first list is already in that list. */
+  function acceptSiteIconChanges(changes: SiteIconChanges): void {
+    if (disposed || !siteIconsListed) return
+    siteIconList.value = withSiteIconChanges(siteIconList.value, changes)
+  }
+
+  /**
+   * Lists the pages' icons once, when History or Bookmarks first opens; the changes keep them up to date after. A list
+   * that fails is asked for again when either opens next.
+   */
+  function listSiteIcons(): void {
+    if (disposed || siteIconsListed || siteIconsListing) return
+    siteIconsListing = options.historyApi.siteIcons().then((icons) => {
+      if (disposed) return
+      siteIconList.value = icons
+      siteIconsListed = true
+    }).catch((error: unknown) => {
+      console.error('[history] Could not list site icons:', error)
+    }).finally(() => {
+      siteIconsListing = undefined
+    })
   }
 
   async function resolveDownloads(operation: () => Promise<BrowserDownloadState[]>): Promise<BrowserDownloadState[]> {
@@ -89,7 +130,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     unsubscribers = registerDisposers([
       () => options.downloadsApi.onChanged((next) => acceptDownloads(next, true)),
       () => options.bookmarksApi.onChanged(acceptBookmarks),
-      () => options.historyApi.onChanged(acceptHistory)
+      () => options.historyApi.onChanged(acceptHistory),
+      () => options.historyApi.onUpdated(acceptHistoryChanges),
+      () => options.historyApi.onSiteIconsChanged(acceptSiteIconChanges)
     ])
     subscriptionsAttached = true
   }
@@ -110,8 +153,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return initializePromise
   }
 
+  /** The downloads as the panel opening shows them, checking that finished files are still there. */
   function refreshDownloads(): Promise<BrowserDownloadState[]> {
-    return resolveDownloads(() => options.downloadsApi.list())
+    return resolveDownloads(() => options.downloadsApi.list(true))
   }
 
   function pauseDownload(downloadId: string): Promise<BrowserDownloadState[]> {
@@ -126,6 +170,10 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveDownloads(() => options.downloadsApi.cancel(downloadId))
   }
 
+  function retryDownload(downloadId: string): Promise<BrowserDownloadState[]> {
+    return resolveDownloads(() => options.downloadsApi.retry(downloadId))
+  }
+
   function removeFinishedDownload(downloadId: string): Promise<BrowserDownloadState[]> {
     return resolveDownloads(() => options.downloadsApi.removeFinished(downloadId))
   }
@@ -138,12 +186,17 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return options.downloadsApi.showInFolder(downloadId)
   }
 
+  function startDownloadDrag(downloadId: string): Promise<void> {
+    return options.downloadsApi.startDrag(downloadId)
+  }
+
   function refreshBookmarks(): Promise<BrowserBookmark[]> {
+    listSiteIcons()
     return resolveBookmarks(() => options.bookmarksApi.list())
   }
 
-  function addBookmark(url: string, title: string): Promise<BrowserBookmark[]> {
-    return resolveBookmarks(() => options.bookmarksApi.add(url, title))
+  function addBookmark(url: string, title: string, collectionId?: string): Promise<BrowserBookmark[]> {
+    return resolveBookmarks(() => options.bookmarksApi.add(url, title, collectionId))
   }
 
   async function saveHistoryBookmark(url: string, title: string): Promise<void> {
@@ -162,7 +215,17 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveBookmarks(() => options.bookmarksApi.remove(id))
   }
 
+  /** The file's bookmarks reach the list as main publishes them, as any other change does. */
+  function exportBookmarksFile(): Promise<number | null> {
+    return options.bookmarksApi.exportFile()
+  }
+
+  function importBookmarksFile(): Promise<BookmarkImportResult | null> {
+    return options.bookmarksApi.importFile()
+  }
+
   function refreshHistory(): Promise<BrowserHistoryEntry[]> {
+    listSiteIcons()
     return resolveHistory(() => options.historyApi.list())
   }
 
@@ -197,20 +260,25 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     downloads,
     bookmarks,
     history,
+    siteIcons,
     initialize,
     refreshDownloads,
     pauseDownload,
     resumeDownload,
     cancelDownload,
+    retryDownload,
     clearFinishedDownloads,
     removeFinishedDownload,
     revealDownload,
+    startDownloadDrag,
     refreshBookmarks,
     addBookmark,
     saveHistoryBookmark,
     renameBookmark,
     updateBookmarkDestination,
     removeBookmark,
+    exportBookmarksFile,
+    importBookmarksFile,
     refreshHistory,
     removeHistoryEntry,
     clearHistory,

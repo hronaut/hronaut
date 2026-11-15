@@ -8,7 +8,7 @@ for (const change of ['replace-before', 'replace-after', 'detach-reinsert', 'amb
       const page = window.webContents
       try {
         await page.loadURL('data:text/html,<img id="target">')
-        const result = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: acquire.replace('deadline=0', 'deadline=' + (Date.now() + 5000)) }], false)
+        const result = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: acquire.replace(/, 0\)$/, ', ' + (Date.now() + 5000) + ')') }], false)
         const replace = () => page.executeJavaScript("document.getElementById('target').replaceWith(document.getElementById('target').cloneNode());void 0")
         if (change === 'replace-before') await replace()
         if (change === 'detach-reinsert') await page.executeJavaScript("{const element=document.getElementById('target');element.remove();document.body.append(element)};void 0")
@@ -32,7 +32,7 @@ test('bounds native selector matches before lookup and rejects unsupported conte
     const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } })
     const page = window.webContents
     const read = async (key: string) => {
-      const result = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: scripts[key]!.read.replace('deadline=0', 'deadline=' + (Date.now() + 5000)) }], false)
+      const result = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: scripts[key]!.read.replace(/, 0\)$/, ', ' + (Date.now() + 5000) + ')') }], false)
       if (!result.failure) await page.executeJavaScriptInIsolatedWorld(1022, [{ code: scripts[key]!.settle }], false)
       return result
     }
@@ -64,12 +64,12 @@ test('image native acquisition scrubs invalid scalars and rejects XML documents'
       for (const [name, expression] of [['complete', "'PRIVATE'"], ['naturalWidth', 'NaN'], ['naturalHeight', '-1'], ['currentSrc', '({private:true})'], ['currentSrc', "(()=>{throw Error('PRIVATE native details')})()"]]) {
         const setup = `globalThis.__savedImageGetter=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,${JSON.stringify(name)});Object.defineProperty(HTMLImageElement.prototype,${JSON.stringify(name)},{get(){return ${expression}},configurable:true});void 0`
         await page.executeJavaScriptInIsolatedWorld(1022, [{ code: setup }], false)
-        try { failures.push(await page.executeJavaScriptInIsolatedWorld(1022, [{ code: script.replace('deadline=0', 'deadline=' + (Date.now() + 5000)) }], false)) }
+        try { failures.push(await page.executeJavaScriptInIsolatedWorld(1022, [{ code: script.replace(/, 0\)$/, ', ' + (Date.now() + 5000) + ')') }], false)) }
         finally { await page.executeJavaScriptInIsolatedWorld(1022, [{ code: `Object.defineProperty(HTMLImageElement.prototype,${JSON.stringify(name)},globalThis.__savedImageGetter);delete globalThis.__savedImageGetter;void 0` }], false) }
       }
       const pending = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: 'globalThis.__hronautImageState.size' }], false)
       await page.loadURL('data:application/xhtml+xml,' + encodeURIComponent('<html xmlns="http://www.w3.org/1999/xhtml"><body><img id="target" /></body></html>'))
-      const xml = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: script.replace('deadline=0', 'deadline=' + (Date.now() + 5000)) }], false)
+      const xml = await page.executeJavaScriptInIsolatedWorld(1022, [{ code: script.replace(/, 0\)$/, ', ' + (Date.now() + 5000) + ')') }], false)
       return { failures, pending, xml }
     } finally { window.destroy() }
   }, imageStateScript('#target', 'invalid', 0))

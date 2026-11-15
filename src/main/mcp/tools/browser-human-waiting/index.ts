@@ -5,6 +5,9 @@ import { humanWaitingArtifactHash } from '../../human-waiting-store.js'
 import { textResult, toolDefinition, toolDescription } from '../../tool-results.js'
 import { type ConsequentialReviewStepRequest, consequentialReviewSchema, workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { requireWorkspaceContinuityReview } from '../../../browser/workspace-continuity/workspace-continuity.js'
+import { listMcpTabGroups } from '../../../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { getMcpGroupState } from '../../../browser/workspace-scope/workspace-scope.js'
 
 export function registerBrowserHumanWaiting(context: McpToolContext): void {
   const {
@@ -70,9 +73,9 @@ export function registerBrowserHumanWaiting(context: McpToolContext): void {
       if (input.review) {
         const requestedSteps = 'steps' in input.review ? input.review.steps : [input.review]
         const grouped = requestedSteps.length > 1
-        const workspace = manager.listMcpTabGroups().find(candidate => candidate.id === input.workspaceId)
+        const workspace = listMcpTabGroups(manager).find(candidate => candidate.id === input.workspaceId)
         if (!workspace) throw workspaceAuthorizationError()
-        const state = manager.getMcpGroupState(input.workspaceId)
+        const state = getMcpGroupState(manager, input.workspaceId)
         const steps = requestedSteps.map((requested): import('../../../../shared/human-waiting.js').HumanWaitingReviewStep => {
           const definition = toolDefinition(requested.toolName)
           if (!definition.annotations.destructiveHint) throw new Error('Consequential review is only available for mutating browser tools')
@@ -130,7 +133,7 @@ export function registerBrowserHumanWaiting(context: McpToolContext): void {
         await humanWaiting.requireDispatch(input.workspaceId, authorize, undefined, humanReviewSessionBinding)
       }
       // Establish durable continuity recovery before asking for a human decision.
-      if (!await manager.requireWorkspaceContinuityReview(input.workspaceId)) throw new Error('Workspace recovery could not be saved')
+      if (!await requireWorkspaceContinuityReview(manager, input.workspaceId)) throw new Error('Workspace recovery could not be saved')
       authorize()
       const record = await humanWaiting.create({ workspaceId: input.workspaceId, runId: input.runId, decision: input.decision,
         owner: input.owner, fallbackOwner: input.fallbackOwner, timeoutMs: input.timeoutMs, priorOutcome: 'OUTCOME_UNKNOWN',

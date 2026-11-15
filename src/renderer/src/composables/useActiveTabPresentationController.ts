@@ -1,7 +1,8 @@
+import { addressSecurity } from '../../../shared/address-security.js'
 import { isActiveDownload } from '../../../shared/download-state.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
-import { computed, type Ref } from 'vue'
+import { computed, toRaw, type Ref } from 'vue'
 import type {
   BrowserBookmark,
   BrowserDownloadState,
@@ -13,6 +14,15 @@ import type {
 } from '../../../shared/types.js'
 
 type Translate = (key: string, parameters?: Record<string, unknown>, plural?: number) => string
+
+/** Which pane of a split view a page is shown in. */
+export type ShownPagePane = 'left' | 'right' | 'top' | 'bottom'
+
+/** A shown page that could not open or stopped working, and the split view's pane it is shown in, if any. */
+export interface ShownPageProblem {
+  tab: BrowserTabState
+  pane?: ShownPagePane
+}
 
 export interface ActiveTabPresentationControllerOptions {
   state: Readonly<Ref<BrowserState>>
@@ -63,6 +73,11 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     return options.sitePermissions.value.filter((entry) => entry.workspaceId === workspaceId
       && (entry.embeddedIn === undefined ? entry.origin === origin : entry.embeddedIn === origin))
   })
+  // The shown page's connection, which the address bar's site controls button shows as Chrome does: not secure for a
+  // page not private because of a certificate Chromium does not trust.
+  const activeSecurity = computed(() => (
+    options.activeTab.value?.untrustedCertificate ? 'not-secure' as const : addressSecurity(activeWebUrl.value)
+  ))
   const activeAddressKind = computed(() => (
     options.translate(activeWebUrl.value?.startsWith('https:') ? 'runtime.address.https' : 'runtime.address.http')
   ))
@@ -70,6 +85,8 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     options.credentials.value.filter((credential) => credential.origin === activeOrigin.value)
   ))
   const activeDownloads = computed(() => options.downloads.value.filter((download) => isActiveDownload(download)))
+  /** The downloads of this run, which the toolbar's button counts; those kept from before the restart stay in the panel. */
+  const toolbarDownloads = computed(() => options.downloads.value.filter((download) => !download.fromEarlierRun))
   const currentBookmark = computed(() => (
     options.bookmarks.value.find((bookmark) => bookmark.url === activeWebUrl.value)
   ))
@@ -81,10 +98,11 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
         activeDownloads.value.length
       )
     }
-    if (options.downloads.value[0]?.state === 'completed' && !options.downloads.value[0].fileRemoved) {
-      return options.translate('runtime.downloads.complete', { filename: options.downloads.value[0].filename })
+    const latest = toolbarDownloads.value[0]
+    if (latest?.state === 'completed' && !latest.fileRemoved) {
+      return options.translate('runtime.downloads.complete', { filename: latest.filename })
     }
-    if (options.downloads.value.length) return options.translate('runtime.downloads.recent')
+    if (toolbarDownloads.value.length) return options.translate('runtime.downloads.recent')
     return options.translate('runtime.downloads.heading')
   })
   const tabHumanInteractionLocked = computed(() => options.activeTab.value?.humanInteractionInputLocked
@@ -100,21 +118,44 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     options.translate(options.state.value.allHumanInteractionLocked ? 'runtime.locks.unlockAll' : 'runtime.locks.lockAll')
   ))
 
+  // The words a tab's tooltip may use, translated once for the interface language rather than again for each tab.
+  const tooltipWords = computed(() => ({
+    newTab: options.translate('tabSearch.newTabTitle'),
+    uncertainLabel: options.translate('tabLabel.uncertain'),
+    pinned: options.translate('runtimeDetails.tab.pinned'),
+    sleeping: options.translate('runtimeDetails.tab.sleeping'),
+    frozen: options.translate('runtimeDetails.tab.frozen'),
+    freezeUnknown: options.translate('runtimeDetails.tab.freezeUnknown'),
+    muted: options.translate('runtimeDetails.tab.muted'),
+    audio: options.translate('runtimeDetails.tab.audio'),
+    locked: options.translate('runtimeDetails.tab.locked'),
+    routesUnconfirmed: options.translate('network.conditions.unconfirmed'),
+    split: options.translate('runtimeDetails.tab.split')
+  }))
+  // The shell reads every tab's tooltip whenever the browser state changes, though most tabs did not, and the store
+  // keeps each unchanged tab as the same object. A tooltip is kept until its tab, the interface language, or the lock
+  // or split view it mentions changes.
+  const tooltips = new WeakMap<BrowserTabState, { words: object; locked: boolean; split: boolean; tooltip: string }>()
+
   function tabTooltip(tab: BrowserTabState): string {
-    const pinned = tab.pinned ? options.translate('runtimeDetails.tab.pinned') : ''
-    const sleeping = tab.sleeping ? options.translate('runtimeDetails.tab.sleeping') : ''
+    const words = tooltipWords.value
+    const locked = tab.humanInteractionInputLocked
+      ?? (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked)
+    const split = options.state.value.splitView?.firstTabId === tab.id
+      || options.state.value.splitView?.secondTabId === tab.id
+    const key = toRaw(tab)
+    const kept = tooltips.get(key)
+    if (kept?.words === words && kept.locked === locked && kept.split === split) return kept.tooltip
+    const tooltip = describeTab(tab, words, locked, split)
+    tooltips.set(key, { words, locked, split, tooltip })
+    return tooltip
+  }
+
+  function describeTab(tab: BrowserTabState, words: typeof tooltipWords.value, locked: boolean, split: boolean): string {
     const pageLifecycle = tab.pageLifecycleState === 'frozen'
-      ? options.translate('runtimeDetails.tab.frozen')
-      : tab.pageLifecycleState === 'unknown'
-        ? options.translate('runtimeDetails.tab.freezeUnknown')
-        : ''
-    const audio = tab.muted
-      ? options.translate('runtimeDetails.tab.muted')
-      : tab.audible ? options.translate('runtimeDetails.tab.audio') : ''
-    const locked = (tab.humanInteractionInputLocked
-      ?? (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked))
-      ? options.translate('runtimeDetails.tab.locked')
-      : ''
+      ? words.frozen
+      : tab.pageLifecycleState === 'unknown' ? words.freezeUnknown : ''
+    const audio = tab.muted ? words.muted : tab.audible ? words.audio : ''
     const problem = tab.pageProblem
       ? options.translate('runtimeDetails.tab.problem', { problem: tab.pageProblem.title })
       : ''
@@ -122,7 +163,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
       ? options.translate('runtimeDetails.tab.emulated', { description: options.describeEmulation(tab.emulation) })
       : ''
     const networkRoutes = tab.networkConditionState && tab.networkConditionState.application !== 'confirmed'
-      ? options.translate('network.conditions.unconfirmed')
+      ? words.routesUnconfirmed
       : tab.networkRouteCount
       ? options.translate(
         'runtimeDetails.tab.routes',
@@ -130,15 +171,30 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
         tab.networkRouteCount
       )
       : ''
-    const split = options.state.value.splitView?.firstTabId === tab.id
-      || options.state.value.splitView?.secondTabId === tab.id
-      ? options.translate('runtimeDetails.tab.split')
-      : ''
     const workspace = tab.mcpGroupName
       ? options.translate('runtimeDetails.tab.workspace', { name: tab.mcpGroupName })
       : ''
-    return `${tab.label ? `${tab.label}\n${tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle'))}\n${tab.url}` : tabTitleForDisplay(tab, options.translate('tabSearch.newTabTitle'))}${tab.labelDurabilityUnconfirmed ? `\n${options.translate('tabLabel.uncertain')}` : ''}${problem}${pinned}${sleeping}${pageLifecycle}${audio}${locked}${emulation}${networkRoutes}${split}${workspace}`
+    const title = tabTitleForDisplay(tab, words.newTab)
+    return `${tab.label ? `${tab.label}\n${title}\n${tab.url}` : title}${tab.labelDurabilityUnconfirmed ? `\n${words.uncertainLabel}` : ''}${problem}${tab.pinned ? words.pinned : ''}${tab.sleeping ? words.sleeping : ''}${pageLifecycle}${audio}${locked ? words.locked : ''}${emulation}${networkRoutes}${split ? words.split : ''}${workspace}`
   }
+
+  /**
+   * The shown pages that could not open or stopped working, in the order they are shown. In a split view each pane
+   * says what went wrong in it and which pane it is, as Chrome shows its error page in that pane: the pane that was
+   * not active showed a blank page, with no message and no Try again.
+   */
+  const shownPageProblems = computed<ShownPageProblem[]>(() => {
+    const active = options.activeTab.value
+    const split = options.state.value.splitView
+    if (!split || !active || (split.firstTabId !== active.id && split.secondTabId !== active.id)) {
+      return active?.pageProblem ? [{ tab: active }] : []
+    }
+    const panes: [ShownPagePane, ShownPagePane] = split.orientation === 'vertical' ? ['left', 'right'] : ['top', 'bottom']
+    return [split.firstTabId, split.secondTabId].flatMap((tabId, index) => {
+      const tab = tabId === active.id ? active : options.state.value.tabs.find((candidate) => candidate.id === tabId)
+      return tab?.pageProblem ? [{ tab, pane: panes[index] }] : []
+    })
+  })
 
   function pageProblemDetails(tab: BrowserTabState): string {
     const problem = tab.pageProblem
@@ -164,9 +220,11 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     activeOrigin,
     activeHostname,
     activeSitePermissions,
+    activeSecurity,
     activeAddressKind,
     activeCredentials,
     activeDownloads,
+    toolbarDownloads,
     currentBookmark,
     downloadButtonLabel,
     tabHumanInteractionLocked,
@@ -174,6 +232,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     tabInteractionLockLabel,
     allInteractionLockLabel,
     tabTooltip,
+    shownPageProblems,
     pageProblemDetails
   }
 }

@@ -38,7 +38,7 @@ describe('interface scale', () => {
     expect(pageScriptSources.length).toBeGreaterThan(0)
     const sources = [
       ...rendererStyleSources,
-      readFileSync(new URL('../src/main/home-page.ts', import.meta.url), 'utf8'),
+      readFileSync(new URL('../src/main/home/home-page.ts', import.meta.url), 'utf8'),
       ...pageScriptSources
     ]
 

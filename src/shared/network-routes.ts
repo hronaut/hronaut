@@ -1,4 +1,4 @@
-import type { MessageKey } from './i18n.js'
+import type { MessageKey } from './translate.js'
 
 export function networkRoutePatternMatches(pattern: string, url: string): boolean {
   const tokens: Array<'*' | '?' | { literal: string }> = []

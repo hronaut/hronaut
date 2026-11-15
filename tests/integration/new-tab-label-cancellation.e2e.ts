@@ -4,6 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text, installLabelFault, labelFault, releaseLabelFault, restoreLabelFault } from './new-tab-label-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 for (const stage of ['hold-write', 'hold-rename', 'hold-flush'] as const) {
   for (const change of ['cancel', 'workspace access', 'global pause'] as const) {
@@ -41,11 +42,10 @@ for (const stage of ['hold-write', 'hold-rename', 'hold-flush'] as const) {
         if (change !== 'cancel') expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible', retrySafe: false })
         expect(text(result)).not.toContain(marker)
         expect(text(result)).not.toContain('createdTabId')
-        await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
-          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; result: unknown }> }
+        await expect.poll(async () => {
+          const state = await homeStatus<{ recentActivity: Array<{ toolName: string; result: unknown }> }>(electronApp)
           return state.recentActivity.filter(activity => activity.toolName === 'browser_new_tab').map(activity => ({ result: activity.result }))
-        })).toContainEqual(expect.objectContaining({ result: expect.objectContaining({ outcome: change === 'cancel' ? 'cancelled' : 'outcome-unknown', effects: 'possible' }) }))
+        }).toContainEqual(expect.objectContaining({ result: expect.objectContaining({ outcome: change === 'cancel' ? 'cancelled' : 'outcome-unknown', effects: 'possible' }) }))
         const current = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
         const tab = current.tabs.find(tab => tab.id === id)!
         expect(tab.label).toBe(stage === 'hold-write' ? undefined : marker)

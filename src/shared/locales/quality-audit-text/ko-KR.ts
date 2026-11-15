@@ -1,0 +1,82 @@
+export const koKRQualityAuditText = {
+  categories: {
+    accessibility: '접근성',
+    performance: '성능',
+    metadata: '메타데이터 및 SEO',
+    security: '보안',
+    pwa: 'PWA 및 오프라인',
+    'browser-issues': 'Chromium 문제'
+  },
+  statuses: {
+    pass: '통과',
+    info: '정보',
+    warning: '경고',
+    error: '오류',
+    'not-applicable': '해당 없음'
+  },
+  severities: {
+    error: '오류',
+    warning: '경고',
+    info: '정보'
+  },
+  fixed: {
+    accessibilityClear: '자동 검사에서 WCAG AA 위반이 발견되지 않음',
+    performanceNone: '이번 방문에서 관찰된 Web Vitals 없음',
+    metadataClear: '메타데이터 문제가 발견되지 않음',
+    securitySecure: '기본 문서가 안전하게 전송됨',
+    pwaNone: 'PWA 또는 오프라인 앱 기능이 감지되지 않음',
+    browserIssuesClear: '보관된 Chromium 문제가 없음',
+    webVitalsNotObserved: '이번 방문에서 관찰된 Web Vitals가 없습니다. 페이지를 새로고침하고 사용해 본 후 감사를 다시 실행하세요.',
+    insecureTransport: '기본 문서가 안전한 전송을 정상적으로 사용하고 있지 않습니다.',
+    certificateExpired: '기본 문서의 인증서가 만료되었습니다.',
+    certificateNotYetValid: '기본 문서의 인증서가 아직 유효하지 않습니다.',
+    certificateInvalid: '기본 문서의 인증서가 현재 유효하지 않습니다.',
+    pwaInspectionPartial: '이 감사에서 일부 PWA 진단을 사용할 수 없었습니다.'
+  },
+  caveats: {
+    localDiagnostic: 'Hronaut 증거를 바탕으로 만든 범위가 제한된 로컬 진단입니다. Lighthouse 점수나 인증이 아닙니다.',
+    accessibilityAutomation: '접근성 자동 검사는 키보드, 스크린 리더, 확대/축소, 모션 및 사람이 직접 하는 사용성 테스트를 대신할 수 없습니다.',
+    performanceVisit: '성능은 현재 로컬 방문과 환경을 반영합니다. 중요한 측정은 대표성 있는 조건에서 반복하세요.',
+    pwaOptional: '오프라인 앱 기능을 제공하지 않는 웹사이트에서는 PWA를 필수 요건으로 취급하지 않습니다.',
+    reloadIssues: '시작 시에만 발생하는 Chromium 문제를 재현하려면 새로고침한 후 이 감사를 다시 실행하세요.'
+  },
+  text: {
+    violations: '위반 {count}건',
+    violationNodes: '영향을 받는 노드 {count}개',
+    accessibilityViolations: '{nodes}에서 {violations}',
+    affectedNodes: '영향을 받는 노드 {count}개',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: '규칙 {count}개 통과',
+    checksNeedReview: '검토가 필요한 검사 {count}개',
+    needsHumanReview: '접근성 검사 {count}개는 사람의 검토가 필요합니다.',
+    performanceGood: '관찰된 Web Vitals {total}개 중 {good}개 양호',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: '{name} 값 {value}의 평가는 {rating}입니다.',
+    resources: '리소스 {count}개',
+    longTasks: '긴 작업 {count}개',
+    metadataIssues: '메타데이터 문제 {count}개',
+    language: '언어: {language}',
+    languageMissing: '언어: 없음',
+    canonicalUrls: '표준 URL: {count}',
+    structuredData: '구조화된 데이터: 유효 {valid} · 유효하지 않음 {invalid}',
+    securityState: '보안 상태: {state}',
+    securityStateFinding: 'Chromium에서 보고한 기본 문서의 보안 상태는 {state}입니다.',
+    transportSecure: '전송: 안전함',
+    transportInsecure: '전송: 안전하지 않음',
+    protocol: '프로토콜: {protocol}',
+    protocolUnavailable: '프로토콜: 사용할 수 없음',
+    certificateValid: '인증서: 유효함',
+    certificateInvalid: '인증서: 유효하지 않음',
+    certificateUnavailable: '인증서: 사용할 수 없음',
+    registrations: '서비스 워커 등록 {count}개',
+    caches: '캐시 {count}개',
+    manifestPresent: '매니페스트: 있음',
+    manifestMissing: '매니페스트: 감지되지 않음',
+    controlledYes: '서비스 워커 제어: 예',
+    controlledNo: '서비스 워커 제어: 아니요',
+    installabilityIssues: '설치 가능성 문제: {count}',
+    installabilityFinding: 'Chromium에서 PWA 설치 가능성 문제를 보고했습니다: {issue}.',
+    installabilityUnknown: 'Chromium에서 PWA 설치 가능성 문제를 보고했습니다: 알 수 없는 문제.',
+    browserIssues: '브라우저에서 생성된 문제 {count}개'
+  }
+}

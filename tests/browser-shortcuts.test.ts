@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { browserShortcutAction, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
+import { applicationMenuKey, browserShortcutAction, isBrowserKey, websiteKeptShortcutAction, type BrowserShortcutInput } from '../src/shared/browser-shortcuts.js'
 import { shortcutKey } from '../src/shared/shortcut-key.js'
 
 function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutInput {
@@ -13,41 +13,101 @@ function input(overrides: Partial<BrowserShortcutInput> = {}): BrowserShortcutIn
   }
 }
 
+/** The browser's action for a key, whether it takes the key at once or only once the page leaves it alone. */
+function tabKey(key: BrowserShortcutInput): string | null {
+  return browserShortcutAction(key) ?? websiteKeptShortcutAction(key)
+}
+
 describe('browserShortcutAction', () => {
   it.each([
-    ['L', 'focus-address'],
     ['T', 'new-tab'],
-    ['W', 'close-tab'],
-    ['F', 'find'],
-    ['D', 'bookmark']
+    ['W', 'close-tab']
   ] as const)('maps the primary modifier plus %s', (key, action) => {
     expect(browserShortcutAction(input({ key, control: true }))).toBe(action)
     expect(browserShortcutAction(input({ key, meta: true }))).toBe(action)
   })
 
-  it('uses Cmd+Y rather than Cmd+H for macOS visit history', () => {
-    expect(browserShortcutAction(input({ key: 'H', control: true }))).toBe('visit-history')
-    expect(browserShortcutAction(input({ key: 'Y', meta: true }))).toBe('visit-history')
-    expect(browserShortcutAction(input({ key: 'H', meta: true }))).toBeNull()
+  // A web editor's Ctrl+D (add the next match) and Ctrl+H (Replace), a design tool's Cmd+D (duplicate) and a document's
+  // Cmd+Y (redo) never reached their page: Hronaut took them for Bookmark and History, which Chrome lets a page keep.
+  it('leaves Ctrl/Cmd+D, and Ctrl+H or Cmd+Y on macOS, to the page first, as Chrome does', () => {
+    const keys = (overrides: Partial<BrowserShortcutInput>) => {
+      const pressed = input(overrides)
+      return { browser: browserShortcutAction(pressed), kept: websiteKeptShortcutAction(pressed) }
+    }
+    expect(keys({ key: 'd', code: 'KeyD', control: true })).toEqual({ browser: null, kept: 'bookmark' })
+    expect(keys({ key: 'd', code: 'KeyD', meta: true, mac: true })).toEqual({ browser: null, kept: 'bookmark' })
+    expect(keys({ key: 'h', code: 'KeyH', control: true })).toEqual({ browser: null, kept: 'visit-history' })
+    expect(keys({ key: 'y', code: 'KeyY', meta: true, mac: true })).toEqual({ browser: null, kept: 'visit-history' })
+    // Cmd+H hides the app on macOS, Ctrl+Y redoes elsewhere, and other modifiers make other keys.
+    for (const key of [
+      { key: 'h', code: 'KeyH', meta: true, mac: true }, { key: 'y', code: 'KeyY', control: true }, { key: 'd', code: 'KeyD', control: true, mac: true },
+      { key: 'd', code: 'KeyD', meta: true }, { key: 'y', code: 'KeyY', meta: true }, { key: 'd', code: 'KeyD', control: true, alt: true },
+      { key: 'd', code: 'KeyD', control: true, meta: true }, { key: 'd', code: 'KeyD', control: true, repeat: true }
+    ]) expect(keys(key), JSON.stringify(key)).toEqual({ browser: null, kept: null })
+    // Under Hronaut's dialogs the window keeps them from the page behind them, as the other browser keys.
+    expect(isBrowserKey(input({ key: 'd', code: 'KeyD', control: true }))).toBe(true)
+    expect(isBrowserKey(input({ key: 'y', code: 'KeyY', meta: true, mac: true }))).toBe(true)
+  })
+
+  // A web editor finds with Ctrl+F, selects a line with Ctrl+L and opens recent folders with Ctrl+R, and a design tool
+  // zooms its canvas with Ctrl/Cmd with = and -: Hronaut took the keys before the page saw them, where Chrome lets a
+  // page keep every key but those that close, open or change tabs and windows.
+  it('leaves Ctrl/Cmd+F, L, R and the zoom keys to the page first, as Chrome does', () => {
+    const keys = (overrides: Partial<BrowserShortcutInput>) => {
+      const pressed = input(overrides)
+      return { browser: browserShortcutAction(pressed), kept: websiteKeptShortcutAction(pressed) }
+    }
+    for (const modifier of [{ control: true }, { meta: true, mac: true }]) {
+      expect(keys({ key: 'f', code: 'KeyF', ...modifier })).toEqual({ browser: null, kept: 'find' })
+      expect(keys({ key: 'l', code: 'KeyL', ...modifier })).toEqual({ browser: null, kept: 'focus-address' })
+      expect(keys({ key: 'r', code: 'KeyR', ...modifier })).toEqual({ browser: null, kept: 'reload' })
+      expect(keys({ key: 'R', code: 'KeyR', shift: true, ...modifier })).toEqual({ browser: null, kept: 'reload-ignoring-cache' })
+      expect(keys({ key: '=', code: 'Equal', ...modifier })).toEqual({ browser: null, kept: 'zoom-in' })
+      expect(keys({ key: '+', code: 'Equal', shift: true, ...modifier })).toEqual({ browser: null, kept: 'zoom-in' })
+      expect(keys({ key: '-', code: 'Minus', ...modifier })).toEqual({ browser: null, kept: 'zoom-out' })
+      expect(keys({ key: '0', code: 'Digit0', ...modifier })).toEqual({ browser: null, kept: 'zoom-reset' })
+    }
+    // The keypad's zoom keys too, elsewhere than macOS, but not Shift with the keypad's +, as in Chrome.
+    expect(keys({ key: '+', code: 'NumpadAdd', control: true })).toEqual({ browser: null, kept: 'zoom-in' })
+    expect(keys({ key: '+', code: 'NumpadAdd', control: true, shift: true })).toEqual({ browser: null, kept: null })
+    // There Zoom In goes by Chromium's code for the key, as the menu does: Ctrl+Shift with a German keyboard's + key
+    // types *, which Hronaut's window left to the menu, and the menu then left to the window, so nothing zoomed. On
+    // macOS the menu goes by the character.
+    expect(keys({ key: '*', code: 'BracketRight', keyCode: 187, control: true, shift: true })).toEqual({ browser: null, kept: 'zoom-in' })
+    expect(keys({ key: '*', code: 'BracketRight', keyCode: 187, meta: true, shift: true, mac: true })).toEqual({ browser: null, kept: null })
+    expect(keys({ key: '-', code: 'NumpadSubtract', control: true })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(keys({ key: '0', code: 'Numpad0', control: true })).toEqual({ browser: null, kept: 'zoom-reset' })
+    // Chrome takes none of them with Super or the Windows key, with Alt, or with Ctrl and Shift on F, L and the zoom-out
+    // and reset keys; a held key's repeats are the window menu's, which acts on them once.
+    for (const key of [
+      { key: 'f', code: 'KeyF', meta: true }, { key: 'r', code: 'KeyR', meta: true }, { key: '=', code: 'Equal', meta: true },
+      { key: 'f', code: 'KeyF', control: true, meta: true }, { key: 'l', code: 'KeyL', control: true, alt: true },
+      { key: 'L', code: 'KeyL', control: true, shift: true }, { key: '0', code: 'Digit0', meta: true, shift: true, mac: true },
+      { key: 'f', code: 'KeyF', control: true, repeat: true }, { key: '=', code: 'Equal', meta: true, mac: true, repeat: true }
+    ]) expect(keys(key), JSON.stringify(key)).toEqual({ browser: null, kept: null })
+    // Under Hronaut's dialogs the window keeps them from the page behind them, held or not, as the other browser keys.
+    expect(isBrowserKey(input({ key: 'f', code: 'KeyF', control: true }))).toBe(true)
+    expect(isBrowserKey(input({ key: '=', code: 'Equal', meta: true, mac: true, repeat: true }))).toBe(true)
   })
 
   it.each(['f', 'w', 'r', 't', 'd', 'l', 'h', 'k', 'y', 'o', 'i', 'c', '=', '+', '-', '0', '.', 'Delete', 'Backspace', 'R', 'T', 'A', 'P', 'O', 'I', 'C'])(
     'leaves Control+%s to the page on macOS, where Command is the browser key', key => {
       // Control+F opened Find instead of moving the caret, and Control+W in a web terminal closed the tab.
       for (const shift of [false, true]) {
-        expect(browserShortcutAction(input({ key, control: true, shift, mac: true }))).toBeNull()
-        expect(browserShortcutAction(input({ key, control: true, meta: true, shift, mac: true }))).toBeNull()
+        for (const pressed of [input({ key, control: true, shift, mac: true }), input({ key, control: true, meta: true, shift, mac: true })]) {
+          expect(browserShortcutAction(pressed)).toBeNull()
+          expect(websiteKeptShortcutAction(pressed)).toBeNull()
+        }
       }
     }
   )
 
   it('keeps the Command keys and Control+Tab on macOS', () => {
-    const mac = (overrides: Partial<BrowserShortcutInput>) => browserShortcutAction(input({ mac: true, ...overrides }))
+    const mac = (overrides: Partial<BrowserShortcutInput>) => tabKey(input({ mac: true, ...overrides }))
     expect(mac({ key: 'f', meta: true })).toBe('find')
     expect(mac({ key: 'w', meta: true })).toBe('close-tab')
     expect(mac({ key: '=', meta: true })).toBe('zoom-in')
     expect(mac({ key: 'T', meta: true, shift: true })).toBe('reopen-closed-tab')
-    expect(mac({ key: 'y', meta: true })).toBe('visit-history')
     expect(mac({ key: '3', code: 'Digit3', meta: true })).toBe('select-tab-3')
     expect(mac({ key: 'Tab', control: true })).toBe('next-tab')
     expect(mac({ key: 'Tab', control: true, shift: true })).toBe('previous-tab')
@@ -80,14 +140,26 @@ describe('browserShortcutAction', () => {
   })
 
   it('maps standard direct-tab shortcuts on Linux, Windows, and macOS', () => {
-    for (const modifier of [{ control: true }, { meta: true }]) {
+    for (const modifier of [{ control: true }, { meta: true }, { meta: true, mac: true }]) {
       for (let position = 1; position <= 8; position += 1) {
-        expect(browserShortcutAction(input({ key: String(position), ...modifier }))).toBe(`select-tab-${position}`)
+        expect(tabKey(input({ key: String(position), ...modifier }))).toBe(`select-tab-${position}`)
       }
-      expect(browserShortcutAction(input({ key: '9', ...modifier }))).toBe('select-last-tab')
+      expect(tabKey(input({ key: '9', ...modifier }))).toBe('select-last-tab')
     }
-    expect(browserShortcutAction(input({ key: '1', control: true, shift: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: '9', meta: true, alt: true }))).toBeNull()
+    expect(tabKey(input({ key: '1', control: true, shift: true }))).toBeNull()
+    expect(tabKey(input({ key: '9', meta: true, alt: true }))).toBeNull()
+    expect(tabKey(input({ key: '1', control: true, mac: true }))).toBeNull()
+  })
+
+  it('leaves Ctrl with a digit to the page first elsewhere than macOS, as Chrome does', () => {
+    // A web editor goes to its first editor group with Ctrl+1; Hronaut took the key before the page saw it.
+    for (const key of ['1', '5', '8', '9']) {
+      expect(browserShortcutAction(input({ key, code: `Digit${key}`, control: true })), key).toBeNull()
+      expect(websiteKeptShortcutAction(input({ key, code: `Digit${key}`, control: true })), key).not.toBeNull()
+    }
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', control: true, repeat: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', control: true, alt: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: '1', code: 'Digit1', meta: true, mac: true }))).toBeNull()
   })
 
   it('maps the standard tab-search shortcut', () => {
@@ -101,10 +173,10 @@ describe('browserShortcutAction', () => {
   })
 
   it('maps normal and cache-bypassing reload shortcuts', () => {
-    expect(browserShortcutAction(input({ key: 'R', control: true }))).toBe('reload')
-    expect(browserShortcutAction(input({ key: 'R', meta: true }))).toBe('reload')
-    expect(browserShortcutAction(input({ key: 'R', control: true, shift: true }))).toBe('reload-ignoring-cache')
-    expect(browserShortcutAction(input({ key: 'R', meta: true, shift: true }))).toBe('reload-ignoring-cache')
+    expect(tabKey(input({ key: 'R', control: true }))).toBe('reload')
+    expect(tabKey(input({ key: 'R', meta: true, mac: true }))).toBe('reload')
+    expect(tabKey(input({ key: 'R', control: true, shift: true }))).toBe('reload-ignoring-cache')
+    expect(tabKey(input({ key: 'R', meta: true, shift: true, mac: true }))).toBe('reload-ignoring-cache')
   })
 
   it('maps the standard clear-browsing-data shortcut', () => {
@@ -116,12 +188,32 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'F12' }))).toBe('toggle-devtools')
     expect(browserShortcutAction(input({ key: 'I', control: true, shift: true }))).toBe('toggle-devtools')
     expect(browserShortcutAction(input({ key: 'I', meta: true, alt: true }))).toBe('toggle-devtools')
+    // On macOS Option+I is a dead key, so it goes by the key's place.
+    expect(browserShortcutAction(input({ key: 'Dead', code: 'KeyI', meta: true, alt: true, mac: true }))).toBe('toggle-devtools')
+    expect(browserShortcutAction(input({ key: 'Dead', code: 'KeyU', meta: true, alt: true, mac: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'I', control: true }))).toBeNull()
+  })
+
+  it('opens the Console of Developer Tools with Ctrl+Shift+J, or Cmd+Option+J on macOS, as Chrome does', () => {
+    // A website got the key, where Chrome opens Developer Tools on its Console.
+    expect(browserShortcutAction(input({ key: 'J', code: 'KeyJ', control: true, shift: true }))).toBe('open-console')
+    expect(browserShortcutAction(input({ key: 'J', code: 'KeyJ', meta: true, alt: true }))).toBe('open-console')
+    // On macOS Option+J types ∆, and a Russian layout types О on the key.
+    expect(browserShortcutAction(input({ key: '∆', code: 'KeyJ', meta: true, alt: true, mac: true }))).toBe('open-console')
+    expect(browserShortcutAction(input({ key: 'О', code: 'KeyJ', control: true, shift: true }))).toBe('open-console')
+    expect(isBrowserKey(input({ key: 'J', code: 'KeyJ', control: true, shift: true, repeat: true }))).toBe(true)
+    for (const key of [
+      { key: 'j', code: 'KeyJ', control: true }, { key: 'J', code: 'KeyJ', control: true, shift: true, alt: true },
+      { key: 'J', code: 'KeyJ', control: true, shift: true, mac: true }, { key: 'J', code: 'KeyJ', meta: true, shift: true, mac: true },
+      { key: 'J', code: 'KeyJ', control: true, shift: true, repeat: true }, { key: 'J', code: 'KeyJ', control: true, shift: true, composing: true }
+    ]) expect(browserShortcutAction(input(key)), JSON.stringify(key)).not.toBe('open-console')
   })
 
   it('maps Chromium inspect-element shortcuts', () => {
     expect(browserShortcutAction(input({ key: 'C', control: true, shift: true }))).toBe('pick-element')
     expect(browserShortcutAction(input({ key: 'C', meta: true, alt: true }))).toBe('pick-element')
+    // On macOS Option+C types ç.
+    expect(browserShortcutAction(input({ key: 'ç', code: 'KeyC', meta: true, alt: true, mac: true }))).toBe('pick-element')
     expect(browserShortcutAction(input({ key: 'C', control: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'C', meta: true, shift: true }))).toBeNull()
   })
@@ -143,6 +235,36 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'O', control: true, shift: true, repeat: true }))).toBeNull()
   })
 
+  it('keeps macOS Settings\' Cmd+, from the menu under Hronaut\'s dialogs, and no Ctrl+, elsewhere, which opens nothing', () => {
+    expect(browserShortcutAction(input({ key: ',', code: 'Comma', meta: true, mac: true }))).toBeNull()
+    expect(applicationMenuKey(input({ key: ',', code: 'Comma', meta: true, mac: true }))).toBe(true)
+    expect(isBrowserKey(input({ key: ',', code: 'Comma', meta: true, mac: true }))).toBe(true)
+    for (const key of [
+      { key: ',', code: 'Comma', control: true }, { key: ',', code: 'Comma', meta: true, shift: true, mac: true },
+      { key: ',', code: 'Comma', meta: true, control: true, mac: true }
+    ]) expect(applicationMenuKey(input(key)), JSON.stringify(key)).toBe(false)
+  })
+
+  it('leaves Bookmark all tabs\' primary modifier plus Shift+D to the page first, as Chrome does, keeping Bookmark on D', () => {
+    // Chrome does not reserve it, so a website may keep it, as a web editor does to show its Run and Debug view. The
+    // application menu's View item has it, which runs only when the page leaves the key alone.
+    expect(browserShortcutAction(input({ key: 'D', code: 'KeyD', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'D', code: 'KeyD', meta: true, shift: true, mac: true }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: 'D', code: 'KeyD', control: true, shift: true }))).toBeNull()
+    expect(applicationMenuKey(input({ key: 'D', code: 'KeyD', control: true, shift: true }))).toBe(true)
+    expect(applicationMenuKey(input({ key: 'D', code: 'KeyD', meta: true, shift: true, mac: true }))).toBe(true)
+    // By its place on a US keyboard, with a Russian or Ukrainian layout on.
+    expect(applicationMenuKey(input({ key: 'В', code: 'KeyD', control: true, shift: true }))).toBe(true)
+    expect(applicationMenuKey(input({ key: 'В', code: 'KeyD', meta: true, shift: true, mac: true }))).toBe(true)
+    expect(websiteKeptShortcutAction(input({ key: 'd', control: true }))).toBe('bookmark')
+    for (const key of [
+      { key: 'D', code: 'KeyD', shift: true }, { key: 'D', code: 'KeyD', control: true, shift: true, alt: true },
+      { key: 'D', code: 'KeyD', control: true, shift: true, mac: true }, { key: 'D', code: 'KeyD', meta: true, shift: true }
+    ]) expect(applicationMenuKey(input(key)), JSON.stringify(key)).toBe(false)
+    // Under Hronaut's dialogs the window keeps it from the page behind them, as the other browser keys.
+    expect(isBrowserKey(input({ key: 'D', code: 'KeyD', control: true, shift: true, repeat: true }))).toBe(true)
+  })
+
   it('switches workspace with the primary modifier plus K, and nothing else on K', () => {
     expect(browserShortcutAction(input({ key: 'k', control: true }))).toBe('switch-workspace')
     expect(browserShortcutAction(input({ key: 'K', meta: true }))).toBe('switch-workspace')
@@ -155,19 +277,50 @@ describe('browserShortcutAction', () => {
   it('toggles the full-page view with the primary modifier plus Shift+F, leaving Find on F', () => {
     expect(browserShortcutAction(input({ key: 'F', control: true, shift: true }))).toBe('toggle-full-page')
     expect(browserShortcutAction(input({ key: 'F', meta: true, shift: true }))).toBe('toggle-full-page')
-    expect(browserShortcutAction(input({ key: 'f', control: true }))).toBe('find')
+    expect(tabKey(input({ key: 'f', control: true }))).toBe('find')
     expect(browserShortcutAction(input({ key: 'F', shift: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'F', control: true, shift: true, alt: true }))).toBeNull()
     expect(browserShortcutAction(input({ key: 'F', meta: true, shift: true, repeat: true }))).toBeNull()
   })
 
   it('maps standard page zoom shortcuts', () => {
-    for (const modifier of [{ control: true }, { meta: true }]) {
-      expect(browserShortcutAction(input({ key: '+', shift: true, ...modifier }))).toBe('zoom-in')
-      expect(browserShortcutAction(input({ key: '=', ...modifier }))).toBe('zoom-in')
-      expect(browserShortcutAction(input({ key: '-', ...modifier }))).toBe('zoom-out')
-      expect(browserShortcutAction(input({ key: '0', ...modifier }))).toBe('zoom-reset')
+    for (const modifier of [{ control: true }, { meta: true, mac: true }]) {
+      expect(tabKey(input({ key: '+', shift: true, ...modifier }))).toBe('zoom-in')
+      expect(tabKey(input({ key: '=', ...modifier }))).toBe('zoom-in')
+      expect(tabKey(input({ key: '-', ...modifier }))).toBe('zoom-out')
+      expect(tabKey(input({ key: '0', ...modifier }))).toBe('zoom-reset')
     }
+  })
+
+  // Chrome zooms out with Ctrl+Shift and the minus key elsewhere than macOS, as it zooms in with Ctrl+Shift+=, once the
+  // page leaves the key alone, as JupyterLab doesn't when it splits a cell with it; Hronaut did nothing with it.
+  it('zooms out with Ctrl+Shift+Minus elsewhere than macOS once the page leaves it alone, as Chrome does', () => {
+    const minus = (keys: Partial<BrowserShortcutInput>) => {
+      const pressed = input({ control: true, shift: true, ...keys })
+      return { browser: browserShortcutAction(pressed), kept: websiteKeptShortcutAction(pressed) }
+    }
+    expect(minus({ key: '_', code: 'Minus' })).toEqual({ browser: null, kept: 'zoom-out' })
+    // A German keyboard has its minus key where a US keyboard has /; Hronaut's window also gives the minus key's code.
+    expect(minus({ key: '_', code: 'Slash' })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: '_', code: 'Slash', keyCode: 189 })).toEqual({ browser: null, kept: 'zoom-out' })
+    // A layout whose minus key types another script's character with Shift, as Devanagari InScript does.
+    expect(minus({ key: 'ः', code: 'Minus' })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: 'ः', code: 'Minus', keyCode: 189 })).toEqual({ browser: null, kept: 'zoom-out' })
+    // A Japanese keyboard's minus key types = with Shift, which zoomed in; its \ key types _ and is no zoom key.
+    expect(minus({ key: '=', code: 'Minus' })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: '=', code: 'Minus', keyCode: 189 })).toEqual({ browser: null, kept: 'zoom-out' })
+    expect(minus({ key: '_', code: 'IntlRo' })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'IntlRo', keyCode: 226 })).toEqual({ browser: null, kept: null })
+    // Ctrl+Shift+= still zooms in, and Shift with the keypad's minus is no key, as in Chrome.
+    expect(minus({ key: '+', code: 'Equal', keyCode: 187 })).toEqual({ browser: null, kept: 'zoom-in' })
+    expect(minus({ key: '-', code: 'NumpadSubtract', keyCode: 109 })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'Minus', repeat: true })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'Minus', alt: true })).toEqual({ browser: null, kept: null })
+    // AZERTY types _ on the 8 key without Shift, which goes by its digit.
+    expect(minus({ key: '8', code: 'Digit8' })).toEqual({ browser: null, kept: null })
+    // Not with Super or the Windows key, nor on macOS, where Chrome has no such key.
+    expect(minus({ key: '_', code: 'Minus', control: false, meta: true })).toEqual({ browser: null, kept: null })
+    expect(minus({ key: '_', code: 'Minus', control: false, meta: true, mac: true })).toEqual({ browser: null, kept: null })
   })
 
   // Electron reports the character the layout types, so with a Russian or Ukrainian layout on Ctrl+L came as Ctrl+д and
@@ -177,7 +330,6 @@ describe('browserShortcutAction', () => {
     ['е', 'KeyT', false, 'new-tab'],
     ['ц', 'KeyW', false, 'close-tab'],
     ['а', 'KeyF', false, 'find'],
-    ['в', 'KeyD', false, 'bookmark'],
     ['к', 'KeyR', false, 'reload'],
     ['л', 'KeyK', false, 'switch-workspace'],
     ['ю', 'Period', false, 'agent-card'],
@@ -189,41 +341,60 @@ describe('browserShortcutAction', () => {
     ['Щ', 'KeyO', true, 'take-over'],
     ['Ш', 'KeyI', true, 'toggle-devtools'],
     ['С', 'KeyC', true, 'pick-element'],
+    ['О', 'KeyJ', true, 'open-console'],
     ['і', 'KeyS', false, null],
     ['λ', 'KeyL', false, 'focus-address']
   ] as const)('maps Control+%s at %s (Shift %s) by its place on a US keyboard', (key, code, shift, action) => {
-    expect(browserShortcutAction(input({ key, code, shift, control: true }))).toBe(action)
-    if (action && !['toggle-devtools', 'pick-element'].includes(action)) {
-      expect(browserShortcutAction(input({ key, code, shift, meta: true, mac: true }))).toBe(action)
+    expect(tabKey(input({ key, code, shift, control: true }))).toBe(action)
+    if (action && !['toggle-devtools', 'pick-element', 'open-console'].includes(action)) {
+      expect(tabKey(input({ key, code, shift, meta: true, mac: true }))).toBe(action)
     }
   })
 
   it('goes by the US key for history, tabs and zoom when the layout types other characters there', () => {
-    expect(browserShortcutAction(input({ key: 'р', code: 'KeyH', control: true }))).toBe('visit-history')
-    expect(browserShortcutAction(input({ key: 'н', code: 'KeyY', meta: true, mac: true }))).toBe('visit-history')
+    expect(websiteKeptShortcutAction(input({ key: 'в', code: 'KeyD', control: true }))).toBe('bookmark')
+    expect(websiteKeptShortcutAction(input({ key: 'в', code: 'KeyD', meta: true, mac: true }))).toBe('bookmark')
+    expect(websiteKeptShortcutAction(input({ key: 'р', code: 'KeyH', control: true }))).toBe('visit-history')
+    expect(websiteKeptShortcutAction(input({ key: 'н', code: 'KeyY', meta: true, mac: true }))).toBe('visit-history')
     // Czech types ě on the 2 key and AZERTY à on the 0 key.
-    expect(browserShortcutAction(input({ key: 'ě', code: 'Digit2', control: true }))).toBe('select-tab-2')
-    expect(browserShortcutAction(input({ key: 'à', code: 'Digit0', control: true }))).toBe('zoom-reset')
+    expect(tabKey(input({ key: 'ě', code: 'Digit2', control: true }))).toBe('select-tab-2')
+    expect(tabKey(input({ key: 'à', code: 'Digit0', control: true }))).toBe('zoom-reset')
+  })
+
+  it('goes by the digit of a number-row key that types punctuation, as Chromium does', () => {
+    // AZERTY types & " ' ( - on the 1, 3, 4, 5 and 6 keys, so Ctrl+1 did nothing and Ctrl+6 zoomed out.
+    for (const [key, digit] of [['&', 1], ['"', 3], ["'", 4], ['(', 5], ['-', 6], ['_', 8]] as const) {
+      expect(tabKey(input({ key, code: `Digit${digit}`, control: true }))).toBe(`select-tab-${digit}`)
+    }
+    expect(tabKey(input({ key: 'ç', code: 'Digit9', control: true }))).toBe('select-last-tab')
+    // macOS's French layout types ! on the 8 key; its - is on the US = key, which still zooms out.
+    expect(browserShortcutAction(input({ key: '!', code: 'Digit8', meta: true, mac: true }))).toBe('select-tab-8')
+    expect(tabKey(input({ key: '-', code: 'Equal', meta: true, mac: true }))).toBe('zoom-out')
+    expect(tabKey(input({ key: '-', code: 'NumpadSubtract', control: true }))).toBe('zoom-out')
+    // Czech types + on the 1 key; German types = with Shift on the 0 key, which is no browser key there.
+    expect(tabKey(input({ key: '+', code: 'Digit1', control: true }))).toBe('select-tab-1')
+    expect(tabKey(input({ key: '=', code: 'Digit0', control: true, shift: true }))).toBeNull()
+    expect(tabKey(input({ key: '+', code: 'BracketRight', control: true }))).toBe('zoom-in')
   })
 
   it('keeps the letters of a Latin layout and Control with a letter for the page on macOS', () => {
     // AZERTY types a on the US Q key and q on the US A key; Dvorak types l on the US P key.
-    expect(browserShortcutAction(input({ key: 'A', code: 'KeyQ', control: true, shift: true }))).toBe('search-tabs')
-    expect(browserShortcutAction(input({ key: 'Q', code: 'KeyA', control: true, shift: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'l', code: 'KeyP', control: true }))).toBe('focus-address')
-    expect(browserShortcutAction(input({ key: 'p', code: 'KeyL', control: true }))).toBeNull()
+    expect(tabKey(input({ key: 'A', code: 'KeyQ', control: true, shift: true }))).toBe('search-tabs')
+    expect(tabKey(input({ key: 'Q', code: 'KeyA', control: true, shift: true }))).toBeNull()
+    expect(tabKey(input({ key: 'l', code: 'KeyP', control: true }))).toBe('focus-address')
+    expect(tabKey(input({ key: 'p', code: 'KeyL', control: true }))).toBeNull()
     // Other Latin letters keep their own too: Turkish F types ı on the US R key, German ß and Hungarian ü sit on the
     // minus key, and Hungarian ó on the equals key. Chrome gives none of them a browser key.
-    expect(browserShortcutAction(input({ key: 'ı', code: 'KeyR', control: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'ß', code: 'Minus', control: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'ü', code: 'Minus', meta: true, mac: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'ó', code: 'Equal', control: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'ç', code: 'Period', control: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, mac: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL' }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, alt: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'д', code: 'KeyL', control: true, repeat: true }))).toBeNull()
-    expect(browserShortcutAction(input({ key: 'д', control: true }))).toBeNull()
+    expect(tabKey(input({ key: 'ı', code: 'KeyR', control: true }))).toBeNull()
+    expect(tabKey(input({ key: 'ß', code: 'Minus', control: true }))).toBeNull()
+    expect(tabKey(input({ key: 'ü', code: 'Minus', meta: true, mac: true }))).toBeNull()
+    expect(tabKey(input({ key: 'ó', code: 'Equal', control: true }))).toBeNull()
+    expect(tabKey(input({ key: 'ç', code: 'Period', control: true }))).toBeNull()
+    expect(tabKey(input({ key: 'д', code: 'KeyL', control: true, mac: true }))).toBeNull()
+    expect(tabKey(input({ key: 'д', code: 'KeyL' }))).toBeNull()
+    expect(tabKey(input({ key: 'д', code: 'KeyL', control: true, alt: true }))).toBeNull()
+    expect(tabKey(input({ key: 'д', code: 'KeyL', control: true, repeat: true }))).toBeNull()
+    expect(tabKey(input({ key: 'д', control: true }))).toBeNull()
   })
 
   it('names the key a shortcut goes by', () => {
@@ -236,6 +407,8 @@ describe('browserShortcutAction', () => {
     expect(shortcutKey({ key: 'ö', code: 'IntlBackslash' })).toBe('ö')
     expect(shortcutKey({ key: 'ı', code: 'KeyR' })).toBe('ı')
     expect(shortcutKey({ key: 'é', code: 'Digit2' })).toBe('2')
+    expect(shortcutKey({ key: '&', code: 'Digit1' })).toBe('1')
+    expect(shortcutKey({ key: '-', code: 'Minus' })).toBe('-')
     expect(shortcutKey({ key: 'ש', code: 'KeyA' })).toBe('a')
   })
 
@@ -247,20 +420,40 @@ describe('browserShortcutAction', () => {
   })
 })
 
+describe('Ctrl+F4', () => {
+  // It did nothing, where Chrome closes the tab on Windows and Linux as with Ctrl+W.
+  it('closes the tab elsewhere than macOS, and a held one closes only one', () => {
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true }))).toBe('close-tab')
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, meta: true }))).toBeNull()
+    // Alt+F4 closes the window, which the system does.
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4' }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', control: true, mac: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F4', code: 'F4', meta: true, mac: true }))).toBeNull()
+  })
+})
+
 describe('Chrome\'s other keys for changing tabs', () => {
-  // Ctrl+Page Down and, on macOS, Cmd+Shift+] or Cmd+Option+Right did nothing, where Chrome has them.
+  // Ctrl+Page Down and, on macOS, Cmd+Shift+] or Cmd+Option+Right did nothing, where Chrome has them; on macOS Ctrl+Page
+  // Down did nothing either, where Chrome goes to the next tab with it too (global_keyboard_shortcuts_mac.mm).
   const keys = (overrides: Partial<BrowserShortcutInput>) => browserShortcutAction(input(overrides))
 
-  it('goes to the next and previous tab with Ctrl+Page Down and Ctrl+Page Up elsewhere than macOS', () => {
+  it('goes to the next and previous tab with Ctrl+Page Down and Ctrl+Page Up, on macOS too', () => {
     expect(keys({ key: 'PageDown', control: true })).toBe('next-tab')
     expect(keys({ key: 'PageUp', control: true })).toBe('previous-tab')
-    // Ctrl+Shift with these keys moves the tab in Chrome; Page Down alone scrolls the page.
+    // Ctrl+Shift with these keys moves the tab once the website leaves them alone; Page Down alone scrolls the page.
     expect(keys({ key: 'PageDown', control: true, shift: true })).toBeNull()
     expect(keys({ key: 'PageDown' })).toBeNull()
     expect(keys({ key: 'PageDown', meta: true })).toBeNull()
-    expect(keys({ key: 'PageDown', control: true, repeat: true })).toBeNull()
-    // Control with a key stays with the website or field on macOS.
-    expect(keys({ key: 'PageDown', control: true, mac: true })).toBeNull()
+    // Held down, it goes on through the tabs, as in Chrome.
+    expect(keys({ key: 'PageDown', control: true, repeat: true })).toBe('next-tab')
+    expect(keys({ key: 'PageDown', control: true, mac: true })).toBe('next-tab')
+    expect(keys({ key: 'PageUp', control: true, mac: true })).toBe('previous-tab')
+    expect(keys({ key: 'PageDown', control: true, meta: true, mac: true })).toBeNull()
+    expect(keys({ key: 'PageDown', control: true, alt: true, mac: true })).toBeNull()
   })
 
   it('goes to the next and previous tab with Cmd+Shift+] and Cmd+Shift+[ or Cmd+Option+Right and Left on macOS', () => {
@@ -289,7 +482,7 @@ describe('Chrome\'s keys a website may keep', () => {
 
   it('are no browser keys a page loses before it sees them', () => {
     // A web editor runs F5 as its debugger and a web terminal reads Alt+D.
-    for (const key of [{ key: 'F5' }, { key: 'F5', shift: true }, { key: 'F5', control: true }, { key: 'd', code: 'KeyD', alt: true }]) {
+    for (const key of [{ key: 'F5' }, { key: 'F5', shift: true }, { key: 'F5', control: true }, { key: 'd', code: 'KeyD', alt: true }, { key: 'F6' }, { key: 'F6', shift: true }, { key: 'e', code: 'KeyE', control: true }, { key: 'Home', code: 'Home', alt: true }]) {
       expect(browserShortcutAction(input(key))).toBeNull()
     }
   })
@@ -316,6 +509,42 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(kept({ key: '∂', code: 'KeyD', alt: true, mac: true })).toBeNull()
   })
 
+  it('go to the address bar with Ctrl+E elsewhere than macOS, in every layout', () => {
+    // A web document editor centres a paragraph with Ctrl+E, as Chrome lets it.
+    expect(kept({ key: 'e', code: 'KeyE', control: true })).toBe('focus-address')
+    expect(kept({ key: 'у', code: 'KeyE', control: true })).toBe('focus-address')
+    expect(kept({ key: 'E', code: 'KeyE', control: true, shift: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', control: true, alt: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', alt: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE' })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', control: true, repeat: true })).toBeNull()
+    // On macOS Control+E moves the caret to the end of the line, and Chrome has no Cmd+E for the address bar.
+    expect(kept({ key: 'e', code: 'KeyE', control: true, mac: true })).toBeNull()
+    expect(kept({ key: 'e', code: 'KeyE', meta: true, mac: true })).toBeNull()
+    expect(browserShortcutAction(input({ key: 'e', code: 'KeyE', meta: true, mac: true }))).toBeNull()
+  })
+
+  it('open Home with Alt+Home elsewhere than macOS', () => {
+    expect(kept({ key: 'Home', code: 'Home', alt: true })).toBe('open-home')
+    expect(kept({ key: 'Home', code: 'Home' })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, shift: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, control: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', control: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, meta: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, repeat: true })).toBeNull()
+    expect(kept({ key: 'Home', code: 'Home', alt: true, mac: true })).toBeNull()
+  })
+
+  it('go to the next pane with F6 or Shift+F6 elsewhere than macOS', () => {
+    expect(kept({ key: 'F6' })).toBe('focus-next-pane')
+    expect(kept({ key: 'F6', shift: true })).toBe('focus-next-pane')
+    expect(kept({ key: 'F6', control: true })).toBeNull()
+    expect(kept({ key: 'F6', alt: true })).toBeNull()
+    expect(kept({ key: 'F6', meta: true })).toBeNull()
+    expect(kept({ key: 'F6', repeat: true })).toBeNull()
+    expect(kept({ key: 'F6', mac: true })).toBeNull()
+  })
+
   it('find the next match with F3 or Ctrl+G, and the previous one with Shift, elsewhere than macOS', () => {
     // A web editor goes to a line with Ctrl+G, so these are no browser keys a page loses before it sees them.
     for (const key of [{ key: 'F3' }, { key: 'F3', shift: true }, { key: 'g', code: 'KeyG', control: true }, { key: 'G', code: 'KeyG', control: true, shift: true }]) {
@@ -335,6 +564,22 @@ describe('Chrome\'s keys a website may keep', () => {
     expect(kept({ key: 'g', code: 'KeyG', meta: true, mac: true })).toBeNull()
     expect(kept({ key: 'F3', mac: true })).toBeNull()
   })
+
+  it('move the tab with Ctrl+Shift+Page Down and Ctrl+Shift+Page Up, on macOS too', () => {
+    // A web code editor moves its own editor tab with these keys, as Chrome lets it.
+    expect(kept({ key: 'PageDown', control: true, shift: true })).toBe('move-tab-next')
+    expect(kept({ key: 'PageUp', control: true, shift: true })).toBe('move-tab-previous')
+    expect(kept({ key: 'PageDown', shift: true })).toBeNull()
+    expect(kept({ key: 'PageDown', control: true })).toBeNull()
+    expect(kept({ key: 'PageDown', control: true, shift: true, alt: true })).toBeNull()
+    expect(kept({ key: 'PageUp', control: true, shift: true, meta: true })).toBeNull()
+    expect(kept({ key: 'PageDown', control: true, shift: true, repeat: true })).toBeNull()
+    // Chrome moves the tab with them on macOS as well; a website may keep them there too.
+    expect(kept({ key: 'PageDown', control: true, shift: true, mac: true })).toBe('move-tab-next')
+    expect(kept({ key: 'PageUp', control: true, shift: true, mac: true })).toBe('move-tab-previous')
+    expect(kept({ key: 'PageDown', control: true, shift: true, meta: true, mac: true })).toBeNull()
+    expect(browserShortcutAction(input({ key: 'PageDown', control: true, shift: true, mac: true }))).toBeNull()
+  })
 })
 
 // A website may keep Chrome's Downloads key, as a web editor does to show its own panel, so it is only the View menu's
@@ -348,5 +593,86 @@ describe('the Downloads key', () => {
       expect(browserShortcutAction(key)).toBeNull()
       expect(websiteKeptShortcutAction(key)).toBeNull()
     }
+  })
+})
+
+// Under a Hronaut dialog or the command palette, Hronaut's window keeps these from the application menu, which would
+// act on the page behind it.
+describe('the application menu\'s other keys', () => {
+  const menuKey = (overrides: Partial<BrowserShortcutInput>) => applicationMenuKey(input(overrides))
+
+  it('are Print, Save, View Page Source, Downloads, Back, Forward and Keyboard shortcuts elsewhere than macOS', () => {
+    for (const key of [
+      { key: 'p', code: 'KeyP', control: true }, { key: 's', code: 'KeyS', control: true }, { key: 'u', code: 'KeyU', control: true },
+      { key: 'j', code: 'KeyJ', control: true }, { key: 'з', code: 'KeyP', control: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: 'ArrowRight', code: 'ArrowRight', alt: true },
+      { key: '?', code: 'Slash', control: true, shift: true }, { key: '/', code: 'Slash', control: true, shift: true }
+    ]) expect(menuKey(key), JSON.stringify(key)).toBe(true)
+    for (const key of [
+      { key: 'p', code: 'KeyP' }, { key: 'p', code: 'KeyP', control: true, alt: true }, { key: 'P', code: 'KeyP', control: true, shift: true },
+      { key: 'p', code: 'KeyP', meta: true }, { key: 'c', code: 'KeyC', control: true }, { key: 'a', code: 'KeyA', control: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft' }, { key: 'ArrowLeft', code: 'ArrowLeft', control: true }, { key: 'ArrowLeft', code: 'ArrowLeft', alt: true, shift: true },
+      { key: '/', code: 'Slash', control: true }, { key: 'p', code: 'KeyP', control: true, repeat: true }, { key: 'p', code: 'KeyP', control: true, composing: true }
+    ]) expect(menuKey(key), JSON.stringify(key)).toBe(false)
+  })
+
+  it('are Escape elsewhere than macOS, which stops the page in focus loading once it leaves the key alone', () => {
+    // Escape did nothing on a loading page, where Chrome stops it. Hronaut's window runs Escape itself, to close what is
+    // open there, so it is no shortcut.
+    expect(menuKey({ key: 'Escape', code: 'Escape' })).toBe(true)
+    expect(isBrowserKey(input({ key: 'Escape', code: 'Escape', repeat: true }))).toBe(true)
+    expect(browserShortcutAction(input({ key: 'Escape', code: 'Escape' }))).toBeNull()
+    expect(websiteKeptShortcutAction(input({ key: 'Escape', code: 'Escape' }))).toBeNull()
+    // Shift+Escape is the Task manager's key (application-menu-task-manager.test.ts).
+    for (const modifiers of [{ control: true }, { alt: true }, { meta: true }, { repeat: true }, { composing: true }, { mac: true }]) {
+      expect(menuKey({ key: 'Escape', code: 'Escape', ...modifiers }), JSON.stringify(modifiers)).toBe(false)
+    }
+  })
+
+  it('are the same with Command on macOS, with Find Next and Find Previous', () => {
+    for (const key of [
+      { key: 'p', code: 'KeyP', meta: true }, { key: 's', code: 'KeyS', meta: true }, { key: 'g', code: 'KeyG', meta: true },
+      { key: 'G', code: 'KeyG', meta: true, shift: true }, { key: '¨', code: 'KeyU', meta: true, alt: true }, { key: '¬', code: 'KeyL', meta: true, alt: true },
+      { key: '[', code: 'BracketLeft', meta: true }, { key: ']', code: 'BracketRight', meta: true }, { key: '?', code: 'Slash', meta: true, shift: true },
+      // Option+U is a dead key, and the bracket key types a Cyrillic letter with a Russian layout on.
+      { key: 'Dead', code: 'KeyU', meta: true, alt: true }, { key: 'х', code: 'BracketLeft', meta: true }
+    ]) expect(menuKey({ ...key, mac: true }), JSON.stringify(key)).toBe(true)
+    for (const key of [
+      { key: 'p', code: 'KeyP', control: true }, { key: 'p', code: 'KeyP', meta: true, control: true }, { key: 'u', code: 'KeyU', meta: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: 'c', code: 'KeyC', meta: true },
+      // A Latin letter on the bracket key, as German ü, stays the letter.
+      { key: 'ü', code: 'BracketLeft', meta: true }, { key: 'Dead', code: 'KeyE', meta: true, alt: true }
+    ]) expect(menuKey({ ...key, mac: true }), JSON.stringify(key)).toBe(false)
+  })
+
+  it('are browser keys, with the shortcuts and the keys a website may keep, held or not', () => {
+    for (const key of [
+      { key: 'p', code: 'KeyP', control: true }, { key: 'r', code: 'KeyR', control: true, repeat: true }, { key: 'F5', repeat: true },
+      { key: 'ArrowLeft', code: 'ArrowLeft', alt: true, repeat: true }
+    ]) expect(isBrowserKey(input(key)), JSON.stringify(key)).toBe(true)
+    for (const key of [{ key: 'c', code: 'KeyC', control: true }, { key: 'x', code: 'KeyX' }, { key: 'r', code: 'KeyR', control: true, composing: true }]) {
+      expect(isBrowserKey(input(key)), JSON.stringify(key)).toBe(false)
+    }
+  })
+
+  it('are no browser shortcuts, which Hronaut\'s window runs itself', () => {
+    for (const key of [{ key: 'p', code: 'KeyP', control: true }, { key: 'ArrowLeft', code: 'ArrowLeft', alt: true }, { key: '?', code: 'Slash', control: true, shift: true }]) {
+      expect(browserShortcutAction(input(key))).toBeNull()
+      expect(websiteKeptShortcutAction(input(key))).toBeNull()
+    }
+  })
+})
+
+describe('held keys that change tabs', () => {
+  // Holding Ctrl+Tab moved one tab and stopped, where Chrome goes on through the tabs.
+  it('go on changing tabs while held, as in Chrome, and nothing else does', () => {
+    expect(browserShortcutAction(input({ key: 'Tab', code: 'Tab', control: true, repeat: true }))).toBe('next-tab')
+    expect(browserShortcutAction(input({ key: 'Tab', code: 'Tab', control: true, shift: true, repeat: true }))).toBe('previous-tab')
+    expect(browserShortcutAction(input({ key: 'PageDown', code: 'PageDown', control: true, repeat: true }))).toBe('next-tab')
+    expect(browserShortcutAction(input({ key: 'PageUp', code: 'PageUp', control: true, repeat: true }))).toBe('previous-tab')
+    expect(browserShortcutAction(input({ key: 'ArrowRight', code: 'ArrowRight', meta: true, alt: true, mac: true, repeat: true }))).toBe('next-tab')
+    expect(browserShortcutAction(input({ key: 'w', code: 'KeyW', control: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '1', code: 'Digit1', control: true, repeat: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'Tab', code: 'Tab', control: true, composing: true }))).toBeNull()
   })
 })

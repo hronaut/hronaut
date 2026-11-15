@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useDownloadsPanelController } from '../../src/renderer/src/composables/useDownloadsPanelController.js'
+import { useDownloadsPanelController } from '../../src/renderer/src/features/downloads/useDownloadsPanelController.js'
 import type { BrowserDownloadState } from '../../src/shared/types.js'
 
 function download(
@@ -27,8 +27,10 @@ function createController(initialDownloads = [download('complete', 'completed', 
   const cancelDownload = vi.fn(async (id: string) => [download(id, 'cancelled')])
   const pauseDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [{ ...download(id), paused: true, canResume: true }])
   const resumeDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(id)])
+  const retryDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(`${id}-again`), download(id, 'cancelled')])
   const clearFinished = vi.fn(async () => [])
   const showInFolder = vi.fn(async () => undefined)
+  const startDrag = vi.fn(async (_id: string): Promise<void> => undefined)
   const copySavedPath = vi.fn(async (_path: string): Promise<void> => undefined)
   const controller = useDownloadsPanelController({
     locale,
@@ -45,15 +47,39 @@ function createController(initialDownloads = [download('complete', 'completed', 
     pauseDownload,
     resumeDownload,
     cancelDownload,
+    retryDownload,
     removeFinished: vi.fn(async () => []),
     clearFinished,
     copySavedPath,
-    showInFolder
+    showInFolder,
+    startDrag
   })
-  return { locale, open, downloads, pauseDownload, resumeDownload, cancelDownload, clearFinished, showInFolder, copySavedPath, controller }
+  return { locale, open, downloads, pauseDownload, resumeDownload, cancelDownload, retryDownload, clearFinished, showInFolder, startDrag, copySavedPath, controller }
 }
 
 describe('downloads panel controller', () => {
+  it('drags only a completed download whose file is there, and keeps a late refusal out of a reopened panel', async () => {
+    const saved = (id: string) => ({ ...download(id, 'completed', 100, 100), savePath: `/downloads/${id}.bin` })
+    const h = createController([saved('complete'), { ...saved('gone'), fileRemoved: true }, download('unsaved', 'completed', 100, 100), { ...saved('empty'), savePath: '' }, download('active')])
+    expect(h.downloads.value.map(item => h.controller.canDrag(item))).toEqual([true, false, false, false, false])
+    await h.controller.drag('complete')
+    expect(h.startDrag).toHaveBeenCalledExactlyOnceWith('complete')
+    expect(h.controller.pendingAction.value).toBeNull()
+    h.startDrag.mockRejectedValueOnce(new Error('This file was moved or deleted, so it cannot be dragged.'))
+    await h.controller.drag('complete')
+    expect(h.controller.error.value).toBe('This file was moved or deleted, so it cannot be dragged.')
+    let refuse!: (error: Error) => void
+    h.startDrag.mockReturnValueOnce(new Promise((_resolve, reject) => { refuse = reject }))
+    const late = h.controller.drag('complete')
+    expect(h.controller.error.value).toBe('')
+    h.open.value = false
+    h.open.value = true
+    refuse(new Error('Window closed'))
+    await late
+    expect(h.controller.error.value).toBe('')
+    h.controller.dispose()
+  })
+
   it.each([
     ['report staging.test', ['staging']],
     [' STAGING.TEST\tREPORT ', ['staging']],
@@ -403,4 +429,12 @@ describe('Downloads retained origin labels', () => {
     expect(controller.error.value).toBe('Could not clear download history')
     controller.dispose()
   })
+})
+
+it('retries a download and shows the list main answers with, the new download beside the old one', async () => {
+  const { controller, downloads, retryDownload } = createController([download('failed', 'cancelled')])
+  await controller.retry('failed')
+  expect(retryDownload).toHaveBeenCalledExactlyOnceWith('failed')
+  expect(downloads.value.map(({ id }) => id)).toEqual(['failed-again', 'failed'])
+  expect(controller.pendingAction.value).toBeNull()
 })

@@ -100,7 +100,6 @@ describe('public website content', () => {
 
   it('keeps the advertised MCP tool count aligned with the server catalog', () => {
     const count = BROWSER_TOOL_CATALOG.length
-    expect(websiteHtml).toContain(`and ${count} MCP tools.`)
     expect(websiteHtml).toContain(`<strong>${count}</strong><span>MCP tools</span>`)
   })
 

@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+// The prototype-built browser below stubs changed and getState, which pinning a workspace publishes and returns through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
 import type { MenuItemConstructorOptions } from 'electron'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
+import { orderedTabs } from '../src/main/browser/browser-core.js'
+import { workspaceContextMenuItems } from '../src/main/browser/context-menus/workspace-context-menu.js'
+import { setWorkspacePinned } from '../src/main/browser/mcp-tab-groups/workspace-pinning.js'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -16,13 +26,10 @@ interface Internals {
   activeTabId: string | null
   changed: ReturnType<typeof vi.fn>
   window: { webContents: { send: ReturnType<typeof vi.fn> } }
-  orderedTabs(): Tab[]
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
-  workspaceContextMenuItems(group: Group): MenuItemConstructorOptions[]
 }
 
 function fixture(groups: Group[], tabs: Omit<Tab, 'webContents'>[] = []) {
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map(groups.map((group) => [group.id, group])),
     tabs: new Map(tabs.map((tab) => [tab.id, { ...tab, webContents: { isDestroyed: () => false } }])),
     activeTabId: tabs[0]?.id ?? null,
@@ -32,10 +39,12 @@ function fixture(groups: Group[], tabs: Omit<Tab, 'webContents'>[] = []) {
     window: { webContents: { send: vi.fn() } },
     changed: vi.fn(),
     getState: vi.fn(() => ({ tabs: [] }))
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, internals: manager as unknown as Internals }
 }
 
+/** The workspace's menu items, as its menu builds them. */
+const menuItems = (internals: Internals, workspace: Group) => workspaceContextMenuItems(internals as never, workspace as never)
 const group = (id: string, pinnedAt?: string): Group => ({ id, name: id, lastUsedAt: '2026-10-17T09:00:00.000Z', ...(pinnedAt ? { pinnedAt } : {}) })
 
 describe('pinning a workspace in main', () => {
@@ -43,12 +52,12 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('alpha'), group('beta')])
-    manager.setWorkspacePinned('beta', true)
+    setWorkspacePinned(manager, 'beta', true)
     const beta = internals.mcpTabGroups.get('beta')!
     expect(beta.pinnedAt).toBe('2026-10-17T12:00:00.000Z')
     expect(beta.lastUsedAt).toBe('2026-10-17T09:00:00.000Z')
     expect(internals.changed).toHaveBeenCalledOnce()
-    manager.setWorkspacePinned('beta', false)
+    setWorkspacePinned(manager, 'beta', false)
     expect(beta.pinnedAt).toBeUndefined()
     expect(internals.changed).toHaveBeenCalledTimes(2)
   })
@@ -57,8 +66,8 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('alpha', '2026-10-01T00:00:00.000Z'), group('beta')])
-    manager.setWorkspacePinned('alpha', true)
-    manager.setWorkspacePinned('beta', false)
+    setWorkspacePinned(manager, 'alpha', true)
+    setWorkspacePinned(manager, 'beta', false)
     expect(internals.mcpTabGroups.get('alpha')!.pinnedAt).toBe('2026-10-01T00:00:00.000Z')
     expect(internals.mcpTabGroups.get('beta')!.pinnedAt).toBeUndefined()
     expect(internals.changed).not.toHaveBeenCalled()
@@ -68,11 +77,11 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const { manager, internals } = fixture([group('alpha'), group('beta'), group('gamma')])
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
-    manager.setWorkspacePinned('alpha', true)
+    setWorkspacePinned(manager, 'alpha', true)
     // The system clock is set back an hour before the next pin.
     vi.setSystemTime(Date.UTC(2026, 9, 17, 11))
-    manager.setWorkspacePinned('beta', true)
-    manager.setWorkspacePinned('gamma', true)
+    setWorkspacePinned(manager, 'beta', true)
+    setWorkspacePinned(manager, 'gamma', true)
     const times = ['alpha', 'beta', 'gamma'].map((id) => Date.parse(internals.mcpTabGroups.get(id)!.pinnedAt!))
     expect(times[1]).toBeGreaterThan(times[0]!)
     expect(times[2]).toBeGreaterThan(times[1]!)
@@ -82,13 +91,13 @@ describe('pinning a workspace in main', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('broken', 'not a time'), group('beta')])
-    manager.setWorkspacePinned('beta', true)
+    setWorkspacePinned(manager, 'beta', true)
     expect(internals.mcpTabGroups.get('beta')!.pinnedAt).toBe('2026-10-17T12:00:00.000Z')
   })
 
   it('refuses an unknown workspace', () => {
     const { manager } = fixture([group('alpha')])
-    expect(() => manager.setWorkspacePinned('missing', true)).toThrow('Unknown workspace: missing')
+    expect(() => setWorkspacePinned(manager, 'missing', true)).toThrow('Unknown workspace: missing')
   })
 })
 
@@ -108,17 +117,17 @@ describe('tab order in main with pinned workspaces', () => {
       group('beta', '2026-10-17T12:00:00.000Z'),
       group('gamma', '2026-10-17T11:00:00.000Z')
     ], tabs)
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['home', 'gamma-pinned', 'gamma-1', 'beta-1', 'alpha-1', 'alpha-2'])
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['home', 'gamma-pinned', 'gamma-1', 'beta-1', 'alpha-1', 'alpha-2'])
   })
 
   it('returns an unpinned workspace to its stored place', () => {
     const { manager, internals } = fixture([group('alpha'), group('beta'), group('gamma')], tabs)
-    const stored = internals.orderedTabs().map((tab) => tab.id)
+    const stored = orderedTabs(internals as never).map((tab) => tab.id)
     expect(stored).toEqual(['home', 'alpha-1', 'alpha-2', 'beta-1', 'gamma-pinned', 'gamma-1'])
-    manager.setWorkspacePinned('beta', true)
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['home', 'beta-1', 'alpha-1', 'alpha-2', 'gamma-pinned', 'gamma-1'])
-    manager.setWorkspacePinned('beta', false)
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(stored)
+    setWorkspacePinned(manager, 'beta', true)
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['home', 'beta-1', 'alpha-1', 'alpha-2', 'gamma-pinned', 'gamma-1'])
+    setWorkspacePinned(manager, 'beta', false)
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(stored)
   })
 
   it('shows the next tab on screen after closing the last tab of a pinned workspace', () => {
@@ -128,9 +137,9 @@ describe('tab order in main with pinned workspaces', () => {
     ])
     internals.activeTabId = 'beta-1'
     // On screen beta comes first, so alpha follows it, rather than wrapping back as the stored order would.
-    expect(internals.closeTabTransition(internals.tabs.get('beta-1')!).nextId).toBe('alpha-1')
+    expect(closeTabTransition(internals as never, internals.tabs.get('beta-1')! as never).nextId).toBe('alpha-1')
     internals.activeTabId = 'alpha-1'
-    expect(internals.closeTabTransition(internals.tabs.get('alpha-1')!).nextId).toBe('beta-1')
+    expect(closeTabTransition(internals as never, internals.tabs.get('alpha-1')! as never).nextId).toBe('beta-1')
   })
 
   // A pinned tab of any workspace but the first came before every other workspace's tabs, so closing it showed the
@@ -142,9 +151,9 @@ describe('tab order in main with pinned workspaces', () => {
       { id: 'docs-2', url: 'https://docs.test/2', pinned: false, mcpGroupId: 'docs' },
       { id: 'docs-pinned', url: 'https://docs.test/pinned', pinned: true, mcpGroupId: 'docs' }
     ])
-    expect(internals.orderedTabs().map((tab) => tab.id)).toEqual(['work-1', 'work-2', 'docs-pinned', 'docs-2'])
+    expect(orderedTabs(internals as never).map((tab) => tab.id)).toEqual(['work-1', 'work-2', 'docs-pinned', 'docs-2'])
     internals.activeTabId = 'docs-pinned'
-    expect(internals.closeTabTransition(internals.tabs.get('docs-pinned')!).nextId).toBe('docs-2')
+    expect(closeTabTransition(internals as never, internals.tabs.get('docs-pinned')! as never).nextId).toBe('docs-2')
   })
 })
 
@@ -154,8 +163,8 @@ describe('the workspace menu\'s pin item', () => {
 
   it('reads Pin for an unpinned workspace and Unpin for a pinned one', () => {
     const { internals } = fixture([group('alpha'), group('beta', '2026-10-17T12:00:00.000Z')])
-    expect(pinItem(internals.workspaceContextMenuItems(internals.mcpTabGroups.get('alpha')!)).label).toBe('Pin Workspace to Top')
-    expect(pinItem(internals.workspaceContextMenuItems(internals.mcpTabGroups.get('beta')!)).label).toBe('Unpin Workspace')
+    expect(pinItem(menuItems(internals, internals.mcpTabGroups.get('alpha')!)).label).toBe('Pin Workspace to Top')
+    expect(pinItem(menuItems(internals, internals.mcpTabGroups.get('beta')!)).label).toBe('Unpin Workspace')
   })
 
   it('does what its label said when the menu opened, even if the pin changed meanwhile', () => {
@@ -163,15 +172,15 @@ describe('the workspace menu\'s pin item', () => {
     vi.setSystemTime(Date.UTC(2026, 9, 17, 12))
     const { manager, internals } = fixture([group('alpha')])
     const alpha = internals.mcpTabGroups.get('alpha')!
-    const pin = pinItem(internals.workspaceContextMenuItems(alpha))
+    const pin = pinItem(menuItems(internals, alpha))
     // Another menu pinned it before this one's click.
-    manager.setWorkspacePinned('alpha', true)
+    setWorkspacePinned(manager, 'alpha', true)
     const pinnedAt = alpha.pinnedAt
     click(pin)
     expect(alpha.pinnedAt).toBe(pinnedAt)
 
-    const unpin = pinItem(internals.workspaceContextMenuItems(alpha))
-    manager.setWorkspacePinned('alpha', false)
+    const unpin = pinItem(menuItems(internals, alpha))
+    setWorkspacePinned(manager, 'alpha', false)
     click(unpin)
     expect(alpha.pinnedAt).toBeUndefined()
   })
@@ -179,9 +188,9 @@ describe('the workspace menu\'s pin item', () => {
   it('pins with a click on Pin and unpins with a click on Unpin', () => {
     const { internals } = fixture([group('alpha')])
     const alpha = internals.mcpTabGroups.get('alpha')!
-    click(pinItem(internals.workspaceContextMenuItems(alpha)))
+    click(pinItem(menuItems(internals, alpha)))
     expect(alpha.pinnedAt).toEqual(expect.any(String))
-    click(pinItem(internals.workspaceContextMenuItems(alpha)))
+    click(pinItem(menuItems(internals, alpha)))
     expect(alpha.pinnedAt).toBeUndefined()
   })
 })
@@ -191,7 +200,7 @@ describe('the workspace menu\'s new tab item', () => {
   // as its + button does.
   it('asks the window for a new tab in the workspace with New Tab in Workspace', () => {
     const { internals } = fixture([group('alpha')])
-    const item = internals.workspaceContextMenuItems(internals.mcpTabGroups.get('alpha')!).find((candidate) => candidate.id === 'new-tab-in-workspace')!
+    const item = menuItems(internals, internals.mcpTabGroups.get('alpha')!).find((candidate) => candidate.id === 'new-tab-in-workspace')!
     ;(item.click as () => void)()
     expect(internals.window.webContents.send).toHaveBeenCalledExactlyOnceWith('browser:new-tab-requested', 'alpha')
   })

@@ -19,6 +19,8 @@ vi.mock('electron', () => {
         isDevToolsOpened: () => false,
         setAudioMuted() {},
         focus: () => { focused.push(String(id)) },
+        isLoading: () => false,
+        getURL: () => '',
         loadURL: () => Promise.resolve(),
         navigationHistory: { restore: () => Promise.resolve() }
       }
@@ -29,8 +31,50 @@ vi.mock('electron', () => {
   return { session: {}, webContents: { getFocusedWebContents: () => null }, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }
 })
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
-const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
+// The prototype-built browser below stubs changed and getState; split view publishes through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+// The browser's withTabLabelLifecycle stub runs the tab operations that wait for pending label saves.
+vi.mock('../src/main/browser/tab-labels/tab-labels.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-labels/tab-labels.js')>(),
+  withTabLabelLifecycle: (browser: { withTabLabelLifecycle: (run: () => Promise<unknown>) => Promise<unknown> }, run: () => Promise<unknown>) => (
+    browser.withTabLabelLifecycle(run)
+  )
+}))
+
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+
+// It also stubs the workspace's navigation check and observation generation, the session hooks and the page events,
+// which createTab runs through these.
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertWorkspaceNavigationAllowed(...args)
+}))
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  workspaceObservationGeneration: (browser: { workspaceObservationGeneration: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceObservationGeneration(...args)
+}))
+vi.mock('../src/main/browser/session-hooks/session-hooks.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/session-hooks/session-hooks.js')>(),
+  installSessionHooks: (browser: { installSessionHooks: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.installSessionHooks(...args)
+}))
+// Every tab closes with a page that closes itself; these fake pages emit no events.
+vi.mock('../src/main/browser/tab-events/page-close-events.js', () => ({ attachPageCloseEvents: () => undefined }))
+vi.mock('../src/main/browser/tab-events/leave-site-question.js', () => ({ attachLeaveSiteQuestion: () => undefined }))
+vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
+  attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
+}))
+const { Browser } = await import('../src/main/browser/browser.js')
+const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
+const { restoreSavedTabGroup } = await import('../src/main/browser/workspace-archive/workspace-archive.js')
+const { openSplitView } = await import('../src/main/browser/split-view/split-view.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 const AGENT = '01912345-6789-7abc-8def-0123456789ac'
@@ -44,9 +88,6 @@ interface Manager {
   mcpTabGroups: Map<string, Workspace>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  openSplitView(tabId: string): unknown
-  restoreSavedTabGroup(id: string): Promise<unknown>
-  restoreSavedTabGroupForAgent(id: string): Promise<unknown>
 }
 
 function workspace(id: string, name: string) {
@@ -63,7 +104,7 @@ function workspace(id: string, name: string) {
  * the agent's is archived with three tabs, the middle one shown.
  */
 function browser() {
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, restoringLayout: false,
     options: { partition: 'persist:hronaut' },
     window: {
@@ -72,16 +113,17 @@ function browser() {
       contentView: { children: [], addChildView: vi.fn(), removeChildView: vi.fn() }
     },
     tabs: new Map(), closedTabs: [], detachedClosedTabs: new Set(), workspaceOperations: new Map(), savedWorkspaceOperations: new Map(),
-    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, splitViewGeneration: 0,
+    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, restingSplitViews: [], splitViewGeneration: 0,
+    splitDivider: { persistedRatio: (ratio: number) => ratio },
     tabSelectionGeneration: 0, toolbarHeight: 60, contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allAgentsPaused: false, agentPauseOverridesAllowed: true, globallyResumedAgentTabIds: new Set(),
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(),
     browserContentOccluded: false, pageFullscreenTabs: new Set(),
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] }
+    withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key
   }) as Manager
+  const opened: Array<{ url: string; loadsInTurn: boolean }> = []
   const registry: InstanceType<typeof WorkspaceRegistry> = new WorkspaceRegistry({
     maxTabs: 50,
     maxArchived: 50,
@@ -91,7 +133,10 @@ function browser() {
     withActiveOperation: (_id, _action, run) => run(),
     withArchivedOperation: (_id, _action, run) => run(),
     closeActive: async () => undefined,
-    createTab: (tab) => manager.createTab(tab as never) as never,
+    createTab: (tab) => {
+      opened.push({ url: tab.url, loadsInTurn: tab.loadsInTurn })
+      return manager.createTab(tab as never) as never
+    },
     selectTab: (id) => { manager.selectTab(id) },
     remapDownloads: () => undefined,
     changed: () => undefined
@@ -107,7 +152,7 @@ function browser() {
     ]
   } as never)
   Object.assign(manager, { mcpTabGroups: registry.active, savedTabGroups: registry.archived, workspaceRegistry: registry })
-  return { manager }
+  return { manager, opened }
 }
 
 /** The person compares two of their pages side by side and works in one of them. */
@@ -115,7 +160,7 @@ async function personInSplitView(manager: Manager) {
   const statement = await manager.createTab({ url: 'https://bank.example/statement', mcpGroupId: PERSON, active: false })
   const transfer = await manager.createTab({ url: 'https://bank.example/transfer', mcpGroupId: PERSON, active: false })
   manager.selectTab(transfer.id)
-  manager.openSplitView(statement.id)
+  openSplitView(manager as never, statement.id)
   expect(manager.splitView).toMatchObject({ firstTabId: transfer.id, secondTabId: statement.id })
   focused.length = 0
   return { transfer, split: structuredClone(manager.splitView) }
@@ -123,12 +168,27 @@ async function personInSplitView(manager: Manager) {
 
 const agentTab = (manager: Manager, url: string) => [...manager.tabs.values()].find((tab) => tab.url === url)!
 
+it('opens the tab it shows at once and the others to load in their turn, a few at a time', async () => {
+  // An archived workspace opened every tab's page at once.
+  const shown = browser()
+  await restoreSavedTabGroup(shown.manager as never, AGENT)
+  expect(shown.opened).toEqual([
+    { url: 'https://agent.example/sources', loadsInTurn: true },
+    { url: 'https://agent.example/draft', loadsInTurn: false },
+    { url: 'https://agent.example/notes', loadsInTurn: true }
+  ])
+  // Restored for an agent, the tab it shows is the agent's, which tools that do not wake tabs read.
+  const hidden = browser()
+  await restoreSavedTabGroup(hidden.manager as never, AGENT, { show: false })
+  expect(hidden.opened).toEqual(shown.opened)
+})
+
 describe('restoring an archived workspace', () => {
   it('for an agent leaves the person\'s split view, shown tab and keyboard focus alone', async () => {
     const { manager } = browser()
     const { transfer, split } = await personInSplitView(manager)
 
-    await manager.restoreSavedTabGroupForAgent(AGENT)
+    await restoreSavedTabGroup(manager as never, AGENT, { show: false })
 
     expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, focused })
       .toEqual({ splitView: split, activeTabId: transfer.id, focused: [] })
@@ -140,7 +200,7 @@ describe('restoring an archived workspace', () => {
     const { manager } = browser()
     await personInSplitView(manager)
 
-    await manager.restoreSavedTabGroup(AGENT)
+    await restoreSavedTabGroup(manager as never, AGENT)
 
     const draft = agentTab(manager, 'https://agent.example/draft')
     expect({ splitView: manager.splitView, activeTabId: manager.activeTabId, focused })

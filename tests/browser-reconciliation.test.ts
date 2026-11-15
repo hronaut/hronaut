@@ -27,8 +27,9 @@ describe('browser reconciliation', () => {
       mode: 'update', expectedOrigin: 'https://example.com', accountSelector: '#account',
       expectedAccount: 'QA', stateSelector: '#state', expectedCurrentText: 'old', expectedText: 'new'
     })
-    expect(script).toContain("'precondition-changed'")
-    expect(script).toContain('document.querySelectorAll')
+    // What the page read does is in tests/browser-reconciliation-page.test.ts; the expected values reach it as arguments.
+    expect(script).toContain('function reconciliationEvidenceInPage(')
+    expect(script.endsWith('("https://example.com", "#account", "QA", "#state", "new", "old")')).toBe(true)
     expect(script).not.toContain('innerText')
     expect(() => browserReconciliationScript({
       mode: 'update', expectedOrigin: 'https://example.com', accountSelector: '#account',

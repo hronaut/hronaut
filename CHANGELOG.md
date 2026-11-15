@@ -4,6 +4,535 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.31] - 2026-11-14
+
+### Added
+
+- **Copy key for an agent** in a workspace's menu, in the sidebar and on Home, copies what an agent needs to continue in that workspace: its ID and private resume key, with the call that resumes it. Paste it into an agent's chat, and the agent picks up there instead of starting a new workspace. It is offered while the workspace allows agent access.
+
+## [3.14.30] - 2026-11-13
+
+### Added
+
+- An agent's card has **Skip, go on without me** when the agent asks for you. The agent learns that you skipped the step and carries on without you, instead of waiting.
+- `browser_steps` runs up to 20 clicks, typing, choices, key presses and short waits on one tab in one call, so an agent that knows the sequence spends one round trip on it. It stops at the first step that fails and says which one, and what the steps before it did.
+- Each release carries `hronaut-sbom.cdx.json`, a CycloneDX software bill of materials with the packages the app ships and its Electron runtime, checksummed and attested like the packages.
+
+### Changed
+
+- While the attention sound is on, the system notification for an agent's request is silent, so the two no longer play together.
+
+## [3.14.29] - 2026-11-12
+
+### Changed
+
+- Settings → Site permissions has two tabs, as Wallets does. The new Defaults tab sets what every website gets, as in Chrome: block a permission websites ask for, such as location or the camera, block one they get without asking, or mute Sound for every website. A decision you saved for a website still comes first. The saved decisions are on the Websites tab.
+
+## [3.14.28] - 2026-11-12
+
+### Changed
+
+- Websites ask for fewer permissions, as in Chrome. Full screen, writing to the clipboard, protected content (DRM), keeping the screen on, persistent storage, an embedded website's own cookies and motion sensors are given without asking; a Block you saved for one of them still holds, except for full screen. The camera and the microphone are now remembered for the website, each on its own, instead of asking on every call, and a website you allowed one asks only for the other.
+
+### Fixed
+
+- A page whose full screen request was denied no longer stops answering every later full screen request until it reloads.
+
+## [3.14.27] - 2026-11-11
+
+### Security
+
+- Hronaut now runs on Electron 45.3.0 with Chromium 156.0.8078.96, which fixes CVE-2026-125350, a use-after-free in XML that Google says is exploited in the wild, along with the other 10 security fixes Chrome 156.0.8078.96 shipped on November 9, such as CVE-2026-125345 (WebGL) and CVE-2026-125347 (FileSystem).
+
+### Changed
+
+- Updated the shipped libraries Vue 3.5.45, vue-i18n 11.4.18, viem 2.57.17, Mediabunny 1.65.2 and express-rate-limit 8.7.3.
+
+### Fixed
+
+- In the Repro recorder, a click on Clear or another button just after Stop is no longer lost: the panel no longer disables its buttons while it refreshes the recording shown.
+
+## [3.14.26] - 2026-11-09
+
+### Fixed
+
+- An activated license no longer looks lost after Hronaut starts at sign-in on a computer whose clock starts ahead, such as one that keeps local time in its hardware clock. The license check that ran before the network set the clock back made Settings ask for the key again and stopped agents until the next hourly check.
+
+## [3.14.25] - 2026-11-08
+
+### Fixed
+
+- `browser_video` resumes after you take control and hand it back, keeps recording when its tab goes to the background or its Developer Tools open, and pauses instead of freezing on the last frame when the page crashes or a load takes over three seconds. Starting a recording while an agent plays keys, or beside a smaller frame stream, no longer pauses it for a changed size.
+- `browser_frame_stream` reads beside a recording return frames at the stream's own size and quality, `everyNthFrame` above 1 returns every nth frame instead of far fewer, and a read after the stream stopped says why it stopped.
+- The video recorder names its real limits: recordings stop at 256 MiB, not 64 MiB, and capture up to 30 frames a second, not 12.
+- A video export whose encoder stops ends at once with its own message, instead of after five minutes, and a long video gets more than five minutes to export.
+- A video inspection cancelled while it was still loading no longer blocks further inspections until Hronaut restarts.
+- `browser_video` leaves out the folder of a video the person saved through the Save dialog.
+- Locking or unlocking a tab's input, or every tab's, while a page is busy, such as with an agent's held key or a long command, now waits for that page and then applies, instead of failing with "A page is busy. Input locks were not changed." The lock button shows the new state at once, with its spinner until the page has it; a change waiting for one page no longer refuses agents' native right-clicks, held keys, key sequences, wheel and touch on your other tabs.
+- `browser_video` records 30 frames a second from Chromium's own screencast of the page while Hronaut shows the tab, instead of copying the page about 9 times a second, so games and animations play smoothly in the video and the app no longer copies and encodes each frame itself; a still page repeats its last frame without using memory, exports use 6 Mbit/s, and a recording may hold 256 MiB.
+- A stopped `browser_video` recording can still be edited, rendered, inspected and exported after its tab moves to another site; only recording and resuming need the tab back at the site it started on.
+- `browser_key_sequence` stops when the page shows an alert, a confirm or its print dialog, which drop the keys sent while they show, and releases the keys it left down once the dialog closes; before, it played on and reported keys as released that the page never got. A key that goes down after earlier keys were released now leaves the release unconfirmed when it fails, as for the first key.
+- `browser_key_sequence` sends its first event at once, as documented, also when its `atMs` is above 0, and reports `startEpochMs` and `sentAtMs` from that first event; a late timer in Hronaut now moves the rest of the schedule as a slow page does, instead of sending the next events with no gap; and a page that delays a sequence by more than 10 seconds in all stops it, instead of keeping the tab busy for minutes.
+- Switching a page between Live and Frozen while an agent's long command runs on it now waits for that command, instead of reporting the page's state as unknown after five seconds.
+- Opening Developer Tools while an agent's request conditions are still being applied to the page now waits for them and opens, instead of refusing with "Request-condition application is pending".
+- Renaming a workspace or changing its color, preferences, agent access or site restrictions while it is busy, such as copying browser data or clearing website data, now waits for that and applies, instead of failing with "Workspace is busy".
+- `browser_video` pause, stop, edits and exports asked for while a recording takes its first frame, imports audio, renders or exports now wait for it, instead of failing with "Wait for the current video operation to finish".
+
+## [3.14.24] - 2026-11-07
+
+### Fixed
+
+- `browser_key_sequence` accepts keys by their `KeyboardEvent.code` (`KeyD`, `Digit1`, `ShiftLeft`, `ShiftRight`), and when a page is slow to handle an event, such as a game starting its run on the first key, the rest of the sequence keeps its planned gaps instead of arriving at once; the result reports `scheduleShiftMs`.
+
+## [3.14.23] - 2026-11-07
+
+### Changed
+
+- Agents can now play browser games and other pages that read held keys with `browser_key_sequence`: up to 200 timed key downs and ups over at most 10 seconds, with Shift chords such as a dash jump, sent as native input that reports when each key went. It keeps every rule of `browser_hold_key`, so a pause, your lock or any change on the page stops it and releases the keys it held.
+- Agents can now watch a page change live with `browser_frame_stream`: a low-resolution JPEG stream of that page alone, read a few frames at a time after a cursor, with when each frame was drawn, so an agent can see a game react to its keys. Frames stay in memory, stop while the page is hidden, and the stream ends after a minute without a read.
+
+## [3.14.22] - 2026-11-06
+
+### Changed
+
+- A tab's close button is now named **Close tab**, as in Chrome, without Ctrl/Cmd+W, which on a tab in the background closes the shown tab instead.
+- A tab's menu now offers **New Tab to the Right** (**New Tab Below** with tabs on the left), which opens the new tab right after that tab, as Chrome does, rather than **New Tab** at the end of the workspace.
+- Closing tabs with the mouse in the tab strip above the page keeps the other tabs as wide as they were until the pointer leaves the strip, as Chrome does, so you can close tab after tab without the close button sliding away.
+- Site controls can clear a website's data: **Clear data for this website** asks first, then deletes its cookies, including sign-in cookies, its storage and its cache in the tab's workspace, and offers to reload its pages, as in Chrome.
+- On Windows, a keyboard's Refresh, Stop, Home and Search keys now reload the page, stop it, open Home and go to the address bar, as in Chrome; they did nothing before.
+
+### Fixed
+
+- Closing a tab a page opened with `window.open()` and no window features now shows the next tab that page opened, or the tab beside it once you have moved on to other tabs, as Chrome does, rather than always going back to the page that opened it; popup windows and pages that close themselves still return to it.
+- An agent's click on a website's file field no longer opens the system's file chooser over your window, which held Hronaut until you closed it, even for a page you could not see; the agent uploads files with its upload tool instead.
+- A `mailto:`, `tel:` or other app link typed in the address bar now asks and opens in the app your system uses for it, as in Chrome, instead of an error saying workspaces cannot open the address.
+- A link click, form submission or a page's own script that leaves a page with unsaved changes now asks **Leave this page?**, as Chrome does, rather than doing nothing at all. An agent's click still leaves the page as it is, without asking you.
+- An agent whose click on a link meets a page with unsaved changes is now told that the page stayed open and how to go on, rather than seeing a click that worked and a page that did not change.
+
+## [3.14.21] - 2026-11-06
+
+### Fixed
+
+- A tab whose page crashed now keeps its page's title, as in Chrome, rather than turning into Page unavailable, so pinned crashed tabs, Bookmark all tabs and the tab list agents read still name each page; its icon and the row under the address bar still say the page stopped working.
+- When Hronaut's own window page crashes, Hronaut now loads it again with the same tabs, rather than leaving the window blank until you quit.
+- Try again on a page that crashed now reloads it as Chrome does, with the page it was opened from as its referrer, rather than opening its address anew.
+- **Copy Image** now keeps the image's markup beside the picture, as Chrome does, so a rich text editor pastes the image with its address.
+- A misspelled word in Hronaut's own fields, such as the agent card's answer, now offers spelling suggestions and **Add to Dictionary** in its menu, as in a website's field, and those fields follow the **Spell check** setting and languages.
+- A page stuck in a loop now says it is not responding, with **Reload** to recover it, once it leaves a key press or click unanswered for 15 seconds, as Chrome does; before, the row never appeared.
+- Holding **Ctrl+Tab**, **Ctrl+Shift+Tab** or **Ctrl+Page Down/Up** (and **Cmd+Option+Arrow** on macOS) now keeps moving through the tabs, as in Chrome, rather than moving one tab.
+- Ctrl+Tab, Ctrl+1 to 9 and the tab shown after one closes or sleeps no longer go to the tabs of a workspace hidden from the left rail or folded into its All N workspaces row; they follow the tabs on screen.
+
+## [3.14.20] - 2026-11-06
+
+### Changed
+
+- Browsing history and Bookmarks now show each page with the icon a tab showed for it, as Chrome does, rather than a globe beside every page; a page no tab has shown since shows its website's icon. The icons are kept only while the history or the bookmarks hold the page, so clearing the history takes them too.
+- The two tabs of a split view now stay paired when you select another tab, open Home or switch workspace, as in Chrome: selecting either of them shows both again, in the same layout, and the tab strip still marks both. The split view used to end for good, and had to be opened again.
+- The main window can now be made narrower, down to 600 pixels at the Compact interface size, so it fits half of a 1280, 1366 or 1440-pixel screen beside another app, as Chrome's does; the Comfortable and Large sizes keep room for their larger toolbar. The Issues panel, docked beside the page in a narrow window, now keeps its counts and its Copy button in view.
+
+### Fixed
+
+- A website tab's icon is now sharp when the website offers a large icon beside a small one: as in Chrome, the tab prefers an icon it does not have to scale up, rather than whichever arrived first, often the small one, scaled up and blurred. A small icon that arrives first shows until the larger one does.
+- Changing a website's permission in Site controls or Settings now makes Site controls offer to reload its open pages, as Chrome does: a page already using a permission, such as its camera or location, can go on using it until it loads again, and nothing said that a reload applies the change.
+- An agent's `browser_press` with `Shift+Insert` or the `Paste` key, or with `Control+V` or `Control+Shift+V` on Windows and Linux, pasted what the person had copied, such as a password, into the agent's page, where the page and the agent could read it; these paste keys are now refused, and agents enter text with `browser_insert_text`.
+- The application menu's Undo, Redo, Cut, Copy, Paste, Select All and Toggle Full Screen now follow Hronaut's language, as its other items do, rather than staying in English; on macOS the Edit menu also has Paste and Match Style and Delete, as Chrome's does.
+- A website text field's menu offered Paste and Match Style with an image on the clipboard, which has no text to paste, and used that macOS name on Windows and Linux too; as in Chrome, on Windows and Linux it is now named Paste as Plain Text and greyed out until the clipboard holds text, and a misspelled word's menu, which leads with its suggestions, leaves it out.
+- A tab whose page was destroyed while the tab stayed open failed with Electron's English "Object has been destroyed" when its tab menu reloaded it, a link was dropped on it, or an agent reloaded, navigated, went Back or Forward in it or stopped it, and a reload first removed the row that said the page was gone; its tab menu's Reload items are now greyed out, Reload Tabs skips it, and each of the others keeps the row and says the page is no longer available and to reopen it from Recently closed.
+- Right-clicking the agent card's answer or note field, or selected text in the agent card or a toast, now offers Cut, Copy, Paste and the other editing actions, as in Hronaut's own window; it opened no menu, so pasting an answer took the keyboard.
+
+## [3.14.19] - 2026-11-06
+
+### Changed
+
+- A tab in the tab strip now shows as soon as you press the mouse button on it, as in Chrome, rather than when you let go. Pressing one of several selected tabs keeps them selected so you can drag them together.
+
+### Fixed
+
+- A tab's speaker in the tab strip, and its Playing audio note on Home, no longer flicker off and on through the short pauses in a video, a game or a call: as in Chrome, they stay until 2 seconds after the sound stops, and the tab is not put to sleep in those pauses.
+- A tab you close after its page crashed or could not load is now listed in Recently closed by its page's title, or by its address, rather than as Page unavailable or Site unavailable, and it reopens with that title, as in Chrome.
+- Undo after closing several tabs at once, the one you were on among them, such as selected tabs or with Close other tabs, now shows that tab again, with the others back behind it, rather than leaving you on the tab that replaced them.
+- Clicking or touching a page of a split view whose input you locked now makes it the active pane, so Unlock input beside the address bar acts on it, as after any other click on either page. The page still gets none of it.
+- A tab whose page had crashed or could not load now comes back after a restart, or with its archived workspace, by its page's title or its address, as in Chrome, rather than as Page unavailable or Site unavailable.
+- History now opens with the keyboard in its search, with the last search selected, as Chrome's History page does, also from Ctrl+H (Cmd+Y on macOS) pressed in a page, which left the keyboard in the website behind the panel. Closing History with the keyboard in it gives the keyboard back to the page, and the key pressed in the page closes History and leaves the keyboard there.
+- A drag or a double-click on the split view divider now leaves the keyboard with the page, as in Chrome, so the arrow keys, Home, End and Enter typed next go to the page rather than resizing the split.
+- A page that cannot open or stops working in the split view's other pane now says so, in a row named for that pane with its own Try again, as Chrome shows an error page in each pane; the pane showed a blank page.
+- Reopening a tab you closed from a split view, with Ctrl/Cmd+Shift+T, Undo or the tab menu's Reopen closed tab, now puts it back beside the page it was shown with, on its side, with the split's layout and proportion and the same pane active, while that page is still the one shown; only the reopened tab was shown, and the page beside it went out of view.
+
+## [3.14.18] - 2026-11-06
+
+### Changed
+
+- Hronaut's window spends less time keeping its tabs up to date while several agents work, so it answers clicks a little sooner: it draws again only the tabs and controls whose part of the browser changed, rather than the whole window with every tab, workspace and closed dialog in it.
+- A tab you click, move or mute in the tab strip, or reach with Ctrl+Tab, Ctrl+1 to Ctrl+9 or Ctrl+Shift+Page Up/Down, now shows the change at once, before Hronaut finishes it, so the strip keeps up while several agents work. A sleeping or loading tab still shows once it has woken, and the strip shows Hronaut's own result if it differs.
+- The pictures of your tabs in Home's **Tabs** view are now made in the background, as agents' screenshots already were, rather than by the part of Hronaut that runs its window, so the window answers a little sooner while several agents take screenshots. The pictures look as they did.
+- Hronaut's window and the panels it opens over the page, such as address suggestions and the tab rail, now load only English and the language you use rather than all seventeen. The window starts drawing sooner, address suggestions appear in about half the time the first time you type, and the three use about 60 MB less memory between them.
+- Agents working in tabs you are not looking at no longer make Hronaut's window update its tabs more than ten times a second, so the window spends about a sixth less of its time keeping up while several agents work.
+
+## [3.14.17] - 2026-11-05
+
+### Changed
+
+- Agent calls build less of the browser's state, so Hronaut's window pauses less while several agents work, and their snapshots and screenshots answer sooner.
+- Screenshots agents take are made into PNG images in a background thread rather than in the process that runs Hronaut's window, so the window pauses less while several agents work.
+- Hronaut Home has three views instead of five: Tabs, Workspaces and Agents. Agents holds the connected agents with their live activity, connecting an agent, the overview and the tool library, and the agent status at the top opens it. Each view is headed by its name and what it holds, with no greeting, and an agent waiting for you is named on one line above every view, with a button that opens its workspace. Workspaces take the whole width.
+- Workspace cards on Home are quieter: the name keeps its row, a line under it holds the tab count and the workspace's settings as small icons named in their tooltips (the card's menu names them too), an agent's step reads on two lines, and the count of websites whose data the workspace keeps moves to Copy or move data in the card's menu. The "New workspace" tile and the hint over the list are gone; Create workspace stays above the list. The filters inside each Home view, such as Open and Archived, are small pills under Home's tabs.
+- In Home's Tabs view, Interaction locked or Muted is said once beside a workspace's name when all of its open tabs, two or more, have it, instead of on every card, and a sleeping tab without a picture shows its site's icon instead of a moon. In Spanish, French, Italian and Portuguese the counts under the Tabs name use the singular for one open tab, archived workspace or closed tab.
+
+### Fixed
+
+- A held Ctrl+J (Cmd+Option+L on macOS) now opens or closes Downloads once, as in Chrome, and a held Shift+Esc opens the Task manager once. Each repeat the page or Hronaut's window left alone opened or closed them again, so they ended open or closed by chance.
+- A website that handles Ctrl/Cmd+F, Ctrl/Cmd+L, Ctrl/Cmd+R, with or without Shift, or Ctrl/Cmd with =, +, - or 0 itself now keeps the key, as in Chrome, such as a web editor's own search, line selection or recent folders, or a design tool zooming its canvas; Hronaut opened Find, went to the address bar, reloaded or zoomed instead. Where the website leaves them alone they still do, once for a held key, as in Chrome: a held Ctrl/Cmd+= or -, Ctrl/Cmd+R or F5 zoomed or reloaded again with each repeat. On Linux and Windows the Super or Windows key no longer works in place of Ctrl with these keys, as in Chrome.
+- View Page Source, Save Page As, Print, Find Next and Find Previous chosen with the keyboard, with Enter in the open menu or with Ctrl+F2 or VoiceOver on macOS, now act while a panel in its own window has focus, as when chosen with the mouse, and Back and Forward chosen with the keyboard go back and forward as the toolbar's arrows do.
+- A tab left with a click on another tab now gives the address field or Find the keyboard back when you come back to it, as one left with Ctrl+Tab does and as in Chrome; it gave its page the keyboard.
+- Keys typed right after Ctrl/Cmd+L, Ctrl/Cmd+F or F6 in a page now go to the field the key opens, as in Chrome, also while Hronaut's window is busy, such as with many tabs open. They could reach the window first and go where it had the keyboard before, such as after the address's text, which the address field then selected along with them.
+- A workspace card's open menu on Home now stays put while an agent browses in that workspace. Each page the agent opened drew the whole card again, menu included, under the pointer and the keyboard.
+
+## [3.14.16] - 2026-11-05
+
+### Changed
+
+- Search tabs, opened with Ctrl/Cmd+Shift+A, the tab-search button or the workspace switcher, is now the Tabs view of Hronaut Home, the first of its views, instead of a dialog drawn over the page: it lists the open tabs as cards with their pictures grouped by workspace, with archived workspaces and recently closed tabs, gives its search field the keyboard, and Escape goes back to the page you came from.
+
+### Fixed
+
+- An agent's wheel input, or touch input outside an emulated phone viewport, on a page the person pinched larger now says that the page is pinched and that `browser_zoom` `reset` undoes it, as clicks, hover and drag already did, instead of only that the point must be inside the viewport; a native right-click on a page pinched while the pointer moved to it now gives the pinch as its reason, with the same advice.
+- Resetting the zoom, such as with Ctrl/Cmd+0, Reset in the zoom bar or an agent's `browser_zoom` `reset`, now also shows a pinched page's source (a `view-source:` address) at its normal scale again; it stayed pinched, and an agent's native input there kept being refused.
+- A website that keeps F11 (Control+Command+F on macOS) to itself no longer holds you in full screen: as in Chrome, the key is the browser's while the window is in full screen, and on a locked page or under Hronaut's dialogs it always toggles full screen.
+- A tab you drag no longer carries its internal id: released over a website, the website could read the id from the drop, as text and as the tab's own type. The tab strip still moves the tabs you drag.
+- View → Print… chosen from the menu now brings the main window forward first, as Save Page As does, so its print dialog is no longer for a page out of view behind a panel in its own window or in the tray.
+- A link, image or text dropped on the address field now takes the place of the address shown, selected, as in Chrome, so Enter opens it and Ctrl+Z brings the address back; it landed where the pointer was in that address, such as right after the current page's address.
+- Save Page As on a tab showing an image, a PDF, text or JSON now downloads that file to the name you choose, as Chrome does, suggesting the name its address ends in. It suggested a name ending in .html, wrote a web page showing the file under a name ending in .html instead of the one chosen, and then said it could not save the page.
+- A link dropped on a page that does not take it, from another app or the other side of a split view, now opens in a new tab beside the page, as Chrome does. It opened nothing. A file dropped there is still not opened, and Hronaut now says why.
+- A website that handles Ctrl/Cmd+D, or Ctrl+H (Cmd+Y on macOS), itself now keeps the key, as in Chrome, such as a web editor adding the next match with Ctrl+D or opening Replace with Ctrl+H, or a design tool duplicating with Cmd+D; Hronaut bookmarked the page or opened history instead. Pressed where the website leaves them alone, they still do.
+- An agent's `browser_zoom` `reset` on a page the person pinched larger now answers once the page shows its normal scale. On a busy machine the page could still report its pinched scale right after the answer.
+
+## [3.14.15] - 2026-11-05
+
+### Fixed
+
+- A window whose monitor came back with another display id, as after plugging it into another port or a driver update, opened centered on the primary monitor at the default size; Hronaut's window and a detached panel now open on the monitor their saved place lies on, at their saved size, as in Chrome, and a window no monitor holds any more keeps its size, centered on the primary monitor.
+- With Launch minimized on, a window last left maximized or in full screen opened on screen when Hronaut started at sign-in, since Electron shows a hidden window to maximize it; it now stays hidden in the tray and opens maximized or in full screen when the person first shows it.
+- A page that put an element in full screen inside another, such as a video inside a player already in full screen, kept the player in full screen when Hronaut asked it to leave, as on switching tabs, so the window stayed in full screen over the next tab; the page now leaves every level, as Chrome does.
+- A panel in its own window, such as Page tools, saved whether its window was maximized or in full screen but always opened at its normal size; it now opens maximized or in full screen as it was left.
+- An agent's click on a page pinched larger that was still loading scrolled the page to its target and moved the pointer there before it was refused, so the person's pinched view moved and the page could react to a pointer at the wrong place; it is now refused before the page scrolls or the pointer moves.
+- A page in a tab out of view that took full screen, as when an agent clicked a video's full screen button there, could stay in full screen inside its page card when the person switched to it about two seconds later; it now leaves full screen there too.
+- A panel in its own window that was still opening when an agent showed Hronaut with `browser_show`, which takes no focus, took the focus from the person's app once it had painted; it now stays without focus, as Hronaut's window does.
+- A website embedded in another's page, such as an ad or a chat widget, could ask to show notifications on every page that embedded it; as in Chrome, only the page's own website may ask now, a frame of another website is refused without a prompt, and an Allow or Deny saved for one is forgotten.
+- Closing a website's permission prompt with Escape or its close button, such as one asking for your location or to show notifications, saved a Deny for the website as clicking Deny does, so it never asked again and Settings listed a choice you did not make; as in Chrome, it now refuses only that request and keeps nothing, so the website may ask again, and a website whose prompt you closed three times is refused without asking for a week, until Hronaut restarts or you decide in Site controls or Settings. Camera, microphone, file and app link prompts, which Hronaut never remembers, still refuse for the page until it loads again.
+- A website's request to reach a device on your local network or an app on this device, such as a local development server, to use the fonts on your computer, or to use your MIDI devices showed its Chromium identifier in the permission prompt and in Settings, such as “loopback network”; these requests are now named in the interface language.
+
+## [3.14.14] - 2026-11-04
+
+### Security
+
+- Hronaut now runs on Electron 45.2.3, which backports upstream fixes to Chromium, V8, ANGLE, Dawn, FFmpeg, PDFium, Skia and minigbm; Chromium stays at 156.0.8078.80.
+
+## [3.14.13] - 2026-11-04
+
+### Fixed
+
+- Save Image in a page's context menu was unavailable for an image the page made itself from a `data:` or `blob:` address, such as a chart drawn into an image. It now saves such an image, as in Chrome, and Save Video and Save Audio save such a recording; they still do not open in a new tab.
+- On Windows and Linux, opening a page's context menu with Shift+F10 or the Menu key opened it at the mouse pointer, wherever it was, even outside the window; it opens at the focused element or the selection, as in Chrome, and a right-click's menu still opens at the pointer.
+- Remove collection in Bookmarks could not be undone, so a slip lost the collection's name and which bookmarks it held; it now shows an Undo toast, as removing a bookmark does, which puts the collection back in its place with its bookmarks and shows it in the panel again.
+- Ctrl+Z (Cmd+Z on macOS) did nothing while a drop-down list in Hronaut's window had the keyboard, such as the bookmark filter that Remove collection leaves it in, as if the list had text of its own to undo; it now runs Undo while one is on offer, as it does outside text fields.
+- A right-click on a canvas, such as a chart a page draws, now offers **Copy Image**, which copies the picture it shows, as Chrome does, also for a canvas with another website's picture in it, which Chrome leaves unavailable. The menu had only the page's items, so the picture could be had only from a screenshot. Inside a frame of another site, where Electron cannot copy from, the item is unavailable.
+- A history file Hronaut could not read, such as one a newer version wrote or a disk error cut short, was replaced by the first visit saved, which lost every visit in it. It is now kept beside the new file as `history.json.unreadable-<UTC time>`, as an unreadable bookmarks file is. Clearing all history, a time range of it or a website's visits also removes the kept files that may hold such visits, even when one of them cannot be removed, and a kept file last written more than 90 days ago, whose visits are therefore all older than the history keeps, goes when Hronaut opens the history.
+- **Add “…” to Dictionary** in a text field's context menu added the word only in the page's own workspace, so it stayed underlined as misspelled in every other workspace. It now adds the word for every workspace, as Chrome keeps one dictionary for its profile, and a workspace opened later gets the words the others have.
+- With Spell check off, a workspace opened afterwards still checked spelling in its websites' text fields when languages were chosen in Settings, as Electron turns checking on whenever it is given languages. It now stays off, as in every other workspace.
+- A page saved with Add current or Ctrl/Cmd+D while the bookmarks panel shows a collection now goes into that collection, as a page added in Chrome's bookmark manager goes into the folder it shows. Ctrl/Cmd+D does the same with the collection the panel last showed while it is closed. It used to go to Unfiled, so the list the panel showed did not have it. A save or load that fails after Ctrl/Cmd+D or the star opened the panel now shows its error there.
+- A pinch on a touchpad or touch screen did nothing to a website, as Electron turns pinch zoom off. It now shows the website larger, as in Chrome, up to 3 times on macOS and 4 times elsewhere, and resetting the zoom, such as with Ctrl+0 or Cmd+0, also shows it at its normal scale again. Picking an element, recording steps and capturing an area take the point the pinch shows, and an agent's native clicks, hover and drag refuse a pinched page until its zoom is reset, as its wheel and touch input do.
+- A website's own full screen, such as a video player's, in a tab the window did not show, such as one an agent clicked in the background, put the window in full screen and straight back, on macOS with two animations. The window now takes full screen only for the page it shows, in a window that is not minimized or hidden, as in Chrome. A page out of view stays in its page card and leaves full screen once it is shown.
+
+## [3.14.12] - 2026-11-04
+
+### Fixed
+
+- With Find open, pressing Ctrl+F or Cmd+F again, or the Find button, selects the text in its field and keeps the current match, as in Chrome, instead of searching again from the first match.
+- Closing Find with Escape or its Close button leaves the current match selected, as in Chrome, so you can copy it, a match in a link gives the link the page's focus, so Enter follows it, and Find opens again on that match; emptying the Find field still clears the selection.
+- Up, Down, Page Up and Page Down in the Find field, and Ctrl+Home and Ctrl+End (Control on macOS), scroll the page, as in Chrome, also when a text field in the page was focused; they only moved the caret in the Find field, or did nothing.
+- Opening Find with text selected in the page searches for that text, as in Chrome, up to 250 characters, also with Ctrl+F, Cmd+F or the Find button in an open Find bar until you type in it; it opened with the last search. A password field's text is never taken up. Find closed on a match in a frame from the same origin, such as an embedded document, now opens again on that match rather than the one after it.
+- Typing a dotted name whose last part is no top-level domain in the address bar, or giving one to `browser_navigate`, such as `node.js`, `index.html` or `package.json`, searches for it, as in Chrome; it opened a site no server answers, such as `https://node.js`. A local network name such as `nas.lan` is searched too, and a port, a path that ends in a slash, as in `nas.lan/`, or two of a path, a query and a fragment open it, now over HTTP, as in Chrome; once visited, typing it in full opens it from history. The page menu's **Go to** now offers any selected web address, such as `example.com`, as Chrome does, not only one written with `https://` or starting with `www.`.
+- Switching tabs hides Find and the tab shown again brings it back with its text, its count and the match it was on, as in Chrome, also after Home; it closed Find and ended the page's search, so coming back meant searching again.
+- Coming back to a tab you left with the keyboard in the address field or Find's field, such as with Ctrl+Tab, gives that field the keyboard again, as in Chrome: the address field has the text and selection it had and shows no suggestions until you type, and Find's field has its text selected; the page took the keyboard.
+- `browser_press` with `Shift+F10` in a page the person had not locked opened Hronaut's page menu as the person's own, at their pointer and over whatever tab they were on, where Paste would give the agent's page their clipboard; on Windows and Linux it now needs a page locked in the trusted UI, where only the page's own menu opens.
+- Holding Enter on Add current or Remove current in Bookmarks, on a bookmark's Rename or Edit address, or on Open in background in Bookmarks or History pressed it again with each repeat until the key was let go: the bookmark was removed and added anew without its name or collection, the name or address field opened and closed, and one more tab opened each time; a held Enter now presses it once, as it does Remove.
+- With Follow agents on, a page's context menu left open longer than following waits after a click had an agent's tab brought into view under it, and its items, such as Paste, then acted on the page that had left the view. Following now waits while the menu is open and for a few seconds after it closes, and an item whose page is no longer shown says so instead of acting on it.
+
+## [3.14.11] - 2026-11-04
+
+### Fixed
+
+- The command palette, opened with its shortcut while the pointer rests where its list appears, no longer selects the command under the pointer, so Enter runs the command it opened on, and a pointer resting beside its rows no longer selects the one the list scrolls or moves under it; the pointer selects a command once it moves, as before.
+- Closing a new tab after you type a second address into it, or a duplicated tab after you type any address into it, no longer takes you back to the tab it was opened from, as in Chrome.
+- The tab keys, such as Ctrl+Tab, Ctrl+Page Down and Ctrl+1 to Ctrl+9, pass over the tabs of a workspace folded in the tab strip and leave it folded, as Chrome does with a collapsed tab group.
+- Once you press End, Home, Left or Right, or click in the address field, while it fills in the rest of an address, the rest counts as typed, as in Chrome: the suggestions follow the whole address, and going up from them comes back to it rather than to the letters you typed.
+- Closing or putting to sleep the tab in view no longer shows a tab of a workspace folded in the tab strip, which then unfolded, while a tab of another workspace is left, as Chrome passes over a collapsed tab group.
+- Save as PDF, and saving a recording's video or a HAR file from Hronaut's own controls, into a download folder Hronaut cannot write to, such as on a drive that became read-only, asks where to save the file, over the window you asked from and starting in your Documents folder, as a website download does, instead of failing.
+- Page zoom goes through Chrome's steps, from 25% to 500%, in the toolbar, the keys, Ctrl with the mouse wheel and `browser_zoom`, instead of stopping at 50% and 400% with a 60% step Chrome does not have.
+- On Windows and Linux, Ctrl+Shift+Minus zooms the page out, as in Chrome, once the page leaves the key alone: JupyterLab, which splits a cell with it, keeps it. A Japanese keyboard's Ctrl+Shift with the minus key no longer zooms in.
+
+## [3.14.10] - 2026-11-04
+
+### Changed
+
+- Hronaut now ships Mediabunny 1.65.0, which exports recorded page videos, and @solana/kit 8.6.0, which Solana wallets use.
+
+## [3.14.9] - 2026-11-04
+
+### Security
+
+- Hronaut now runs on Electron 45.2.2 with Chromium 156.0.8078.80, which brings the 21 security fixes Chrome 156.0.8078.79 shipped on October 29, among them the critical CVE-2026-76024 (MediaStream) and 19 rated high, such as CVE-2026-119262 (V8).
+
+## [3.14.8] - 2026-11-03
+
+### Security
+
+- Hronaut now runs on Electron 45.2.1 with Chromium 156.0.8078.75, which brings Chrome's security fixes of October 27, among them the critical CVE-2026-118306 (FileSystem), CVE-2026-118331 (FileAPI), CVE-2026-118344 (Layout) and CVE-2026-118348 (Skia). Hronaut 3.14.7 ran Chromium 156.0.8078.49, which they affect.
+
+## [3.14.7] - 2026-10-31
+
+### Fixed
+
+- The save dialog of **Save Page As**, and of a download when **Ask where to save each file** is on, now opens in the folder you last saved into from one, as in Chrome; it always opened in the download folder. Choosing a new download folder in Settings, or resetting the download settings, starts it there again.
+- As in Chrome, the address bar opens a one-word name followed by a path that ends in a slash, such as `intranet/` or `go/docs/`, or by two of a path, a query and a fragment, such as `wiki/page?id=4`, as a website on the local network over HTTP, instead of searching for it, and reads the page after `view-source:` as a typed address, so `view-source:example.com` shows the source of `https://example.com`; the page there was not read as an address.
+- A download into a download folder Hronaut cannot write to, such as one on a drive that became read-only, now asks where to save it, starting in your Documents folder, as in Chrome, instead of failing.
+- As in Chrome, text typed in the address bar and not sent is shown again when you come back to its tab, with a keyword search's engine; switching tabs threw it away. A tab that opened another page meanwhile shows that page's address, and so does the address bar when the page moves on while you are no longer typing in it.
+- As in Chrome, **Close Tabs to the Right** (**Close Tabs Below** with vertical tabs) on a pinned tab closes the tabs of its workspace that are not pinned; it was always off there.
+- Holding Ctrl+W or another browser shortcut pressed in a page no longer sends the key's repeats to the page of the tab shown next, which a web IDE may read as closing an editor; Chrome keeps Ctrl+W from pages. Likewise, a held Escape that ends the screenshot area or the element picker no longer reaches the page.
+- As in Chrome, a copy made with **Duplicate Tab** (or **Duplicate Tabs**) and closed right away shows the tab of its workspace you were on again, instead of the tab after the copy.
+- As in Chrome, a new tab closed without being used is left out of **Recently closed** and offers no Undo, so **Reopen Closed Tab** (Ctrl/Cmd+Shift+T) brings back the tab you closed before it instead of an empty tab. A pinned tab or a tab with a label is still remembered.
+- On Windows and Linux, Ctrl+1 to Ctrl+8 now reach the website in focus first, as in Chrome, so a web editor can use them, such as to go to its first editor group; when the website leaves one alone it goes to that tab, and Ctrl+9 to the last one, with the number row or the numeric keypad. A page locked while an agent works still sends them to the browser, and now also F5, F6, Alt+D and Chrome's other keys a website may keep, which did nothing there.
+- On macOS, Control+Page Down and Control+Page Up go to the next and previous tab, and Control+Shift+Page Down and Control+Shift+Page Up move the tab once the website in focus leaves them alone, as in Chrome; they did nothing, and **Keyboard shortcuts** now lists the keys that move the tab there too.
+
+## [3.14.6] - 2026-10-31
+
+### Fixed
+
+- In a workspace limited to listed sites, **Back** and **Forward** could open a page of a site the workspace no longer allowed, past a page Chromium skips, such as one that opened the next by script as a sign-in hop does: only the page next to the current one was checked. Back and Forward now go exactly one page while a page further along is one the workspace may not open.
+
+## [3.14.5] - 2026-10-31
+
+### Fixed
+
+- After an agent's script on a page was interrupted by the page's print dialog or a website's alert or confirm box, the page's own alert, confirm and prompt boxes stayed answered without showing for as long as the script went on running, so a confirm you met on the page was answered for you; a script waiting for something that never came could leave them answered until the page loaded again. This happened while you worked in another app, or when the agent asked for the page's boxes to be answered. The page's boxes now show again once the interrupting box closes, or at once.
+- An agent that asked for a page's zoom without saying what to change reset the zoom you had chosen for that site, in that workspace's tabs and after restarting Hronaut. Asking now only reads the zoom, and read-only agent access you set up from now on can read it too.
+- Closing Find in page with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow keys no longer scrolled the page and typing went nowhere. As in Chrome, the page now takes the keyboard back.
+- The View menu's Actual Size, Zoom In and Zoom Out zoomed Hronaut Home and a page under Settings, which their keys leave alone, and Home stayed zoomed after restarting Hronaut. Chosen from the menu, they now zoom as their keys do, and Home always opens at 100%, also where it was zoomed before.
+- With Follow agents on, an agent working in another tab could take the view while you searched a page with Find, which closed Find and lost your place among its matches. Following now waits while the keyboard is in Find, as it does in the address bar.
+- An agent that answered a website's alert or confirm box after you had already answered it answered the page's next box instead, such as one asking to delete something. The tab and the agent's results now name each box, and an agent that passes that name answers only the box it read.
+- Clicking a link that only starts a download, or that the website answers with no content, closed Find and lost your place among its matches, though the page stayed. Find now stays open over such a link, as in Chrome, and closes only when another page replaces the one it searched, so it also stays while the next page loads.
+- On a very long page, such as a large log, Find said its search failed when the page took more than 5 seconds to count the matches, and Retry failed the same way, though the page had highlighted them. Find now waits for the count, as Chrome does.
+- A click in the address bar put the caret where it landed, so a new address typed after it went into the middle of the page's. As in Chrome, the click that puts the keyboard in the field selects the whole address, so typing replaces it; a drag or a second click still selects part of it or places the caret, and a right click selects it before its menu opens.
+- Up and Down in the address bar's suggestions went round the rows only, so once a row was highlighted, Enter could not open the text you typed without editing it. As in Chrome, they now go through the rows and back to the text typed, with the rest of an address the field had filled in after it.
+- After **Ctrl+Enter** in Find followed the link a match is in, **Back** skipped the page the link left, or did nothing when that page was the tab's first, unless you had clicked or typed in it before. Chromium skips on Back a page that moves on without your activation, and your key went to Find, not to the page. Hronaut now marks the page as activated by you when it follows the link, so Back returns to it.
+
+## [3.14.4] - 2026-10-31
+
+### Fixed
+
+- A website that showed alert or confirm boxes one after another held Hronaut's window: each box had to be answered before anything else worked, and the next one came at once. As in Chrome, from a website's second box onward in a tab, the box now offers to prevent the page from creating more; once you tick it, that website's later boxes in the tab are answered Cancel without showing, until the tab closes.
+- When the page you were looking at opened a window while an agent's tool call ran on it, such as a script the agent ran there, the new tab took the view and the keys you were typing, as if you had clicked. It now opens as its workspace's tab without being shown, as one that an agent's click opens, and Follow agents shows it once the agent works in it. A window you open with a click or key press in that page while the agent's call runs still opens in front.
+- When you closed a tab behind the one you were looking at, such as from the tab strip, and its page asked to keep unsaved changes, Hronaut asked "Close this tab?" over the other page, so you could not see which page you would discard. As in Chrome, that page now comes into view for the question; if you keep it, you go on editing it, and if you discard it, you are back on the tab you were on. While a split view is open, the question still asks over it, so your split view stays.
+- While one page of a split view was in full screen, a window that the other, hidden page opened on its own, such as from a timer, took the view, which ended the split view and the full screen you were watching. That window now opens behind, as one from any tab you are not looking at does.
+- A website's alert or confirm box that Hronaut or an agent answered for you stayed on screen, and Hronaut's window did not respond until you clicked it. While Settings or another of Hronaut's own screens covered the pages, such a box even showed on top of it. Hronaut now closes the box once the dialog is answered, and turns down a website's box while its own screens cover the pages.
+- While a website showed an alert or confirm box, an agent's request for the page's network requests or browser issues never answered, and neither did the agent's answer to the box after it, so only you could free the page. An agent also could not answer an alert that a page showed as it opened in a new tab. These now answer at once, and the agent can answer the box.
+- When an agent's key press, click or script made a website show an alert or confirm box, the agent's call waited for the box and its answer to the box was refused as busy, so only you could answer it; a press or click never returned, and every later call on the tab waited too. The call now returns and says which box the page shows, the agent's other calls on that page say at once that the box holds it, and the agent can answer the box. Closing a tab while its page showed such a box also left Hronaut's window not responding until you clicked the box; the box now closes with the tab.
+- When you printed a page, Hronaut stopped watching it for a submitted sign-in form, so signing in after the print dialog closed offered no password save. Printing also ended an element pick or area selection you had started on the page and left its overlay on the page. They now wait until the print dialog closes.
+- When an agent's click or other action made the page open its print dialog, Home's activity and the action's audit record showed it as failed, though it had happened, and the agent's result did not say it must not be repeated. It now shows as having unknown effects, as does an action that makes a website show an alert or confirm, and the agent's result says so.
+
+## [3.14.3] - 2026-10-31
+
+### Fixed
+
+- Since 3.14.2, when a form you sent could not reach its website, such as while the computer was offline, Hronaut loaded the form's address again by itself a second later, without what the form sent, so the tab showed whatever that address shows, such as the empty form, instead of the failure. As in Chrome, a page a form sent is no longer loaded again by itself.
+- When one of Home's status reads never got an answer, Home stopped updating: the dashboard, the connected agents and their recent steps stayed as they were until Home was reloaded. Home now counts a read with no answer after 10 seconds as failed, shows that it is reconnecting and reads again 2 seconds later.
+- When the computer's clock was set back or forward while an agent's step ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, the time that step took, shown when you point at it in Home's recent activity, was off by the change, often an hour, or was 0 ms. It is now measured on a clock that setting the computer's clock does not change.
+- When the computer's clock was set forward by more than five minutes, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, every agent lost its workspace's write lease at once, and a command an agent was running then, such as a click, had its result discarded as if the workspace had changed. A lease now ends only after its own five minutes, measured on a clock that setting the computer's clock does not change; the end time agents are told is on the computer's clock as it is now.
+- When a page showed a frame or other content from a website whose certificate you chose to trust anyway, the address field said "Not secure" only until the tab started opening something else: a link that turned out to be a download, an address that answered with nothing to show or a load you stopped left the same page on screen with the padlock back, and so did a connection lost while the page loaded the rest of its content. As in Chrome, the page now stays "Not secure" until another page replaces it.
+- Clearing your history kept the certificates you chose to trust anyway with "Proceed (unsafe)", so those websites' pages kept opening without a warning until Hronaut quit. As in Chrome, clearing history, all of it from the History panel or Settings, a time range or one website's, now forgets them for the websites it clears, and their pages warn you again once Hronaut connects to them anew. Pages of those websites stay "Not secure" until Hronaut quits.
+- When Hronaut quit, or could not show its window, while a website asked for a permission such as your location or notifications, the prompt closed as if you had chosen Deny, and Hronaut kept that Deny for the website from then on. A prompt nobody answered now keeps nothing, and the website can ask again.
+- A page could ask to open links in other apps over and over, a different kind of link each time, so a new prompt showed as soon as you answered the last one. As in Chrome, once a page asked, it can ask again only after you click, press a key or touch it, in any of its frames; until then, its links to other apps are refused without asking. One Allow also opens a link only once, even when the page asked for it several times while the prompt showed.
+- Reload, Back, Forward and a page picked from their history list did nothing at all on a page that asks before you leave it, such as an editor with unsaved changes, and an agent was told the tab had reloaded or gone back. As in Chrome, Hronaut now asks whether to reload or leave the page, and an agent is told that the page stayed open.
+- A page that closed itself, such as the "you can close this tab" page a desktop app's sign-in ends on, left its tab open saying the page was no longer available, unless a page had opened it as a window. Its tab now closes, and Reopen closed tab brings it back.
+- A window that a page in a tab behind opened, such as on a timer, was shown in place of the page you were looking at and took the keys you were typing; one from a page in another workspace took you to that workspace. It now opens behind the tab you see, or as its workspace's tab without being shown, unless you clicked or typed in that page moments before.
+
+### Security
+
+- follow-redirects 1.16.1 → 1.16.2, which the TRON wallet library (`tronweb`) loads through axios: it fixes an advisory where custom credentials headers could follow a redirect to another site (GHSA-mrwp-f3q8-3g9p).
+
+## [3.14.2] - 2026-10-30
+
+### Fixed
+
+- When the computer's clock was set back while Hronaut ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, an agent that had just finished a step showed as working, and an agent that quit stayed listed as connected, for as long as the clock was set back, often an hour. Set forward, agents disappeared at once. Both now keep their own times, and the steps an agent took still show the time they happened.
+- When the computer's clock was set back while Hronaut ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, your last click or key in a tab could count for a page that opened as long after it as the clock was set back, often an hour, so that page could ask again for a website sign-in you had cancelled. Only a page that opens within a second of your click or key counts as yours, whatever the clock does.
+- When the computer's clock was set back or forward while Hronaut ran, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login, Memory Saver and the offer to save a password went by the clock. Set forward, Memory Saver put tabs you had just used to sleep at its next check, and a form you sent right after a click or key made before the change got no offer to save its password; set back, tabs stayed awake, and a form a page sent by itself in a tab you had used got the offer, for as long as the clock was set back, often an hour. A two-step sign-in likewise kept or forgot the username from its first step by the clock. These now count time on a clock that setting the computer's clock does not change.
+- When the computer's clock was set back or forward while Hronaut ran, more features went by the clock. Set back, a page an agent was working on stopped offering you the take over, and a workspace's blocked navigation attempts left out repeats of the last one, for as long as the clock was set back. The time left that agents were told for a virtual passkey, logpoints, a forced CSS state and a DOM breakpoint was off by the change, and set forward, a reading of a page's React components under way ended with nothing. These now count time on a clock that setting the computer's clock does not change.
+- The remaining waits and lifetimes that went by the computer's clock now count time on a clock that setting it does not change: filling a saved password while an agent command finishes, an import preview from another browser, an incident review and its capture, End process in the task manager, the passwords Hronaut suggested, Save Link As names, screenshot comparisons for agents, the Claude Code setup plan, the release history, a live region recording and the tab it keeps awake, the elapsed times of a DOM changes recording, and the element positions an annotated screenshot compares. Set forward, for example, an import preview or incident review expired at once, a live region recording stopped as expired and Memory Saver could put its tab to sleep; set back, an incident review and the tab a live region recording kept awake lasted as much longer. An incident review now also ends at the expiry it shows.
+- A tab whose page could not reach its website, such as one Hronaut restored at login before the network was up, kept showing the failure until you reloaded it. As in Chrome, Hronaut now loads such a page again by itself once the computer is online and the tab is in view: 1 s after the failure, then waiting longer after each failed try, up to every 30 minutes. It waits while an agent command runs in the tab, and leaves a refused certificate, other failures and a tab whose network an agent emulates offline or routes as they are.
+- On Linux, when Hronaut opened at sign-in before the desktop's tray had started, its tray icon never showed: Chromium places a tray icon in the desktop's tray only if the tray runs and is ready to show icons when the icon is created, and otherwise in an older kind of tray that current desktops do not show. With **Launch minimized**, nothing of Hronaut was visible. Hronaut now follows the desktop's tray on the session bus and creates its icon again once the tray starts, or restarts, so the icon shows there.
+
+## [3.14.1] - 2026-10-30
+
+### Fixed
+
+- A website could read the saved username and password Hronaut was about to fill into it, even when Hronaut then filled nothing, by replacing a JavaScript built-in the fill used and looking at the code that called it. The fill now runs as strict code a website cannot reach, so the website gets the username and password only when Hronaut puts them in its fields.
+- A website can no longer change the fields Hronaut sets in a `browser_webmcp` answer, such as its workspace and tab, or send an agent a tool list or tool result past WebMCP's limits, by replacing the JavaScript built-ins that Hronaut's WebMCP code uses in the page. Hronaut now checks the page's answer itself and keeps only the fields it knows, within WebMCP's limits, and the answer's text is compact JSON.
+- When a website's WebMCP tool ran but its result or error could not be read, `browser_webmcp` now says the tool ran and may have had effects (`OUTCOME_UNKNOWN` for a result, `TOOL_ERROR` for an error) instead of that it never ran, so an agent does not repeat it.
+- The browser issues an agent reads no longer say that Hronaut cancels every HTTP sign-in request a website makes: since 3.14.0 it asks you to sign in for the page's own website, as Chrome does, and the issues now say so.
+- A panel moved to its own window and opened while Hronaut was still restoring your workspaces at startup now shows every workspace and tab once they are back. It could show only those restored by the time it opened, until the next change to a tab.
+- Hronaut's buttons and menus no longer stop responding when the computer's clock is set back while Hronaut runs, such as on Linux when a clock kept in local time is corrected soon after Hronaut opened at login. Until the clock caught up again, often an hour, clicks in the window did nothing and Settings would not open, while agents could still connect. Tooltips and the pointer in the command and password lists also no longer depend on the clock.
+- When an agent opened a tab and sent it on to a page that asks for a username and password before its first page had shown, Hronaut could close the sign-in at once and the website showed its refusal, without you being asked. It now asks you, as it does for any page an agent opens.
+- An agent's waits for page text or an element, element and React inspections, frame observations, logpoint source maps and the wait for workspace work at quit no longer go on for an hour when the computer's clock is set back while they run. They end at their own time limits, and so do the short pauses Hronaut keeps after a sign-in closes and after a page's title changes.
+
+## [3.14.0] - 2026-10-29
+
+### Added
+
+- A website that asks for a username and password with HTTP authentication shows Hronaut's sign-in dialog, as Chrome does, instead of its 401 page: it names the website and the workspace, warns on an unencrypted connection, and sends what you type only to that website; the workspace stays signed in to it until Hronaut quits. Hronaut never shows what you type to agents, once you cancel a sign-in the tab's pages, and the tabs they open, cannot ask again by themselves, and an agent waiting for such a page is told that the person was asked to sign in.
+- **Proceed (unsafe)** for a website whose certificate is not trusted, as in Chrome: the tab says **Your connection is not private**, and where Chrome would let you go on, **Proceed to** the website asks in Hronaut's own dialog and then trusts that certificate for that website in the workspace until Hronaut quits; its pages show **Not secure**. It is never offered for a website that accepts only secure connections or for a revoked or blocked certificate, and agents cannot choose it.
+- **Loop**, **Show Controls** and **Picture in Picture** when you right-click a video, and **Loop** for an audio, as in Chrome, also for one inside a frame of another site: each shows whether it is on for that video or audio and turns it off or on. Picture in Picture shows the video in a small window of its own that stays on top.
+- **Not secure** beside an HTTP page's address, as in Chrome, and Site controls now say first whether the connection to the website is secure. A page on this computer, such as `localhost` or `127.0.0.1`, shows the information icon without the warning, as in Chrome, and Site controls say that its connection does not leave the computer.
+- **Spell check languages** in **Settings → General**, as in Chrome: on Windows and Linux, websites' text fields can check spelling in several languages at once, chosen from Chromium's dictionaries, instead of only the one for the system language. A text field's **Spell check → Language settings** opens the setting.
+- Drag a link from a page or another app onto a tab to open it there, or near a tab's edge or onto a workspace's **New tab** button to open it in a new tab beside that tab or at the end of the workspace, as in Chrome. A marker shows where it will open; dropped text that is no address searches, and a `javascript:` address opens nothing.
+- **Suggest Strong Password** in a password field's right-click menu, as in Chrome: Hronaut makes a random password of 15 letters and digits, fills it into the field and the one that confirms it while agents pause, and when the page submits it, offers to save it with a note that nothing else shows it. It is offered while passwords can be saved.
+- Hronaut also offers to save a password after a sign-up, password change or other scripted button such as **Create account**, **Register** or **Change password**, not only after logging in, and in a form that changes a password it offers the new password instead of nothing. When such a form has no username, the offer updates the website's only saved password, or else the saved one whose password is the current one you typed, as in Chrome, instead of saving it for an unnamed account.
+- Select several tabs of a workspace, as in Chrome: **Ctrl+click** (**Cmd+click** on macOS) adds a tab to the selection or takes it out, and **Shift+click** selects the tabs from the last one clicked. The right-click menu of a selected tab then reloads, duplicates, mutes, pins, unpins or closes them all, **Ctrl/Cmd+W** closes them all, and dragging one of them moves them together.
+
+### Fixed
+
+- Hronaut no longer quits at random while a page uploads a file or other binary data, as X does while you scroll it. Electron 45.0 crashed Hronaut when such a request went out while Hronaut watched the tab's requests; Hronaut now runs on Electron 45.1, which fixes it.
+- A tab showing a video in picture-in-picture, its own or an embedded player's, no longer goes to sleep, which closed the video's window: like a tab playing audio, it stays active, as Chrome never discards such a tab. **Put Tab to Sleep** says why, and keeps the tab in view.
+- A page's request no longer fails at random with **Failed to fetch** (`net::ERR_FAILED`) just after a one-time request condition or a hold caught a request. Settling the rules a moment later sent the page's request interception to Chromium again, which could cut off a request the page was starting; Hronaut now leaves interception that still covers the rules in place, and ends it once nothing is left to intercept.
+- Filling a saved password or importing a browser's cookies no longer fails with **an agent command was still running** while a coding agent such as Claude Code is merely connected. The stream an agent keeps open to hear from Hronaut counted as a command in progress, and with 32 agents connected every request was refused as **Too many active MCP requests**. Home's **active** count and each connection's **Active** label now count only requests in progress.
+- When more than 100 agent sessions pile up, Hronaut lets go of one its client left, then one only waiting for messages, and of those the one used longest ago, instead of the oldest session, which could be an agent still at work.
+- Changing or resetting the MCP access token, or turning authentication on or off, ends the sessions on the old token at once: agents that can no longer act leave the toolbar and Home instead of staying listed while their stream stays open, and a call one of them had in progress fails at once instead of staying counted as running.
+- Pinning a tab moves it to the end of its workspace's pinned tabs, and unpinning one moves it to the first place after them, as in Chrome. A tab kept the place it was opened in among the pinned or the other tabs, so pinning the last tab and then unpinning it sent it back to the far end, or, after a restart, left it first.
+- An agent's new tab no longer shows its activity on another tab opened at the same moment. The tab strip, **Follow agents** and the agent's steps could name a tab the person or another agent opened at the same time, even in another workspace, and **Follow agents** could switch the view there.
+- Hronaut no longer waits for the system keyring before it opens, as when it starts at sign-in while the keyring stays locked: the window, the tray and the agents' connection open at once, and saved passwords and wallets follow once the keyring is unlocked. Until the request to unlock it was answered, Hronaut showed nothing and agents could not connect.
+- When Hronaut cannot start, it now says so and offers to quit, instead of staying open without a window, where opening it again did nothing.
+- Opening Hronaut again while it is still starting, as from a launcher just after sign-in, now shows its window once it opens, even when it starts in the tray.
+- On Linux, when no keyring answered as Hronaut started, as when you dismissed the request to unlock it, Hronaut no longer protects passwords, session cookies or wallet keys with the key Chromium falls back to then, which every Chromium-based app has. Passwords say a keyring is needed, session cookies are saved as the workspace keeps its other cookies, and wallets ask for a passphrase; restart Hronaut with the keyring unlocked to use it again.
+
+## [3.13.0] - 2026-10-29
+
+### Added
+
+- On macOS, Hronaut's menus have a Mac app's own items, as in Chrome there: **About Hronaut** and **Settings…** (**Cmd+,**) at the top of the Hronaut menu and, before **Quit**, **Services**, **Hide Hronaut** (**Cmd+H**), **Hide Others** (**Cmd+Option+H**) and **Show All**, and a **Window** menu with **Minimize** (**Cmd+M**), **Zoom** and **Bring All to Front**. The Help menu has the system's search of the menus and leaves About to the Hronaut menu, and Help's **Keyboard shortcuts** lists **Cmd+,**.
+- **Mute Site** and **Unmute Site** in a tab's menu, as in Chrome: Mute Site mutes the website in every tab of the tab's workspace and on its later pages, while a page of another website plays sound again. Unmuting one tab lasts until its next page of that website. **Settings → Site permissions** and the page's site controls list the website's **Sound** as **Mute**, where Allow or removing it gives the sound back.
+- **Use graphics acceleration when available**, as in Chrome: **Settings → Performance → Graphics** turns off drawing with the graphics card, for a computer whose driver leaves windows black, blank or flickering, and turns it on again. Hronaut reads the choice at startup, so Settings asks for a restart until one applies it; resetting Performance turns it back on. A window too black to reach Settings has Chromium's way back, `hronaut --disable-gpu`, which Settings counts as a run without it.
+- **Restart** beside a change that applies at the next start, as Chrome's **Relaunch**: **Use graphics acceleration when available** and **Use system title bar** show it with their restart notice. Like Quit, it first asks, as **Restart Hronaut?**, before cancelling downloads in progress, then starts Hronaut again with its command-line switches, except those about one run such as `--disable-gpu`, and its tabs restored; however often it is pressed, Hronaut restarts once.
+- **Time range** for clearing history, as in Chrome's Delete browsing data: **Settings → Workspaces & data → Global history** clears the visits of the **Last hour**, **Last 24 hours**, **Last 7 days** or **Last 4 weeks**, or **All time** as before, with the pages visited then in Recently closed and in tabs' Back and Forward lists, and the steps Home's activity feed lists from then. A page visited before keeps those visits. The question before clearing names a range other than All time.
+- Two more interface languages: Indonesian and Vietnamese. **System default** picks them from the operating system's language.
+- Right-clicking a video now also offers **Copy Video Frame** and **Save Video Frame**, as in Chrome: they copy the picture the video shows to the clipboard or save it as a PNG to your downloads, also for a video inside a frame of the page or one with no address, such as a camera's. A still of a video could be had only from a screenshot of the page. A video that failed to load keeps them unavailable.
+- **Ctrl+Enter** in Find (**Control+Return** on macOS) closes it and follows the link the current match is in, as in Chrome. Help's **Keyboard shortcuts** lists it.
+- **Spell check** can be turned off, as in Chrome: the **Spell check** switch in **Settings → General**, or **Spell check → Check the spelling of text fields** in a text field's context menu, stops or starts checking spelling for every website and workspace at once. It stays on by default.
+- **Open Link in Split View** in a link's context menu, as in Chrome: the link opens in a new tab beside the page, which keeps the keyboard. From a split view, the page and the link's tab take the split side by side, half each, and the tab that was beside the page stays open.
+- **Import from browser** reads Chrome's and Chromium's sign-ins on a KDE desktop: their key comes from **KDE Wallet** (through `kwallet-query`), which may ask to open the wallet, as it comes from the Secret Service keyring elsewhere. When the key can't be read, the panel says why and how to fix it: for a missing `secret-tool` or `kwallet-query`, the install command for Ubuntu, Debian, Fedora and Arch with a Copy button; for a locked keyring or wallet, where to unlock it; then Continue again. Cancel stops a key read still waiting for an unlock, and no other keyring or wallet is asked after it.
+
+### Changed
+
+- Hronaut now runs on Electron 45.0 (Chromium 156.0.8078.48), which brings that release's security and stability fixes. A website's request to share the screen, a window or a tab is still refused without asking, now that Electron reports it as its own permission.
+- After a restart, only the tabs shown load at once: the window's, and the one each workspace shows, where its agent reads and acts. The others come back asleep with their **Back** and **Forward** pages, scroll and form fields, and load when they are shown or used, as in Chrome, so a restart with dozens of tabs no longer loads them all together. Until then they hold no page, so they start no process of their own.
+- Turning off **Automatically sleep inactive tabs** leaves the sleeping tabs asleep until each is shown or used, as in Chrome, instead of loading them all at once.
+- Pages opened behind the shown one many at a time, by **Open all**, a workspace template or opening an archived workspace, load three at a time in the order they were opened. Each waits asleep for its turn, without a process of its own, loads at once when it is shown or an agent uses it, and stays asleep when it is put to sleep; a page still loading after 10 seconds lets the next one start.
+- Tabs opened many at once, such as dozens an agent opens together, start loading their pages one after another, a moment apart, instead of all in the same instant, so Hronaut keeps answering the window and agents meanwhile: with 45 pages, most of its pauses while they start are about a third as long, and the longest about two thirds.
+- Hronaut sends its window the state of the tabs only as fast as the window draws it, leaving it about half its time for clicks and keys, so with many pages loading at once it draws their newest state instead of working through seconds of older ones: with 45 pages opened by an agent, the window's longest pause is less than half of what it was. A page loading behind the shown one may no longer flash its spinner when its load is over within a moment.
+- The Claude Code plugin moved to its own repository, [hronaut/hronaut-claude-plugin](https://github.com/hronaut/hronaut-claude-plugin), with its own versions. To keep it updated, add that marketplace instead of hronaut/hronaut: `/plugin marketplace remove hronaut`, then `/plugin marketplace add hronaut/hronaut-claude-plugin` and `/plugin install hronaut@hronaut`.
+- The VS Code extension moved to its own repository, [hronaut/hronaut-vscode](https://github.com/hronaut/hronaut-vscode), with its own versions. Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hronaut.hronaut).
+- The Official MCP Registry entry, Hronaut's Windows shortcuts and installed-apps entry, its Linux packages, app menu entry and the launch-at-sign-in entry it writes, and its Scoop manifest now describe it as hronaut.dev does: "A visible desktop browser for coding agents, with a separate workspace for each project."
+- Home's Recommend Hronaut copies "I use Hronaut to give my coding agent its own browser and keep mine", with the same link, in every language.
+- **About Hronaut** now describes Hronaut the same way as hronaut.dev, in every language.
+
+### Fixed
+
+- An unexpected error inside Hronaut no longer freezes every window, page and agent connection behind an error box that has to be dismissed first, which nobody could do while the window was hidden in the tray. Hronaut writes the error to its log and keeps working.
+- Clearing history also clears the steps agents took in that time from their cards and **All steps**, with the pictures of the pages, as it already did for Home's activity feed.
+- A page that crashes while it loads shows only the tab's **This page stopped working** notice, as in Chrome, without a **Navigation failed** toast quoting Electron's ERR_FAILED code. `browser_navigate` tells the agent that the page's renderer exited instead of reporting a network failure.
+- **Bookmark all tabs** with Bookmarks in its own window always asks for the collection's name. When that window was closed, the window it opened could miss the request and ask nothing.
+- A **Copy Image** that fails no longer empties the clipboard: what you had copied before stays there.
+- **Resume Page** on Linux shows the page again at once. Freezing a page hides it in Chromium, which resuming does not undo, so a resumed page kept its timers and animations slowed down and reported itself hidden until Hronaut's visibility check, which first asks the page, got its answer, which under load could take long enough to notice. The same goes for an agent's resume (`browser_page_lifecycle`).
+- **Debug report** keeps **Refresh** and **Copy report** in view in a short window or dock: the report scrolls as a whole between the panel's header and these buttons, where an empty report pushed them partly out of view and a report with messages could squeeze its list into a small box of its own.
+- **Request conditions** no longer refuse a change as if their state were unknown right after a request went through them. An agent turning a rule on or off during the short refresh of the rules that follows, and any change to emulation while a rule a request used up waited for that refresh, were told to clear every condition or to recover them first; the change now waits for the refresh or goes ahead before it. A toggle is still refused while another change to the rules is applying, and the agent is told to retry shortly instead. The rules are refreshed only after a rule was used up, so they no longer show as unconfirmed for a moment after each request, and removing or changing a rule that is refused no longer cancels that refresh, which left them unconfirmed until the next change.
+- Hronaut's window stays responsive while many pages load at once. Each change a loading page made, such as its address, title, icon or a cookie, sent every tab to the window, which drew them all again, so dozens of tabs loading together could freeze it for seconds. Changes that come together now reach the window together, at most about 30 times a second.
+- With many pages loading at once, the **tab strip** and **rail** draw again only the tabs whose page changed, instead of every tab for each change, work out a tab's tooltip and name for screen readers again only when something they mention changes, and measure themselves again only when what they hold changes, not each time a page gets its title. The address bar and workspace switcher do no work while they are not shown.
+- Pages no longer wait for Hronaut before each request they send. Hronaut lists a page's requests itself until the page's debugger takes over, and it now only watches them, so many pages loading at once no longer hold up each other's requests while Hronaut is busy. A request that redirects is listed once for each address it goes to, with that address's status, and a request cleared from the list stays cleared when it ends.
+- With many pages loading at once, Hronaut saves the browsing history once a second rather than after each visit and title, and sends the windows only the pages that changed instead of the whole history each time.
+- With many tabs open, Hronaut does less work for each change a page makes: **Back** and **Forward** are checked without reading each tab's whole history, a page's requests are found without copying its list of them, and the tabs' history saved for the next start is read again only for the tabs shown and those whose history moved, and written only when it changed. At startup, the saved history and **Recently closed** are read together. Website icons that Electron cannot read itself, such as ICO and SVG on Linux, are decoded one at a time in a page of their own instead of in Hronaut's window, and a page waits for Hronaut once before its scripts run instead of twice.
+- When Hronaut exits at once, as it does when closing takes longer than ten seconds, it no longer shows or logs an "Object has been destroyed" error for its open tabs.
+
+## [3.12.0] - 2026-10-25
+
+### Added
+
+- The Bookmarks panel has **Open all (N)** above the list, as Chrome's **Open all** on a bookmark folder: it opens every bookmark the list shows, after the chosen collection and the search, in the list's order, each in a background tab. From 15 tabs on it first asks **Open N tabs?**, and opening stops at the first tab that cannot open, such as at the 50-tab limit, saying how many opened.
+- **Bookmark all tabs**, as in Chrome: **Ctrl/Cmd+Shift+D**, **View → Bookmark All Tabs…**, **Bookmark All Tabs…** in a tab's menu or the command palette asks in the Bookmarks panel, or in its own window, what to call a new collection, suggesting the workspace's name, and saves the workspace's open tabs in it in the tab strip's order. A page already in another collection stays there, and the panel says what it added. A website that handles **Ctrl/Cmd+Shift+D** itself keeps the key, as in Chrome.
+- **Switch to this tab** in the address bar, as in Chrome: a bookmark or visit already open in another tab offers it, by a click or with **Tab** then **Enter**, and **@tabs** lists the open tabs to switch to.
+- **Inline autocomplete** in the address bar, as in Chrome: typing the start of a bookmarked site, or one visited more than once, fills in the rest of its address after what you typed, selected, and **Enter** opens it with its own scheme and port; **Backspace** takes the rest away and the arrow keys go back to what you typed.
+- **Link status bubble**, as in Chrome: pointing at a link, or giving one keyboard focus, shows its address in a small bubble at the page's bottom left corner after a short pause; it moves to the bottom right corner out of the pointer's way, widens to the whole address after resting on a long one, and shows nothing for an agent's pointing.
+- **Tab to search** in the address bar, as in Chrome: typing a built-in search engine's site, such as `bing.com`, or a start the field fills in to one, offers **Press Tab to search Bing**; **Tab**, or a space after the site, turns the field into a search box for that engine, shown by a chip before the text, and **Backspace** at its start gives the site back.
+- **Copy Link to Highlight**, as in Chrome: text selected on a page offers it in the page's context menu, after **Copy**, and copies a link to the page that opens it scrolled to that text, highlighted. The link takes whole words, and the words around text the page holds more than once.
+- **Create QR Code**, as in Chrome: a web page's context menu offers **Create QR Code for this Page** after **Print**, and an image's menu offers **Create QR Code for this Image**. A dialog shows the address's QR code, which can be edited, copied as an image or downloaded as `qrcode_<host>.png`.
+- Eight more interface languages: Italian, Brazilian Portuguese, Turkish, Hindi, Japanese, Korean, Simplified Chinese and Traditional Chinese. **System default** picks them from the operating system's language, with Chinese for Taiwan, Hong Kong and Macau, or written in Traditional script, shown in Traditional Chinese.
+- **Site search**, as in Chrome: **Settings → Search engine → Site search** adds shortcuts, each with a name and a URL with `%s` for the search terms; a shortcut typed in the address bar offers **Press Tab to search** that site, and **Tab** or a space after it searches the site for what you type next.
+- **Use secure DNS**, as in Chrome: **Settings → Workspaces & data → Secure DNS** keeps Chromium's automatic secure DNS by default, can send every lookup to Cloudflare, Google Public DNS, Quad9 or a custom DNS over HTTPS provider, or can be turned off. A change applies at once and from startup on, the hosts file, `localhost` and IP addresses keep working in every mode, and resetting Workspaces & data puts the automatic default back.
+
+## [3.11.0] - 2026-10-24
+
+### Added
+
+- While files download, Hronaut's taskbar buttons on Windows, its Dock icon on macOS and its launcher icon on Linux desktops that show it, such as Ubuntu's, show how far the downloads have come (on macOS while every file's size is known), and on macOS and Linux how many are under way, as in Chrome.
+- A cancelled or failed download in **Downloads** now offers **Retry**, as in Chrome, which downloads it again in its workspace, with that workspace's cookies, as a new entry; the old one stays. It also works after a restart for a download whose address Hronaut kept in full, with nothing redacted or cut, and agents can do the same with `retry` in `browser_downloads`.
+- **Task manager**, as in Chrome: **Shift+Esc** on Windows and Linux, **View → Task manager** or the command palette lists Hronaut's processes with the memory, CPU and process ID of each, refreshed every second, and the tabs, subframes and Developer Tools each page process runs. **End process** ends a tab's page process, and the tab then says the page process was terminated, with **Try again** to load it in a new one.
+- A completed download can be dragged out of **Downloads** by its icon or name, as in Chrome, onto a folder, another app or a page, which gets the file itself.
+- **Bookmarks** can be exported to and imported from an HTML bookmarks file, as in Chrome's bookmark manager, so they move between Hronaut and Chrome, Firefox, Safari or Edge; imported folders become collections.
+
+### Changed
+
+- **Ctrl/Cmd+Shift+T**, a **Recently closed** entry and **Undo** after closing a tab bring the tab back with its **Back** and **Forward** pages, scrolled to where it was, as in Chrome, and loading it again no longer counts another visit in History.
+- After a restart, tabs come back with their **Back** and **Forward** pages, scrolled to where they were and with what was typed into their forms, as in Chrome; password fields are never saved.
+- After a restart, sites that keep a sign-in in a cookie without an expiry, called a session cookie, still have it, as in Chrome when it continues where you left off; Hronaut keeps those cookies with the workspace's other data, encrypted by the system's secret storage where it has one, and deletes them with the workspace.
+- **Recently closed** and **Ctrl/Cmd+Shift+T** now keep the tabs closed before a restart, as in Chrome, and such a tab reopens with its **Back** and **Forward** pages, scrolled to where it was.
+- **Downloads** now keeps its list across a restart, as Chrome keeps its download history, so a file downloaded before quitting can still be found and shown in its folder there.
+
+### Fixed
+
+- A screenshot of a tab that is not on screen, such as while Hronaut's window is minimized, no longer occasionally waits 15 seconds and fails when the page shows nothing new: Hronaut now asks the page to draw again.
+- After a Hronaut dialog over a page, such as **Close this tab?** or **Leave this page?** answered with **Keep editing**, or a website's permission request, the keyboard is back on the page, as in Chrome, instead of on a control of Hronaut's window.
+- On Windows and Linux, with a keyboard layout such as German, **Ctrl+Shift** with the **+** key or the **#** key under a Hronaut dialog or the command palette no longer zooms the page behind it or opens **Keyboard shortcuts** in the dialog's place.
+- When the page changes while an agent saves its screenshot with `browser_screenshot_save` and the capture fails, the agent is told the page changed and to save again, instead of getting Chromium's own error, such as `UnknownVizError`.
+- A link that opens a new tab, such as one with `target="_blank"`, a middle-click or **Open link in new tab**, and turns out to download a file no longer leaves an empty tab behind: the tab closes once the download has its file, as in Chrome, and the page it was opened from shows again.
+- Clearing the history or removing a page from it, in the **History** panel, in **Settings → Workspaces & data** or by an agent, also takes those pages out of the **Back** and **Forward** lists of open tabs, as in Chrome, so **Back** no longer leads to them; an agent clearing a website's history changes only its own workspace's tabs.
+- The **Downloads** panel shows a download at 99% until its last byte is in, as Chrome does, instead of at 100% while it still has bytes to go.
+- A Hronaut question asked while its window is still starting, such as **MCP server failed to start** when another app uses Hronaut's port at launch, now shows in Hronaut's own dialog once the window has loaded, instead of in a system dialog.
+- With **Ask where to save each file** on, a download is listed in **Downloads**, which then opens, once you choose where to save it, and cancelling the save dialog no longer leaves a **Cancelled** row behind, as in Chrome.
+- With a keyboard layout such as French AZERTY, where the number row types characters like & or -, **Ctrl/Cmd** with those keys now selects that tab, as in Chrome: **Ctrl+&** did nothing and Ctrl with the **-** on the 6 key zoomed out.
+
+## [3.10.0] - 2026-10-24
+
+### Added
+
+- On Windows and Linux, **Ctrl+Shift+Page Down** and **Ctrl+Shift+Page Up** move the tab in view after the next or before the previous of its workspace's tabs, as in Chrome, from the page or from Hronaut's window. Pinned tabs move among the pinned ones, and a tab at either end stays where it is. A website that handles one of these keys itself, such as a web code editor moving its own editor tab, keeps it.
+- On Windows and Linux, **F6** and **Shift+F6** go from the page to the address bar and from Hronaut's window back to the page, as in Chrome, so the keyboard alone can return to the page from the address bar or the tab list. From Home, which has no address bar, they go to Hronaut's window. A website that handles the key itself keeps it.
+- On Windows and Linux, **Ctrl+F4** closes the tab in view, as **Ctrl+W** does and as in Chrome, from the page or from Hronaut's window.
+- On Windows and Linux, **Ctrl+E** goes to the address bar and **Alt+Home** opens Home, as in Chrome, from the page or from Hronaut's window. A website that handles one of these keys itself, such as a web document editor centring a paragraph with **Ctrl+E**, keeps it.
+- On Windows and Linux, **Esc** pressed on a page that is loading stops it, as in Chrome. A website that handles the key itself, such as a web code editor, keeps it, and **Esc** in Hronaut's window or from an agent leaves the page loading.
+- **Ctrl+Shift+J** (**Cmd+Option+J** on macOS) opens Developer Tools on the Console, with the keyboard in its prompt, or turns open ones to it, as in Chrome.
+
+### Changed
+
+- Hronaut's confirmations before a change it cannot undo, such as removing a wallet, clearing history or a website's cookies, deleting a workspace or turning MCP authentication off, now appear as Hronaut dialogs over the window instead of system dialogs. The question is the headline with what it means under it, in the interface language, and **Cancel** is focused, so **Enter** and **Escape** keep things as they are. A second click while the question waits asks nothing more.
+- **Set up Claude Code** now asks you to confirm the change in a Hronaut dialog over the window instead of a system dialog. It shows the change as a diff: the settings file, the `hronaut` entry Hronaut writes, the entry it replaces, if any, and the name of the backup. The token still appears only as `•••`. Cancel stays focused, and a key still held from Home never confirms. Only Hronaut's window can answer the dialog, never Home. When the window is hidden, minimized or not loaded yet, a system dialog still asks.
+- When saved workspaces cannot be opened at startup, Hronaut now says so in a small window of its own, in the interface language and theme, instead of a system dialog. **Quit** is focused, and the keyboard quits only once the window has had the focus for a moment, so a key held from before it appeared does nothing. The system dialog is left for when that window cannot open or loses its page.
+
+### Fixed
+
+- A Hronaut dialog that appears while **Edit workspace** or **Search tabs** is open, such as a website's permission request, now keeps the focus on its safe answer. The open panel took the focus back, so **Enter** pressed the panel's close button and **Tab** could not reach the dialog's other answer.
+- On Windows and Linux, browser keys now do nothing while a Hronaut dialog or the command palette is open, so they no longer act on the page behind it or take the dialog's place. **Ctrl+R** and **F5** reloaded the page, **Ctrl+Plus** and **Ctrl+Minus** zoomed it, **Alt+D** took the keyboard out of the dialog to the address bar, and **Ctrl+Shift+P** and **Ctrl+Shift+/** put the command palette or Keyboard shortcuts in the dialog's place. Quitting with **Ctrl+Q** still works there.
+- **Home**, **End** and the arrow keys pressed with **Alt**, **Ctrl** or **Cmd** no longer move the keyboard along the tabs, a settings choice such as the theme or the search engine, or a workspace's colors, nor resize a panel or the tab list, so they act as they do elsewhere in Hronaut's window. **Alt+Left** and **Alt+Right** on a tab moved the keyboard to the tab before or after instead of going back or forward, and **Alt+Left** on a theme chose another theme.
+
+## [3.9.0] - 2026-10-24
+
 ### Changed
 
 - Hronaut's own questions now appear as Hronaut dialogs over the window instead of system dialogs: saving or updating a password a page submitted, leaving or closing a page that asks to confirm, quitting with downloads in progress, reading another browser's cookies to import them, importing a password file, and the MCP server failing to start. The password dialog names the website and shows the username the page sent apart from Hronaut's words. Quitting with downloads in progress brings the window forward to ask, even from the tray; the others still use the system dialog while Hronaut's window is hidden, minimized or not loaded yet, and none of them asks once Hronaut is quitting.
@@ -14,6 +543,11 @@ All notable changes to Hronaut are documented in this file.
 
 - A workspace Hronaut was deleting when it stopped, such as in a crash or a power cut before the deletion finished, now comes back with its tabs at the next start. It came back without them.
 - Hronaut for Intel Macs and for arm64 Linux starts again. Their downloads lacked their build of `@node-rs/argon2`, which Hronaut loads at launch to protect wallet keys, so they stopped with "A JavaScript error occurred in the main process". The macOS and the Linux release each build the x64 and the arm64 app on one computer, where npm installs only that computer's native packages; they now install both CPUs' packages exactly as `package-lock.json` pins them before they build, and fail when an app lacks one built for its CPU.
+- Opening a panel with a click or a key, such as **Search tabs**, no longer shows the tooltip of whatever lands under the resting pointer, such as a tab's address over the panel. Tooltips come back once the pointer moves.
+
+### Security
+
+- fast-uri 3.1.8 → 3.1.9, which the MCP library (`@modelcontextprotocol/sdk`) loads through Ajv: it fixes four URI parsing and normalization advisories (GHSA-w74x-v6f9-j3xg, GHSA-xhq7-xmqj-769h, GHSA-wjr9-j795-jxcr, GHSA-333x-w4r6-6crp).
 
 ## [3.8.0] - 2026-10-23
 

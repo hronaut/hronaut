@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-// Redesign QA for #873: the Live activity column beside the workspace cards. Runs of identical steps, stable row
+// Redesign QA for #873: the Live activity beside the connected agents. Runs of identical steps, stable row
 // keys, keyboard focus through rebuilds, the empty state, unloaded workspaces, the request that still waits for you,
 // and the shared workspace action path with its pending guard.
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HomeDashboard, HomeFeedEntry, HomeWorkspaceActivity, HronautHomeApi } from '../src/shared/home.js'
 import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
 import {
@@ -11,6 +11,8 @@ import {
 } from './qa-home-harness.js'
 
 installHomeHooks()
+// The connected agents and their live activity are in the Agents view.
+beforeEach(() => { window.localStorage.setItem('hronaut.home.view.v2', 'connected') })
 
 const shop = openWorkspace('shop', { name: 'Acme Store', lastUsedAt: isoMinutesAgo(10) })
 const docs = openWorkspace('docs', { name: 'Docs', lastUsedAt: isoMinutesAgo(20) })
@@ -177,12 +179,12 @@ describe('Live activity keyboard focus (#873)', () => {
     expect(document.activeElement).toBe(query('button', row('c')))
   })
 
-  it('never takes focus from outside the column', async () => {
+  it('never takes focus from outside the activity', async () => {
     const home = await mountFeed([entry('a', 'shop', { step: 'read' })])
-    const search = byId('workspace-search')
-    search.focus()
+    const section = byId('agents-section-connected')
+    section.focus()
     home.show(live([entry('b', 'docs', { step: 'click' }), entry('a', 'shop', { step: 'read' })]))
-    expect(document.activeElement).toBe(search)
+    expect(document.activeElement).toBe(section)
   })
 })
 

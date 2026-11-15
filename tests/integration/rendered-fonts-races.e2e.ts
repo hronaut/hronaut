@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { test, expect, text } from './capability-fixtures.js'
-import { closeFixtureServer } from './fixtures.js'
+import { closeFixtureServer, pageAt } from './fixtures.js'
 
 interface HeldFontInspection { held: boolean; events: string[]; release(): void; restore(): void }
 for (const phase of ['inspection', 'font-read'] as const) for (const variant of ['empty-editor', 'comment-editor', 'multiple-text', 'text-data', 'design-mode', 'closed-shadow', 'unchanged'] as const) {
@@ -22,8 +22,7 @@ for (const phase of ['inspection', 'font-read'] as const) for (const variant of 
     try {
       const navigation = await client.callTool({ name: 'browser_navigate', arguments: { tabId, url } }) as CallToolResult
       expect(navigation.isError, text(navigation)).not.toBe(true)
-      await expect.poll(() => electronApp.context().pages().some(p => p.url() === url)).toBe(true)
-      const page = electronApp.context().pages().find(p => p.url() === url)!
+      const page = await pageAt(electronApp, url)
       await page.evaluate(() => document.fonts.ready.then(() => undefined))
       await electronApp.evaluate(({ webContents }, { url, phase }) => {
         const contents = webContents.getAllWebContents().find(p => p.getURL() === url)!

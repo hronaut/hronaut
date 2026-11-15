@@ -2,10 +2,11 @@ import { createHmac } from 'node:crypto'
 import { z } from 'zod'
 import { type PublicObservationOutcome, classifyPublicObservationOutcome, classifyWriterContextOutcome, summarizePublicOutcomeAssessment } from '../../../../shared/public-outcome.js'
 import type { BrowserTabState } from '../../../../shared/types.js'
-import type { BrowserTabsManager } from '../../../browser/tabs-manager.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema, workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { observationQuality } from '../../../browser/page-snapshots/page-snapshots.js'
+import { getMcpGroupState, tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
 
 export function normalizePublicOutcomeTarget(value: string): URL {
   const parsed = new URL(value)
@@ -73,8 +74,8 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
       if (writerWorkspace.contextClass !== 'standard') {
         throw new Error('browser_public_outcome requires a standard writer workspace')
       }
-      if (!manager.tabBelongsToMcpGroup(input.workspaceId, input.tabId)
-        || !manager.tabBelongsToMcpGroup(input.writerWorkspaceId, input.writerTabId)) {
+      if (!tabBelongsToMcpGroup(manager, input.workspaceId, input.tabId)
+        || !tabBelongsToMcpGroup(manager, input.writerWorkspaceId, input.writerTabId)) {
         throw workspaceAuthorizationError()
       }
       const actionInput = input as unknown as Record<string, unknown>
@@ -85,7 +86,7 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
           origins: [target.href]
         })
         requireAgentWorkspace(input.writerWorkspaceId)
-        if (!manager.tabBelongsToMcpGroup(input.writerWorkspaceId, input.writerTabId)) {
+        if (!tabBelongsToMcpGroup(manager, input.writerWorkspaceId, input.writerTabId)) {
           throw workspaceAuthorizationError()
         }
       }
@@ -103,7 +104,7 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
         tabId: string,
         expectedClass: Context['contextClass']
       ): Context => {
-        const state = manager.getMcpGroupState(workspaceId)
+        const state = getMcpGroupState(manager, workspaceId)
         const contextClass = state.mcpTabGroups[0]?.contextClass ?? 'standard'
         const tab = state.tabs.find(candidate => candidate.id === tabId)
         if (!tab || contextClass !== expectedClass) throw workspaceAuthorizationError()
@@ -132,8 +133,8 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
         && (before.tab.browserSessionGeneration ?? 0) === (after.tab.browserSessionGeneration ?? 0)
       )
       const receipt = (
-        writerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
-        observerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
+        writerAssessment: Awaited<ReturnType<typeof observationQuality>> | null,
+        observerAssessment: Awaited<ReturnType<typeof observationQuality>> | null,
         writerStable: boolean,
         observerStable: boolean
       ) => {
@@ -181,13 +182,13 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
         return { ...textResult(result), structuredContent: result }
       }
       const [writerResult, observerResult] = await Promise.allSettled([
-        manager.observationQuality({
+        observationQuality(manager, {
           tabId: input.writerTabId,
           expectedOrigin: target.origin,
           expectedText: input.expectedText,
           expectedSelector: input.expectedSelector
         }),
-        manager.observationQuality({
+        observationQuality(manager, {
           tabId: input.tabId,
           expectedOrigin: target.origin,
           expectedText: input.expectedText,

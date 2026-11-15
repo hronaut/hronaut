@@ -1,0 +1,60 @@
+export const zhTWPwaLifecycle = {
+  title: 'Service Worker 記錄',
+  note: '僅顯示觀察到的變更；較早或快速的轉換可能會遺漏。',
+  start: '觀察 2 分鐘',
+  stop: '停止觀察 Worker',
+  refresh: '重新整理',
+  clear: '清除記錄',
+  active: '正在觀察 Worker',
+  stopped: '已停止擷取',
+  waiting: '等待中',
+  coverage: '涵蓋範圍與隱私',
+  caveats: {
+    observedTimes: '顯示的時間是觀察到變更的時間，而非實際發生的時間，且擷取內容永遠不會包含完整記錄。',
+    polling: '系統每秒檢查一次註冊項目，因此可能會錯過早期的轉換和存在時間很短的註冊項目。',
+    scope: '註冊項目屬於這個頂層來源和工作區，而不只屬於這個分頁。',
+    identities: 'Worker 識別碼僅適用於這次擷取，用來區分同一個指令碼的不同版本。',
+    interruption: '導覽、重新載入或關閉網頁，或失去偵錯工具連線或存取權，都會中斷擷取。停止或中斷時，可能會遺失尚未讀取的事件。',
+    limits: '每次擷取最多保留 100 個事件、20 個註冊項目和 100 個 Worker，時間最長兩分鐘；記憶體中最多保留五次擷取，開始新的擷取時會移除最舊的已停止擷取。',
+    longUrls: '超過 2,048 個字元的網址會直接略去，以免只顯示部分可能含有憑證的網址。',
+    metadataOnly: '只會觀察中繼資料。Hronaut 絕不會更新、傳送訊息給、啟用或執行 Worker，也不會清除快取或變更權限。',
+    sleeping: '不會喚醒休眠或凍結的分頁。休眠或凍結會中斷擷取，而不會讓網頁保持活動狀態。',
+    snapshot: '讀取時會顯示最後一次拍攝的快照，不保證能取得完整記錄或每個 Worker 的完整生命週期。'
+  },
+  kinds: {
+    initial: '已開始擷取',
+    'registration-initial': '已有註冊項目',
+    'registration-discovered': '找到註冊項目',
+    'registration-removed': '已移除註冊項目',
+    updatefound: '找到更新',
+    statechange: '狀態已變更',
+    controllerchange: '控制器已變更'
+  },
+  workerStates: {
+    parsed: '已剖析',
+    installing: '安裝中',
+    installed: '已安裝',
+    activating: '啟用中',
+    activated: '已啟用',
+    redundant: '已淘汰'
+  },
+  reasons: {
+    stopped: '依要求停止',
+    replaced: '已由新的擷取取代',
+    shutdown: 'Hronaut 已關閉',
+    navigation: '網頁已導覽至其他位置',
+    'renderer-unavailable': '網頁程序已結束',
+    'debugger-detached': '偵錯工具已中斷連結',
+    'duration-limit': '已達兩分鐘上限',
+    'initial-read-unavailable': '首次讀取失敗',
+    'page-observer-unavailable': '網頁觀察器已停止',
+    'context-or-authority-lost': '已失去網頁情境或存取權',
+    'worker-limit': '已達 Worker 數量上限',
+    'event-limit': '已達事件數量上限',
+    'registration-limit': '已達註冊項目數量上限',
+    'discovery-unavailable': '無法探索註冊項目',
+    unsupported: '不支援 Service Worker',
+    'workspace-control-changed': '工作區控制權已變更',
+    'ownership-released': '已釋出工作區'
+  }
+}

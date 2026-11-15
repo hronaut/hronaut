@@ -42,7 +42,7 @@ function createController(
       return unsubscribe
     })
   }
-  const confirmDeactivate = vi.fn(() => true)
+  const confirmDeactivate = vi.fn(async () => true)
   const controller = useCommercialLicenseController({
     api,
     confirmDeactivate,
@@ -122,7 +122,7 @@ describe('commercial license controller', () => {
 
   it('does not deactivate when confirmation is cancelled', async () => {
     const { confirmDeactivate, controller, deactivate } = createController()
-    confirmDeactivate.mockReturnValueOnce(false)
+    confirmDeactivate.mockResolvedValueOnce(false)
 
     await expect(controller.deactivate()).resolves.toBe(false)
 

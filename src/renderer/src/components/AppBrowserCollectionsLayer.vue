@@ -4,9 +4,9 @@ import type {
   PanelDock
 } from '../../../shared/types.js'
 import type { AppBrowserCollectionsFeatureController } from '../composables/useAppBrowserCollectionsFeatureController.js'
-import BookmarksPanel from './BookmarksPanel.vue'
-import DownloadsPanel from './DownloadsPanel.vue'
-import HistoryPanel from './HistoryPanel.vue'
+import BookmarksPanel from '../features/bookmarks/BookmarksPanel.vue'
+import DownloadsPanel from '../features/downloads/DownloadsPanel.vue'
+import HistoryPanel from '../features/history/HistoryPanel.vue'
 
 const props = defineProps<{
   controller: AppBrowserCollectionsFeatureController
@@ -36,8 +36,10 @@ const {
   openHistoryEntryInBackground,
   copyHistoryAddress,
   copyDownloadPath,
-  copyBookmarkAddress
+  copyBookmarkAddress,
+  returnKeyboardToPage
 } = props.controller
+const { siteIcons } = browserCollectionsController
 </script>
 
 <template>
@@ -49,9 +51,11 @@ const {
     :pause-download="browserCollectionsController.pauseDownload"
     :resume-download="browserCollectionsController.resumeDownload"
     :cancel-download="browserCollectionsController.cancelDownload"
+    :retry-download="browserCollectionsController.retryDownload"
     :remove-finished="browserCollectionsController.removeFinishedDownload"
     :clear-finished="browserCollectionsController.clearFinishedDownloads"
     :show-in-folder="browserCollectionsController.revealDownload"
+    :start-drag="browserCollectionsController.startDownloadDrag"
     :copy-saved-path="copyDownloadPath"
   />
   <BookmarksPanel
@@ -68,9 +72,13 @@ const {
     :rename-bookmark="browserCollectionsController.renameBookmark"
     :update-bookmark-destination="browserCollectionsController.updateBookmarkDestination"
     :remove-bookmark="browserCollectionsController.removeBookmark"
+    :export-bookmarks="browserCollectionsController.exportBookmarksFile"
+    :import-bookmarks="browserCollectionsController.importBookmarksFile"
+    :format-number="formatNumber"
     :open-bookmark="openBookmark"
     :copy-bookmark-address="copyBookmarkAddress"
     :open-bookmark-in-background="openBookmarkInBackground"
+    :site-icons="siteIcons"
   />
   <HistoryPanel
     ref="historyPanel"
@@ -86,5 +94,7 @@ const {
     :open-history-entry="openHistoryEntry"
     :open-history-entry-in-background="openHistoryEntryInBackground"
     :copy-history-address="copyHistoryAddress"
+    :return-keyboard="returnKeyboardToPage"
+    :site-icons="siteIcons"
   />
 </template>

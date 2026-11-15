@@ -3,12 +3,15 @@ import { defineConfig } from 'electron-vite'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import Icons from 'unplugin-icons/vite'
+import { vueMonotonicEventTime } from './scripts/vue-monotonic-event-time.ts'
 
 export default defineConfig({
   // electron-vite keeps main and preload dependencies external by default (build.externalizeDeps).
   main: {},
   preload: {
     build: {
+      // Sandboxed preloads can require only "electron", so each entry is bundled whole instead of sharing chunks.
+      isolatedEntries: true,
       rolldownOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
@@ -17,7 +20,8 @@ export default defineConfig({
           tooltipOverlay: resolve('src/preload/tooltip-overlay.ts'),
           agentCard: resolve('src/preload/agent-card.ts'),
           toastOverlay: resolve('src/preload/toast-overlay.ts'),
-          sidebarOverlay: resolve('src/preload/sidebar-overlay.ts')
+          sidebarOverlay: resolve('src/preload/sidebar-overlay.ts'),
+          statusBubble: resolve('src/preload/status-bubble.ts')
         },
         output: {
           format: 'cjs',
@@ -32,7 +36,7 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [tailwindcss(), vue(), Icons({ compiler: 'vue3' })],
+    plugins: [tailwindcss(), vue(), Icons({ compiler: 'vue3' }), vueMonotonicEventTime()],
     build: {
       manifest: true,
       rolldownOptions: {
@@ -45,7 +49,9 @@ export default defineConfig({
           tooltipOverlay: resolve('src/renderer/tooltip-overlay.html'),
           agentCard: resolve('src/renderer/agent-card.html'),
           toastOverlay: resolve('src/renderer/toast-overlay.html'),
-          sidebarOverlay: resolve('src/renderer/sidebar-overlay.html')
+          sidebarOverlay: resolve('src/renderer/sidebar-overlay.html'),
+          statusBubble: resolve('src/renderer/status-bubble.html'),
+          startupNotice: resolve('src/renderer/startup-notice.html')
         },
         preserveEntrySignatures: 'exports-only'
       }

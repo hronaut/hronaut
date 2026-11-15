@@ -21,8 +21,15 @@ views are excluded. Checks are coalesced per view.
 
 The workaround uses Electron's internal `setEmbedder` method, whose native
 implementation calls `WasHidden` / `WasShown`. It is feature-checked and limited
-to Linux / Electron 44. Reassess it when changing Electron major versions.
+to Linux / Electron 45, where the mismatch still occurs and `setEmbedder` is
+unchanged. Reassess it when changing Electron major versions.
 It preserves the document, focus and background-throttling setting.
+
+Resuming a page Hronaut froze applies the same repair at once, without the
+check: Chromium's freeze calls `WasHidden` and its resume only unfreezes, so the
+page is known to be hidden, and waiting for the check left its timers and frames
+throttled for as long as the answer took. A page whose freeze may not have
+reached Chromium is checked first, as above.
 
 The exact original agent command sequence that caused the live failure remains
 unconfirmed. The regression deliberately induces the observed native mismatch
@@ -58,6 +65,8 @@ npm run test:integration:docker
   It is a related symptom on macOS / Electron 42, not a confirmed match for this
   Linux failure.
 - [Electron 44.2.0 native WebContents implementation](https://github.com/electron/electron/blob/v44.2.0/shell/browser/api/electron_api_web_contents.cc)
-  defines `SetEmbedder` and its native visibility refresh.
+  defines `SetEmbedder` and its native visibility refresh;
+  [Electron 45.0.0's](https://github.com/electron/electron/blob/v45.0.0/shell/browser/api/electron_api_web_contents.cc)
+  is the same.
 - [Chromium 152 lifecycle implementation](https://github.com/chromium/chromium/blob/152.0.7977.76/content/browser/devtools/protocol/page_handler.cc)
   calls `WasHidden` when freezing; activating only unfreezes the page.

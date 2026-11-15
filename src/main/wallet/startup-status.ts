@@ -14,6 +14,19 @@ const INTEGRITY_FAILURES = new Set([
   'Wallet identity authentication failed'
 ])
 
+/**
+ * The status while the wallet service starts, which waits for the operating system's secure storage; the shell starts
+ * with the same backend name.
+ */
+export function walletStartingStatus(): WalletServiceStatus {
+  return {
+    managedWallets: 'disabled',
+    backend: 'initializing',
+    watchOnlyAvailable: false,
+    reason: WALLET_DISABLED_REASONS.notInitialized
+  }
+}
+
 export function walletStartupFailureStatus(error: unknown): WalletServiceStatus {
   const message = error instanceof Error ? error.message : ''
   if (INTEGRITY_FAILURES.has(message)) {

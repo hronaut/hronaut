@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron'
-import { LocalizedError } from '../localized-error.js'
+import { pageLoadTimedOut } from './http-auth/http-auth.js'
+import { callingThroughPageDialogs, callThroughPageDialogs } from './page-dialog-waits.js'
 import { PAGE_LOAD_WAIT_MS } from './page-waits/page-load-limit.js'
 
 type ReadinessEvent = 'dom-ready' | 'did-stop-loading' | 'did-navigate' | 'render-process-gone' | 'destroyed'
@@ -16,6 +17,18 @@ type ReadinessPage = Pick<WebContents, 'isDestroyed' | 'getURL' | 'isLoadingMain
 // renderer can take a moment to show the document. And how often waiting calls look again.
 const NAVIGATION_SHOW_GRACE_MS = 3_000
 const RECHECK_MS = 250
+
+/** For each page this watches, whether a script sent to it now runs at once. */
+const runsNow = new WeakMap<object, () => boolean>()
+
+/**
+ * Whether a script sent to the page now runs at once, in the document it shows, rather than wait for the next one. A
+ * page this does not watch answers as Electron holds its calls: until its main frame stops loading.
+ */
+export function pageScriptsRunNow(page: Pick<WebContents, 'getURL' | 'isLoadingMainFrame'>): boolean {
+  const mayRun = runsNow.get(page)
+  return mayRun ? mayRun() : page.getURL() !== '' && !page.isLoadingMainFrame()
+}
 
 /**
  * Electron holds a page's executeJavaScript and executeJavaScriptInIsolatedWorld calls until its main frame stops
@@ -43,8 +56,8 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
       requestEndedAt = undefined
       return true
     }
-    requestEndedAt ??= Date.now()
-    if (Date.now() - requestEndedAt < NAVIGATION_SHOW_GRACE_MS) return true
+    requestEndedAt ??= performance.now()
+    if (performance.now() - requestEndedAt < NAVIGATION_SHOW_GRACE_MS) return true
     endNavigation()
     return false
   }
@@ -95,8 +108,11 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
     }
   }
   const mayRun = (): boolean => page.isDestroyed() || !isLoadingMainFrame() || (documentReady && !navigationGoingOn())
+  runsNow.set(page, mayRun)
   const whenReady = <T>(call: () => Promise<T>): Promise<T> => {
     if (mayRun()) return startReadyCall(call)
+    // A call that waits for the person through the page's dialogs still does once the document is ready.
+    const throughDialogs = callingThroughPageDialogs()
     return new Promise<T>((resolve, reject) => {
       const run = (waitEnded = false): void => {
         waiting.delete(recheck)
@@ -106,11 +122,12 @@ export function runPageScriptsOnceDocumentReady(page: ReadinessPage): void {
           recheckTimer = undefined
         }
         if (waitEnded && !page.isDestroyed() && (!page.getURL() || (navigationPending && page.isWaitingForResponse()))) {
-          reject(new LocalizedError('appErrors.page.loadTimedOut'))
+          reject(pageLoadTimedOut(page))
           return
         }
         try {
-          startReadyCall(call).then(resolve, reject)
+          const started = throughDialogs ? callThroughPageDialogs(() => startReadyCall(call)) : startReadyCall(call)
+          started.then(resolve, reject)
         } catch (error) {
           reject(error)
         }

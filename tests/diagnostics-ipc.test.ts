@@ -2,6 +2,65 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
 import { registerDiagnosticsIpc } from '../src/main/diagnostics-ipc.js'
 
+// The handlers call the visual diff and video preview with the browser; they run on the fake browser's stubs.
+vi.mock('../src/main/browser/visual-compare/visual-compare.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/visual-compare/visual-compare.js')>(),
+  visualDiff: (browser: { visualDiff: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.visualDiff(...args),
+  visualCompare: (browser: { visualCompare: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.visualCompare(...args)
+}))
+vi.mock('../src/main/browser/video-recording/video-recording.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/video-recording/video-recording.js')>(),
+  videoPreview: (browser: { videoPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.videoPreview(...args),
+  videoRecording: (browser: { videoRecording: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.videoRecording(...args)
+}))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-audits/accessibility-audit.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/accessibility-audit.js')>(),
+  accessibilityAudit: (browser: { accessibilityAudit: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.accessibilityAudit(...args)
+}))
+vi.mock('../src/main/browser/debug-report/debug-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debug-report/debug-report.js')>(),
+  debugReport: (browser: { debugReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.debugReport(...args),
+  setDiagnosticLogPreservation: (browser: { setDiagnosticLogPreservation: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setDiagnosticLogPreservation(...args)
+}))
+vi.mock('../src/main/browser/page-audits/design-overview.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/design-overview.js')>(),
+  designOverview: (browser: { designOverview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.designOverview(...args)
+}))
+vi.mock('../src/main/browser/inspector-issues/inspector-issues.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/inspector-issues/inspector-issues.js')>(),
+  inspectorIssues: (browser: { inspectorIssues: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectorIssues(...args)
+}))
+vi.mock('../src/main/browser/page-audits/performance-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/performance-report.js')>(),
+  performanceReport: (browser: { performanceReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.performanceReport(...args)
+}))
+vi.mock('../src/main/browser/page-audits/quality-audit.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/quality-audit.js')>(),
+  qualityAudit: (browser: { qualityAudit: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.qualityAudit(...args)
+}))
+vi.mock('../src/main/browser/page-audits/security-report.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-audits/security-report.js')>(),
+  securityReport: (browser: { securityReport: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.securityReport(...args)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
+vi.mock('../src/main/browser/repro-recorder/browser-repro-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/repro-recorder/browser-repro-recorder.js')>(),
+  reproRecording: (browser: { reproRecording: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reproRecording(...args)
+}))
+vi.mock('../src/main/browser/dom-recorder/browser-dom-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/dom-recorder/browser-dom-recorder.js')>(),
+  domChanges: (browser: { domChanges: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.domChanges(...args)
+}))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/profiling/browser-profiling.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/profiling/browser-profiling.js')>(),
+  codeCoverage: (browser: { codeCoverage: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.codeCoverage(...args)
+}))
+
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'accessibility-audit', 'quality-audit', 'performance', 'design-overview',
@@ -21,8 +80,10 @@ function fixture() {
     reproRecording: vi.fn(), domChanges: vi.fn(), visualCompare: vi.fn(),
     visualDiff: vi.fn(), inspectorIssues: vi.fn()
   }
+  // Page metadata and profiling are the browser's own services; they answer with the stubs above.
+  Object.assign(tabs, { metadata: { inspect: tabs.pageMetadata }, profiling: { cpuProfile: tabs.cpuProfile, memoryReport: tabs.memoryReport } })
   const host = {
-    assertTrustedSender: vi.fn(), tabs: vi.fn(() => tabs),
+    assertTrustedSender: vi.fn(), tabs: vi.fn(() => tabs as never),
     pngDataUrl: vi.fn(() => 'data:image/png;base64,diff'),
     copyPng: vi.fn(async () => ({ width: 20, height: 30 })), pickVideoAudio: vi.fn<() => Promise<string | undefined>>()
   }
@@ -131,12 +192,41 @@ it.each([
 it('validates video options and keeps preview pixels behind the trusted shell boundary', async () => {
   const { tabs, invoke } = fixture()
   await invoke('video', { tabId: 'tab', action: 'start' })
-  expect(tabs.videoRecording).toHaveBeenCalledWith({ tabId: 'tab', action: 'start' })
+  // With the writer that asks where to save an export when the download folder cannot be written to.
+  expect(tabs.videoRecording).toHaveBeenCalledWith({ tabId: 'tab', action: 'start' }, undefined, undefined, expect.any(Function))
   await invoke('video-preview', 'tab')
   expect(tabs.videoPreview).toHaveBeenCalledWith('tab')
   tabs.videoRecording.mockClear()
   await expect(invoke('video', { action: 'edit', annotations: [{ kind: 'text', text: 'caption', startMs: 100, endMs: 0, x: 0, y: 0 }] })).rejects.toThrow()
   expect(tabs.videoRecording).not.toHaveBeenCalled()
+})
+
+it('refuses an audio import the shell names a file for, since only the person picks the file', async () => {
+  const { tabs, invoke } = fixture()
+  tabs.videoRecording.mockResolvedValue({ recordingId: 'recording', status: 'stopped' })
+  await expect(invoke('video', { tabId: 'tab', action: 'import-audio', audioPath: '/home/person/secret.wav', audioProvenance: 'Original composition' }))
+    .rejects.toThrow('Audio is imported only from a file the person picks')
+  await expect(invoke('video', { tabId: 'tab', action: 'import-audio', audioProvenance: 'Original composition' }))
+    .rejects.toThrow(TypeError)
+  await expect(invoke('video', { tabId: 'tab', action: 'get', audioPath: '/home/person/secret.wav' }))
+    .rejects.toThrow('Audio is imported only from a file the person picks')
+  expect(tabs.videoRecording).not.toHaveBeenCalled()
+  await invoke('video', { tabId: 'tab', action: 'remove-audio' })
+  expect(tabs.videoRecording).toHaveBeenCalledWith({ tabId: 'tab', action: 'remove-audio' }, expect.any(Function), undefined, expect.any(Function))
+})
+
+it("checks the shell again for a video action that waited, and leaves start and resume to the recording's own check", async () => {
+  const { tabs, host, event, invoke } = fixture()
+  tabs.videoRecording.mockResolvedValue({ recordingId: 'recording', status: 'stopped' })
+  await invoke('video', { tabId: 'tab', action: 'stop' })
+  const stillShell = tabs.videoRecording.mock.calls[0]![1] as () => void
+  host.assertTrustedSender.mockClear()
+  stillShell()
+  expect(host.assertTrustedSender).toHaveBeenCalledExactlyOnceWith(event)
+  for (const action of ['start', 'resume']) {
+    await invoke('video', { tabId: 'tab', action })
+    expect(tabs.videoRecording).toHaveBeenLastCalledWith({ tabId: 'tab', action }, undefined, undefined, expect.any(Function))
+  }
 })
 
 it('keeps native audio selection bound to its stopped recording and trusted sender', async () => {

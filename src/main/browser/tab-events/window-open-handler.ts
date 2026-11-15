@@ -2,7 +2,23 @@ import { validateHeaderValue } from 'node:http'
 import type { BrowserWindowConstructorOptions, LoadURLOptions, PostBody, Referrer, WebContents } from 'electron'
 import type { OpenedTabCreation } from '../click-opened-tabs.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { WindowOpenHandlerAccess, WindowOpenHandlerTab } from './window-open-handler-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
+import { assertCanCreateTab, pageWebPreferences } from '../new-tabs/tab-admission.js'
+import { shownPageFullscreenTab } from '../window-layout/content-area.js'
+import { openLinkDroppedOnPage } from '../dropped-links/dropped-links.js'
+import { agentFileDropUnanswered } from '../file-drop/agent-file-drops.js'
+
+/** How long after the person's click or key press Chromium lets a page open a window, its transient user activation. */
+const PERSON_ACTIVATION_MS = 5_000
+
+/**
+ * The referrer of the window Chromium opens for a link or file dropped on a page that does not take it
+ * (DragController::PerformDrag): no page started it, so its referrer stays the request's unresolved placeholder,
+ * which every window or link a page opens has replaced with the page's referrer or none.
+ */
+const DROPPED_ON_PAGE_REFERRER = 'about:client'
 
 /**
  * The load options that carry a page's requested referrer and form post into
@@ -35,27 +51,57 @@ function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: 
  * remembers the tab that opened it while the two pages can reach each
  * other. A tab outside a workspace loads the address in a new tab with the
  * referrer and form post carried over. A workspace tab's new tab goes beside
- * it, as in Chrome. A tab opened by an agent's input is not shown: Follow
- * agents shows it through the agent's calls on it, so it waits as for any
- * call, such as while a page fills the window.
+ * it, as in Chrome. A tab opened by an agent's input is not shown, even from
+ * the page the person sees, and neither is one a page opens while an agent's
+ * tool call on it runs, unless the person clicked or typed in that page since
+ * the call began: Follow agents shows it through the agent's calls on it, so
+ * it waits as for any call, such as while a page fills the window. Only the
+ * person's page takes the view with its window: the one they see, or one they
+ * clicked or typed in within the time Chromium lets that open a window. A pane
+ * of the split view is not seen while the other pane's page is in full screen,
+ * and its window opens behind.
+ * Chrome's pop-up blocker refuses a window opened without such a click or key
+ * press. Another page's window opens behind it when the person sees its
+ * workspace, and otherwise becomes its workspace's tab without being shown,
+ * as an agent's does. Chromium opens a link dropped on a page that does not
+ * take it as such a window; it opens as the person's drop instead.
  */
-export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access: WindowOpenHandlerAccess<Tab>, tab: Tab, webContents: WebContents): void {
-  webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
-    const observations = [...(access.openedTabObservations().get(tab) ?? [])]
+export function attachWindowOpenHandler(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
+  webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer, frameName, features }) => {
+    const observations = [...(browser.openedTabObservations.get(tab) ?? [])]
     const blocked = (): { action: 'deny' } => {
       for (const observation of observations) observation.blockedRequest()
       return { action: 'deny' }
     }
+    // A link the person dropped on the page opens as one dropped beside its tab on the tab strip. An agent's drop can
+    // only carry files, which workspaces never open, and it opens nothing, without telling the person.
+    if (referrer.url === DROPPED_ON_PAGE_REFERRER && disposition === 'foreground-tab' && !postBody && !frameName && !features) {
+      const agentsFile = url.startsWith('file:')
+        && (browser.agentInputWebContents.has(webContents.id) || agentFileDropUnanswered(webContents))
+      if (!agentsFile) openLinkDroppedOnPage(browser, tab, url)
+      return { action: 'deny' }
+    }
     if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()
     if (tab.mcpGroupId
-      && !access.workspaceNavigationAllowed(tab.mcpGroupId, url, 'popup')) return blocked()
-    const active = disposition !== 'background-tab'
-    // Decided now: Chromium creates the page for the window later, when the agent's input may have ended.
-    const selectVisible = !access.agentInputWebContents().has(webContents.id)
+      && !workspaceNavigationAllowed(browser, tab.mcpGroupId, url, 'popup')) return blocked()
+    // Decided now: Chromium creates the page for the window later, when the agent's input may have ended and the
+    // person may have switched tabs.
+    const personClicked = performance.now() - tab.lastHumanInteractionAt < PERSON_ACTIVATION_MS
+    const agentAsked = browser.agentInputWebContents.has(webContents.id) || (browser.mcpActivitiesByTab.has(tab.id)
+      && !(personClicked && tab.lastHumanInteractionAt > tab.agentCallStartedAt))
+    // A pane of the split view is out of view while the other pane's page fills the window.
+    const fullscreenTab = shownPageFullscreenTab(browser)
+    const inView = fullscreenTab ? fullscreenTab === tab : browser.activeTabId === tab.id || browser.splitViewContains(tab.id)
+    const personsPage = !agentAsked && (inView || personClicked)
+    const shownWorkspace = browser.activeTabId ? browser.tabs.get(browser.activeTabId)?.mcpGroupId : undefined
+    // A pane of the split view the other pane's page hides stays in the split, so its window opens behind as well.
+    const behindShownTab = !personsPage && !agentAsked && (shownWorkspace === tab.mcpGroupId || browser.splitViewContains(tab.id))
+    const active = disposition !== 'background-tab' && !behindShownTab
+    const selectVisible = personsPage
     const failed = (creations: OpenedTabCreation[], error: unknown): void => {
       for (const creation of creations) creation.failed()
       console.error(`[browser] Could not open requested page ${url}:`, error)
-      access.options().onActionFailed?.('open page in new tab', error)
+      browser.options.onActionFailed?.('open page in new tab', error)
     }
 
     if (!tab.mcpGroupId) {
@@ -64,12 +110,12 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
         loadOptions = interceptedWindowLoadOptions(postBody, referrer)
       } catch (error) {
         console.error(`[browser] Could not preserve the requested page navigation to ${url}:`, error)
-        access.options().onActionFailed?.('open page in new tab', error)
+        browser.options.onActionFailed?.('open page in new tab', error)
         for (const observation of observations) observation.failedRequest()
         return { action: 'deny' }
       }
       const creations = observations.map(observation => observation.creationStarted())
-      void access.createTab({
+      void browser.createTab({
         url,
         active,
         selectVisible,
@@ -85,7 +131,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
     const creations = observations.map(observation => observation.creationStarted())
     // Checked before Chromium creates the window, so window.open() returns no window, as for a blocked popup.
     try {
-      access.assertCanOpenTab(tab.mcpGroupId)
+      assertCanCreateTab(browser, tab.mcpGroupId, false)
     } catch (error) {
       failed(creations, error)
       return { action: 'deny' }
@@ -97,7 +143,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
       // These apply after window.open()'s features, which could otherwise turn off the page's JavaScript.
       overrideBrowserWindowOptions: {
         webPreferences: {
-          ...access.pageWebPreferences(),
+          ...pageWebPreferences(browser),
           javascript: true,
           webviewTag: false,
           nodeIntegrationInSubFrames: false,
@@ -109,7 +155,7 @@ export function attachWindowOpenHandler<Tab extends WindowOpenHandlerTab>(access
         // typings leave out; it requires this page back.
         const guest = (options as BrowserWindowConstructorOptions & { webContents: WebContents }).webContents
         let adopted = false
-        void access.createTab({
+        void browser.createTab({
           url,
           active,
           selectVisible,

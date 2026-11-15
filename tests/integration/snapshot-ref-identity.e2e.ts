@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 interface Delta {
   status: string
@@ -37,8 +37,7 @@ test('keeps surviving snapshot refs stable so deltas report only real control ch
     const workspace = parsed<{ id: string }>(await call('browser_workspaces', { action: 'create', name: 'Ref identity', storage: 'scratch' }))
     const state = parsed<BrowserState>(await call('browser_new_tab', { workspaceId: workspace.id, url }))
     const args = { workspaceId: workspace.id, tabId: state.activeTabId! }
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.getByRole('button', { name: 'Action 99' })).toBeVisible()
 
     const baseline = await call('browser_snapshot', { ...args, action: 'set-baseline' })

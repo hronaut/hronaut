@@ -28,15 +28,16 @@ interface ScreenshotObservationRecord {
 /**
  * The tracked screenshots of one MCP session: the pixel fingerprint of each and
  * what it can be compared with, never the image. Records are kept in memory
- * only, at most 16 and each for 10 minutes after its last use, and an id from
- * another session, another workspace or an expired capture is unknown alike.
+ * only, at most 16 and each for 10 minutes after its last use, timed on the
+ * monotonic clock whatever the wall clock does, and an id from another
+ * session, another workspace or an expired capture is unknown alike.
  * Comparing never changes an existing record, so concurrent calls cannot move
  * each other's baseline, and nothing is kept for a result that was withheld.
  */
 export class ScreenshotObservations {
   private readonly records = new Map<string, ScreenshotObservationRecord>()
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(private readonly now: () => number = () => performance.now()) {}
 
   /** Compares the capture with the named observation, if any. A capture that did not match becomes a new observation once committed. */
   observe(workspaceId: string, capture: TrackedScreenshot, ifChangedSince?: string): ScreenshotObservation {

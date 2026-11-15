@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto'
-import type { IpcMain, IpcMainEvent, MessageBoxOptions, MessageBoxReturnValue, WebContents } from 'electron'
+import type { IpcMainEvent, MessageBoxOptions, MessageBoxReturnValue, WebContents } from 'electron'
+import { sendTo, type TypedIpcMain } from '../typed-ipc.js'
 import {
-  TRUSTED_DIALOG_CHANNELS,
+  MAX_CREDENTIAL_LENGTH,
+  type TrustedDialogCredentials,
   type TrustedDialogRequest,
+  type TrustedDialogShellState,
   type TrustedDialogType,
   type TrustedDialogVariant
 } from '../../shared/trusted-dialogs.js'
+import { TRUSTED_DIALOGS_IPC } from '../../shared/ipc/trusted-dialogs.js'
 
 /** A shell window a dialog can show in: the main window or the detached panel window. */
 export interface TrustedDialogWindow {
@@ -13,6 +17,7 @@ export interface TrustedDialogWindow {
   isDestroyed(): boolean
   isVisible(): boolean
   isMinimized(): boolean
+  isFocused(): boolean
 }
 
 /**
@@ -31,7 +36,7 @@ export interface TrustedDialogOptions<Window extends TrustedDialogWindow = Trust
   cancelId?: number
   /** The button drawn as the main action; never the cancel button. */
   primaryId?: number
-  /** Closes the dialog, as Electron's does, answering `cancelId`. */
+  /** Closes the dialog, as Electron's does, answering `cancelId`; see `ANSWERED_ELSEWHERE` for the reason it may give. */
   signal?: AbortSignal
   /** Only for the system dialog Hronaut falls back to; see Electron's `noLink`. */
   noLink?: boolean
@@ -40,6 +45,31 @@ export interface TrustedDialogOptions<Window extends TrustedDialogWindow = Trust
   /** The shell window to ask in; the main window when omitted. */
   window?: Window | null
 }
+
+/**
+ * The person's answer, as `dialog.showMessageBox` gives it, with what they typed when they signed in to a website's
+ * sign-in dialog.
+ */
+export interface TrustedDialogAnswer extends MessageBoxReturnValue {
+  credentials?: TrustedDialogCredentials
+  /**
+   * True when the person gave no answer to this dialog and it closed with its cancel answer: its signal aborted, as when
+   * their answer to another dialog answered this one too, or no window could show a website's sign-in, which no system
+   * dialog takes.
+   */
+  unanswered?: true
+  /**
+   * True when the person closed the dialog with Escape or its close button instead of choosing a button, so its answer
+   * is its cancel answer. A system dialog never reports it.
+   */
+  dismissed?: true
+}
+
+/**
+ * The reason to abort a dialog's signal with when the person's answer to another dialog answers this one too, such as
+ * the same website's sign-in in another tab: it closes as an answered one does, giving the keyboard back.
+ */
+export const ANSWERED_ELSEWHERE = 'answered-elsewhere'
 
 export interface TrustedDialogsHost<Window extends TrustedDialogWindow> {
   /** The main window while it is open; read on every request. */
@@ -51,35 +81,65 @@ export interface TrustedDialogsHost<Window extends TrustedDialogWindow> {
    * dialog, which would pop up with no window while the app closes, and on macOS could hold up the quit.
    */
   quitting?(): boolean
+  /**
+   * The page that has the keyboard when a dialog opens over the window's pages, or takes it once Hronaut's chrome over
+   * them closes; null while the person is elsewhere, such as in the shell.
+   */
+  keyboardPage?(): WebContents | null
+  /** Gives the keyboard back to that page once the last of the dialogs over the pages is answered. */
+  returnKeyboard?(page: WebContents): void
+  /**
+   * Keeps every page from the keyboard until Hronaut's chrome over them closes, even one that was to take it then, such
+   * as the tab selected after the asking one closed.
+   */
+  withholdKeyboard?(): void
 }
 
 interface PendingDialog<Window extends TrustedDialogWindow> {
   request: TrustedDialogRequest
   options: TrustedDialogOptions<Window>
   window: Window
-  resolve(value: MessageBoxReturnValue): void
+  resolve(value: TrustedDialogAnswer): void
   /** Removes the abort listener; called once the dialog is settled or handed to the system dialog. */
   release(): void
 }
 
-/** What one shell window shows: whether its document listens, the dialog it draws and the ones waiting behind it. */
+/**
+ * What one shell window shows: whether its document listens, the dialog it draws, the ones waiting behind it, the page
+ * that had the keyboard before the first of them opened and whether the person was in another app then.
+ */
 interface ShellDialogs<Window extends TrustedDialogWindow> {
   ready: boolean
+  /** Ends the wait for a starting shell document to listen, after which its dialogs go to the system dialog. */
+  startTimer?: ReturnType<typeof setTimeout>
   visible: PendingDialog<Window> | null
   queue: Array<PendingDialog<Window>>
+  keyboardPage: WebContents | null
+  awayWhenOpened: boolean
+  /** When a website's sign-in shown here last closed before the person answered it. */
+  signInInterruptedAt?: number
 }
 
 export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDialogWindow> {
   /**
    * Asks the person in Hronaut's own dialog on the shell window, drawn over its pages, and resolves with the chosen
    * button's index, as `dialog.showMessageBox` does. Dialogs on one window show one at a time, in the order asked.
-   * When no shell window can show it, because it is closed, hidden, not loaded yet or its document is gone, the
-   * question goes to the system dialog instead, so it is always answered.
+   * As a system dialog does, the last one answered gives the keyboard back to the page that had it before the first
+   * opened, such as the page whose navigation it asks about. A window in view whose shell document is still starting,
+   * as while Hronaut starts, shows it once the document listens. When no shell window can show it, because it is
+   * closed or hidden, its document is gone, or it did not start within a few seconds, the question goes to the system
+   * dialog instead, so it is always answered; a website's sign-in, which no system dialog can take, is cancelled then.
    */
-  show(options: TrustedDialogOptions<Window>): Promise<MessageBoxReturnValue>
+  show(options: TrustedDialogOptions<Window>): Promise<TrustedDialogAnswer>
+  /**
+   * Notes the page that takes the keyboard under the dialogs shown over it when they opened while the person was in
+   * another app, as when the person comes back to the window they left with the keyboard in that page; the last one
+   * answered gives it back.
+   */
+  noteKeyboardPage(window: Window, page: WebContents): void
   /** Admits the shell's answers; only the shell document of the window a dialog is shown in may answer it. */
   registerIpc(ipc: {
-    ipcMain: Pick<IpcMain, 'on'>
+    ipcMain: Pick<TypedIpcMain, 'on'>
     /**
      * Whether the message came from the shell document of the main or the detached panel window. Unlike the checks of
      * browser changes, it admits the shell after saved workspaces failed to start, so a dialog shown while they
@@ -89,8 +149,22 @@ export interface TrustedDialogs<Window extends TrustedDialogWindow = TrustedDial
   }): void
 }
 
+/** How long a question waits for a starting shell document to listen before the system dialog asks it instead. */
+const SHELL_START_WAIT_MS = 10_000
+/** How long after a website's sign-in closed unanswered the person may still be typing the password they meant for it. */
+const INTERRUPTED_SIGN_IN_MS = 2_000
+
 function validIndex(value: unknown, buttons: readonly string[]): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < buttons.length
+}
+
+/** A username and a password, each text no longer than a sign-in answer carries, or undefined for anything else. */
+function validCredentials(value: unknown): TrustedDialogCredentials | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const { username, password } = value as Record<string, unknown>
+  if (typeof username !== 'string' || typeof password !== 'string') return undefined
+  if (username.length > MAX_CREDENTIAL_LENGTH || password.length > MAX_CREDENTIAL_LENGTH) return undefined
+  return { username, password }
 }
 
 /** The single place Hronaut asks the person a question from the main process; see `TrustedDialogs`. */
@@ -105,16 +179,37 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
   function shellOf(contents: WebContents): ShellDialogs<Window> {
     let shell = shells.get(contents)
     if (!shell) {
-      shell = { ready: false, visible: null, queue: [] }
+      shell = { ready: false, visible: null, queue: [], keyboardPage: null, awayWhenOpened: false }
       shells.set(contents, shell)
     }
     return shell
   }
 
+  /**
+   * Whether the window can show the question: one in view, whose shell document listens or is still starting, as just
+   * after Hronaut's window shows while the document loads its settings. A hidden or minimized window would keep the
+   * question out of sight; the system dialog asks as it did before.
+   */
   function canDraw(window: Window | null): window is Window {
-    if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return false
-    // A hidden or minimized window would keep the question out of sight; the system dialog asks as it did before.
-    return window.isVisible() && !window.isMinimized() && Boolean(shells.get(window.webContents)?.ready)
+    if (!window || window.isDestroyed() || window.webContents.isDestroyed() || window.webContents.isCrashed()) return false
+    return window.isVisible() && !window.isMinimized()
+  }
+
+  /** Waits a few seconds for a starting shell document to listen; if it does not, the system dialog asks instead. */
+  function waitForStart(contents: WebContents): void {
+    const shell = shellOf(contents)
+    if (shell.ready || shell.startTimer) return
+    // A document that crashes or goes away meanwhile hands its questions to the system dialog at once.
+    watch(contents)
+    shell.startTimer = setTimeout(() => {
+      shell.startTimer = undefined
+      if (!shell.ready) handOff(contents)
+    }, SHELL_START_WAIT_MS)
+  }
+
+  function stopWaitingForStart(shell: ShellDialogs<Window>): void {
+    if (shell.startTimer) clearTimeout(shell.startTimer)
+    shell.startTimer = undefined
   }
 
   function cancelResponse(options: Options): number {
@@ -126,9 +221,12 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     return native
   }
 
-  function askNatively(options: Options, window: Window | null): Promise<MessageBoxReturnValue> {
-    const asked = nativeChain.then(async () => {
-      if (options.signal?.aborted || host.quitting?.()) return { response: cancelResponse(options), checkboxChecked: false }
+  function askNatively(options: Options, window: Window | null): Promise<TrustedDialogAnswer> {
+    // No system dialog takes a username and password, so a sign-in no shell window can show is cancelled, as Escape
+    // would; the website shows the page it sends without them.
+    if (options.variant?.kind === 'http-auth') return Promise.resolve({ response: cancelResponse(options), checkboxChecked: false, unanswered: true })
+    const asked = nativeChain.then(async (): Promise<TrustedDialogAnswer> => {
+      if (options.signal?.aborted || host.quitting?.()) return { response: cancelResponse(options), checkboxChecked: false, unanswered: true }
       const parent = window && !window.isDestroyed() ? window : null
       return host.showNativeMessageBox(parent, nativeOptions(options))
     })
@@ -136,9 +234,16 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     return asked
   }
 
+  /** Whether a website's sign-in shown in the window closed unanswered moments ago, while the person may still type. */
+  function afterInterruptedSignIn(shell: ShellDialogs<Window>): boolean {
+    return shell.signInInterruptedAt !== undefined && performance.now() - shell.signInInterruptedAt < INTERRUPTED_SIGN_IN_MS
+  }
+
   function publish(contents: WebContents): void {
-    if (contents.isDestroyed()) return
-    contents.send(TRUSTED_DIALOG_CHANNELS.changed, shells.get(contents)?.visible?.request ?? null)
+    const shell = shells.get(contents)
+    if (contents.isDestroyed() || !shell?.ready) return
+    const state: TrustedDialogShellState = { afterInterruptedSignIn: afterInterruptedSignIn(shell) }
+    sendTo(contents, TRUSTED_DIALOGS_IPC.changed, shell.visible?.request ?? null, state)
   }
 
   function showNext(contents: WebContents): void {
@@ -147,17 +252,67 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     publish(contents)
   }
 
-  function settle(pending: Pending, response: number): void {
+  /**
+   * Closes the dialog with the person's answer, or with its cancel answer when it closed `unanswered` or was
+   * `answered-elsewhere`.
+   */
+  function settle(
+    pending: Pending, response: number, credentials?: TrustedDialogCredentials, closed?: 'unanswered' | 'answered-elsewhere', dismissed = false
+  ): void {
     const contents = pending.window.webContents
     const shell = shells.get(contents)
     pending.release()
+    // A sign-in that closes while the person types in it, as when the page that asked loads another, leaves the rest of
+    // what they type, the password's end and Enter included, on its way: no page takes the keyboard, and for a moment
+    // the shell keeps it out of every field, the next sign-in's included.
+    // So does any dialog that closes unanswered moments after, while they may still be typing.
+    const interrupted = closed === 'unanswered' && shell?.visible === pending
+      && (pending.request.variant.kind === 'http-auth' || afterInterruptedSignIn(shell))
+    if (shell && interrupted) shell.signInInterruptedAt = performance.now()
+    else if (shell && !closed) shell.signInInterruptedAt = undefined
     if (shell?.visible === pending) {
       shell.visible = null
       showNext(contents)
     } else if (shell) {
       shell.queue = shell.queue.filter((candidate) => candidate !== pending)
     }
-    pending.resolve({ response, checkboxChecked: false })
+    const keyboardPage = shell && !shell.visible && !interrupted ? shell.keyboardPage : null
+    if (shell && !shell.visible) {
+      // The page the person was in keeps its place for a moment after an interrupted sign-in, while main keeps every
+      // page from the keyboard, so the question that comes next gives it back to that page once answered.
+      if (!interrupted) shell.keyboardPage = null
+      shell.awayWhenOpened = false
+    }
+    pending.resolve({
+      response, checkboxChecked: false, ...(credentials ? { credentials } : {}), ...(closed ? { unanswered: true as const } : {}),
+      ...(dismissed ? { dismissed: true as const } : {})
+    })
+    if (interrupted) withholdKeyboard()
+    // The shell keeps the focus a dialog over the pages took, on the control it held before, while the page the
+    // person was in waits for the keyboard: typing went nowhere, and Delete closed the tab whose control it was. The
+    // caller goes on after this, so where it puts the keyboard itself wins.
+    if (keyboardPage && !keyboardPage.isDestroyed()) returnKeyboard(keyboardPage)
+  }
+
+  function withholdKeyboard(): void {
+    try {
+      host.withholdKeyboard?.()
+    } catch (error) {
+      console.error('[trusted-dialogs] Could not keep the keyboard from the pages:', error)
+    }
+  }
+
+  function returnKeyboard(page: WebContents): void {
+    try {
+      host.returnKeyboard?.(page)
+    } catch (error) {
+      console.error('[trusted-dialogs] Could not give the keyboard back to the page:', error)
+    }
+  }
+
+  function noteKeyboardPage(window: Window, page: WebContents): void {
+    const shell = shells.get(window.webContents)
+    if (shell && (shell.visible || shell.queue.length > 0) && shell.awayWhenOpened && !shell.keyboardPage) shell.keyboardPage = page
   }
 
   /** The shell document is gone or reloading: every dialog it showed or held goes to the system dialog instead. */
@@ -165,14 +320,19 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     const shell = shells.get(contents)
     if (!shell) return
     shell.ready = false
+    stopWaitingForStart(shell)
     const pending = [...(shell.visible ? [shell.visible] : []), ...shell.queue]
     shell.visible = null
     shell.queue = []
+    // The system dialogs that ask instead leave the keyboard with the window they close over.
+    shell.keyboardPage = null
+    shell.awayWhenOpened = false
     for (const dialog of pending) {
       dialog.release()
       void askNatively(dialog.options, dialog.window).then(dialog.resolve, () => dialog.resolve({
         response: cancelResponse(dialog.options),
-        checkboxChecked: false
+        checkboxChecked: false,
+        unanswered: true
       }))
     }
   }
@@ -190,9 +350,9 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
     })
   }
 
-  function show(options: Options): Promise<MessageBoxReturnValue> {
+  function show(options: Options): Promise<TrustedDialogAnswer> {
     const cancelId = cancelResponse(options)
-    if (options.signal?.aborted) return Promise.resolve({ response: cancelId, checkboxChecked: false })
+    if (options.signal?.aborted) return Promise.resolve({ response: cancelId, checkboxChecked: false, unanswered: true })
     const window = options.window === undefined ? host.mainWindow() : options.window
     if (!canDraw(window)) return askNatively(options, window)
     const defaultId = validIndex(options.defaultId, options.buttons) ? options.defaultId : cancelId
@@ -210,7 +370,7 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       variant: options.variant ?? { kind: 'message' }
     }
     return new Promise((resolve) => {
-      const onAbort = (): void => settle(pending, cancelId)
+      const onAbort = (): void => settle(pending, cancelId, undefined, options.signal?.reason === ANSWERED_ELSEWHERE ? 'answered-elsewhere' : 'unanswered')
       const pending: Pending = {
         request,
         options,
@@ -219,8 +379,16 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
         release: () => options.signal?.removeEventListener('abort', onAbort)
       }
       options.signal?.addEventListener('abort', onAbort, { once: true })
-      shellOf(window.webContents).queue.push(pending)
+      const shell = shellOf(window.webContents)
+      if (!shell.visible && shell.queue.length === 0) {
+        // A page the person went to meanwhile has the keyboard now, and takes it back.
+        const kept = afterInterruptedSignIn(shell) ? shell.keyboardPage : null
+        shell.keyboardPage = host.keyboardPage?.() ?? kept ?? null
+        shell.awayWhenOpened = !window.isFocused()
+      }
+      shell.queue.push(pending)
       showNext(window.webContents)
+      waitForStart(window.webContents)
     })
   }
 
@@ -233,23 +401,41 @@ export function createTrustedDialogs<Window extends TrustedDialogWindow>(host: T
       }
     }
 
-    ipc.ipcMain.on(TRUSTED_DIALOG_CHANNELS.ready, (event) => {
+    ipc.ipcMain.on(TRUSTED_DIALOGS_IPC.ready, (event) => {
       if (!trusted(event)) return
       watch(event.sender)
-      shellOf(event.sender).ready = true
+      const shell = shellOf(event.sender)
+      shell.ready = true
+      stopWaitingForStart(shell)
       showNext(event.sender)
     })
 
-    ipc.ipcMain.on(TRUSTED_DIALOG_CHANNELS.respond, (event, id: unknown, response: unknown) => {
+    ipc.ipcMain.on(TRUSTED_DIALOGS_IPC.respond, (event, id: unknown, response: unknown, credentials: unknown) => {
       if (!trusted(event)) return
       // Only the window that shows the dialog answers it, and only the dialog it shows now: an answer that arrives
       // after the dialog closed, or that names one still waiting, changes nothing.
       const visible = shells.get(event.sender)?.visible
       if (!visible || visible.window.webContents !== event.sender || visible.request.id !== id) return
       if (!validIndex(response, visible.request.buttons)) return
+      // Only the answer that signs in to a website's sign-in dialog carries what the person typed, and it counts only
+      // with it, as Cancel otherwise, since the shell takes no other answer once it sent one; every other answer leaves
+      // anything sent with it behind.
+      if (visible.request.variant.kind === 'http-auth' && response === visible.request.primaryId) {
+        const typed = validCredentials(credentials)
+        settle(visible, typed ? response : visible.request.cancelId, typed)
+        return
+      }
       settle(visible, response)
+    })
+
+    ipc.ipcMain.on(TRUSTED_DIALOGS_IPC.dismiss, (event, id: unknown) => {
+      if (!trusted(event)) return
+      // As for an answer, only the window that shows the dialog closes it, and only the dialog it shows now.
+      const visible = shells.get(event.sender)?.visible
+      if (!visible || visible.window.webContents !== event.sender || visible.request.id !== id) return
+      settle(visible, visible.request.cancelId, undefined, undefined, true)
     })
   }
 
-  return { show, registerIpc }
+  return { show, noteKeyboardPage, registerIpc }
 }

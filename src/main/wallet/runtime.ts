@@ -6,14 +6,17 @@ import type { WalletSafeStorage } from './key-provider.js'
 import { generateWalletWithRecoveryConfirmation } from './onboarding.js'
 import { WalletService } from './service.js'
 import { walletStartupFailureStatus } from './startup-status.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
-import type { CommercialLicenseStore } from '../commercial-license-store.js'
+import type { Browser } from '../browser/browser.js'
+import type { CommercialLicenseStore } from '../license/commercial-license-store.js'
 import type { WalletAgentOperations, WalletAgentToolTarget } from '../mcp/server.js'
 import type { MainWindowRefs } from '../windows/main-window.js'
 import type { TrustedDialogOptions } from '../trusted-dialogs/trusted-dialogs.js'
 import { LocalizedError } from '../localized-error.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { WalletCreateInput, WalletDescriptor, WalletServiceStatus } from '../../shared/wallet.js'
+import { sendWalletProviderEvent, walletPageContextForMcpTab } from '../browser/wallet-pages/wallet-pages.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
+import { WALLETS_IPC } from '../../shared/ipc/wallets.js'
 
 /**
  * The wallet service and its broker, created once by index.ts. They start together after the license store and are
@@ -32,11 +35,11 @@ export interface WalletRuntimeState {
 interface WalletRuntimeHost {
   /** The wallet service and broker; index.ts creates the record, and the wallet IPC, tab callbacks and shutdown read it. */
   state: WalletRuntimeState
-  sendToMainWindow(channel: string, ...args: unknown[]): void
+  sendToMainWindow: EventSender
   /** The license store, which admits agents to wallets; null until startup configures it. */
   commercialLicenseStore(): Pick<CommercialLicenseStore, 'assertAutomationAccess'> | null
   /** The tab runtime, which owns the pages wallets serve; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'walletPageContext' | 'walletPageContextForMcpTab' | 'sendWalletProviderEvent'> | null
+  tabs(): Browser | null
   /** Why saved workspaces could not start, if they could not; read on every page request. */
   workspaceStartupFailure(): Error | undefined
   /** The main window, which shows the recovery phrase dialog; read on every use because it can close. */
@@ -62,16 +65,21 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
   generateWallet(input: WalletCreateInput): Promise<WalletDescriptor>
   agentWallets: WalletAgentOperations
 } {
+  /**
+   * Starts the wallet service and its broker, and tells the main window their status and wallets once they did or
+   * could not. Opening a vault waits for the operating system's secure storage, which can take as long as the person
+   * takes to unlock it, so startup does not wait for this. It never fails.
+   */
   async function startWallets(): Promise<void> {
     const candidateWalletService = new WalletService({
       directory: join(app.getPath('userData'), 'wallet'),
       platform: process.platform,
       safeStorage: safeStorage as unknown as WalletSafeStorage,
       onChanged: (wallets) => {
-        host.sendToMainWindow('wallets:changed', wallets)
+        host.sendToMainWindow(WALLETS_IPC.changed, wallets)
         host.state.broker?.refreshProviderSessions()
       },
-      onStatusChanged: (status) => host.sendToMainWindow('wallets:status-changed', status),
+      onStatusChanged: (status) => host.sendToMainWindow(WALLETS_IPC.statusChanged, status),
       warn: (message) => console.warn(`[wallet] ${message}`)
     })
     try {
@@ -82,8 +90,11 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
           if (!host.commercialLicenseStore()) throw new Error('License storage is unavailable')
           host.commercialLicenseStore()!.assertAutomationAccess()
         },
-        onPendingChanged: (requests) => host.sendToMainWindow('wallets:requests-changed', requests),
-        onProviderEvent: (tabId, event) => host.tabs()?.sendWalletProviderEvent(tabId, event)
+        onPendingChanged: (requests) => host.sendToMainWindow(WALLETS_IPC.requestsChanged, requests),
+        onProviderEvent: (tabId, event) => {
+          const browser = host.tabs()
+          if (browser) sendWalletProviderEvent(browser, tabId, event)
+        }
       })
     } catch (error) {
       candidateWalletService.dispose()
@@ -92,6 +103,8 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
       host.state.unavailableStatus = walletStartupFailureStatus(error)
       console.error(`[wallet] Wallet startup disabled (${host.state.unavailableStatus.backend}).`)
     }
+    host.sendToMainWindow(WALLETS_IPC.statusChanged, currentWalletServiceStatus())
+    host.sendToMainWindow(WALLETS_IPC.changed, host.state.service?.list() ?? [])
   }
 
   function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
@@ -116,7 +129,7 @@ export function createWalletRuntime(host: WalletRuntimeHost): {
 
   function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext {
     if (!host.tabs()) throw new Error('Wallet requests are unavailable before browser initialization')
-    const page = host.tabs()!.walletPageContextForMcpTab(target.workspaceId, target.tabId)
+    const page = walletPageContextForMcpTab(host.tabs()!, target.workspaceId, target.tabId)
     return {
       workspaceId: page.workspaceId,
       tabId: page.tabId,

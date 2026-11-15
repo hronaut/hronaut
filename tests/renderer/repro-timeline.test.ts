@@ -133,6 +133,15 @@ describe('reproduction timeline navigation', () => {
     expect(options[2]).toHaveFocus()
     await user.keyboard('{Home}')
     expect(options[0]).toHaveFocus()
+    // With Alt, Ctrl or Cmd these keys are the browser's, such as Alt+Home for Home.
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true, ...modifiers })
+      options[0].dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    await user.keyboard('{Alt>}{ArrowDown}{/Alt}')
+    expect(options[0]).toHaveFocus()
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
   })
 
   it('resets stale selection for a new recording and supports the capped final step', async () => {

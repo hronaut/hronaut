@@ -1,54 +1,127 @@
 import type { WebContents } from 'electron'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
+import { pageScriptsRunNow } from './page-script-readiness.js'
+
+// Only its user gesture counts: it runs in a world of its own and leaves nothing in the page.
+const ACTIVATION_ONLY_SCRIPT = 'void 0'
 
 /** Chromium has one active find operation per page. Mirror that lifecycle. */
 export class PageFindController {
   private readonly pending = new WeakMap<WebContents, () => void>()
+  /** The text the page's search session began with, until the search is stopped. */
+  private readonly sessionQueries = new WeakMap<WebContents, string>()
+  /** The pages whose latest search settled on an active match, the only thing ending the search may click. */
+  private readonly matched = new WeakSet<WebContents>()
+  /** The pages an agent sent input to since their latest search, whose focus may no longer be on its match. */
+  private readonly agentTouched = new WeakSet<WebContents>()
 
+  /** fromSelection: the page's selection was collapsed for this search, which Chromium then starts from. */
   search(
     webContents: WebContents,
     query: string,
-    options: Electron.FindInPageOptions
+    options: Electron.FindInPageOptions,
+    fromSelection = false
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
     this.pending.get(webContents)?.()
+    this.matched.delete(webContents)
+    this.agentTouched.delete(webContents)
+    if (options.findNext === true) {
+      // A new session that finds the same text again, as switching Match case does, leaves Chromium without the
+      // active match it ends the search on, so a later Ctrl+Enter would click nothing: the earlier session ends first. A
+      // search from the page's selection keeps it for the new session to start from, since Chromium clearing it would
+      // remove a caret in a text field too.
+      if (this.sessionQueries.get(webContents)?.toLowerCase() === query.toLowerCase()) {
+        webContents.stopFindInPage(fromSelection ? 'keepSelection' : 'clearSelection')
+      }
+      this.sessionQueries.set(webContents, query)
+    }
+    // As in Chrome, a search waits as long as the page takes to count its matches, which on a very long page, such as
+    // a large log, takes many seconds. It ends when the person searches again or closes Find, or the page goes.
     return new Promise((resolve, reject) => {
-      let requestId = -1
+      let requestId: number | undefined
+      // Chromium may answer before findInPage returns the request's id, such as when the page has no document to search.
+      const answeredEarly: Electron.Result[] = []
       const cleanup = (): void => {
-        clearTimeout(timer)
         webContents.removeListener('found-in-page', onFound)
         webContents.removeListener('destroyed', onDestroyed)
+        webContents.removeListener('render-process-gone', onRendererGone)
         if (this.pending.get(webContents) === cancel) this.pending.delete(webContents)
       }
       const cancel = (): void => {
         cleanup()
         reject(new Error('Page search was cancelled or superseded'))
       }
-      const onFound = (_event: Electron.Event, result: Electron.Result): void => {
-        if (result.requestId !== requestId || !result.finalUpdate) return
+      const settle = (result: Electron.Result): void => {
         cleanup()
+        if (result.activeMatchOrdinal > 0) this.matched.add(webContents)
         resolve({ activeMatchOrdinal: result.activeMatchOrdinal, matches: result.matches })
+      }
+      const onFound = (_event: Electron.Event, result: Electron.Result): void => {
+        if (!result.finalUpdate) return
+        if (requestId === undefined) answeredEarly.push(result)
+        else if (result.requestId === requestId) settle(result)
       }
       const onDestroyed = (): void => {
         cleanup()
         reject(new Error('Tab was closed while searching the page'))
       }
-      const timer = setTimeout(() => {
+      const onRendererGone = (): void => {
         cleanup()
-        reject(new Error('Timed out while searching the page'))
-      }, 5_000)
+        reject(new Error('The page stopped while searching it'))
+      }
       this.pending.set(webContents, cancel)
       webContents.on('found-in-page', onFound)
       webContents.once('destroyed', onDestroyed)
+      webContents.once('render-process-gone', onRendererGone)
       try {
         requestId = webContents.findInPage(query, options)
       } catch (error) {
         cleanup()
         reject(error)
+        return
       }
+      const answer = answeredEarly.find((result) => result.requestId === requestId)
+      if (answer !== undefined && this.pending.get(webContents) === cancel) settle(answer)
     })
   }
 
-  stop(webContents: WebContents): void {
+  /**
+   * Ends the page's search, clearing its selection, keeping it, or clicking the active match as Chrome's Ctrl+Enter
+   * does, and reports whether that may have acted on a match in the page: selected it, which focuses the link it is in,
+   * or clicked it. Chromium clicks the page's focused element when it ends a search, which is the match's link only once
+   * a search settled on a match: a search that found nothing, or has not answered yet, leaves the focus where it was,
+   * such as on a button the person pressed before, so the search ends keeping the selection instead, as Escape does.
+   */
+  stop(webContents: WebContents, action: 'clearSelection' | 'keepSelection' | 'activateSelection' = 'clearSelection'): boolean {
+    const answering = this.pending.has(webContents)
     this.pending.get(webContents)?.()
-    webContents.stopFindInPage('clearSelection')
+    const matched = this.matched.has(webContents)
+    const activate = action === 'activateSelection' && matched && !this.agentTouched.has(webContents)
+    this.matched.delete(webContents)
+    this.agentTouched.delete(webContents)
+    this.sessionQueries.delete(webContents)
+    // The person's key went to Find, not to the page, so the click had no user activation, and Chromium skipped on Back
+    // the page the link left, as it skips pages that move on by themselves. A script sent with a user gesture marks the
+    // page's main frame as activated in Electron's browser process when it is sent, before the link's page can commit,
+    // which is when Chromium reads that mark, so Back keeps the page. The click itself still runs without activation.
+    // A script that waits for the next document would give that document the activation, so the page gets it only when
+    // the script runs now.
+    if (activate && pageScriptsRunNow(webContents)) {
+      void webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.findMatchClick, [{ code: ACTIVATION_ONLY_SCRIPT }], true)
+        .catch(() => undefined)
+    }
+    const ending = activate ? 'activateSelection' : action === 'clearSelection' ? 'clearSelection' : 'keepSelection'
+    webContents.stopFindInPage(ending)
+    // Chromium selects the active match a search found, or one still answering may have found.
+    return activate || (ending === 'keepSelection' && (matched || answering))
+  }
+
+  /**
+   * An agent's input to the page, which can move the page's focus off the match its search settled on, as in a tab
+   * Find stays with while the person is elsewhere. Chromium clicks the focused element when a search ends on a match
+   * that is gone, so ending it with Ctrl+Enter keeps the selection instead, until the person searches again.
+   */
+  noteAgentInput(webContents: WebContents): void {
+    if (this.matched.has(webContents)) this.agentTouched.add(webContents)
   }
 }

@@ -35,7 +35,9 @@ h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; lett
 /* The pill keeps its width beside a long description (which wraps instead), up to its share of the header; words
    that do not fit end in an ellipsis before Details, with the whole status on hover. */
 .hero-status { position: relative; display: flex; flex: 0 0 auto; align-items: center; gap: 4px; min-width: 0; max-width: min(360px, 45%); min-height: 36px; padding: 3px 3px 3px 11px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); box-shadow: var(--elevation-1); }
-.status-label { display: block; min-width: 0; overflow: hidden; color: var(--text); font-size: var(--type-small-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+/* The status opens the Agents view, where the agents it counts are. */
+.status-label { display: block; min-width: 0; padding: 0; overflow: hidden; border: 0; color: var(--text); background: transparent; font-size: var(--type-small-size); font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.status-label:hover { color: var(--accent); }
 /* Clear of the label's clipped edge, so the dot's ring shows whole. */
 .status-label .dot { display: inline-block; margin: 0 4px 0 3px; vertical-align: middle; }
 .status-details { flex: none; color: var(--muted); font-size: var(--type-micro-size); }
@@ -68,6 +70,12 @@ h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; lett
 .home-navigation button[aria-selected="true"] { color: var(--accent); }
 .home-navigation button[aria-selected="true"]::after { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); content: ''; }
 .home-view { min-width: 0; }
+/* An agent waiting for the person: one amber line over whichever view shows, with the way to its workspace. */
+.needs-you-list { display: grid; gap: 8px; margin: -8px 0 20px; }
+.needs-you-line { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 6px 6px 14px; border: 1px solid color-mix(in srgb, var(--needs-you) 45%, var(--border)); border-radius: var(--corner-2); background: color-mix(in srgb, var(--needs-you) 10%, var(--panel)); }
+.needs-you-words { flex: 1; min-width: 0; color: var(--text); font-size: var(--type-body-size); font-weight: 600; overflow-wrap: anywhere; }
+.needs-you-line button { flex: none; min-height: 32px; padding: 6px 12px; border: 1px solid var(--needs-you); border-radius: var(--corner-2); color: var(--text); background: var(--panel); font-size: var(--type-small-size); font-weight: 600; }
+.needs-you-line button:hover { background: color-mix(in srgb, var(--needs-you) 16%, var(--panel)); }
 .home-view:focus { outline-offset: 6px; }
 .connect-layout { display: grid; grid-template-columns: minmax(0, 1fr) 272px; align-items: start; gap: 24px; }
 .panel { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--corner-3); background: var(--panel); box-shadow: var(--elevation-1); }
@@ -228,14 +236,11 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .workspace-toolbar input[type=search], .workspace-toolbar > button { height: 40px; }
 .workspace-toolbar button, .home-workspace-card button, #workspace-undo { min-height: 38px; padding: 8px 13px; border: 1px solid var(--border); border-radius: var(--corner-2); background: var(--panel); font-size: var(--type-body-size); font-weight: 600; }
 .workspace-primary { background: var(--accent) !important; color: var(--button-text) !important; border-color: transparent !important; }
-.workspace-collections { display: flex; gap: 6px; border-bottom: 1px solid var(--border); }
-.workspace-collections button { padding: 12px 18px; border: 0; background: transparent; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; }
-.workspace-collections button[aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
-#workspace-hint { color: var(--muted); font-size: var(--type-body-size); margin: 16px 0; }
-/* Cards beside the connected agents and their live activity; that column moves under them on narrower windows. */
-.mission-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 24px; }
-.mission-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0; max-height: calc(100vh - 32px); }
-.mission-main { min-width: 0; }
+/* A view's own filters are small pills under Home's tabs, so they read as part of the view rather than a second row of tabs. */
+.workspace-collections { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.workspace-collections button { min-height: 32px; padding: 5px 12px; border: 1px solid transparent; border-radius: var(--corner-pill); color: var(--muted); background: transparent; font-size: var(--type-small-size); font-weight: 500; }
+.workspace-collections button:hover { color: var(--text); background: var(--soft); }
+.workspace-collections button[aria-selected=true] { border-color: var(--border); color: var(--text); background: var(--panel); box-shadow: var(--elevation-1); font-weight: 600; }
 #workspace-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
 /* A card opens its workspace from anywhere but its own controls: the open button covers the card. */
 .home-workspace-card { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 14px; border: 1px solid var(--border); border-radius: var(--corner-3); background: var(--panel); box-shadow: var(--elevation-1); transition: border-color 160ms, box-shadow 160ms; }
@@ -255,18 +260,23 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .home-workspace-card > header { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 2px 0 6px; }
 .workspace-dot { --workspace-color: var(--accent); flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--workspace-color); }
 .home-workspace-card h2 { flex: 1; min-width: 0; overflow: hidden; font-size: var(--type-body-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.card-meta, .card-status, .home-workspace-badges, .home-workspace-description, .card-footer { padding: 0 6px; }
-.card-meta { color: var(--muted); font-size: var(--type-small-size); }
-.card-status { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); font-size: var(--type-small-size); }
-.card-status > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-status-dot { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+/* A card with its menu open sits over the cards after it, whose icons and menu buttons would cover the menu. */
+.home-workspace-card:has(.card-menu[open]) { z-index: 3; }
+.card-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 20px; color: var(--muted); font-size: var(--type-micro-size); }
+.card-count { margin-right: 4px; white-space: nowrap; }
+/* Above the card's open button, so its name shows on hover. */
+.card-badge { position: relative; z-index: 2; display: grid; flex: none; width: 20px; height: 20px; place-items: center; border-radius: var(--corner-1); color: var(--muted); background: var(--soft); }
+.card-badge .home-icon { --icon-size: 13px; }
+.card-facts, .card-status, .home-workspace-description, .card-footer { padding: 0 6px; }
+/* An agent's step reads in full on two lines: its address is often what tells two steps apart. */
+.card-status { display: flex; align-items: flex-start; gap: 7px; min-width: 0; min-height: calc(2 * 1.4em); color: var(--muted); font-size: var(--type-small-size); line-height: 1.4; }
+.card-status > span:last-child { display: -webkit-box; min-width: 0; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.card-status-dot { flex: 0 0 6px; width: 6px; height: 6px; margin-top: calc(.7em - 3px); border-radius: 50%; background: var(--border); }
 .card-status.working { color: var(--text); }
 .card-status.working .card-status-dot { background: var(--success); }
 .card-status.idle .card-status-dot { background: color-mix(in srgb, var(--success) 45%, var(--border)); }
 .card-status.needs-you { color: var(--needs-you); font-weight: 600; }
 .card-status.needs-you .card-status-dot { background: var(--needs-you); }
-.home-workspace-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.home-workspace-badges span { padding: 3px 7px; border-radius: var(--corner-1); color: var(--muted); background: var(--soft); font-size: var(--type-micro-size); }
 .home-workspace-description { margin-top: 4px; color: var(--muted); font-size: var(--type-small-size); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card-footer { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 8px; }
 .home-workspace-card:not(.archived) .card-footer { padding: 0; }
@@ -279,20 +289,23 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .home-workspace-card .card-menu-list button:hover:not(:disabled), .card-menu-list label:hover { background: var(--soft); }
 .home-workspace-card .card-menu-list .danger { color: var(--danger); }
 .card-menu-list input { accent-color: var(--accent); }
+/* Copy or move data says under its name how many websites' data the workspace keeps. */
+/* Copy key for an agent says under its name what the key is for. */
+.home-workspace-card .card-menu-list button[data-workspace-action="transfer"], .home-workspace-card .card-menu-list button[data-workspace-action="copy-agent-key"] { flex-wrap: wrap; row-gap: 0; }
+.card-menu-note, .card-menu-help { flex-basis: 100%; color: var(--muted); font-size: var(--type-micro-size); font-weight: 400; }
+.card-menu-fact { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: var(--muted); font-size: var(--type-micro-size); }
+.card-menu-fact .home-icon { --icon-size: 14px; }
 .card-menu-list hr { width: 100%; margin: 4px 0; border: 0; border-top: 1px solid var(--border); }
-.home-workspace-new { min-width: 0; }
-.new-workspace-tile { display: grid; place-content: center; justify-items: center; gap: 6px; width: 100%; height: 100%; min-height: 220px; padding: 20px; border: 1.5px dashed var(--border); border-radius: var(--corner-3); color: var(--muted); background: transparent; font-size: var(--type-small-size); }
-.new-workspace-tile strong { color: var(--text); font-size: var(--type-body-size); font-weight: 600; }
-.new-workspace-plus { display: grid; width: 32px; height: 32px; place-items: center; margin-bottom: 4px; border-radius: 50%; color: var(--text); background: var(--soft); font-size: var(--type-title-size); line-height: 1; }
-.new-workspace-tile:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
 .workspace-empty { grid-column: 1 / -1; padding: 50px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--corner-3); }
 .workspace-empty h2 { font-size: var(--type-heading-size); color: var(--text); }
-#workspace-error { color: var(--danger); }
+#workspace-error { margin: -8px 0 16px; color: var(--danger); }
 .workspace-feedback { display: flex; align-items: center; gap: 12px; font-size: var(--type-body-size); color: var(--accent-2); }
 @media (max-width: 760px) { .workspace-toolbar .search-field { flex-basis: 100%; } .workspace-toolbar > button { flex: 1; } }
-.live-feed { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 180px; padding-bottom: 14px; }
+/* The connected agents beside their live activity; the activity moves under them on narrower windows. */
+.connected-layout { display: grid; grid-template-columns: minmax(280px, 400px) minmax(0, 1fr); align-items: start; gap: 24px; }
+.live-feed { display: flex; flex-direction: column; min-height: 180px; padding-bottom: 14px; }
 /* Connected agents: one row per client, the busiest first, with its sessions behind a toggle. */
-.home-agents { display: flex; flex: 0 0 auto; flex-direction: column; min-height: 0; max-height: calc((100vh - 48px) * .55); }
+.home-agents { display: flex; flex-direction: column; min-height: 0; }
 .side-heading { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 9px 10px 9px 16px; border-bottom: 1px solid var(--border); }
 .side-heading h2 { min-width: 0; font-size: var(--type-body-size); font-weight: 600; }
 .side-heading .count { font-variant-numeric: tabular-nums; }
@@ -353,8 +366,7 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .feed-row.needs-you .feed-avatar { box-shadow: 0 0 0 2px var(--needs-you); }
 .live-feed-empty { padding: 18px 16px 4px; color: var(--muted); font-size: var(--type-small-size); line-height: 1.6; }
 .live-feed .privacy-note { margin: 8px 16px 0; }
-@media (max-width: 1180px) { .mission-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; } }
-@media (max-width: 860px) { .mission-layout { grid-template-columns: minmax(0, 1fr); } .mission-side { position: static; max-height: none; } .live-feed, .home-agents { max-height: 420px; } }
+@media (max-width: 860px) { .connected-layout { grid-template-columns: minmax(0, 1fr); } }
 .onboarding { margin-bottom: 24px; padding: 24px; }
 :root:not([data-home-selected-view=workspaces]) .onboarding { display: none; }
 button[data-open-view=workspaces] { background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 10px 14px; border-radius: var(--corner-2); }

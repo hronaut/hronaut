@@ -3,6 +3,7 @@ import type { McpToolActivity } from '../../src/main/mcp/activity-history.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type InputCheckpoint = { at: number; stage: 'send' | 'ack'; method: string; type?: unknown; ignore?: unknown }
 type MouseDecision = { at: number; type: string; x: number; y: number; prevented: boolean }
@@ -30,14 +31,8 @@ function assertEffects(actual: { moves: number; downs: number; keys: number }, e
 type DispatchGlobal = typeof globalThis & { nativeDispatchGate?: DispatchGate }
 
 async function terminalActivities(app: ElectronApplication, tabId: string, toolName: string): Promise<McpToolActivity[]> {
-  return app.evaluate(async ({ webContents }, { id, name }) => {
-    const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))
-    if (!home) throw new Error('Missing Home session for native input settlement observation')
-    const response = await home.session.fetch('hronaut://home/api/status')
-    if (!response.ok) throw new Error(`Native input settlement observation failed: ${response.status}`)
-    const state = await response.json() as { recentActivity: McpToolActivity[] }
-    return state.recentActivity.filter(activity => activity.toolName === name && activity.tabId === id)
-  }, { id: tabId, name: toolName })
+  const state = await homeStatus<{ recentActivity: McpToolActivity[] }>(app)
+  return state.recentActivity.filter(activity => activity.toolName === toolName && activity.tabId === tabId)
 }
 
 for (const action of ['hover', 'drag', 'press'] as const) {
@@ -150,8 +145,13 @@ for (const action of ['hover', 'drag', 'press'] as const) {
             void locking.catch(() => undefined)
             if (control === 'pending-lock') {
               await expect.poll(() => appWindow.evaluate(() => (window as unknown as { nativeLockRequestedAt?: number }).nativeLockRequestedAt)).toBeGreaterThan(0)
+              // The tab reads locked as soon as the lock is asked for, so Hronaut holds the person's input back while the
+              // page's own barrier still waits behind the held command.
+              await expect.poll(() => appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState())
+                .tabs.find(tab => tab.id === id)?.humanInteractionLocked, tabId)).toBe(true)
               await knownInput()
-              await waitForKnownInput()
+              await expect.poll(() => electronApp.evaluate(() => (globalThis as DispatchGlobal).nativeDispatchGate!.mouseDecisions
+                .some(event => event.type === 'mouseMove' && event.x === 43 && event.y === 37))).toBe(true)
               await electronApp.evaluate(() => (globalThis as DispatchGlobal).nativeDispatchGate!.releasePreparation())
               expect((await preparation!).isError).not.toBe(true)
             }
@@ -233,16 +233,8 @@ for (const action of ['hover', 'drag', 'press'] as const) {
             if (control === 'pre-lock') {
               expect(observation.history.events.some(event => event.phase === 'setup' && event.trusted && event.x === 43 && event.y === 37 && event.buttons === 0)).toBe(true)
             }
-            if (control === 'pending-lock') {
-              const known = observation.history.events.filter(event => event.trusted && event.x === 43 && event.y === 37 && event.buttons === 0)
-              expect(known).toHaveLength(1)
-              expect(known[0]!.phase).toBe('pending-lock')
-              expect(known[0]!.at).toBeGreaterThanOrEqual(lockRequest.requestedAt)
-              expect(known[0]!.at).toBeLessThan(observation.lockAcknowledgedAt)
-              // The former marker-based oracle would reject this allowed input.
-              expect(() => assertEffects({ moves: known.length, downs: 0, keys: 0 }, { moves: 0, downs: 0, keys: 0 })).toThrow()
-            }
-            if (control === 'post-ack') {
+            // Input the person sends once the lock is asked for, before or after the page's barrier is on, never reaches it.
+            if (control === 'pending-lock' || control === 'post-ack') {
               expect(observation.mouseDecisions.filter(event => event.type === 'mouseMove' && event.x === 43 && event.y === 37)).toEqual([
                 { at: expect.any(Number), type: 'mouseMove', x: 43, y: 37, prevented: true }
               ])

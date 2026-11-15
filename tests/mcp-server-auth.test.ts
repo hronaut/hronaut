@@ -9,12 +9,60 @@ import {
   mcpCapabilityArgumentValueDigest
 } from '../src/main/mcp/capability-profile-store.js'
 import { McpActionTracker } from '../src/main/mcp/action-tracker.js'
+import { mcpCapabilityProfileInputFromPreset } from '../src/main/mcp/capability-presets.js'
 import {
   assertMcpToolRegistrationContract,
   MCP_FAILED_AUTH_LIMIT,
   McpHttpServer,
   mcpRequestAuthorized
 } from '../src/main/mcp/server.js'
+
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  getMcpDiscoveryTabs: (browser: { getMcpDiscoveryTabs: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpDiscoveryTabs(...args),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
+  getMcpGroupState: (browser: { getMcpGroupState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpGroupState(...args),
+  tabBelongsToMcpGroup: (browser: { tabBelongsToMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabBelongsToMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/video-recording/video-recording.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/video-recording/video-recording.js')>(),
+  inspectVideo: (browser: { inspectVideo: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectVideo(...args)
+}))
+vi.mock('../src/main/browser/agent-page-actions/form-input-and-scroll.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/form-input-and-scroll.js')>(),
+  select: (browser: { select: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.select(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js')>(),
+  createMcpTabGroup: (browser: { createMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+// A fake browser that stubs no pause answers has no paused or taken-over tab.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
+  hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
+}))
+vi.mock('../src/main/browser/pwa-inspection/browser-pwa-lifecycle.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/pwa-inspection/browser-pwa-lifecycle.js')>(),
+  pwaLifecycle: (browser: { pwaLifecycle: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.pwaLifecycle(...args)
+}))
+// The bookmarks and history tools open a page through newAgentTab, a function; it reaches the fake's stub, so a refused page is seen not to open.
+vi.mock('../src/main/browser/new-tabs/open-new-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/open-new-tab.js')>(),
+  newAgentTab: (browser: { newAgentTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.newAgentTab(...args)
+}))
 
 const TOKEN = 'abcdefghijklmnopqrstuvwxyz_ABCDEFG-1234567890'
 const WORKSPACE_ID = '01912345-6789-7abc-8def-0123456789ab'
@@ -459,7 +507,7 @@ describe('MCP capability profile authentication', () => {
       listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
       createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
       isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
-      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: () => () => undefined,
+      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: vi.fn((_workspaceId: string, _readOnly: boolean) => () => undefined),
       requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => true,
       getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, url: 'https://allowed.example/' }] }),
       pwaLifecycle: async (_options: unknown, validate: (origin: string) => void) => {
@@ -481,6 +529,48 @@ describe('MCP capability profile authentication', () => {
     expect(allowed.isError).not.toBe(true)
     expect(effect).toHaveBeenCalledOnce()
     expect(JSON.stringify(allowed)).toContain('synthetic-evidence')
+    // Reading the recorded lifecycle is a read for the workspace's continuity; stopping or clearing the recording is not.
+    expect(manager.beginWorkspaceContinuityAction).toHaveBeenLastCalledWith(WORKSPACE_ID, action === 'get')
+  })
+
+  // An agent that called browser_zoom to see a tab's zoom reset the person's zoom for the site, and a read of the zoom
+  // counted as a change in the workspace's activity, audit and continuity, holding up the agent that held its lease.
+  it.each([{}, { action: 'get' }])('reads the zoom as a read for browser_zoom %j, and keeps a read-only agent from changing it', async extra => {
+    const tabId = '01912345-6790-7abc-8def-0123456789ab'
+    const workspace = { id: WORKSPACE_ID, name: 'Synthetic zoom', contextClass: 'standard' }
+    const page = { isDestroyed: () => false, getZoomFactor: () => 1.5, setZoomFactor: vi.fn() }
+    const beginWorkspaceContinuityAction = vi.fn((_workspaceId: string, _readOnly: boolean) => () => undefined)
+    const onTabActivity = vi.fn()
+    const manager = {
+      listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+      createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+      isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction,
+      requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => true, wakeTab: async () => undefined,
+      getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, url: 'https://allowed.example/' }] }),
+      tabs: new Map([[tabId, { id: tabId, url: 'https://allowed.example/', webContents: page, zoomIsolated: true }]]), activeTabId: tabId,
+      // What resuming the workspace touches, as a read-only agent picks up a workspace it was handed.
+      continuityRevision: 0, workspaceObservationGenerations: new Map(), continuityActions: new Map(),
+      pwaLifecycleRecorder: { interruptWorkspace: () => undefined }, downloadController: { advanceWorkspaceObservationGeneration: () => undefined },
+      workspaceContinuity: { suspend: () => undefined, guardedWorkspaceIds: () => [] }
+    }
+    await connectProfile(mcpCapabilityProfileInputFromPreset({ name: 'Zoom reader', preset: 'read-only' }), undefined, { manager, onTabActivity })
+    const resumed = await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'resume', workspaceId: WORKSPACE_ID, resumeKey: manager.mcpWorkspaceResumeKey() } })
+    expect(resumed.isError, JSON.stringify(resumed)).not.toBe(true)
+    beginWorkspaceContinuityAction.mockClear()
+    const read = await client!.callTool({ name: 'browser_zoom', arguments: { workspaceId: WORKSPACE_ID, tabId, ...extra } })
+    expect(read.isError, JSON.stringify(read)).not.toBe(true)
+    expect(JSON.parse((read.content as Array<{ text: string }>)[0]!.text)).toEqual({ tabId, zoomPercent: 150, zoomIsolated: true })
+    expect(beginWorkspaceContinuityAction).toHaveBeenCalledExactlyOnceWith(WORKSPACE_ID, true)
+    const finished = onTabActivity.mock.calls.map(([activity]) => activity as { phase: string; result?: { effects: string } })
+      .find(activity => activity.phase === 'finished')
+    expect(finished?.result?.effects).toBe('none')
+
+    for (const change of [{ action: 'reset' }, { action: 'set', percent: 125 }]) {
+      const refused = await client!.callTool({ name: 'browser_zoom', arguments: { workspaceId: WORKSPACE_ID, tabId, ...change } })
+      expect(refused.isError).toBe(true)
+    }
+    expect(page.setZoomFactor).not.toHaveBeenCalled()
   })
 
   it.each(['human-decision', 'audit-receipt'] as const)('discards lifecycle evidence after expiry during final %s await', async boundary => {
@@ -687,7 +777,7 @@ describe('MCP capability profile authentication', () => {
       beginWorkspaceContinuityAction: () => () => undefined,
       getMcpGroupState: () => ({}),
       createMcpTabGroup: vi.fn(async () => workspace),
-      newTab: vi.fn(async ({ url }: { url: string }) => ({ url })),
+      newAgentTab: vi.fn(async ({ url }: { url: string }) => ({ url })),
       mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`
     }
     const bookmarks = {
@@ -736,7 +826,7 @@ describe('MCP capability profile authentication', () => {
       await expect(client!.callTool({ name, arguments: { workspaceId: WORKSPACE_ID, action: 'open', id } }))
         .resolves.toMatchObject({ isError: true })
     }
-    expect(manager.newTab).not.toHaveBeenCalled()
+    expect(manager.newAgentTab).not.toHaveBeenCalled()
     await expect(client!.callTool({
       name: 'browser_visit_history', arguments: { workspaceId: WORKSPACE_ID, action: 'clear' }
     })).resolves.toMatchObject({ isError: true })

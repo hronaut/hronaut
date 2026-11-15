@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { consoleMessages } from '../../../browser/console-messages/console-messages.js'
 
 export function registerBrowserConsole(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -16,7 +17,7 @@ export function registerBrowserConsole(context: McpToolContext): void {
       }
     },
     tabTool('browser_console', async ({ tabId, level, clear }: { tabId?: string; level?: string; clear?: boolean }) => {
-      const messages = manager.consoleMessages(tabId, clear)
+      const messages = consoleMessages(manager, tabId, clear)
       return textResult(level ? messages.filter((message) => message.level === level) : messages)
     })
   )

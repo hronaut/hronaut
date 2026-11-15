@@ -1,4 +1,7 @@
-import { continuityMarkerScript } from './workspace-continuity-marker.js'
+import { pageScript } from './page-script.js'
+import { postconditionInPage } from './post-write-postcondition.page.js'
+import { continuityMarkerInPage } from './workspace-continuity-marker.page.js'
+import { validateContinuityMarkerSelector } from './workspace-continuity-marker.js'
 
 export interface BrowserPostcondition {
   expectedOrigin: string
@@ -19,18 +22,10 @@ export function browserPostconditionScript(input: BrowserPostcondition): string 
     if (typeof value !== 'string' || new TextEncoder().encode(value).length > 512) throw new TypeError('Expected marker text exceeds its bound')
   }
   if (!input.expectedAccount.trim()) throw new TypeError('Expected account marker is required')
-  const account = continuityMarkerScript(input.accountSelector)
-  const state = continuityMarkerScript(input.stateSelector)
-  return `(() => {
-    try {
-      if (location.origin !== ${JSON.stringify(origin.origin)}) return 'context-changed';
-      const account = ${account};
-      if (account === null) return 'unavailable';
-      if (account !== ${JSON.stringify(input.expectedAccount)}) return 'context-changed';
-      if (document.querySelectorAll(${JSON.stringify(input.stateSelector)}).length === 0) return 'not-yet-visible';
-      const state = ${state};
-      if (state === null) return 'unavailable';
-      return state === ${JSON.stringify(input.expectedText)} ? 'matches' : 'not-yet-visible';
-    } catch { return 'unavailable'; }
-  })()`
+  validateContinuityMarkerSelector(input.accountSelector)
+  validateContinuityMarkerSelector(input.stateSelector)
+  return pageScript(
+    postconditionInPage, origin.origin, input.accountSelector, input.expectedAccount, input.stateSelector, input.expectedText,
+    continuityMarkerInPage
+  )
 }

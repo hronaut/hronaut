@@ -1,15 +1,19 @@
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { TakeOverOffers } from './take-over-offers.js'
+import type { Browser } from './browser/browser.js'
+import type { TakeOverOffers } from './agents/take-over-offers.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
+import { exitPageFullscreen } from './browser/page-fullscreen/page-fullscreen.js'
+import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
+import { isHomeTab, shownTabIsHome } from './browser/home-tabs/home-tabs.js'
+import { requestShellShortcut } from './windows/shell-key-handoff.js'
 
 interface BrowserShortcutRoutingHost {
   /** The take over offers, which a page's take over key asks and acts on. */
   takeOvers: Pick<TakeOverOffers, 'available' | 'takeOverFromPage'>
   /** The tab runtime, whose Home tab and workspaces decide which keys a page keeps; null until the window opens. */
-  tabs(): Pick<BrowserTabsManager, 'isHomeTab' | 'listMcpTabGroups' | 'exitPageFullscreen'> | null
+  tabs(): Browser | null
   /** The agents in each workspace; a page keeps the agent card key while its workspace has none. */
   agentPresenceSnapshot(): AgentPresenceSnapshot
   /** The main window, whose shell runs a shortcut pressed in a page; read when the key is pressed. */
@@ -23,16 +27,18 @@ interface BrowserShortcutRoutingHost {
 export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): {
   pageShortcutAvailable(action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string): boolean
   runPageShortcut(action: BrowserShortcutAction, page?: { tabId: string; workspaceId: string | undefined }): void
+  runPageNextPane(): void
 } {
   /** Whether the browser takes a shortcut pressed in a page; the page keeps the key otherwise. */
   function pageShortcutAvailable(action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string): boolean {
+    const browser = host.tabs()
     // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
     return action === 'take-over' ? host.takeOvers.available(tabId, workspaceId) !== undefined
       // Ctrl/Cmd+K is a common website key, such as for a site's own search, so websites keep it; Home does not use it.
-      : action === 'switch-workspace' ? host.tabs()?.isHomeTab(tabId) === true
+      : action === 'switch-workspace' ? (browser ? isHomeTab(browser, tabId) : false)
       // A page keeps a workspace key while there is no workspace for it to go to.
-      : action === 'previous-workspace' ? (host.tabs()?.listMcpTabGroups().some((workspace) => workspace.id !== workspaceId) ?? false)
-      : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(host.tabs()?.listMcpTabGroups() ?? [], Number(action.slice(-1))) !== undefined
+      : action === 'previous-workspace' ? (browser ? listMcpTabGroups(browser) : []).some((workspace) => workspace.id !== workspaceId)
+      : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(browser ? listMcpTabGroups(browser) : [], Number(action.slice(-1))) !== undefined
       : action !== 'agent-card' || (workspaceId !== undefined && (host.agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0)
   }
 
@@ -43,20 +49,46 @@ export function createBrowserShortcutRouting(host: BrowserShortcutRoutingHost): 
       host.takeOvers.takeOverFromPage(page.tabId, page.workspaceId)
       return
     }
+    // F6 from a page goes to the next pane, as when the page leaves it to the menu; the shell runs the key from its
+    // own window, back to the page.
+    if (action === 'focus-next-pane' && page) {
+      runPageNextPane()
+      return
+    }
     // A page in full screen covers the toolbar, the Find bar and the shell's other controls, so it leaves full
     // screen first; zooming keeps it there.
-    if (!action.startsWith('zoom-')) host.tabs()?.exitPageFullscreen()
+    const browser = host.tabs()
+    if (browser && !action.startsWith('zoom-')) exitPageFullscreen(browser)
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.webContents.isDestroyed()) {
+      // History's key closes History while it is open, and the page keeps the keyboard and the keys typed next.
+      const closesHistory = action === 'visit-history' && browser?.shellHistoryShown === true
       // The page WebContentsView owns native focus when a website shortcut is
       // pressed. Move it to trusted chrome before the renderer focuses a
       // field, otherwise the DOM selection is visible while typed keys keep
-      // going to the website.
-      if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address') {
+      // going to the website. Bookmark all tabs asks for a collection's name, and History puts the keyboard in its
+      // search, as Chrome's History page does.
+      if (action === 'find' || action === 'find-next' || action === 'find-previous' || action === 'focus-address'
+        || action === 'bookmark-all-tabs' || (action === 'visit-history' && !closesHistory)) {
         host.mainWindowRefs.window.webContents.focus()
       }
-      host.mainWindowRefs.window.webContents.send('browser:shortcut-requested', action)
+      if (closesHistory) requestShellShortcut(host.mainWindowRefs.window.webContents, action, false)
+      else requestShellShortcut(host.mainWindowRefs.window.webContents, action)
     }
   }
 
-  return { pageShortcutAvailable, runPageShortcut }
+  /**
+   * F6 or Shift+F6 that the page in focus left alone. The next pane is the address bar, as in Chrome. Home has none,
+   * and the address bar's keys leave Home for a website tab, so from Home it is Hronaut's window instead.
+   */
+  function runPageNextPane(): void {
+    const browser = host.tabs()
+    if (!browser || !shownTabIsHome(browser)) {
+      runPageShortcut('focus-address')
+      return
+    }
+    const window = host.mainWindowRefs.window
+    if (window && !window.webContents.isDestroyed()) window.webContents.focus()
+  }
+
+  return { pageShortcutAvailable, runPageShortcut, runPageNextPane }
 }

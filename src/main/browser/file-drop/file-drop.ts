@@ -4,9 +4,17 @@ import { access as accessFile, stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
+import { agentInputDebugger } from '../agent-input-authorization/agent-input-authorization.js'
+import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
+import { showAgentPointer } from '../agent-pointer/agent-pointer.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { markAgentFileDrop } from './agent-file-drops.js'
+import { validateTarget } from '../input-targets/input-targets.js'
+import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
 import type { PointerDebugger } from '../native-pointer.js'
 import type { AgentPointerIdentity } from '../page-scripts.js'
-import type { FileDropAccess, FileDropTab } from './file-drop-access.js'
 import {
   fileDropDisposeScript,
   fileDropLocateScript,
@@ -26,6 +34,8 @@ const MAX_DRAG_UPDATES = 4
 
 /** How long one page script or drag event may take before the drop gives up on an unresponsive page. */
 const PAGE_RESPONSE_TIMEOUT_MS = 5_000
+
+const DRAG_EVENT_TIMEOUT_MESSAGE = 'Chromium did not take the drag event in time, so nothing was dropped'
 
 /** How a file drop ended. Neither status proves that the page read or uploaded the files. */
 export type FileDropStatus = 'DROPPED' | 'NOT_ACCEPTED' | 'DROP_UNCONFIRMED'
@@ -62,26 +72,26 @@ const TARGET_PROBLEMS: Record<FileDropTargetProblem, string> = {
  * tab, its workspace's authority or its observation context changed before
  * the drop, and does not roll back an earlier effect.
  */
-export async function dropFiles<Tab extends FileDropTab>(
-  access: FileDropAccess<Tab>,
+export async function dropFiles(
+  browser: Browser,
   target: { tabId?: string; ref?: string; selector?: string },
   paths: string[],
   validateDrop?: (validateContext: () => void) => void,
   agent?: AgentPointerIdentity
 ): Promise<FileDropResult> {
-  access.validateTarget(target)
+  validateTarget(target)
   await assertDroppableFiles(paths)
-  const tab = access.getTab(target.tabId)
+  const tab = getTab(browser, target.tabId)
   const webContents = tab.webContents
-  const authority = access.nativeInputAuthority(tab, validateDrop)
+  const authority = nativeInputAuthority(browser, tab, validateDrop)
   const token = randomUUID()
   const files = paths.length
   try {
     authority.validate()
     const prepared = droppablePoint(await runPageScript<FileDropLocation>(webContents, fileDropLocateScript(target, token, true)))
-    await access.showAgentPointer(webContents, prepared, 'move', { agent })
-    return await access.withAgentInput(webContents, () => access.withDebugger(webContents, async (): Promise<FileDropResult> => {
-      const input = access.agentInputDebugger(webContents, authority.validate)
+    await showAgentPointer(browser, webContents, prepared, 'move', { agent })
+    return await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async (): Promise<FileDropResult> => {
+      const input = agentInputDebugger(browser, webContents, authority.validate)
       // Measure again inside the debugger turn: the page may have moved or replaced the target meanwhile.
       const point = droppablePoint(await runPageScript<FileDropLocation>(webContents, fileDropLocateScript(target, token, false)))
       const data = { items: [], files: [...paths], dragOperationsMask: FILE_MANAGER_DRAG_OPERATIONS }
@@ -113,13 +123,16 @@ export async function dropFiles<Tab extends FileDropTab>(
         }
         // Whether the drop's last check before dispatch passed: a failure after it may have reached the page.
         let dropChecked = false
-        const dropInput = access.agentInputDebugger(webContents, () => {
+        const dropInput = agentInputDebugger(browser, webContents, () => {
           dropChecked = false
           authority.validate()
           dropChecked = true
         })
         try {
-          await sendDragEvent(dropInput, { type: 'drop', ...point, data })
+          const drop = dropInput.sendCommand('Input.dispatchDragEvent', { type: 'drop', ...point, data })
+          // A file the page does not take is the agent's until Chromium answers, even after this wait gives up.
+          markAgentFileDrop(webContents, drop)
+          await withTimeout(drop, DRAG_EVENT_TIMEOUT_MESSAGE)
         } catch (error) {
           if (!dropChecked) throw error
           return {
@@ -151,7 +164,7 @@ export async function dropFiles<Tab extends FileDropTab>(
           note: 'The drop was sent, but neither a drop nor a dragleave was seen on the page: it may have navigated or stopped the events first. Check the page state before trying again; the files may have reached it.'
         }
       } finally {
-        if (entered && !dropAcknowledged) await leavePage(access.agentInputDebugger(webContents))
+        if (entered && !dropAcknowledged) await leavePage(agentInputDebugger(browser, webContents))
       }
     }))
   } finally {
@@ -175,7 +188,7 @@ async function leavePage(debuggerApi: PointerDebugger): Promise<void> {
 
 /** Sends one drag event, giving up when Chromium does not answer in time, as for a page that blocks in its drag handler. */
 function sendDragEvent(debuggerApi: PointerDebugger, params: Record<string, unknown>): Promise<unknown> {
-  return withTimeout(debuggerApi.sendCommand('Input.dispatchDragEvent', params), 'Chromium did not take the drag event in time, so nothing was dropped')
+  return withTimeout(debuggerApi.sendCommand('Input.dispatchDragEvent', params), DRAG_EVENT_TIMEOUT_MESSAGE)
 }
 
 /** Throws before anything reaches the page unless there are 1 to 20 distinct absolute paths to readable files; messages name a path by its position only. */

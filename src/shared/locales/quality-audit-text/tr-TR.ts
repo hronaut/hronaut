@@ -1,0 +1,82 @@
+export const trTRQualityAuditText = {
+  categories: {
+    accessibility: 'Erişilebilirlik',
+    performance: 'Performans',
+    metadata: 'Meta veriler ve SEO',
+    security: 'Güvenlik',
+    pwa: 'PWA ve çevrimdışı',
+    'browser-issues': 'Chromium sorunları'
+  },
+  statuses: {
+    pass: 'başarılı',
+    info: 'bilgi',
+    warning: 'uyarı',
+    error: 'hata',
+    'not-applicable': 'uygulanamaz'
+  },
+  severities: {
+    error: 'hata',
+    warning: 'uyarı',
+    info: 'bilgi'
+  },
+  fixed: {
+    accessibilityClear: 'Otomatik denetimde WCAG AA ihlali bulunamadı',
+    performanceNone: 'Bu ziyarette Web Vitals değeri gözlenmedi',
+    metadataClear: 'Meta veri sorunu bulunamadı',
+    securitySecure: 'Ana belge aktarımı güvenli',
+    pwaNone: 'PWA veya çevrimdışı uygulama yüzeyi algılanmadı',
+    browserIssuesClear: 'Saklanan Chromium sorunu bulunamadı',
+    webVitalsNotObserved: 'Geçerli ziyarette Web Vitals değeri gözlenmedi; denetimi yeniden çalıştırmadan önce sayfayı yeniden yükleyin ve sayfayla etkileşimde bulunun.',
+    insecureTransport: 'Ana belge sağlıklı bir güvenli aktarım kullanmıyor.',
+    certificateExpired: 'Ana belge sertifikasının süresi doldu.',
+    certificateNotYetValid: 'Ana belge sertifikası henüz geçerli değil.',
+    certificateInvalid: 'Ana belge sertifikası şu anda geçerli değil.',
+    pwaInspectionPartial: 'Bu denetim için bazı PWA tanılamaları kullanılamadı.'
+  },
+  caveats: {
+    localDiagnostic: 'Bu, Hronaut kanıtlarından oluşturulan sınırlı bir yerel tanılamadır; Lighthouse puanı veya sertifika değildir.',
+    accessibilityAutomation: 'Erişilebilirlik otomasyonu klavye, ekran okuyucu, yakınlaştırma, hareket ve insanlı kullanılabilirlik testlerinin yerini tutamaz.',
+    performanceVisit: 'Performans, geçerli yerel ziyareti ve ortamı yansıtır; önemli ölçümleri temsili koşullar altında tekrarlayın.',
+    pwaOptional: 'Çevrimdışı uygulama yüzeyi sunmayan web siteleri için PWA bir gereklilik olarak değerlendirilmez.',
+    reloadIssues: 'Yalnızca başlangıçta oluşan Chromium sorunlarını yeniden oluşturmadan önce sayfayı yeniden yükleyin, ardından bu denetimi yeniden çalıştırın.'
+  },
+  text: {
+    violations: '{count} ihlal | {count} ihlal',
+    violationNodes: '{count} etkilenen düğüm | {count} etkilenen düğüm',
+    accessibilityViolations: '{nodes} genelinde {violations}',
+    affectedNodes: '{count} etkilenen düğüm | {count} etkilenen düğüm',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: '{count} kural geçti | {count} kural geçti',
+    checksNeedReview: '{count} denetim inceleme gerektiriyor | {count} denetim inceleme gerektiriyor',
+    needsHumanReview: '{count} erişilebilirlik denetimi insan incelemesi gerektiriyor. | {count} erişilebilirlik denetimi insan incelemesi gerektiriyor.',
+    performanceGood: 'Gözlenen {total} Web Vitals değerinden {good} tanesi iyi | Gözlenen {total} Web Vitals değerinden {good} tanesi iyi',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: '{name}, {value} değeriyle {rating} olarak derecelendirildi.',
+    resources: '{count} kaynak | {count} kaynak',
+    longTasks: '{count} uzun görev | {count} uzun görev',
+    metadataIssues: '{count} meta veri sorunu | {count} meta veri sorunu',
+    language: 'Dil: {language}',
+    languageMissing: 'Dil: eksik',
+    canonicalUrls: 'Standart URL’ler: {count}',
+    structuredData: 'Yapılandırılmış veriler: {valid} geçerli · {invalid} geçersiz',
+    securityState: 'Güvenlik durumu: {state}',
+    securityStateFinding: 'Chromium, ana belgenin güvenlik durumunu {state} olarak bildirdi.',
+    transportSecure: 'Aktarım: güvenli',
+    transportInsecure: 'Aktarım: güvenli değil',
+    protocol: 'Protokol: {protocol}',
+    protocolUnavailable: 'Protokol: kullanılamıyor',
+    certificateValid: 'Sertifika: geçerli',
+    certificateInvalid: 'Sertifika: geçersiz',
+    certificateUnavailable: 'Sertifika: kullanılamıyor',
+    registrations: '{count} service worker kaydı | {count} service worker kaydı',
+    caches: '{count} önbellek | {count} önbellek',
+    manifestPresent: 'Manifest: mevcut',
+    manifestMissing: 'Manifest: algılanmadı',
+    controlledYes: 'Service worker tarafından denetleniyor: evet',
+    controlledNo: 'Service worker tarafından denetleniyor: hayır',
+    installabilityIssues: 'Yüklenebilirlik sorunları: {count}',
+    installabilityFinding: 'Chromium bir PWA yüklenebilirlik sorunu bildirdi: {issue}.',
+    installabilityUnknown: 'Chromium bir PWA yüklenebilirlik sorunu bildirdi: bilinmeyen sorun.',
+    browserIssues: '{count} tarayıcı kaynaklı sorun | {count} tarayıcı kaynaklı sorun'
+  }
+}

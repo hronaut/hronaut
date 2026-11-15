@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { omitIncidentPaths } from '../src/main/incident-path-omissions.js'
+import { omitIncidentPaths } from '../src/main/incident/incident-path-omissions.js'
 import { incidentReviewSchema, type IncidentKind } from '../src/shared/incident-package.js'
 
 const rule = (path: Array<string | number>, artifact: IncidentKind = 'diagnostics') => ({ artifact, path })

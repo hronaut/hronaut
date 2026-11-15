@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -81,13 +82,22 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
       await electronApp.evaluate(({ BrowserWindow }, humanId) => {
         const main = BrowserWindow.getAllWindows().find(window => window.id !== humanId)
         if (!main) throw new Error('Missing main window')
-        const state = globalThis as typeof globalThis & { __qaFocusRequests?: number; __qaRaiseRequests?: number; __qaRestoreFocusSpies?: () => void }
-        state.__qaFocusRequests = 0
+        const state = globalThis as typeof globalThis & { __qaFocusRequests?: string[]; __qaRaiseRequests?: number; __qaRestoreFocusSpies?: () => void }
+        state.__qaFocusRequests = []
         state.__qaRaiseRequests = 0
         const prototype = Object.getPrototypeOf(main.webContents) as Electron.WebContents
         const focus = prototype.focus
         const showInactive = main.showInactive
-        prototype.focus = function () { state.__qaFocusRequests! += 1; return focus.call(this) }
+        // Each request names its page, the window focused then and the caller, so a failure says which code moved the keyboard.
+        prototype.focus = function (this: Electron.WebContents) {
+          // The main process keeps ten frames by default; async callers sit deeper than that.
+          const stackTraceLimit = Error.stackTraceLimit
+          Error.stackTraceLimit = 20
+          const stack = new Error().stack
+          Error.stackTraceLimit = stackTraceLimit
+          state.__qaFocusRequests!.push(`${this.getURL().slice(0, 100)} (focused window: ${BrowserWindow.getFocusedWindow()?.getTitle() ?? 'none'})\n${stack?.split('\n').slice(2).join('\n')}`)
+          return focus.call(this)
+        }
         main.showInactive = function () { state.__qaRaiseRequests! += 1; return showInactive.call(this) }
         state.__qaRestoreFocusSpies = () => { prototype.focus = focus; main.showInactive = showInactive }
       }, humanId)
@@ -102,6 +112,20 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
           const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(url))
           return page?.executeJavaScript('window.__qaFocusPending === true')
         }, origin)).toBe(true)
+        if (process.env.HRONAUT_TEST_WAYLAND !== '1') {
+          // With no window manager, X gives the keyboard to the window under the pointer once the focused window hides,
+          // and Hronaut's window kept it when the pointer was over it, where the person's window or an earlier test's
+          // click left it. A desktop leaves that to its window manager, so the pointer goes where no window is.
+          const outside = await electronApp.evaluate(({ BrowserWindow, screen }) => {
+            const { width, height } = screen.getPrimaryDisplay().bounds
+            const windows = BrowserWindow.getAllWindows().filter(window => window.isVisible()).map(window => window.getBounds())
+            return [[1, 1], [width - 2, 1], [1, height - 2], [width - 2, height - 2]].find(([x, y]) => windows.every(bounds => (
+              x! < bounds.x || x! >= bounds.x + bounds.width || y! < bounds.y || y! >= bounds.y + bounds.height
+            )))
+          })
+          if (!outside) throw new Error('Every corner of the screen is in a window')
+          execFileSync('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(outside[0]), String(outside[1]), '--move'])
+        }
         await electronApp.evaluate(({ BrowserWindow }, id) => {
           const human = BrowserWindow.fromId(id)!
           const state = globalThis as typeof globalThis & { __qaStaleFocusRequests?: number }
@@ -125,7 +149,7 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
       expect(result.isError, JSON.stringify(result.content.filter(part => part.type === 'text'))).not.toBe(true)
       if (eventKind === 'popup') await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
         webContents.getAllWebContents().some(contents => contents.getURL() === url), `${origin}/popup`)).toBe(true)
-      expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaFocusRequests?: number }).__qaFocusRequests)).toBe(0)
+      expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaFocusRequests?: string[] }).__qaFocusRequests)).toEqual([])
       if (eventKind === 'show') expect(await electronApp.evaluate(() =>
         (globalThis as typeof globalThis & { __qaRaiseRequests?: number }).__qaRaiseRequests)).toBe(0)
       if (eventKind === 'capture') {

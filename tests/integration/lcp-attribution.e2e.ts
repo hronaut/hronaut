@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserPerformanceReport } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 const png = readFileSync('build/icons/512x512.png')
 
@@ -46,7 +46,7 @@ test('reports bounded LCP phases and incomplete evidence on real Electron pages'
       await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(state.activeTabId)})`)
       await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().some(page => page.getURL() === url && !page.isLoading()), url)).toBe(true)
 
-      const page = electronApp.context().pages().find(page => page.url() === url)!
+      const page = await pageAt(electronApp, url)
       if (mode === 'missing') await page.evaluate(() => performance.clearResourceTimings())
       const args = { workspaceId: workspace.id, tabId: state.activeTabId, settleMs: 50 }
       let report: BrowserPerformanceReport | undefined

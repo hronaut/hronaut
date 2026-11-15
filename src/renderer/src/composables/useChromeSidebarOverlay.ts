@@ -9,7 +9,7 @@ import type {
 } from '../../../shared/sidebar-overlay.js'
 import type { BrowserTabState } from '../../../shared/types.js'
 import { sidebarOverlayModel, type SidebarOverlayModelInputs } from './sidebar-overlay-model.js'
-import { useAgentPresence } from './useAgentPresence.js'
+import { useAgentPresence } from '../features/agents/useAgentPresence.js'
 import { useSidebarOverlay } from './useSidebarOverlay.js'
 
 /** What a click in the shell's own rail does, which a click in the rail opened over the page asks for. */
@@ -29,7 +29,6 @@ export interface SidebarOverlayCommands {
   toggleWorkspaceSwitcher: () => unknown
   stayHere: () => void
   toggleRailPinned: () => void
-  startTabDrag: () => void
   scrollTabList: (top: number) => void
   /** Folds the rail. */
   closeRail: () => void
@@ -64,7 +63,6 @@ export function runSidebarOverlayIntent(intent: SidebarOverlayIntent, commands: 
     case 'switch-workspace': run(commands.toggleWorkspaceSwitcher); return
     case 'stay-here': commands.stayHere(); return
     case 'toggle-rail-pinned': commands.toggleRailPinned(); return
-    case 'drag-start': commands.startTabDrag(); return
     case 'scroll': commands.scrollTabList(intent.top); return
     case 'dismiss': commands.closeRail(); return
     case 'tab-context-menu':

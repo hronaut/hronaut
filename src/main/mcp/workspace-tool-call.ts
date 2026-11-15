@@ -20,11 +20,17 @@ import {
   type BrowserActionAuthorityReason
 } from './browser-action-authority.js'
 import type { BrowserState } from '../../shared/types.js'
-import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
+import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError, mcpWorkspaceState,
+  nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation,
+  textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
+import { pageDialogInterrupted, pageDialogInterruptedResult, withWebsiteDialogNote } from './website-dialog-calls.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
+import { beginWorkspaceContinuityAction, postWriteContextFingerprint, readBrowserReconciliation, readPostWritePostcondition, requireWorkspaceContinuityDispatch } from '../browser/workspace-continuity/workspace-continuity.js'
+import { requireTabInMcpGroup, getMcpGroupState, tabBelongsToMcpGroup } from '../browser/workspace-scope/workspace-scope.js'
 
 function publicObserverAllowsTool(name: string, allowed: boolean): boolean {
   return name.startsWith('browser_') && (toolDefinition(name).annotations.readOnlyHint || allowed)
@@ -39,9 +45,12 @@ function scopeBrowserStateResult(result: CallToolResult, state: BrowserState, om
       try {
         const value = JSON.parse(item.text) as Record<string, unknown>
         if (!Array.isArray(value.tabs) || typeof value.profilePath !== 'string') return item
-        // The workspace's own state leaves out another workspace's split view and Follow, so the global copies must
+        // The workspace's own state leaves out another workspace's split views and Follow, so the global copies must
         // not survive underneath it.
-        const { tabs: _tabs, closedTabs: _closedTabs, mcpTabGroups: _groups, savedTabGroups: _savedGroups, splitView: _splitView, agentFollow: _agentFollow, ...valueRest } = value
+        const {
+          tabs: _tabs, closedTabs: _closedTabs, mcpTabGroups: _groups, savedTabGroups: _savedGroups, splitView: _splitView,
+          restingSplitViews: _restingSplitViews, agentFollow: _agentFollow, ...valueRest
+        } = value
         return { ...item, text: JSON.stringify({ ...valueRest, ...mcpWorkspaceState(state, omitUrlDetail) }, null, 2) }
       } catch {
         return item
@@ -247,7 +256,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
         await requireHumanDecision()
         requireAgentWorkspace(workspaceId)
         const requireContinuity = (): void => {
-          if (!continuityInspection) manager.requireWorkspaceContinuityDispatch(workspaceId)
+          if (!continuityInspection) requireWorkspaceContinuityDispatch(manager, workspaceId)
         }
         // Target resolution can change the group's selected tab. Check first.
         requireContinuity()
@@ -256,16 +265,16 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           || (options.tabTarget === 'optional' && requestedTabId === undefined)
           || (options.tabTarget === 'if-any'
             && requestedTabId === undefined
-            && manager.getMcpGroupState(workspaceId).tabs.length === 0)
+            && getMcpGroupState(manager, workspaceId).tabs.length === 0)
         const resolvedTabId = skipsTabTarget
           ? undefined
-          : preservePresentation ? manager.requireTabInMcpGroup(workspaceId, requestedTabId, true) : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+          : preservePresentation ? requireTabInMcpGroup(manager, workspaceId, requestedTabId, true) : requireTabInMcpGroup(manager, workspaceId, requestedTabId)
         const definition = toolDefinition(name)
         const actionTarget = browserActionTarget(actionInput)
         const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
         const actionAuthority = definition.annotations.destructiveHint && resolvedTabId
           ? captureBrowserActionAuthority({
-              state: manager.getMcpGroupState(workspaceId), workspaceId, tabId: resolvedTabId,
+              state: getMcpGroupState(manager, workspaceId), workspaceId, tabId: resolvedTabId,
               operationClass: browserActionOperationClass(name), target: actionTarget, targetId: randomUUID(),
               authorizationFingerprint: capabilityAuthorizationFingerprint,
               payloadFingerprint: actionPayloadFingerprint
@@ -294,15 +303,15 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           expectedText: postWrite.expectedText
         } : undefined
         const postWriteFingerprint = postWriteCondition && resolvedTabId
-          ? manager.postWriteContextFingerprint(workspaceId, resolvedTabId, postWriteCondition) : undefined
+          ? postWriteContextFingerprint(manager, workspaceId, resolvedTabId, postWriteCondition) : undefined
         const requirePostWriteContext = (): void => {
           if (postWriteCondition && resolvedTabId && postWriteFingerprint
-            && manager.postWriteContextFingerprint(workspaceId, resolvedTabId, postWriteCondition) !== postWriteFingerprint) {
+            && postWriteContextFingerprint(manager, workspaceId, resolvedTabId, postWriteCondition) !== postWriteFingerprint) {
             throw new Error('Post-write verification context changed before tool dispatch')
           }
         }
         const currentHumanInteractionGeneration = (): number | undefined => resolvedTabId
-          ? manager.getMcpGroupState(workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.humanInteractionGeneration
+          ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.humanInteractionGeneration
           : undefined
         const humanInteractionGeneration = currentHumanInteractionGeneration()
         const requireCurrentHumanInput = (): void => {
@@ -320,9 +329,20 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           requireCurrentControl()
           requireCurrentHumanInput()
           requireAgentWorkspace(workspaceId)
-          if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) {
+          if (resolvedTabId && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) {
             throw workspaceAuthorizationError()
           }
+        }
+        // What must still hold when a dispatched call settles for its result, and the page content in it, to reach the agent.
+        const requireCurrentAfterDispatch = (): void => {
+          if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
+          requireCurrentControl(true)
+          requireAgentWorkspace(workspaceId)
+          if (!options.closesTargetTab) requireCurrentHumanInput()
+          // Closing a tab intentionally retires its target. Other tools
+          // must still belong to the authorized workspace when they settle.
+          if (resolvedTabId && !options.closesTargetTab
+            && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
         }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
@@ -336,7 +356,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           if (!actionAuthority || !resolvedTabId) return undefined
           let state: BrowserState
           try {
-            state = manager.getMcpGroupState(workspaceId)
+            state = getMcpGroupState(manager, workspaceId)
           } catch {
             authorityReason = 'WORKSPACE_CHANGED'
           }
@@ -393,7 +413,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             const current = workspaceLeases.status(workspaceId, client.id)
             if (current.status !== 'owned' || current.generation !== writeLease.generation) throw new Error('Workspace ownership changed')
           }
-          if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+          if (resolvedTabId && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
           requireActiveCapabilityDispatch(name, actionInput, { workspaceId, tabId: resolvedTabId, origins: [origin] })
           lifecycleOrigin = origin
         }
@@ -435,9 +455,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               ...(reconciliation.expectedCurrentText !== undefined
                 ? { expectedCurrentText: reconciliation.expectedCurrentText } : {})
             }
-            const evidence = await manager.readBrowserReconciliation(
-              workspaceId, resolvedTabId, condition, requireCurrentTarget, extra?.signal
-            )
+            const evidence = await readBrowserReconciliation(manager, workspaceId, resolvedTabId, condition, requireCurrentTarget, extra?.signal)
             requireCurrentTarget()
             requirePostWriteContext()
             preWriteReconciliation = publicBrowserReconciliation(reconciliation, evidence)
@@ -476,7 +494,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             }, TAB_ACTIVITY_LIMIT_MS)
             activityLimit.unref?.()
           }
-          const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
+          const finishContinuityAction = beginWorkspaceContinuityAction(manager, workspaceId, readOnly)
           try {
             if (!preservePresentation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
@@ -515,14 +533,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               await requireHumanDecision(false, reviewAttempt?.id)
               settlement?.recheckAfterDispatch?.()
               validateLifecycleResult()
-              if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-              requireCurrentControl(true)
-              requireAgentWorkspace(workspaceId)
-              if (!options.closesTargetTab) requireCurrentHumanInput()
-              // Closing a tab intentionally retires its target. Other tools
-              // must still belong to the authorized workspace when they settle.
-              if (resolvedTabId && !options.closesTargetTab
-                && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+              requireCurrentAfterDispatch()
             } catch (error) {
               rememberInputPolicy(error)
               invalidatedOutcome = readOnly ? 'stale-observation' : 'outcome-unknown'
@@ -534,10 +545,31 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               await finishReviewedAttempt('unknown')
               return { ...textResult(outcome), structuredContent: outcome, isError: true }
             }
-            const scoped = scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId), urlDetailOmitted(manager))
+            const workspaceState = getMcpGroupState(manager, workspaceId)
+            const scoped = scopeBrowserStateResult(result, workspaceState, urlDetailOmitted(manager))
             if (scoped.isError) await finishReviewedAttempt('unknown')
-            return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
+            return withWebsiteDialogNote(
+              preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped,
+              resolvedTabId ? workspaceState.tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined
+            )
           } catch (error) {
+            // A page's dialog that holds the page stopped a call that had reached it, as a click that opens a confirm. A
+            // change then has unknown effects.
+            if (pageDialogInterrupted(error)) {
+              const observation = readOnly || mcpCapabilityOperationClass(name, actionInput) === 'read'
+              if (!observation) invalidatedOutcome = 'outcome-unknown'
+              const reviewFinalizationFailed = await finishReviewedAttempt('unknown').then(() => false, () => true)
+              const stopped = observation ? errorResult(error) : pageDialogInterruptedResult(error, reviewFinalizationFailed)
+              // The dialog's message is page content, for an agent that still holds the workspace and its tab.
+              try {
+                requireCurrentAfterDispatch()
+                return withWebsiteDialogNote(stopped,
+                  resolvedTabId ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined)
+              } catch (settleError) {
+                rememberInputPolicy(settleError)
+                return stopped
+              }
+            }
             if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
             const uncertainResult = error instanceof NativeClickAdmissionError
               ? (failed = false) => nativeClickFailureResult(error.progress, error.reason, failed, settlement?.inputPolicy?.())
@@ -599,7 +631,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           if (!activityBegun || !resolvedTabId || !options.waitsOnTab) {
             return undefined
           }
-          return closedTabWaitResult(error, !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId))
+          return closedTabWaitResult(error, !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId))
         }
         if (!auditReceipts || !name.startsWith('browser_')) {
           try {
@@ -621,7 +653,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
         }
         let initialOrigin: string | undefined = actionAuthority?.topLevelOrigin
         const observeAuditState = () => {
-          const state = manager.getMcpGroupState(workspaceId)
+          const state = getMcpGroupState(manager, workspaceId)
           const tab = state.tabs.find(tab => tab.id === (resolvedTabId ?? state.activeTabId))
           if (!tab) return null
           const url = new URL(tab.url)
@@ -665,7 +697,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
                 }))
               }
             }
-            const availability = manager.auditEvidenceAvailability(state.tabId)
+            const availability = auditEvidenceAvailability(manager, state.tabId)
             const missingReason = invalidatedOutcome === 'outcome-unknown' ? 'outcome-unknown' as const : undefined
             const artifact = (source: 'diagnostic' | 'network' | 'dom-changes' | 'storage-changes' | 'reproduction',
               available: boolean, reason: 'recorder-inactive' | 'baseline-missing' | 'unsupported-scheme') => available ? {
@@ -704,9 +736,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
                   read: async readSignal => {
                     await requireHumanDecision(false, reviewAttempt?.id)
                     requireCurrentTarget()
-                    return manager.readPostWritePostcondition(
-                      workspaceId, resolvedTabId, postWriteCondition, requireCurrentTarget, readSignal
-                    )
+                    return readPostWritePostcondition(manager, workspaceId, resolvedTabId, postWriteCondition, requireCurrentTarget, readSignal)
                   },
                   onEvent: async event => {
                     await append({ attempt: event.attempt, status: event.state, reason: event.reason })

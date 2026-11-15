@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref } from 'vue'
 import { disposeAll } from './dispose-all.js'
 import {
   useAppPageToolsFeatureController,
@@ -13,7 +13,7 @@ import type {
   ConsolePanelShellHandle,
   NetworkPanelShellHandle
 } from './useDeveloperPanelsShellController.js'
-import type { SiteStorageShellPanel } from './useSiteStorageShellController.js'
+import type { SiteStorageShellPanel } from '../features/site-storage/useSiteStorageShellController.js'
 
 type PanelRegistryOptions = Omit<AppPanelFeatureControllerOptions['registry'], 'pageToolsOpen'>
 type PanelDeveloperOptions = Pick<AppPanelFeatureControllerOptions['developer'], 'keepsSeparatePanelOpen'>
@@ -29,7 +29,7 @@ export interface AppPageToolsPanelFeatureControllerOptions {
     dock: AppPanelFeatureControllerOptions['dock']
     onError: AppPanelFeatureControllerOptions['onError']
   }
-  responsivePanel: Ref<ResponsivePanelSurface | null>
+  setResponsivePanel: (panel: ResponsivePanelSurface | null) => void
   setSiteStoragePanel: (panel: SiteStorageShellPanel | null) => void
 }
 
@@ -68,8 +68,17 @@ export function useAppPageToolsPanelFeatureController(
     throw error
   }
 
+  function togglePageTools(): void {
+    if (pageToolsOpen.value) {
+      pageToolsOpen.value = false
+      return
+    }
+    panelController.transientPanelsController.close()
+    pageToolsOpen.value = true
+  }
+
   const layerHandles = {
-    setResponsivePanel: (panel: ResponsivePanelSurface | null) => (options.responsivePanel.value = panel),
+    setResponsivePanel: options.setResponsivePanel,
     setConsolePanel: (panel: ConsolePanelShellHandle | null) => (consolePanel.value = panel),
     setNetworkPanel: (panel: NetworkPanelShellHandle | null) => (networkPanel.value = panel),
     setSiteStoragePanel: options.setSiteStoragePanel
@@ -88,6 +97,7 @@ export function useAppPageToolsPanelFeatureController(
     pageToolsOpen,
     consolePanelOpen,
     networkMonitorOpen,
+    togglePageTools,
     layerHandles,
     dispose
   }

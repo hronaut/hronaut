@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 // The page's context menu had no Search for the selected text, as Chrome's has.
 
@@ -33,17 +33,22 @@ function openMenu(params: Partial<ContextMenuParams>, options: { engine?: Search
   const createTab = options.createTab ?? vi.fn(async () => tab)
   const onActionFailed = vi.fn()
   const searchEngine = vi.fn(() => options.engine ?? 'google')
-  const access = {
-    findTab: () => built.closed ? undefined : tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed }),
+  const browser = {
+    get tabs() { return new Map(built.closed ? [] : [[tab.id, tab]]) },
+    window: {},
+    options: {
+      copyText: async () => undefined, copyImageAt: async () => undefined, onActionFailed,
+      getSearchEngine: searchEngine,
+      spellCheck: { isEnabled: () => true, setEnabled: async () => undefined, addWord: () => undefined },
+      offersSpellCheckLanguages: () => true,
+      openSpellCheckSettings: () => undefined
+    },
     text: (key: string, values?: Record<string, string>) => values ? `${key} ${JSON.stringify(values)}` : key,
     isHumanInteractionLocked: () => false,
     createTab,
-    searchEngine,
-    browserContentOccluded: options.occluded ?? (() => false)
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    get browserContentOccluded() { return (options.occluded ?? (() => false))() }
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams)
@@ -96,10 +101,15 @@ describe('the selection search query', () => {
 })
 
 describe('the address a selection goes to', () => {
-  it('is a web address written with its scheme or starting with www., as the address bar opens it', () => {
+  it('is a web address, as the address bar opens it, also one written without its scheme, as in Chrome', () => {
     expect(selectionGoToUrl('https://docs.example/guide?step=2#setup')).toBe('https://docs.example/guide?step=2#setup')
     expect(selectionGoToUrl('HTTP://127.0.0.1:3000/dashboard')).toBe('HTTP://127.0.0.1:3000/dashboard')
     expect(selectionGoToUrl('www.example.com/pricing')).toBe('https://www.example.com/pricing')
+    // Only an address with its scheme, or starting with www., offered Go to.
+    expect(selectionGoToUrl('example.com')).toBe('https://example.com')
+    expect(selectionGoToUrl(' github.com/hronaut/hronaut\n')).toBe('https://github.com/hronaut/hronaut')
+    expect(selectionGoToUrl('devbox:3000')).toBe('http://devbox:3000')
+    expect(selectionGoToUrl('nas.lan/')).toBe('http://nas.lan/')
   })
 
   it('is the whole selected address, however long, never the part a search reads', () => {
@@ -109,8 +119,8 @@ describe('the address a selection goes to', () => {
     expect(selectionGoToUrl(`https://bucket.example/${'a'.repeat(2 * 1024 * 1024)}`)).toBeUndefined()
   })
 
-  it('is none for a word with a dot, other text, or an address of another kind', () => {
-    for (const query of ['Node.js', 'example.com', 'https://docs.example and more', 'javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,hi', 'https://', 'www.']) {
+  it('is none for a word with a dot under no top-level domain, other text, or an address of another kind', () => {
+    for (const query of ['Node.js', 'index.html', 'www.node.js', '3.14', 'person@example.com', 'https://docs.example and more', 'javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,hi', 'https://', 'www.']) {
       expect(selectionGoToUrl(query), query).toBeUndefined()
     }
   })
@@ -119,7 +129,7 @@ describe('the address a selection goes to', () => {
 describe('Search for the selection in the page context menu', () => {
   it('goes to a selected address instead, in front beside the page, without asking for the search engine', () => {
     const { tab, createTab, searchEngine, ids, items } = openMenu({ selectionText: ' https://docs.example/guide\n' })
-    expect(ids.slice(0, 3)).toEqual(['copy-selection', 'go-to-selection', 'separator'])
+    expect(ids.slice(0, 4)).toEqual(['copy-selection', 'copy-link-to-highlight', 'go-to-selection', 'separator'])
     expect(ids).not.toContain('search-selection')
     const item = items.find((entry) => entry.id === 'go-to-selection')!
     expect(item.label).toBe('native.context.goTo {"text":"https://docs.example/guide"}')
@@ -167,8 +177,8 @@ describe('Search for the selection in the page context menu', () => {
 
   it('follows Copy for selected text, named for the address bar\'s search engine', () => {
     const { ids, items } = openMenu({ selectionText: 'Hronaut   browser' }, { engine: 'duckduckgo' })
-    expect(ids.slice(0, 3)).toEqual(['copy-selection', 'search-selection', 'separator'])
-    expect(items[1]?.label).toBe('native.context.searchFor {"engine":"DuckDuckGo","text":"Hronaut browser"}')
+    expect(ids.slice(0, 4)).toEqual(['copy-selection', 'copy-link-to-highlight', 'search-selection', 'separator'])
+    expect(items[2]?.label).toBe('native.context.searchFor {"engine":"DuckDuckGo","text":"Hronaut browser"}')
   })
 
   it('opens the results in front, beside the page and in its workspace', () => {

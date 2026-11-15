@@ -9,11 +9,17 @@ services:
     network_mode: bridge
     init: true
     ipc: host
+    # Teardown can end a stuck Electron main process with SIGABRT for its stack; it must leave no core dump behind.
+    # 1, not 0: where the host pipes core dumps to a program (systemd-coredump or apport on Ubuntu hosts), the kernel
+    # ignores this limit unless it is 1, and the process lives on while that program reads its memory.
+    ulimits:
+      core: 1
     environment:
       CI: "true"
       HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-4}"
       HRONAUT_INTEGRATION_SHARD: "${HRONAUT_INTEGRATION_SHARD:-}"
       HRONAUT_INTEGRATION_SHARD_WORKERS: "${HRONAUT_INTEGRATION_SHARD_WORKERS:-1}"
       HRONAUT_INTEGRATION_RUN_DIALOGS: "${HRONAUT_INTEGRATION_RUN_DIALOGS:-true}"
+      HRONAUT_INTEGRATION_RUN_PERFORMANCE: "${HRONAUT_INTEGRATION_RUN_PERFORMANCE:-true}"
       HRONAUT_INTEGRATION_SKIP_TYPECHECK: "${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}"
       HRONAUT_BROWSER_EVALUATION_OUTPUT: "${HRONAUT_BROWSER_EVALUATION_OUTPUT:-}"

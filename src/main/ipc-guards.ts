@@ -1,13 +1,17 @@
-import { app, type IpcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { app, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import type { IpcHandler, TypedIpcMain } from './typed-ipc.js'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
+import type { Browser } from './browser/browser.js'
 import type { WorkspaceStartupReads } from './workspace-startup-reads.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { LocalizedError } from './localized-error.js'
 import { isLoopbackHost } from '../shared/mcp-network.js'
+import { EMULATION_FRAME_IPC, PAGE_CARD_IPC, SPLIT_DIVIDER_IPC } from '../shared/ipc/page-geometry.js'
+import { TABS_IPC } from '../shared/ipc/tabs.js'
+import type { InvokeChannel } from '../shared/ipc/channel.js'
 
 /** The trusted shell document: the development server on a loopback host, or the packaged renderer file. */
 export function trustedShellUrl(): string {
@@ -28,15 +32,15 @@ export function trustedUrlMatches(actual: string | undefined, expected: string):
 
 interface IpcGuardsHost {
   /** Registers invoke handlers; the browser IPC helper wraps each one in the readiness check. */
-  ipcMain: Pick<IpcMain, 'handle'>
+  ipcMain: Pick<TypedIpcMain, 'handle'>
   /** Why saved workspaces could not start, if they could not; every check then rejects with it. */
   workspaceStartupFailure(): Error | undefined
   /** The saved workspaces' initialization while it runs; reads wait for it and changes are refused meanwhile. */
   tabsInitializationPromise(): Promise<void> | null
   /** The tab runtime; null until the window opens and after shutdown. */
-  tabs(): BrowserTabsManager | null
+  tabs(): Browser | null
   /** The tab runtime whose saved workspaces finished initializing; a replaced runtime no longer matches it. */
-  initializedTabs(): BrowserTabsManager | null
+  initializedTabs(): Browser | null
   /** The main window, whose shell document the main and trusted checks admit; read on every check. */
   mainWindowRefs: Pick<MainWindowRefs, 'window'>
   /** The detached panel window and the document it loaded, which the panel and trusted checks admit. */
@@ -53,6 +57,7 @@ interface IpcGuardsHost {
 export function createIpcGuards(host: IpcGuardsHost): {
   assertTrustedShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   isShellWindowSender(event: IpcMainInvokeEvent | IpcMainEvent): boolean
+  isMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): boolean
   assertMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   assertPanelShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
   isHronautPageSender(event: IpcMainInvokeEvent): boolean
@@ -60,7 +65,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
   assertInitializedMainShellSender(event: IpcMainInvokeEvent): void
   assertInitializedTrustedShellSender(event: IpcMainInvokeEvent): void
   runWorkspaceRead<T>(event: IpcMainInvokeEvent, assertSender: (event: IpcMainInvokeEvent) => void, read: () => T): Promise<T>
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
 } {
   /**
    * Whether a message came from the shell of the main window or of the detached panel, whether or not saved workspaces
@@ -81,12 +86,15 @@ export function createIpcGuards(host: IpcGuardsHost): {
     if (!isShellWindowSender(event)) throw new Error('Rejected IPC from an untrusted renderer')
   }
 
+  /** Whether a message came from the main window's shell document, whether or not saved workspaces started. */
+  function isMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): boolean {
+    const actual = event.senderFrame?.url
+    return Boolean(host.mainWindowRefs.window && event.sender === host.mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
+  }
+
   function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
     if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
-    const actual = event.senderFrame?.url
-    if (!host.mainWindowRefs.window || event.sender !== host.mainWindowRefs.window.webContents || !trustedUrlMatches(actual, trustedShellUrl())) {
-      throw new Error('Rejected IPC from a non-primary renderer')
-    }
+    if (!isMainShellSender(event)) throw new Error('Rejected IPC from a non-primary renderer')
   }
 
   function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
@@ -132,10 +140,18 @@ export function createIpcGuards(host: IpcGuardsHost): {
     }, read)
   }
 
-  function handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void {
+  /**
+   * The reads handleBrowserIpc admits while saved workspaces are restored, each waiting for the restore in
+   * runWorkspaceRead; it refuses every other channel until then.
+   */
+  const admittedDuringRestore: readonly string[] = [
+    TABS_IPC.getState, SPLIT_DIVIDER_IPC.get, EMULATION_FRAME_IPC.get, PAGE_CARD_IPC.get
+  ]
+
+  function handleBrowserIpc<Args extends unknown[], Result>(channel: InvokeChannel<Args, Result>, listener: NoInfer<IpcHandler<Result>>): void {
     host.ipcMain.handle(channel, (event, ...args) => {
       if (host.workspaceStartupFailure()) throw host.workspaceStartupFailure()
-      if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', 'split-divider:get', 'emulation-frame:get', 'page-card:get'].includes(channel)) assertWorkspaceInitialized()
+      if (!admittedDuringRestore.includes(channel)) assertWorkspaceInitialized()
       return listener(event, ...args)
     })
   }
@@ -143,6 +159,7 @@ export function createIpcGuards(host: IpcGuardsHost): {
   return {
     assertTrustedShellSender,
     isShellWindowSender,
+    isMainShellSender,
     assertMainShellSender,
     assertPanelShellSender,
     isHronautPageSender,

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { WebContents } from 'electron'
 import type {
   BrowserNetworkConditionState,
   BrowserNetworkRouteInput,
@@ -10,10 +11,69 @@ import { networkRouteRefusal, normalizeNetworkRouteInput } from '../network-rout
 import { isHronautHomeUrl } from '../url.js'
 import { LocalizedError } from '../../localized-error.js'
 import { endHeldResponses, heldResponseCount, holdNetworkResponse, MAX_HELD_RESPONSES } from './held-responses.js'
-import type { BrowserNetworkRouteRecord, NetworkConditionsAccess, NetworkConditionsTab } from './network-conditions-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { applyNetworkEmulation } from '../emulation/network-emulation.js'
+import { publishChange } from '../browser-state/browser-state.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+
+/** A retained request-condition rule, with the response it fulfills requests with. */
+export interface BrowserNetworkRouteRecord extends BrowserNetworkRouteSummary {
+  responseHeaders?: Record<string, string>
+  responseBody?: string
+}
 
 /** How many request-condition rules one tab can retain. */
 const MAX_NETWORK_ROUTES = 50
+
+/**
+ * How many changes to each tab's rules are applying natively. A rule used up
+ * by a request and the refresh that follows also leave the application
+ * pending, but only a change can leave it unknown.
+ */
+const changesApplying = new WeakMap<BrowserTab, number>()
+
+interface InterceptionCommand { method: string, params?: Record<string, unknown> }
+
+/**
+ * The interception in effect after each tab's last confirmed application, in
+ * the condition epoch it belongs to. It can be wider than the rules need after
+ * a refresh (see interceptionCovers). A refresh that it covers applies nothing;
+ * one that it does not, such as one that ends interception, still applies.
+ */
+const appliedInterception = new WeakMap<BrowserTab, { epoch: number, command: InterceptionCommand }>()
+
+/** The Fetch command that intercepts the tab's rules: their patterns, no patterns while a request is held, or none. */
+function interceptionCommand(browser: Browser, contents: WebContents, routes: readonly BrowserNetworkRouteRecord[]): InterceptionCommand {
+  const interception = routes.filter(route => route.enabled && route.behavior !== 'throttle')
+  if (interception.length) return { method: 'Fetch.enable', params: { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) } }
+  // Disabling interception fails held requests; empty patterns keep them and pause nothing new.
+  if (heldResponseCount(browser, contents)) return { method: 'Fetch.enable', params: { patterns: [] } }
+  return { method: 'Fetch.disable' }
+}
+
+/**
+ * Whether interception in effect already pauses every address the rules need,
+ * so a refresh can leave it as it is. Sending Fetch.enable again can make
+ * Chromium fail a request the page starts at that moment, and a refresh comes
+ * just after the page's own requests. A wider pattern a used-up rule left only
+ * pauses its requests until they continue unchanged, and it goes with the next
+ * change to the rules or once nothing is left to intercept.
+ */
+function interceptionCovers(applied: InterceptionCommand, needed: InterceptionCommand): boolean {
+  if (applied.method !== 'Fetch.enable' || needed.method !== 'Fetch.enable') return false
+  const patterns = (command: InterceptionCommand) => (command.params?.patterns as Array<{ urlPattern: string }>).map(pattern => pattern.urlPattern)
+  const kept = patterns(applied)
+  return patterns(needed).every(pattern => kept.includes(pattern))
+}
+
+/** Whether interception a refresh left in effect is no longer needed at all, as after the last hold ended. */
+function interceptionLeftOver(browser: Browser, tab: BrowserTab): boolean {
+  const applied = appliedInterception.get(tab)
+  return applied?.epoch === tab.networkConditionEpoch && applied.command.method === 'Fetch.enable'
+    && interceptionCommand(browser, tab.webContents, tab.networkRoutes).method === 'Fetch.disable'
+}
 
 /** A rule removed meanwhile, for example by an agent. The Network panel shows its key; its English message names the rule's ID. */
 function conditionGone(routeId: string): LocalizedError {
@@ -21,8 +81,8 @@ function conditionGone(routeId: string): LocalizedError {
 }
 
 /** Whether the tab's request-condition rules are confirmed applied natively, with their public summaries. */
-export function networkConditionState<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId?: string): BrowserNetworkConditionState {
-  const tab = access.getTab(tabId)
+export function networkConditionState(browser: Browser, tabId?: string): BrowserNetworkConditionState {
+  const tab = getTab(browser, tabId)
   return { application: tab.networkConditionApplication, retainedRules: tab.networkRoutes.map(route => networkRouteSummary(route)) }
 }
 
@@ -31,8 +91,8 @@ export function networkConditionState<Tab extends NetworkConditionsTab>(access: 
  * application is confirmed, so a caller never reports rules that may not be in
  * effect.
  */
-export function networkRoutes<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId?: string): BrowserNetworkRouteSummary[] {
-  const state = networkConditionState(access, tabId)
+export function networkRoutes(browser: Browser, tabId?: string): BrowserNetworkRouteSummary[] {
+  const state = networkConditionState(browser, tabId)
   if (state.application !== 'confirmed') throw new Error('Native request-condition application is not confirmed. Explicitly clear conditions to recover; do not replay the failed operation.')
   return state.retainedRules
 }
@@ -42,34 +102,34 @@ export function networkRoutes<Tab extends NetworkConditionsTab>(access: NetworkC
  * native application and their epoch still match what the caller is about to
  * publish.
  */
-export function networkConditionPublication<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, expected: BrowserNetworkRouteSummary[]): () => void {
-  const tab = access.getTab(tabId)
+export function networkConditionPublication(browser: Browser, tabId: string | undefined, expected: BrowserNetworkRouteSummary[]): () => void {
+  const tab = getTab(browser, tabId)
   const routes = tab.networkRoutes
   const epoch = tab.networkConditionEpoch
   const serialized = JSON.stringify(expected)
   const assert = (): void => {
-    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed() || tab.networkRoutes !== routes || tab.networkConditionEpoch !== epoch || tab.networkConditionApplication !== 'confirmed' || JSON.stringify(networkConditionState(access, tab.id).retainedRules) !== serialized) throw new Error('Request-condition observation changed before publication')
+    if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed() || tab.networkRoutes !== routes || tab.networkConditionEpoch !== epoch || tab.networkConditionApplication !== 'confirmed' || JSON.stringify(networkConditionState(browser, tab.id).retainedRules) !== serialized) throw new Error('Request-condition observation changed before publication')
   }
   assert()
   return assert
 }
 
 /** Marks the tab's native rule application unknown, superseding any application under way. */
-export function markNetworkConditionsUnknown(tab: NetworkConditionsTab): void {
+export function markNetworkConditionsUnknown(tab: BrowserTab): void {
   tab.networkConditionEpoch++
   tab.networkConditionApplication = 'unknown'
 }
 
 /** Refuses to change rules while their native application is unknown; only clearing recovers. */
-export function requireNetworkConditionsKnown(tab: NetworkConditionsTab): void {
+export function requireNetworkConditionsKnown(tab: BrowserTab): void {
   if (tab.networkConditionApplication === 'unknown') throw new Error('Native request-condition application is unknown. Explicitly clear conditions to recover.')
 }
 
 /** Adds a rule to a website tab, up to the rule limit, and applies the rules natively. */
-export async function addNetworkRoute<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-  const tab = access.getTab(tabId)
+export async function addNetworkRoute(browser: Browser, tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+  const tab = getTab(browser, tabId)
   const normalized = normalizeNetworkRouteInput(input)
-  await applyNetworkRoutes(access, tab, validate, false, () => {
+  await applyNetworkRoutes(browser, tab, validate, false, () => {
     if (isHronautHomeUrl(tab.url)) {
       throw networkRouteRefusal(new LocalizedError('appErrors.networkConditions.websiteTab', undefined, { message: 'Open a website tab before adding a network route' }))
     }
@@ -78,53 +138,57 @@ export async function addNetworkRoute<Tab extends NetworkConditionsTab>(access: 
         message: `Network route limit reached (${MAX_NETWORK_ROUTES})`
       }))
     }
-    if (normalized.hold && heldResponseCount(access, tab.webContents) + tab.networkRoutes.filter(route => route.hold).length >= MAX_HELD_RESPONSES) {
+    if (normalized.hold && heldResponseCount(browser, tab.webContents) + tab.networkRoutes.filter(route => route.hold).length >= MAX_HELD_RESPONSES) {
       throw networkRouteRefusal(new Error(`A tab can hold at most ${MAX_HELD_RESPONSES} requests, counting hold rules not matched yet. Release or cancel one first.`))
     }
     tab.networkRoutes = [...tab.networkRoutes, { ...normalized, id: randomUUID(), createdAt: new Date().toISOString() }]
   }, markSubmitted)
-  return networkRoutes(access, tab.id)
+  return networkRoutes(browser, tab.id)
 }
 
 /**
- * Enables or disables one rule. The tab, its debugger epoch, a confirmed
+ * Enables or disables one rule. The tab, its debugger epoch, a known
  * application and the rule are checked before and again at native admission.
+ * It is refused at once while another change is applying, which may still
+ * leave the rules unknown, and waits behind a refresh after a used-up rule,
+ * which its own application settles too.
  */
-export async function setNetworkRouteEnabled<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+export async function setNetworkRouteEnabled(browser: Browser, tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
   if (typeof enabled !== 'boolean' || !routeId) throw new TypeError('routeId and boolean enabled are required')
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
   const contents = tab.webContents
   const debuggerEpoch = tab.networkDebuggerEpoch
   const admission = (): void => {
     validate()
-    if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before toggle')
-    if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
+    if (browser.destroyed || contents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before toggle')
+    if (tab.networkConditionApplication === 'unknown') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
     if (!tab.networkRoutes.some(route => route.id === routeId)) throw conditionGone(routeId)
   }
   admission()
-  await applyNetworkRoutes(access, tab, validate, false, () => {
+  if (changesApplying.has(tab)) throw new Error('Another request-condition change is still applying. Wait for it to settle before enabling or disabling a rule.')
+  await applyNetworkRoutes(browser, tab, validate, false, () => {
     // Read the current record only at admission: a paused request may already
     // have reserved its budget. Never restore a caller's earlier snapshot.
     tab.networkRoutes = tab.networkRoutes.map(route => route.id === routeId ? { ...route, enabled } : route)
   }, markSubmitted, admission)
-  return networkRoutes(access, tab.id)
+  return networkRoutes(browser, tab.id)
 }
 
 /** Removes one rule and applies the remaining rules natively. */
-export async function removeNetworkRoute<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-  const tab = access.getTab(tabId)
-  await applyNetworkRoutes(access, tab, validate, false, () => {
+export async function removeNetworkRoute(browser: Browser, tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+  const tab = getTab(browser, tabId)
+  await applyNetworkRoutes(browser, tab, validate, false, () => {
     const remaining = tab.networkRoutes.filter(route => route.id !== routeId)
     if (remaining.length === tab.networkRoutes.length) throw conditionGone(routeId)
     tab.networkRoutes = remaining
   }, markSubmitted)
-  return networkRoutes(access, tab.id)
+  return networkRoutes(browser, tab.id)
 }
 
 /** Moves one rule up or down in match order and applies the rules natively. */
-export async function moveNetworkRoute<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-  const tab = access.getTab(tabId)
-  await applyNetworkRoutes(access, tab, validate, false, () => {
+export async function moveNetworkRoute(browser: Browser, tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+  const tab = getTab(browser, tabId)
+  await applyNetworkRoutes(browser, tab, validate, false, () => {
     const index = tab.networkRoutes.findIndex(route => route.id === routeId)
     if (index < 0) throw conditionGone(routeId)
     const target = direction === 'up' ? index - 1 : index + 1
@@ -134,18 +198,18 @@ export async function moveNetworkRoute<Tab extends NetworkConditionsTab>(access:
     reordered.splice(target, 0, route!)
     tab.networkRoutes = reordered
   }, markSubmitted)
-  return networkRoutes(access, tab.id)
+  return networkRoutes(browser, tab.id)
 }
 
 /** Removes every rule and fails every held request. As the recovery path, it applies even while the native application is unknown. */
-export async function clearNetworkRoutes<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-  const tab = access.getTab(tabId)
-  await applyNetworkRoutes(access, tab, validate, true, () => {
+export async function clearNetworkRoutes(browser: Browser, tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+  const tab = getTab(browser, tabId)
+  await applyNetworkRoutes(browser, tab, validate, true, () => {
     tab.networkRoutes = []
-    if (heldResponseCount(access, tab.webContents)) markSubmitted()
-    endHeldResponses(access, tab.webContents, 'cleared', true)
+    if (heldResponseCount(browser, tab.webContents)) markSubmitted()
+    endHeldResponses(browser, tab.webContents, 'cleared', true)
   }, markSubmitted)
-  return networkRoutes(access, tab.id)
+  return networkRoutes(browser, tab.id)
 }
 
 /** A rule's public summary, without the response headers and body it fulfills requests with. */
@@ -172,20 +236,30 @@ function networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRo
  * refuses while the application is unknown unless recovering, and when the
  * tab, its page or its debugger epoch changed. A failure before anything was
  * sent restores the earlier rules; after that the application becomes
- * unknown. It cancels a scheduled refresh.
+ * unknown. Once admitted, it replaces a scheduled refresh, which it schedules
+ * again if it fails before sending anything. A refresh, which changes nothing,
+ * keeps interception in effect that covers the rules, and applies nothing once
+ * another application confirmed the rules with interception that covers them.
  */
-export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
+export async function applyNetworkRoutes(browser: Browser, tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
   const contents = tab.webContents
-  const scheduled = access.networkRouteRefreshTimers().get(contents.id)
-  if (scheduled) clearTimeout(scheduled)
-  access.networkRouteRefreshTimers().delete(contents.id)
   const debuggerEpoch = tab.networkDebuggerEpoch
-  await access.withDebugger(contents, async () => {
+  await withDebugger(browser, contents, async () => {
     validate()
     if (!recovery) requireNetworkConditionsKnown(tab)
-    if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
+    if (browser.destroyed || contents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
+    // A change that waited in this queue may have confirmed the rules since the refresh was scheduled.
+    const applied = appliedInterception.get(tab)
+    if (!mutate && !recovery && tab.networkConditionApplication === 'confirmed' && applied?.epoch === tab.networkConditionEpoch) {
+      const needed = interceptionCommand(browser, contents, tab.networkRoutes)
+      if (JSON.stringify(applied.command) === JSON.stringify(needed) || interceptionCovers(applied.command, needed)) return
+    }
     const previousRoutes = tab.networkRoutes
     mutate?.()
+    // This application settles the rules a scheduled refresh would have applied.
+    const scheduled = browser.networkRouteRefreshTimers.get(contents.id)
+    if (scheduled) clearTimeout(scheduled)
+    browser.networkRouteRefreshTimers.delete(contents.id)
     let epoch = tab.networkConditionEpoch
     const routes = tab.networkRoutes
     // One immutable projection for Fetch and throttling, never reread between phases.
@@ -195,7 +269,7 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
     const previous = tab.networkConditionApplication
     const current = (): void => {
       validate()
-      if (access.isDestroyed() || contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition application was superseded')
+      if (browser.destroyed || contents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition application was superseded')
     }
     const send = async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
       current()
@@ -205,29 +279,36 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
       return contents.debugger.sendCommand(method, params)
     }
     tab.networkConditionApplication = 'pending'
+    if (mutate) changesApplying.set(tab, (changesApplying.get(tab) ?? 0) + 1)
     try {
-      access.changed(false)
-      const interception = projection.filter(route => route.enabled && route.behavior !== 'throttle')
-      if (interception.length) await send('Fetch.enable', { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) })
-      // Disabling interception fails held requests; empty patterns keep them and pause nothing new.
-      else if (heldResponseCount(access, contents)) await send('Fetch.enable', { patterns: [] })
-      else await send('Fetch.disable')
-      await access.applyNetworkEmulation(contents, network, projection, send)
+      publishChange(browser, false)
+      const interception = interceptionCommand(browser, contents, projection)
+      // A refresh never sends Fetch.enable again while the interception in effect covers the rules.
+      const kept =!mutate && !recovery && applied?.epoch === epoch && interceptionCovers(applied.command, interception) ? applied.command : undefined
+      if (!kept) await send(interception.method, interception.params)
+      await applyNetworkEmulation(contents, network, projection, send)
       // Native acknowledgement is independent of subsequent UI/MCP publication.
-      if (contents.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition acknowledgement belongs to a retired configuration')
+      if (contents.isDestroyed() || findTab(browser, tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition acknowledgement belongs to a retired configuration')
       tab.networkConditionApplication = 'confirmed'
+      appliedInterception.set(tab, { epoch, command: kept ?? interception })
     } catch (error) {
-      if (access.findTab(tab.id) === tab && tab.webContents === contents && tab.networkConditionEpoch === epoch) {
+      if (findTab(browser, tab.id) === tab && tab.webContents === contents && tab.networkConditionEpoch === epoch) {
         if (submitted || tab.networkRoutes !== routes) markNetworkConditionsUnknown(tab)
         else {
           tab.networkRoutes = previousRoutes
           tab.networkConditionApplication = previous
+          // Pending here means a used-up rule still waits for the refresh this application replaced.
+          if (previous === 'pending') scheduleNetworkRouteRefresh(browser, tab)
         }
-        access.changed(false)
+        publishChange(browser, false)
       }
       throw error
+    } finally {
+      const applying = (changesApplying.get(tab) ?? 0) - (mutate ? 1 : 0)
+      if (applying > 0) changesApplying.set(tab, applying)
+      else changesApplying.delete(tab)
     }
-    access.changed(false)
+    publishChange(browser, false)
     validate()
   }, admission)
 }
@@ -237,7 +318,7 @@ export async function applyNetworkRoutes<Tab extends NetworkConditionsTab>(acces
  * from the tab's top frame to the page's own origin, not a redirect. Other
  * requests pass the hold rule by, as a rule for another method would.
  */
-function holdable(tab: NetworkConditionsTab, frameId: string | undefined, resourceType: string | undefined, redirectedRequestId: string | undefined, url: string): boolean {
+function holdable(tab: BrowserTab, frameId: string | undefined, resourceType: string | undefined, redirectedRequestId: string | undefined, url: string): boolean {
   if (!frameId || frameId !== tab.mainFrameId || (resourceType !== 'Fetch' && resourceType !== 'XHR') || redirectedRequestId) return false
   try {
     const page = new URL(tab.url)
@@ -253,7 +334,7 @@ function holdable(tab: NetworkConditionsTab, frameId: string | undefined, resour
  * application superseded the request. A failed disposition makes the
  * application unknown and is never replayed.
  */
-async function handleNetworkRouteRequest<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, params: unknown, requestEpoch: number): Promise<void> {
+async function handleNetworkRouteRequest(browser: Browser, tab: BrowserTab, params: unknown, requestEpoch: number): Promise<void> {
   if (tab.networkConditionEpoch !== requestEpoch) return
   const details = params as {
     requestId?: string
@@ -291,7 +372,7 @@ async function handleNetworkRouteRequest<Tab extends NetworkConditionsTab>(acces
       if (tab.networkConditionApplication === 'confirmed') tab.networkConditionApplication = 'pending'
     }
     if (route.hold) {
-      holdNetworkResponse(access, tab, route, requestId)
+      holdNetworkResponse(browser, tab, route, requestId)
     } else if (route.behavior === 'abort') {
       await tab.webContents.debugger.sendCommand('Fetch.failRequest', {
         requestId,
@@ -306,59 +387,62 @@ async function handleNetworkRouteRequest<Tab extends NetworkConditionsTab>(acces
         body: Buffer.from(route.responseBody ?? '').toString('base64')
       })
     }
-    access.changed(false)
+    publishChange(browser, false)
   } catch (error) {
     console.error('[browser] Could not apply network route:', error)
     // A submitted disposition may already have taken effect. Never replay it
     // as continue after losing its acknowledgement.
-    if (access.findTab(tab.id) === tab && tab.networkConditionEpoch === requestEpoch) {
+    if (findTab(browser, tab.id) === tab && tab.networkConditionEpoch === requestEpoch) {
       markNetworkConditionsUnknown(tab)
-      access.changed(false)
+      publishChange(browser, false)
     }
   }
 }
 
 /** Handles a paused request after the page's earlier ones, and schedules a rule refresh once the page's queue drains. */
-export function queueNetworkRouteRequest<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab, params: unknown): void {
+export function queueNetworkRouteRequest(browser: Browser, tab: BrowserTab, params: unknown): void {
   const webContentsId = tab.webContents.id
   const requestEpoch = tab.networkConditionEpoch
-  const previous = access.networkRouteQueues().get(webContentsId) ?? Promise.resolve()
+  const previous = browser.networkRouteQueues.get(webContentsId) ?? Promise.resolve()
   const queued = previous
     .catch(() => undefined)
-    .then(() => handleNetworkRouteRequest(access, tab, params, requestEpoch))
+    .then(() => handleNetworkRouteRequest(browser, tab, params, requestEpoch))
     .catch((error: unknown) => console.error('[browser] Network route queue failed:', error))
-  access.networkRouteQueues().set(webContentsId, queued)
+  browser.networkRouteQueues.set(webContentsId, queued)
   void queued.finally(() => {
-    if (access.networkRouteQueues().get(webContentsId) !== queued) return
-    access.networkRouteQueues().delete(webContentsId)
-    scheduleNetworkRouteRefresh(access, tab)
+    if (browser.networkRouteQueues.get(webContentsId) !== queued) return
+    browser.networkRouteQueues.delete(webContentsId)
+    scheduleNetworkRouteRefresh(browser, tab)
   })
 }
 
 /**
  * Reapplies the rules 250 milliseconds after the page's paused requests
- * drain, so used-up rules leave the interception patterns once fulfilled
- * responses reached the page. It waits while requests are queued and skips a
- * closed page or an unknown application.
+ * drain, so used-up rules leave the network conditions once fulfilled
+ * responses reached the page, and interception ends once nothing is left to
+ * intercept. It waits while requests are queued and skips a closed page, an
+ * unknown application and rules already confirmed, which no rule was used up
+ * since, unless interception left in effect is no longer needed.
  */
-function scheduleNetworkRouteRefresh<Tab extends NetworkConditionsTab>(access: NetworkConditionsAccess<Tab>, tab: Tab): void {
+function scheduleNetworkRouteRefresh(browser: Browser, tab: BrowserTab): void {
   const webContentsId = tab.webContents.id
-  const previous = access.networkRouteRefreshTimers().get(webContentsId)
+  const previous = browser.networkRouteRefreshTimers.get(webContentsId)
   if (previous) clearTimeout(previous)
   const timer = setTimeout(() => {
-    access.networkRouteRefreshTimers().delete(webContentsId)
-    if (access.isDestroyed() || tab.webContents.isDestroyed() || tab.networkConditionApplication === 'unknown') return
-    if (access.networkRouteQueues().has(webContentsId)) {
-      scheduleNetworkRouteRefresh(access, tab)
+    browser.networkRouteRefreshTimers.delete(webContentsId)
+    if (browser.destroyed || tab.webContents.isDestroyed()) return
+    if (tab.networkConditionApplication !== 'pending' && !(tab.networkConditionApplication === 'confirmed' && interceptionLeftOver(browser, tab))) return
+    if (browser.networkRouteQueues.has(webContentsId)) {
+      scheduleNetworkRouteRefresh(browser, tab)
       return
     }
-    // Let fulfilled response bodies reach the page before changing Fetch patterns.
-    void applyNetworkRoutes(access, tab).catch((error: unknown) => {
-      if (!access.isDestroyed() && !tab.webContents.isDestroyed()) {
+    // Let fulfilled response bodies reach the page before changing Fetch interception.
+    void applyNetworkRoutes(browser, tab).catch((error: unknown) => {
+      if (!browser.destroyed && !tab.webContents.isDestroyed()) {
         console.error('[browser] Could not refresh network route patterns:', error)
       }
     })
   }, 250)
   timer.unref()
-  access.networkRouteRefreshTimers().set(webContentsId, timer)
+  browser.networkRouteRefreshTimers.set(webContentsId, timer)
 }

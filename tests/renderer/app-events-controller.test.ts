@@ -3,6 +3,7 @@ import { useAppEventsController } from '../../src/renderer/src/composables/useAp
 import type { BrowserShortcutAction } from '../../src/shared/browser-shortcuts.js'
 import type {
   BrowserActionFailure,
+  CredentialStorageStatus,
   CredentialSummary,
   HelpMenuAction,
   SitePermissionEntry
@@ -10,13 +11,16 @@ import type {
 
 type EventListeners = {
   attention?: () => void
-  shortcut?: (action: BrowserShortcutAction) => void
+  shortcut?: (action: BrowserShortcutAction) => unknown
   tabGroupEdit?: (groupId: string) => void
   newTab?: (workspaceId: string | undefined) => void
   visitHistory?: () => void
+  bookmarkAllTabs?: (workspaceId: string | null) => void
+  qrCode?: (request: { tabId: string, address: string }) => void
   addressPasteAndGo?: (text: string) => void
   permissions?: (permissions: SitePermissionEntry[]) => void
   credentials?: (credentials: CredentialSummary[]) => void
+  credentialStorage?: (status: CredentialStorageStatus) => void
   updateOpen?: () => void
   help?: (action: HelpMenuAction) => void
   clipboardFailure?: (message: string) => void
@@ -25,7 +29,7 @@ type EventListeners = {
 
 function createHarness() {
   const listeners: EventListeners = {}
-  const unsubscribers = Array.from({ length: 12 }, () => vi.fn())
+  const unsubscribers = Array.from({ length: 15 }, () => vi.fn())
   const subscribe = <Key extends keyof EventListeners>(key: Key, index: number) => (
     listener: NonNullable<EventListeners[Key]>
   ) => {
@@ -39,10 +43,15 @@ function createHarness() {
       onTabGroupEditRequested: vi.fn(subscribe('tabGroupEdit', 2)),
       onNewTabRequested: vi.fn(subscribe('newTab', 9)),
       onVisitHistoryRequested: vi.fn(subscribe('visitHistory', 10)),
+      onBookmarkAllTabsRequested: vi.fn(subscribe('bookmarkAllTabs', 12)),
+      onQrCodeRequested: vi.fn(subscribe('qrCode', 13)),
       onAddressPasteAndGo: vi.fn(subscribe('addressPasteAndGo', 11))
     },
     permissionsApi: { onChanged: vi.fn(subscribe('permissions', 3)) },
-    credentialsApi: { onChanged: vi.fn(subscribe('credentials', 4)) },
+    credentialsApi: {
+      onChanged: vi.fn(subscribe('credentials', 4)),
+      onStatusChanged: vi.fn(subscribe('credentialStorage', 14))
+    },
     updatesApi: { onOpenRequested: vi.fn(subscribe('updateOpen', 5)) },
     shellApi: {
       onHelpRequested: vi.fn(subscribe('help', 6)),
@@ -56,9 +65,12 @@ function createHarness() {
     onTabGroupEdit: vi.fn(),
     onNewTab: vi.fn(),
     onVisitHistory: vi.fn(),
+    onBookmarkAllTabs: vi.fn(),
+    onQrCode: vi.fn(),
     onAddressPasteAndGo: vi.fn(),
     onPermissionsChanged: vi.fn(),
     onCredentialsChanged: vi.fn(),
+    onCredentialStorageChanged: vi.fn(),
     onUpdateOpen: vi.fn(),
     onHelp: vi.fn(),
     onClipboardFailure: vi.fn(),
@@ -96,9 +108,13 @@ describe('app events controller', () => {
     harness.listeners.newTab?.('workspace-1')
     harness.listeners.newTab?.(undefined)
     harness.listeners.visitHistory?.()
+    harness.listeners.bookmarkAllTabs?.('workspace-1')
+    harness.listeners.bookmarkAllTabs?.(null)
+    harness.listeners.qrCode?.({ tabId: 'tab-1', address: 'https://example.com/' })
     harness.listeners.addressPasteAndGo?.('example.com')
     harness.listeners.permissions?.([permission])
     harness.listeners.credentials?.([credential])
+    harness.listeners.credentialStorage?.({ available: true, backend: 'gnome_libsecret' })
     harness.listeners.updateOpen?.()
     harness.listeners.help?.('shortcuts')
     harness.listeners.clipboardFailure?.('Clipboard unavailable')
@@ -109,9 +125,12 @@ describe('app events controller', () => {
     expect(harness.callbacks.onTabGroupEdit).toHaveBeenCalledWith('group-1')
     expect(harness.callbacks.onNewTab.mock.calls).toEqual([['workspace-1'], [undefined]])
     expect(harness.callbacks.onVisitHistory).toHaveBeenCalledOnce()
+    expect(harness.callbacks.onBookmarkAllTabs.mock.calls).toEqual([['workspace-1'], [null]])
+    expect(harness.callbacks.onQrCode).toHaveBeenCalledWith({ tabId: 'tab-1', address: 'https://example.com/' })
     expect(harness.callbacks.onAddressPasteAndGo).toHaveBeenCalledWith('example.com')
     expect(harness.callbacks.onPermissionsChanged).toHaveBeenCalledWith([permission])
     expect(harness.callbacks.onCredentialsChanged).toHaveBeenCalledWith([credential])
+    expect(harness.callbacks.onCredentialStorageChanged).toHaveBeenCalledWith({ available: true, backend: 'gnome_libsecret' })
     expect(harness.callbacks.onUpdateOpen).toHaveBeenCalledOnce()
     expect(harness.callbacks.onHelp).toHaveBeenCalledWith('shortcuts')
     expect(harness.callbacks.onClipboardFailure).toHaveBeenCalledWith('Clipboard unavailable')
@@ -143,6 +162,30 @@ describe('app events controller', () => {
     await vi.waitFor(() => expect(harness.callbacks.onError).toHaveBeenCalledWith(failure))
 
     harness.controller.dispose()
+  })
+
+  it('hands back when a shortcut is carried out, so main sends on the keys typed meanwhile, even when it failed', async () => {
+    const harness = createHarness()
+    let finish!: () => void
+    harness.callbacks.onShortcut.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    let carriedOut = false
+    void Promise.resolve(harness.listeners.shortcut?.('focus-address')).then(() => { carriedOut = true })
+    await Promise.resolve()
+    expect(carriedOut).toBe(false)
+    finish()
+    await vi.waitFor(() => expect(carriedOut).toBe(true))
+
+    const failure = new Error('find unavailable')
+    harness.callbacks.onShortcut.mockRejectedValueOnce(failure)
+    await expect(harness.listeners.shortcut?.('find')).resolves.toBeUndefined()
+    expect(harness.callbacks.onError).toHaveBeenCalledWith(failure)
+    harness.callbacks.onShortcut.mockImplementationOnce(() => { throw failure })
+    expect(harness.listeners.shortcut?.('find')).toBeUndefined()
+    expect(harness.callbacks.onError).toHaveBeenCalledTimes(2)
+
+    harness.controller.dispose()
+    expect(harness.listeners.shortcut?.('find')).toBeUndefined()
+    expect(harness.callbacks.onShortcut).toHaveBeenCalledTimes(3)
   })
 
   it('contains synchronous native-event callback failures through the same boundary', () => {
@@ -194,9 +237,12 @@ describe('app events controller', () => {
       onTabGroupEdit: vi.fn(),
       onNewTab: vi.fn(),
       onVisitHistory: vi.fn(),
+      onBookmarkAllTabs: vi.fn(),
+      onQrCode: vi.fn(),
       onAddressPasteAndGo: vi.fn(),
       onPermissionsChanged: vi.fn(),
       onCredentialsChanged: vi.fn(),
+      onCredentialStorageChanged: vi.fn(),
       onUpdateOpen: vi.fn(),
       onHelp: vi.fn(),
       onClipboardFailure: vi.fn(),
@@ -211,10 +257,12 @@ describe('app events controller', () => {
         onTabGroupEditRequested: vi.fn(() => { throw failure }),
         onNewTabRequested: laterSubscription,
         onVisitHistoryRequested: laterSubscription,
+        onBookmarkAllTabsRequested: laterSubscription,
+        onQrCodeRequested: laterSubscription,
         onAddressPasteAndGo: laterSubscription
       },
       permissionsApi: { onChanged: laterSubscription },
-      credentialsApi: { onChanged: laterSubscription },
+      credentialsApi: { onChanged: laterSubscription, onStatusChanged: laterSubscription },
       updatesApi: { onOpenRequested: laterSubscription },
       shellApi: {
         onHelpRequested: laterSubscription,

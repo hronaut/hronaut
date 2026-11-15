@@ -1,21 +1,33 @@
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentPageActionsAccess, AgentPageActionsTab, BrowserClickTarget } from '../src/main/browser/agent-page-actions/agent-page-actions-access.js'
-import { click } from '../src/main/browser/agent-page-actions/click.js'
-import type { AgentInputAuthorizationAccess, AgentInputAuthorizationTab, AuthorizedAgentMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization-access.js'
-import { shouldBlockHumanMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization.js'
+import { click, type BrowserClickTarget } from '../src/main/browser/agent-page-actions/click.js'
+import { shouldBlockHumanMouseInput, type AuthorizedAgentMouseInput } from '../src/main/browser/agent-input-authorization/agent-input-authorization.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { dispatchNativeClick } from '../src/main/browser/native-click/native-click.js'
+
+// The commands a native click sends, recorded on the fake browser it sends them through.
+vi.mock('../src/main/browser/agent-input-authorization/agent-input-authorization.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-input-authorization/agent-input-authorization.js')>(),
+  sendAuthorizedAgentInputCommand: (browser: { sendAuthorizedAgentInputCommand(...args: unknown[]): Promise<unknown> }, ...args: unknown[]) =>
+    browser.sendAuthorizedAgentInputCommand(...args)
+}))
+// A native right-click is supported only on Linux; the right-click case checks its modifiers on any platform.
+vi.mock('../src/main/browser/owned-right-click.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/owned-right-click.js')>(),
+  assertRightClickPlatform: vi.fn()
+}))
 
 const webContents = {} as WebContents
 
 function recordedClick(modifiers?: number, doubleClick = false) {
   const commands: Array<Record<string, unknown>> = []
-  const access = {
+  const browser = {
     sendAuthorizedAgentInputCommand: vi.fn(async (_webContents: WebContents, _method: string, params?: Record<string, unknown>) => {
       commands.push(params ?? {})
     })
-  }
-  return { commands, run: () => dispatchNativeClick(access, webContents, { x: 10, y: 20 }, doubleClick, () => {}, undefined, undefined, false, modifiers) }
+  } as unknown as Browser
+  return { commands, run: () => dispatchNativeClick(browser, webContents, { x: 10, y: 20 }, doubleClick, () => {}, undefined, undefined, false, modifiers) }
 }
 
 describe('native modifier clicks', () => {
@@ -51,14 +63,14 @@ describe('native modifier clicks', () => {
     ['neither a ref nor a selector', { selector: undefined }],
     ['dialog handling', { dialogAction: 'accept' }]
   ])('rejects %s before touching the page', async (_name, change) => {
-    const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
-    await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift'], ...change }))
+    const tabManager = {} as Parameters<typeof click>[0]
+    await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift'], ...change }))
       .rejects.toThrow('Modifier clicks require one native left click on a ref or selector')
   })
 
   it('rejects modifiers on a right click before touching the page', async () => {
-    const access = { assertRightClickPlatform: vi.fn() } as unknown as AgentPageActionsAccess<AgentPageActionsTab>
-    await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, button: 'right', modifiers: ['Control'] }))
+    const tabManager = {} as Parameters<typeof click>[0]
+    await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, button: 'right', modifiers: ['Control'] }))
       .rejects.toThrow('Modifier clicks require one native left click on a ref or selector')
   })
 
@@ -66,8 +78,8 @@ describe('native modifier clicks', () => {
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
     Object.defineProperty(process, 'platform', { value: 'darwin' })
     try {
-      const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
-      await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift', 'Control'] }))
+      const tabManager = {} as Parameters<typeof click>[0]
+      await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, modifiers: ['Shift', 'Control'] }))
         .rejects.toThrow('On macOS a Control click opens a context menu instead of clicking; use Meta or ControlOrMeta.')
     } finally {
       Object.defineProperty(process, 'platform', platform)
@@ -78,45 +90,45 @@ describe('native modifier clicks', () => {
     ['ControlOrMeta with Control', ['ControlOrMeta', 'Control']],
     ['ControlOrMeta with Meta', ['Meta', 'ControlOrMeta']]
   ])('rejects %s before touching the page', async (_name, modifiers) => {
-    const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
-    await expect(click(access, { tabId: 'tab-1', selector: '#row', native: true, modifiers }))
+    const tabManager = {} as Parameters<typeof click>[0]
+    await expect(click(tabManager, { tabId: 'tab-1', selector: '#row', native: true, modifiers }))
       .rejects.toThrow('ControlOrMeta not combined with Control or Meta')
   })
 })
 
 describe('locked tab input guard for modifier clicks', () => {
-  const tab = { webContents: { id: 7 } as WebContents }
+  const tab = { webContents: { id: 7 } } as unknown as BrowserTab
   const press: AuthorizedAgentMouseInput = { type: 'mouseDown', x: 10, y: 20, button: 'left', buttons: 0, clickCount: 1, modifiers: 8 }
   function guard(expected: AuthorizedAgentMouseInput | undefined) {
     const mouse = new Map<number, AuthorizedAgentMouseInput>(expected ? [[7, expected]] : [])
-    const access: AgentInputAuthorizationAccess<AgentInputAuthorizationTab> = {
-      findTab: () => tab,
-      tabIdForWebContents: () => 'tab-1',
+    const browser = {
+      tabs: new Map([['tab-1', tab]]),
+      webContentsToTab: new Map([[7, 'tab-1']]),
       isHumanInteractionLocked: () => true,
-      authorizedAgentMouseInput: () => mouse,
-      authorizedAgentKeyboardInput: () => new Map()
-    }
-    return { access, mouse }
+      authorizedAgentMouseInput: mouse,
+      authorizedAgentKeyboardInput: new Map()
+    } as never
+    return { browser, mouse }
   }
   const event = (change: Partial<Electron.MouseInputEvent> = {}): Electron.MouseInputEvent =>
     ({ type: 'mouseDown', x: 10, y: 20, button: 'left', clickCount: 1, ...change }) as Electron.MouseInputEvent
 
   it('admits the agent Shift press once although Electron reports no modifiers', () => {
-    const { access, mouse } = guard(press)
-    expect(shouldBlockHumanMouseInput(access, tab, event())).toBe(false)
+    const { browser, mouse } = guard(press)
+    expect(shouldBlockHumanMouseInput(browser, tab, event())).toBe(false)
     expect(mouse.size).toBe(0)
-    expect(shouldBlockHumanMouseInput(access, tab, event())).toBe(true)
+    expect(shouldBlockHumanMouseInput(browser, tab, event())).toBe(true)
   })
 
   it('still compares modifiers when Electron reports them', () => {
-    const { access } = guard(press)
-    expect(shouldBlockHumanMouseInput(access, tab, event({ modifiers: ['control'] }))).toBe(true)
-    expect(shouldBlockHumanMouseInput(access, tab, event({ modifiers: ['shift'] }))).toBe(false)
+    const { browser } = guard(press)
+    expect(shouldBlockHumanMouseInput(browser, tab, event({ modifiers: ['control'] }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(browser, tab, event({ modifiers: ['shift'] }))).toBe(false)
   })
 
   it('blocks a press that is not the recorded one', () => {
-    expect(shouldBlockHumanMouseInput(guard(press).access, tab, event({ x: 40 }))).toBe(true)
-    expect(shouldBlockHumanMouseInput(guard(press).access, tab, event({ button: 'right' }))).toBe(true)
-    expect(shouldBlockHumanMouseInput(guard(undefined).access, tab, event())).toBe(true)
+    expect(shouldBlockHumanMouseInput(guard(press).browser, tab, event({ x: 40 }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(guard(press).browser, tab, event({ button: 'right' }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(guard(undefined).browser, tab, event())).toBe(true)
   })
 })

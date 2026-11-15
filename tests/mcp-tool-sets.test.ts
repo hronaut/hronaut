@@ -28,12 +28,10 @@ describe('MCP tool sets', () => {
     expect(profile.allowedTools).toEqual(expect.arrayContaining([
       'browser_snapshot', 'browser_storage', 'browser_downloads', 'browser_network'
     ]))
-    expect(profile.allowedTools).not.toEqual(expect.arrayContaining([
-      'browser_click', 'browser_audio', 'browser_zoom', 'wallet_request_status'
-    ]))
+    for (const tool of ['browser_click', 'browser_audio', 'wallet_request_status']) expect(profile.allowedTools).not.toContain(tool)
     expect(profile.allowedActions).toMatchObject({
       browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list'],
-      browser_task_runs: ['get', 'list', 'metrics', 'list-saved', 'preview'], browser_webmcp: ['status', 'list']
+      browser_task_runs: ['get', 'list', 'metrics', 'list-saved', 'preview'], browser_webmcp: ['status', 'list'], browser_zoom: ['get']
     })
     expect(profile).toMatchObject({ expiresAt: '2026-09-11T13:00:00.000Z', maxUses: 1 })
     expect(profile.argumentValueDigests).toEqual({
@@ -106,7 +104,7 @@ describe('MCP tool sets', () => {
     const qa = mcpToolCatalogForSet('qa').map(({ name }) => name)
     const all = mcpToolCatalogForSet('complete').map(({ name }) => name)
 
-    expect(browse).toHaveLength(36)
+    expect(browse).toHaveLength(37)
     expect(browse).toEqual([
       'browser_workspaces',
       'browser_saved_workspaces',
@@ -128,6 +126,7 @@ describe('MCP tool sets', () => {
       'browser_type',
       'browser_select',
       'browser_fill_form',
+      'browser_steps',
       'browser_hover',
       'browser_drag',
       'browser_scroll',
@@ -153,6 +152,10 @@ describe('MCP tool sets', () => {
     expect(qa).toContain('browser_screenshot_save')
     expect(browse).not.toContain('browser_screenshot_save')
     expect(qa).toContain('browser_hold_key')
+    expect(qa).toContain('browser_key_sequence')
+    expect(browse).not.toContain('browser_key_sequence')
+    expect(qa).toContain('browser_frame_stream')
+    expect(browse).not.toContain('browser_frame_stream')
     expect(qa).toContain('browser_touch')
     expect(qa).toContain('browser_file_drop')
     expect(browse).not.toContain('browser_file_drop')
@@ -184,7 +187,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(104)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(107)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({

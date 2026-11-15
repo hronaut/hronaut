@@ -5,6 +5,11 @@ import { RetainedBrowserWorkspaceError } from '../../../browser/workspace-errors
 import { textResult, toolDescription } from '../../tool-results.js'
 import { workspaceIdSchema, workspaceResumeKeySchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { beginWorkspaceContinuityAction, requireWorkspaceContinuityDispatch, requireWorkspaceContinuityReview, inspectWorkspaceContinuity, suspendWorkspaceContinuity } from '../../../browser/workspace-continuity/workspace-continuity.js'
+import { createMcpTabGroup } from '../../../browser/mcp-tab-groups/create-mcp-tab-group.js'
+import { renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from '../../../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { listWorkspaceStorageOrigins } from '../../../browser/workspace-data/workspace-data.js'
+import { closeMcpTabGroup } from '../../../browser/mcp-tab-groups/close-mcp-tab-group.js'
 
 export function normalizePublicObserverOrigin(value: string): string {
   const parsed = new URL(value)
@@ -42,7 +47,7 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
       inputSchema: {
         action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins', 'ownership-status', 'claim-ownership', 'release-ownership']).default('list').describe('Use list to discover forkOnly sources even when direct access is disabled; create a fresh task workspace before page tools. Create and resume claim exclusive write ownership. Use ownership-status to inspect it, claim-ownership after fresh inspection to recover it, and release-ownership for handoff. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations.'),
         workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools. A rename changes only the human name, never this ID.'),
-        resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened. Required only for resume after reconnecting. Never share it with another client or website.'),
+        resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened, or given to you by the person who copied it from Hronaut. Required only for resume. Never share it with another client or website.'),
         name: z.string().trim().min(1).max(80).optional().describe('Human-readable workspace name for create, update, or rename.'),
         description: z.string().max(1_000).optional().describe('Durable workspace purpose and context. Describe why it exists, current work, and what useful browser state it stores. Returned by list and resume.'),
         color: z.enum(BROWSER_TAB_GROUP_COLORS).optional().describe('Visible workspace color for create or update.'),
@@ -92,29 +97,29 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
         const forkRevision = actionTracker.controlRevision
         if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(
           forkSourceId,
-          () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
+          () => { requireWorkspaceContinuityDispatch(manager, forkSourceId) },
           undefined,
           humanReviewSessionBinding
         )
-        if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
-        const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
+        if (forkSourceId) requireWorkspaceContinuityDispatch(manager, forkSourceId)
+        const finishFork = forkSourceId ? beginWorkspaceContinuityAction(manager, forkSourceId, false) : undefined
         const forkContextCurrent = async (): Promise<boolean> => {
           if (!forkSourceId) return true
           try {
             if (humanWaiting) await humanWaiting.requireDispatch(
               forkSourceId,
-              () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
+              () => { requireWorkspaceContinuityDispatch(manager, forkSourceId) },
               undefined,
               humanReviewSessionBinding
             )
             if (getPaused() || actionTracker.controlRevision !== forkRevision) return false
-            manager.requireWorkspaceContinuityDispatch(forkSourceId)
+            requireWorkspaceContinuityDispatch(manager, forkSourceId)
             return true
           } catch { return false }
         }
         const interruptedFork = async (id: string): Promise<CallToolResult> => {
-          if (forkSourceId) manager.suspendWorkspaceContinuity(forkSourceId, 'OUTCOME_UNKNOWN')
-          const guardPersisted = await manager.requireWorkspaceContinuityReview(id)
+          if (forkSourceId) suspendWorkspaceContinuity(manager, forkSourceId, 'OUTCOME_UNKNOWN')
+          const guardPersisted = await requireWorkspaceContinuityReview(manager, id)
           const outcome = {
             status: 'OUTCOME_UNKNOWN', effects: 'possible', workspaceId: id,
             resumeKey: manager.mcpWorkspaceResumeKey(id), retained: true, reviewRequired: true, guardPersisted,
@@ -130,16 +135,14 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
             action, name, description, color, storage, sourceWorkspaceId, contextClass, observerOrigin,
             ...(scopedOrigins ? { origins: scopedOrigins } : {})
           })
-          const created = await manager.createMcpTabGroup(
-            name, color, storage, scopedOrigins, true, observerPolicy, sourceWorkspaceId, description, contextClass
-          )
+          const created = await createMcpTabGroup(manager, name, color, storage, scopedOrigins, true, observerPolicy, sourceWorkspaceId, description, contextClass)
           activeWorkspaceIds.add(created.id)
           const writeLease = workspaceLeases.claim(created.id, client.id)
           if (!await forkContextCurrent()) return await interruptedFork(created.id)
           return textResult({ ...withResumeKey(created), writeLease })
         } catch (error) {
           if (!(error instanceof RetainedBrowserWorkspaceError)) throw error
-          const retained = manager.requireMcpTabGroup(error.workspaceId)
+          const retained = requireMcpTabGroup(manager, error.workspaceId)
           activeWorkspaceIds.add(retained.id)
           const writeLease = workspaceLeases.claim(retained.id, client.id)
           if (!await forkContextCurrent()) return await interruptedFork(retained.id)
@@ -165,33 +168,33 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
         const writeLease = currentLease.status === 'busy'
           ? currentLease
           : workspaceLeases.claim(workspaceId, client.id)
-        const guarded = manager.suspendWorkspaceContinuity(workspaceId)
-        const continuity = guarded ? await manager.inspectWorkspaceContinuity(workspaceId) : undefined
+        const guarded = suspendWorkspaceContinuity(manager, workspaceId)
+        const continuity = guarded ? await inspectWorkspaceContinuity(manager, workspaceId) : undefined
         // Marker reads cross an async boundary. A resume key cannot override
         // access revoked while the report was being captured.
         requireAgentWorkspace(workspaceId)
         if (writeLease.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-        return textResult({ ...withResumeKey(manager.requireMcpTabGroup(workspaceId)), writeLease, ...(continuity ? { continuity } : {}) })
+        return textResult({ ...withResumeKey(requireMcpTabGroup(manager, workspaceId)), writeLease, ...(continuity ? { continuity } : {}) })
       }
       requireAgentWorkspace(workspaceId)
       if (action === 'ownership-status') return textResult({ workspaceId, writeLease: workspaceLeases.status(workspaceId, client.id) })
       if (action === 'claim-ownership') return textResult({ workspaceId, writeLease: workspaceLeases.claim(workspaceId, client.id) })
       if (action === 'release-ownership') {
         const writeLease = workspaceLeases.release(workspaceId, client.id)
-        manager.interruptPwaLifecycleWorkspace(workspaceId, 'ownership-released')
+        manager.pwaLifecycleRecorder.interruptWorkspace(workspaceId, 'ownership-released')
         return textResult({ workspaceId, writeLease })
       }
       if (action === 'rename') {
         if (!name) throw new TypeError('name is required to rename a workspace')
-        return textResult(manager.renameMcpTabGroup(workspaceId, name, true))
+        return textResult(renameMcpTabGroup(manager, workspaceId, name, true))
       }
       if (action === 'update') {
         if (name === undefined && description === undefined && color === undefined) throw new TypeError('name, description, or color is required to update a workspace')
-        return textResult(manager.updateMcpTabGroup(workspaceId, { name, description, color }, true))
+        return textResult(updateMcpTabGroup(manager, workspaceId, { name, description, color }, true))
       }
-      if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
+      if (action === 'list-origins') return textResult(listWorkspaceStorageOrigins(manager, workspaceId))
       const closingLease = workspaceLeases.require(workspaceId, client.id)
-      await manager.closeMcpTabGroup(workspaceId)
+      await closeMcpTabGroup(manager, workspaceId)
       let leaseOutcome: CallToolResult | undefined
       try {
         if (closingLease.generation) workspaceLeases.require(workspaceId, client.id, closingLease.generation)

@@ -1,8 +1,13 @@
 import type { BrowserState } from '../../../shared/types.js'
 import { isBrowserSplitOrientation, normalizeSplitViewRatio, type BrowserSplitOrientation } from '../../../shared/split-view.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { SplitViewAccess, SplitViewTab } from './split-view-access.js'
+import type { Browser } from '../browser.js'
+import { focusTabOrTrustedChrome } from '../trusted-chrome-focus/trusted-chrome-focus.js'
+import { findTab, getTab } from '../browser-core.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { LocalizedError } from '../../localized-error.js'
+import { keepKeyboardFromLoadingPane } from './loading-pane-keyboard.js'
+import { forgetRestingSplitViews } from './resting-split-views.js'
 
 /**
  * Wakes the active tab and the chosen one, then opens them side by side,
@@ -11,9 +16,9 @@ import { LocalizedError } from '../../localized-error.js'
  * state without opening, even when a wake failed. Asking for the split view
  * is itself a selection, so a tab still waking for an earlier one stays out.
  */
-export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string): Promise<BrowserState> {
-  const current = access.getActiveTab()
-  const target = access.getTab(tabId)
+export async function openSplitViewAndWait(browser: Browser, tabId: string, options: OpenSplitViewOptions = {}): Promise<BrowserState> {
+  const current = getTab(browser)
+  const target = getTab(browser, tabId)
   if (current.id === target.id) throw new LocalizedError('appErrors.splitView.sameTab')
   if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new LocalizedError('appErrors.splitView.home')
   if (current.webContents.isDestroyed()) {
@@ -22,37 +27,48 @@ export async function openSplitViewAndWait<Tab extends SplitViewTab>(access: Spl
   if (target.webContents.isDestroyed()) {
     throw new LocalizedError('appErrors.splitView.selectedUnavailable')
   }
-  access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
-  access.writeTabSelectionGeneration(access.tabSelectionGeneration() + 1)
-  const splitGeneration = access.splitViewGeneration()
-  const selectionGeneration = access.tabSelectionGeneration()
-  const superseded = () => splitGeneration !== access.splitViewGeneration()
-    || selectionGeneration !== access.tabSelectionGeneration()
-    || access.activeTabId() !== current.id
-    || access.findTab(current.id) !== current
-    || access.findTab(target.id) !== target
+  browser.splitViewGeneration += 1
+  browser.tabSelectionGeneration += 1
+  const splitGeneration = browser.splitViewGeneration
+  const selectionGeneration = browser.tabSelectionGeneration
+  const superseded = () => splitGeneration !== browser.splitViewGeneration
+    || selectionGeneration !== browser.tabSelectionGeneration
+    || browser.activeTabId !== current.id
+    || findTab(browser, current.id) !== current
+    || findTab(browser, target.id) !== target
   try {
     await Promise.all([
-      access.wakeTab(current.id),
-      access.wakeTab(target.id)
+      browser.wakeTab(current.id),
+      browser.wakeTab(target.id)
     ])
   } catch (error) {
-    if (superseded()) return access.getState()
+    if (superseded()) return browserState(browser)
     // The request was still a selection, which the published state shows, such as no longer marking a followed agent.
-    access.changed(false)
+    publishChange(browser, false)
     throw error
   }
-  if (superseded()) return access.getState()
-  return openSplitView(access, target.id)
+  if (superseded()) return browserState(browser)
+  return openSplitView(browser, target.id, options)
+}
+
+export interface OpenSplitViewOptions {
+  /** The chosen tab was just opened beside the page, such as for a link, and the person keeps reading the page. */
+  openedBeside?: boolean
+  /**
+   * The split's layout, as when a tab closed from it is put back: its orientation, its ratio, and whether the chosen tab
+   * is the first pane. Without it the active tab is first, side by side, at half the width.
+   */
+  layout?: { orientation: BrowserSplitOrientation; ratio: number; chosenFirst: boolean }
 }
 
 /**
  * Shows the chosen tab beside the active one, replacing any other split, and
- * wakes either tab that sleeps without waiting for it.
+ * wakes either tab that sleeps without waiting for it. Either tab leaves a
+ * split view put aside, which ends.
  */
-export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, tabId: string): BrowserState {
-  const current = access.getActiveTab()
-  const target = access.getTab(tabId)
+export function openSplitView(browser: Browser, tabId: string, options: OpenSplitViewOptions = {}): BrowserState {
+  const current = getTab(browser)
+  const target = getTab(browser, tabId)
   if (current.id === target.id) throw new LocalizedError('appErrors.splitView.sameTab')
   if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new LocalizedError('appErrors.splitView.home')
   // A WebContentsView can outlive its WebContents when Electron or DevTools
@@ -65,73 +81,76 @@ export function openSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<
   if (target.webContents.isDestroyed()) {
     throw new LocalizedError('appErrors.splitView.selectedUnavailable')
   }
-  access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
-  current.lastActiveAt = Date.now()
-  target.lastActiveAt = Date.now()
-  if (current.sleeping) void access.wakeTab(current.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
-  if (target.sleeping) void access.wakeTab(target.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
+  browser.splitViewGeneration += 1
+  current.lastActiveAt = performance.now()
+  target.lastActiveAt = performance.now()
+  if (current.sleeping) void browser.wakeTab(current.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
+  if (target.sleeping) void browser.wakeTab(target.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
 
-  if (access.splitView()) {
-    for (const visibleTabId of [access.splitView()!.firstTabId, access.splitView()!.secondTabId]) {
-      const visibleTab = access.findTab(visibleTabId)
+  if (browser.splitView) {
+    for (const visibleTabId of [browser.splitView.firstTabId, browser.splitView.secondTabId]) {
+      const visibleTab = findTab(browser, visibleTabId)
       if (visibleTab && visibleTab.id !== current.id && visibleTab.id !== target.id) {
         // It was in view until now, so Memory Saver counts its inactivity from here.
-        visibleTab.lastActiveAt = Date.now()
-        access.removeChildView(visibleTab.view)
+        visibleTab.lastActiveAt = performance.now()
+        browser.window.contentView.removeChildView(visibleTab.view)
       }
     }
   }
-  access.writeSplitView({
-    firstTabId: current.id,
-    secondTabId: target.id,
-    orientation: 'vertical',
-    ratio: 0.5
-  })
-  access.addChildView(target.view)
-  access.layout()
-  access.focusTabOrTrustedChrome(current)
-  access.changed()
-  return access.getState()
+  forgetRestingSplitViews(browser, current.id, target.id)
+  const layout = options.layout
+  browser.splitView = {
+    firstTabId: layout?.chosenFirst ? target.id : current.id,
+    secondTabId: layout?.chosenFirst ? current.id : target.id,
+    orientation: layout?.orientation ?? 'vertical',
+    ratio: layout ? normalizeSplitViewRatio(layout.ratio) : 0.5
+  }
+  browser.window.contentView.addChildView(target.view)
+  browser.layout()
+  focusTabOrTrustedChrome(browser, current)
+  if (options.openedBeside) keepKeyboardFromLoadingPane(browser, current, target)
+  publishChange(browser)
+  return browserState(browser)
 }
 
 /** Changes the open split view's orientation or ratio, or swaps its tabs. */
-export function updateSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>, updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState {
-  if (!access.splitView()) throw new LocalizedError('appErrors.splitView.notOpen')
+export function updateSplitView(browser: Browser, updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState {
+  if (!browser.splitView) throw new LocalizedError('appErrors.splitView.notOpen')
   if (updates.orientation !== undefined && !isBrowserSplitOrientation(updates.orientation)) {
     throw new TypeError('Split orientation must be vertical or horizontal.')
   }
   if (updates.ratio !== undefined && !Number.isFinite(updates.ratio)) throw new TypeError('Split ratio must be a finite number.')
-  access.cancelSplitDivider()
-  access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
-  if (updates.orientation !== undefined) access.splitView()!.orientation = updates.orientation
-  if (updates.ratio !== undefined) access.splitView()!.ratio = normalizeSplitViewRatio(updates.ratio)
+  browser.splitDivider.cancel()
+  browser.splitViewGeneration += 1
+  if (updates.orientation !== undefined) browser.splitView.orientation = updates.orientation
+  if (updates.ratio !== undefined) browser.splitView.ratio = normalizeSplitViewRatio(updates.ratio)
   if (updates.swap) {
-    const firstTabId = access.splitView()!.firstTabId
-    access.splitView()!.firstTabId = access.splitView()!.secondTabId
-    access.splitView()!.secondTabId = firstTabId
+    const firstTabId = browser.splitView.firstTabId
+    browser.splitView.firstTabId = browser.splitView.secondTabId
+    browser.splitView.secondTabId = firstTabId
   }
-  access.layout()
-  access.changed()
-  return access.getState()
+  browser.layout()
+  publishChange(browser)
+  return browserState(browser)
 }
 
 /** Leaves only the active tab of the split view in view. */
-export function closeSplitView<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>): BrowserState {
-  access.writeSplitViewGeneration(access.splitViewGeneration() + 1)
-  if (!access.splitView()) return access.getState()
-  const activeTab = access.getActiveTab()
-  const otherTabId = access.splitView()!.firstTabId === activeTab.id
-    ? access.splitView()!.secondTabId
-    : access.splitView()!.firstTabId
-  const otherTab = access.findTab(otherTabId)
+export function closeSplitView(browser: Browser): BrowserState {
+  browser.splitViewGeneration += 1
+  if (!browser.splitView) return browserState(browser)
+  const activeTab = getTab(browser)
+  const otherTabId = browser.splitView.firstTabId === activeTab.id
+    ? browser.splitView.secondTabId
+    : browser.splitView.firstTabId
+  const otherTab = findTab(browser, otherTabId)
   if (otherTab) {
     // It was in view until now, so Memory Saver counts its inactivity from here.
-    otherTab.lastActiveAt = Date.now()
-    access.removeChildView(otherTab.view)
+    otherTab.lastActiveAt = performance.now()
+    browser.window.contentView.removeChildView(otherTab.view)
   }
-  access.writeSplitView(null)
-  access.layout()
-  access.focusTabOrTrustedChrome(activeTab)
-  access.changed()
-  return access.getState()
+  browser.splitView = null
+  browser.layout()
+  focusTabOrTrustedChrome(browser, activeTab)
+  publishChange(browser)
+  return browserState(browser)
 }

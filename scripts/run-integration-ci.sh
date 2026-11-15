@@ -64,7 +64,13 @@ for attempt in 1 2 3; do
   sleep "$((attempt * 5))" || break
 done
 
-if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
+# A shard that passed only after rechecking flaky tests keeps their first failures' traces for the fix.
+flaky_passed=false
+if (( status == 0 )) && grep -q '^::warning title=Flaky Electron tests::' "$startup_log"; then
+  flaky_passed=true
+fi
+
+if { (( status != 0 )) || [[ "$flaky_passed" == true ]]; } && docker inspect "$container_name" >/dev/null 2>&1; then
   if [[ "$local_artifacts" == true ]]; then
     mkdir -p test-results
     artifact_directory="$(mktemp -d test-results/local-docker-XXXXXX)" || exit "$status"
@@ -73,6 +79,14 @@ if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
   extract_directory test-results
   extract_directory playwright-report
   echo "Failure artifacts: $artifact_directory"
+fi
+
+# Every hosted shard keeps how long its tests took, which tests/integration/durations.json is refreshed from.
+if [[ "$local_artifacts" != true && -n "${HRONAUT_INTEGRATION_SHARD:-}" ]] && docker inspect "$container_name" >/dev/null 2>&1; then
+  mkdir -p test-durations
+  if ! docker cp "$container_name:/workspace/test-results/durations" - | tar -xf - -C test-durations; then
+    echo "Warning: could not extract the test durations from $container_name." >&2
+  fi
 fi
 
 exit "$status"

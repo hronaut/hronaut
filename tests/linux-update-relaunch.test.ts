@@ -10,7 +10,7 @@ import {
   scheduleLinuxUpdateRelaunch,
   updaterShouldAutoRunAfterInstall,
   type SpawnUpdateRelaunch
-} from '../src/main/linux-update-relaunch.js'
+} from '../src/main/updates/linux-update-relaunch.js'
 
 describe('Linux update relaunch handoff', () => {
   it('waits for the old single-instance owner before starting the installed executable', () => {

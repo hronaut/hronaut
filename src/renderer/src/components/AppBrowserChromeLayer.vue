@@ -7,11 +7,12 @@ import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
 import type {
   BrowserState,
   BrowserTabState,
+  DroppedLinkTarget,
   HronautApi,
   UserAttentionRequest,
   SupportedLocale
 } from '../../../shared/types.js'
-import type { AddressBarController } from '../composables/useAddressBarController.js'
+import type { AddressBarController } from '../features/address-bar/useAddressBarController.js'
 import type { AppActiveTabFeatureController } from '../composables/useAppActiveTabFeatureController.js'
 import type { AppBrowserCollectionsFeatureController } from '../composables/useAppBrowserCollectionsFeatureController.js'
 import type { AppEmulationFeatureController } from '../composables/useAppEmulationFeatureController.js'
@@ -21,22 +22,23 @@ import type { AppSettingsFeatureController } from '../composables/useAppSettings
 import type { AppShellPresentationFeatureController } from '../composables/useAppShellPresentationFeatureController.js'
 import type { AppSiteManagementFeatureController } from '../composables/useAppSiteManagementFeatureController.js'
 import type { AppTabRuntimeFeatureController } from '../composables/useAppTabRuntimeFeatureController.js'
-import type { BrowserTabActionsController } from '../composables/useBrowserTabActionsController.js'
-import type { SiteDataSummaryController } from '../composables/useSiteDataSummaryController.js'
+import type { BrowserTabActionsController } from '../features/tabs/useBrowserTabActionsController.js'
+import type { SiteDataSummaryController } from '../features/site-controls/useSiteDataSummaryController.js'
 import type { FullPageView } from '../composables/useFullPageView.js'
 import { useChromeSidebarOverlay } from '../composables/useChromeSidebarOverlay.js'
 import IconFullscreenExit from '~icons/material-symbols/fullscreen-exit-rounded'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
-import AgentLiveStrip from './AgentLiveStrip.vue'
-import AgentPresenceAvatars from './AgentPresenceAvatars.vue'
-import AgentTakeOverPrompt, { type AgentTakeOverBadge } from './AgentTakeOverPrompt.vue'
+import AgentLiveStrip from '../features/agents/AgentLiveStrip.vue'
+import AgentPresenceAvatars from '../features/agents/AgentPresenceAvatars.vue'
+import AgentTakeOverPrompt, { type AgentTakeOverBadge } from '../features/agents/AgentTakeOverPrompt.vue'
 import AppTopbarActions from './AppTopbarActions.vue'
-import BrowserAddressBar from './BrowserAddressBar.vue'
+import BrowserAddressBar from '../features/address-bar/BrowserAddressBar.vue'
 import BrowserNavigationControls from './BrowserNavigationControls.vue'
 import BrowserPageActions from './BrowserPageActions.vue'
-import BrowserTabsBar from './BrowserTabsBar.vue'
-import PanelResizeHandle from './PanelResizeHandle.vue'
+import BrowserTabsBar from '../features/tabs/BrowserTabsBar.vue'
+import PanelResizeHandle from '../features/panels/PanelResizeHandle.vue'
+import { resolveDetachedPanelId } from '../features/panels/useDetachedPanelPresentationController.js'
 import ShellTitleBarSurface from './ShellTitleBarSurface.vue'
 
 export interface AppBrowserChromeLayerActions {
@@ -49,7 +51,8 @@ export interface AppBrowserChromeLayerActions {
   showAgentSteps?: (clientKey: string, workspaceId: string) => unknown
   toggleCommandPalette: () => unknown
   toggleWorkspaceSwitcher: () => unknown
-  toggleTabSearch: () => unknown
+  /** Search tabs: Home's Tabs view, with its search field focused. */
+  openHomeTabs: () => unknown
   openFind: () => unknown
   toggleZoom: () => unknown
   togglePageTools: () => unknown
@@ -61,8 +64,12 @@ export interface AppBrowserChromeLayerActions {
 
 const { t } = useI18n({ useScope: 'global' })
 
+/** A tab as the agents' avatars, strip and take over offer read it. */
+type AgentTab = Pick<BrowserTabState, 'id' | 'agentPaused' | 'takenOverAt'>
+
 const props = defineProps<{
-  state: BrowserState
+  /** The latest browser state. This layer and what it holds read only their parts of it, so each draws again only when its part changed. */
+  readState: () => BrowserState
   userAttention?: UserAttentionRequest | null
   /** The palette is open on its workspace list. */
   workspaceSwitcherOpen?: boolean
@@ -91,7 +98,6 @@ const props = defineProps<{
 }>()
 
 const commandPaletteOpen = defineModel<boolean>('commandPaletteOpen', { required: true })
-const tabSearchOpen = defineModel<boolean>('tabSearchOpen', { required: true })
 const zoomOpen = defineModel<boolean>('zoomOpen', { required: true })
 const siteControlsOpen = defineModel<boolean>('siteControlsOpen', { required: true })
 const splitMenuOpen = defineModel<boolean>('splitMenuOpen', { required: true })
@@ -101,9 +107,11 @@ interface BrowserTabsBarHandle {
   expandTabGroupForTab: (tab: BrowserTabState) => void
   toggleTabGroup?: (groupId: string) => void
   collapsedTabGroupIds?: ReadonlySet<string>
+  passedOverWorkspaceIds?: ReadonlySet<string>
   tabListScrollTop?: () => number
   scrollTabListTo?: (top: number) => void
   stopWorkerCapture?: (tabId: string) => Promise<void>
+  selectedTabs?: () => string[]
 }
 
 const browserTabsBar = ref<BrowserTabsBarHandle | null>(null)
@@ -125,10 +133,13 @@ const {
   keepsSeparatePanelOpen
 } = props.shellController
 const { activeTab, mcpActivityByTab } = props.runtimeController
+// The tab bar reads the agents' tools through this, so an agent's step draws again only the row of its tab.
+const readMcpActivity = () => mcpActivityByTab.value
 const {
   activeTabPresentationController,
   activeIsHome,
   activeDownloads,
+  toolbarDownloads,
   currentBookmark,
   downloadButtonLabel,
   effectiveHumanInteractionLocked,
@@ -152,8 +163,18 @@ const {
   setPinAgentLiveStatus: setPinAgentLiveStatusSetting
 } = props.settingsController
 const { state: updateState } = updateSettingsController
-const websiteTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
-const allTabsMuted = computed(() => props.state.allTabsMuted === true)
+const hasWebsiteTabs = computed(() => props.readState().tabs.some((tab) => !isHronautHomeUrl(tab.url)))
+const allTabsMuted = computed(() => props.readState().allTabsMuted === true)
+const allHumanInteractionLocked = computed(() => props.readState().allHumanInteractionLocked)
+const agentControlLocked = computed(() => props.readState().agentControlLocked === true)
+// The agents' avatars, strip and take over offer read only whether agents are paused on a tab and whether you took it
+// over, so they keep this list while agents only load pages and take steps.
+const agentTabs = computed<readonly AgentTab[]>((previous) => {
+  const next = props.readState().tabs.map(({ id, agentPaused, takenOverAt }): AgentTab => ({ id, agentPaused, takenOverAt }))
+  const same = previous?.length === next.length && previous.every((tab, index) => tab.id === next[index].id
+    && tab.agentPaused === next[index].agentPaused && tab.takenOverAt === next[index].takenOverAt)
+  return same ? previous : next
+})
 const { open: settingsOpen, toggle: toggleSettings } = settingsDialogController
 watch(settingsDialogController.tabOpen, async (present, _previous, onCleanup) => {
   if (present) return
@@ -164,7 +185,6 @@ watch(settingsDialogController.tabOpen, async (present, _previous, onCleanup) =>
   document.querySelector<HTMLElement>('[data-active-tab="true"], .app-home-button.active')?.focus({ preventScroll: true })
 })
 const {
-  downloads,
   downloadsOpen,
   bookmarksOpen,
   historyOpen,
@@ -230,6 +250,20 @@ const {
   setDecision: setSitePermissionDecision,
   remove: removeSitePermission
 } = sitePermissionsController
+// One set of actions for the address field, so it does not draw again with every draw of this layer.
+const addressBarActions = {
+  toggleSiteControls,
+  resetActiveTabEmulation,
+  clearActiveCssStatePreview,
+  stopActiveVirtualPasskey,
+  stopActiveLogpoints,
+  openRequestConditions,
+  setSitePermission: setSitePermissionDecision,
+  resetSitePermission: removeSitePermission,
+  openSitePermissionSettings,
+  openSitePrivacySettings,
+  reloadTab: (tabId: string) => props.syncState(props.browser.reload(tabId))
+}
 
 function expandTabGroup(groupId: string): void {
   browserTabsBar.value?.expandTabGroup(groupId)
@@ -241,14 +275,19 @@ function expandTabGroupForTab(tab: BrowserTabState): void {
 
 function selectTab(tabId: string): void {
   settingsDialogController.close()
-  tabSearchOpen.value = false
   void props.runAction(() => selectBrowserTab(tabId))
+}
+
+function dropLink(details: { text: string; target: DroppedLinkTarget }): void {
+  // A link that opens in a new tab shows that tab, as selecting one does, so Settings closes for it.
+  if (!('tabId' in details.target) || details.target.placement !== 'onto') settingsDialogController.close()
+  void props.runAction(() => props.syncState(props.browser.dropLink(details.text, details.target)))
 }
 
 const agentPresenceAvatars = ref<{ openCard: (options?: { reopen?: boolean }) => boolean; focus: () => boolean; cardOpen: boolean } | null>(null)
 const activeWorkspaceName = computed(() => {
   const workspaceId = activeTab.value?.mcpGroupId
-  return workspaceId ? props.state.mcpTabGroups.find((group) => group.id === workspaceId)?.name : undefined
+  return workspaceId ? props.readState().mcpTabGroups.find((group) => group.id === workspaceId)?.name : undefined
 })
 
 function setAgentPaused(tabId: string, paused: boolean): void {
@@ -257,17 +296,16 @@ function setAgentPaused(tabId: string, paused: boolean): void {
 
 // Taking over pauses agents on the tab first, so none of their steps lands after you start, and tells
 // them you have control until you hand the tab back.
-// Whatever you chose meanwhile wins: another take over, another tab, tab search or Settings.
+// Whatever you chose meanwhile wins: another take over, another tab, Home included, or Settings.
 let takeOverGeneration = 0
 function takeOverTab(tabId: string): void {
   const generation = ++takeOverGeneration
-  const before = { tabId: activeTab.value?.id, tabSearch: tabSearchOpen.value, settings: settingsOpen.value }
+  const before = { tabId: activeTab.value?.id, settings: settingsOpen.value }
   void props.runAction(async () => {
     const paused = await setTabAgentPaused(tabId, true, { takeOver: true })
     if (!paused || generation !== takeOverGeneration || activeTab.value?.id !== before.tabId
-      || (tabSearchOpen.value && !before.tabSearch) || (settingsOpen.value && !before.settings)) return
+      || (settingsOpen.value && !before.settings)) return
     settingsDialogController.close()
-    tabSearchOpen.value = false
     await selectBrowserTab(tabId)
   })
 }
@@ -285,7 +323,7 @@ function setPinAgentLiveStatus(pin: boolean): void {
 }
 
 // Main answers only the request still open with this id; an answer from an older card changes nothing.
-function answerAttention(id: string, answer: 'resolved' | 'dismissed'): void {
+function answerAttention(id: string, answer: 'resolved' | 'skipped' | 'dismissed'): void {
   void props.runAction(() => props.browser.answerUserAttention(id, answer))
 }
 
@@ -343,10 +381,6 @@ watch(props.fullPage.enabled, (enabled) => {
   })
 })
 
-function startTabDrag(): void {
-  tabSearchOpen.value = false
-}
-
 // With the rail collapsed when not in use, the pointer opens it over the page in main's own view; this rail stays
 // folded, so the page keeps its place. What the person does there runs here, as a click in this rail would.
 const topbar = ref<HTMLElement | null>(null)
@@ -360,7 +394,7 @@ useChromeSidebarOverlay({
   topbar,
   rail: () => ({
     locale: props.locale,
-    state: props.state,
+    state: props.readState(),
     settingsActive: settingsOpen.value,
     workspaceSwitcherOpen: props.workspaceSwitcherOpen === true,
     userAttention: props.userAttention,
@@ -371,16 +405,15 @@ useChromeSidebarOverlay({
     describeEmulation: describeTabEmulation,
     footer: {
       commandPaletteOpen: commandPaletteOpen.value && !props.workspaceSwitcherOpen,
-      tabSearchOpen: tabSearchOpen.value,
       downloadsOpen: downloadsOpen.value,
       historyOpen: historyOpen.value,
       settingsOpen: settingsOpen.value,
-      downloads: downloads.value,
+      downloads: toolbarDownloads.value,
       activeDownloads: activeDownloads.value,
       downloadButtonLabel: downloadButtonLabel.value,
-      hasWebsiteTabs: websiteTabs.value.length > 0,
+      hasWebsiteTabs: hasWebsiteTabs.value,
       allTabsMuted: allTabsMuted.value,
-      allInteractionLocked: props.state.allHumanInteractionLocked,
+      allInteractionLocked: allHumanInteractionLocked.value,
       allInteractionLockLabel: allInteractionLockLabel.value,
       interactionPending: isTogglePending('interaction'),
       audioPending: isTogglePending('audio'),
@@ -395,7 +428,7 @@ useChromeSidebarOverlay({
   }),
   commands: {
     runAction: (action) => props.runAction(action),
-    tabs: () => props.state.tabs,
+    tabs: () => props.readState().tabs,
     openHome: () => props.actions.openHome(),
     selectTab,
     closeTab,
@@ -408,12 +441,11 @@ useChromeSidebarOverlay({
     toggleWorkspaceSwitcher: () => props.actions.toggleWorkspaceSwitcher(),
     stayHere: () => setFollowAgentActivity(false),
     toggleRailPinned: toggleVerticalTabRailPinned,
-    startTabDrag,
     scrollTabList: (top) => browserTabsBar.value?.scrollTabListTo?.(top),
     closeRail: () => setVerticalTabRailRevealed(false),
     footer: {
       'command-palette': () => props.actions.toggleCommandPalette(),
-      'tab-search': () => props.actions.toggleTabSearch(),
+      'tab-search': () => props.actions.openHomeTabs(),
       downloads: toggleDownloads,
       history: toggleVisitHistory,
       'all-tabs-muted': toggleAllTabsMuted,
@@ -429,7 +461,29 @@ useChromeSidebarOverlay({
   }
 })
 
-defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent })
+/** The tabs selected together in the tab strip while there are several, else none. */
+function selectedTabs(): string[] {
+  return browserTabsBar.value?.selectedTabs?.() ?? []
+}
+
+/**
+ * The workspaces folded in the tab strip or not listed in the rail, such as one hidden from the sidebar or folded into
+ * its "All N workspaces" row, which the tab keys pass over: Ctrl+Tab and Ctrl+1 to 9 follow the tabs on screen.
+ */
+function foldedWorkspaceIds(): ReadonlySet<string> | undefined {
+  return browserTabsBar.value?.passedOverWorkspaceIds
+}
+
+// Main hands the view past a folded workspace's tabs when a tab closes or sleeps, as the tab keys pass over them. Only
+// the main window says which: a detached panel's window keeps its own copy of the folds, read once as it opened.
+const inMainWindow = resolveDetachedPanelId(window.location.search) === null
+watch(() => inMainWindow && props.hydrated && [...(foldedWorkspaceIds() ?? [])].sort().join('|'), (folded) => {
+  if (folded === false) return
+  void props.browser.setFoldedWorkspaces?.([...(foldedWorkspaceIds() ?? [])])
+    ?.catch((error: unknown) => { console.warn('[shell] Could not tell main which workspaces are folded:', error) })
+}, { immediate: true })
+
+defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent, selectedTabs, foldedWorkspaceIds })
 </script>
 
 <template>
@@ -474,7 +528,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
     >
       <BrowserTabsBar
         ref="browserTabsBar"
-        :state="state"
+        :read-state="readState"
         :settings-active="settingsOpen"
         :user-attention="userAttention"
         :workspace-switcher-open="workspaceSwitcherOpen"
@@ -484,37 +538,38 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :rail-revealed="verticalTabRailRevealed || verticalTabRailCollapsing"
         :inert="verticalTabRailCollapsing"
         :force-rail-collapsed="tabOrientation === 'vertical' && verticalTabRailCollapsed"
-        :mcp-activity-by-tab="mcpActivityByTab"
+        :read-mcp-activity="readMcpActivity"
         :format-number="formatNumber"
         :tab-tooltip="tabTooltip"
         :describe-emulation="describeTabEmulation"
+        link-drops
+        tab-selection
         @open-home="runAction(actions.openHome)"
         @stay-here="setFollowAgentActivity(false)"
         @show-workspace-context-menu="runAction(() => showWorkspaceContextMenu($event))"
         @new-tab="runAction(() => actions.newTabInWorkspace($event))"
         @create-workspace="runAction(actions.openNewWorkspaceEditor)"
         @select-tab="selectTab"
-        @show-tab-context-menu="runAction(() => browser.showTabContextMenu($event))"
+        @show-tab-context-menu="(tabId: string, selectedTabIds?: string[]) => runAction(() => browser.showTabContextMenu(tabId, selectedTabIds))"
         @reorder-tab="runAction(() => reorderTab($event))"
+        @drop-link="dropLink"
         @toggle-tab-muted="runAction(() => toggleTabMuted($event))"
         @close-tab="runAction(() => closeTab($event))"
-        @drag-start="startTabDrag"
         @toggle-rail-pinned="toggleVerticalTabRailPinned"
         @switch-workspace="runAction(actions.toggleWorkspaceSwitcher)"
       />
       <AppTopbarActions
         :inert="verticalTabRailCollapsing"
         :command-palette-open="commandPaletteOpen && !workspaceSwitcherOpen"
-        :tab-search-open="tabSearchOpen"
         :downloads-open="downloadsOpen"
         :history-open="historyOpen"
         :settings-open="settingsOpen"
-        :downloads="downloads"
+        :downloads="toolbarDownloads"
         :active-downloads="activeDownloads"
         :download-button-label="downloadButtonLabel"
-        :has-website-tabs="websiteTabs.length > 0"
+        :has-website-tabs="hasWebsiteTabs"
         :all-tabs-muted="allTabsMuted"
-        :all-interaction-locked="state.allHumanInteractionLocked"
+        :all-interaction-locked="allHumanInteractionLocked"
         :all-interaction-lock-label="allInteractionLockLabel"
         :interaction-pending="isTogglePending('interaction')"
         :audio-pending="isTogglePending('audio')"
@@ -524,7 +579,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :update-state="updateState"
         :mcp-status-controller="mcpStatusController"
         @toggle-command-palette="runAction(actions.toggleCommandPalette)"
-        @toggle-tab-search="runAction(actions.toggleTabSearch)"
+        @open-home-tabs="runAction(actions.openHomeTabs)"
         @toggle-downloads="runAction(toggleDownloads)"
         @toggle-history="runAction(toggleVisitHistory)"
         @toggle-all-tabs-muted="runAction(toggleAllTabsMuted)"
@@ -584,18 +639,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
           :locale="locale"
           :format-number="formatNumber"
           :run-action="runAction"
-          :actions="{
-            toggleSiteControls,
-            resetActiveTabEmulation,
-            clearActiveCssStatePreview,
-            stopActiveVirtualPasskey,
-            stopActiveLogpoints,
-            openRequestConditions,
-            setSitePermission: setSitePermissionDecision,
-            resetSitePermission: removeSitePermission,
-            openSitePermissionSettings,
-            openSitePrivacySettings
-          }"
+          :actions="addressBarActions"
           :keeps-separate-panel-open="keepsSeparatePanelOpen"
         />
         <AgentPresenceAvatars
@@ -609,12 +653,12 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
           :attention-decision-id="userAttention?.humanWaitingDecisionId"
           :attention-workspace-id="userAttention?.workspaceId"
           :browser="browser"
-          :tabs="state.tabs"
+          :tabs="agentTabs"
           :follow="settings.followAgentActivity"
           :show-cursor="settings.showAgentCursor"
           :pin-live-status="settings.pinAgentLiveStatus"
           :all-steps="actions.showAgentSteps !== undefined"
-          :agent-control-locked="state.agentControlLocked === true"
+          :agent-control-locked="agentControlLocked"
           :take-over-badge="agentTakeOver?.badge"
           @select="selectTab"
           @set-paused="setAgentPaused"
@@ -631,8 +675,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
             ref="agentTakeOver"
             :workspace-id="activeTab?.mcpGroupId"
             :active-tab-id="activeTab?.id"
-            :tabs="state.tabs"
-            :agent-control-locked="state.agentControlLocked === true"
+            :tabs="agentTabs"
+            :agent-control-locked="agentControlLocked"
             @take-over="takeOverTab"
             @hand-back="setAgentPaused($event, false)"
           />
@@ -640,7 +684,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         <template #commands>
           <BrowserPageActions
             v-model:split-menu-open="splitMenuOpen"
-            :state="state"
+            :read-state="readState"
             :active-tab="activeTab"
             :browser="browser"
             :accept-state="syncState"
@@ -689,8 +733,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
       :attention-decision="userAttention?.humanWaitingDecisionId !== undefined"
       :attention-workspace-id="userAttention?.workspaceId"
       :attention-tab-id="userAttention?.tabId"
-      :tabs="state.tabs"
-      :agent-control-locked="state.agentControlLocked === true"
+      :tabs="agentTabs"
+      :agent-control-locked="agentControlLocked"
       @set-paused="setAgentPaused"
       @take-over="takeOverTab"
       @hand-back="answerAttention($event, 'resolved')"

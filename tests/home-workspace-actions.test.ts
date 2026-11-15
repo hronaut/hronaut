@@ -1,6 +1,42 @@
 import { describe, expect, it, vi } from 'vitest'
-import { runHomeWorkspaceAction } from '../src/main/home-workspace-actions.js'
+import { runHomeWorkspaceAction } from '../src/main/home/home-workspace-actions.js'
 import type { BrowserState } from '../src/shared/types.js'
+
+// Home closes, restores and edits archived workspaces with the browser; those run on the fake browser's stubs.
+vi.mock('../src/main/browser/workspace-archive/workspace-archive.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-archive/workspace-archive.js')>(),
+  closeWorkspaceForPerson: (browser: { closeWorkspaceForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeWorkspaceForPerson(...args),
+  restoreSavedTabGroup: (browser: { restoreSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.restoreSavedTabGroup(...args),
+  updateArchivedWorkspacePreferences: (browser: { updateArchivedWorkspacePreferences: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.updateArchivedWorkspacePreferences(...args),
+  archiveWorkspaceForPerson: (browser: { archiveWorkspaceForPerson: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.archiveWorkspaceForPerson(...args),
+  deleteSavedTabGroup: (browser: { deleteSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.deleteSavedTabGroup(...args)
+}))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  updateMcpTabGroup: (browser: { updateMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.updateMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args),
+  // Home reads the state without sending a waiting change to the shell early.
+  buildBrowserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
+// The browser's workspace, Home and tab actions are functions now; these reach the fake's stubs.
+vi.mock('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js')>(),
+  closeWorkspace: (browser: { closeWorkspace: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.closeWorkspace(...args)
+}))
+vi.mock('../src/main/browser/new-tabs/open-new-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/new-tabs/open-new-tab.js')>(),
+  newTab: (browser: { newTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.newTab(...args)
+}))
+vi.mock('../src/main/browser/home-tabs/home-tabs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/home-tabs/home-tabs.js')>(),
+  openHome: (browser: { openHome: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openHome(...args)
+}))
+
+const AGENT_KEY = `hrw1_${'a'.repeat(43)}`
 
 function harness() {
   const state = {
@@ -12,13 +48,31 @@ function harness() {
   const manager = {
     getState: () => state, openHome: vi.fn(), selectTab: vi.fn(), newTab: vi.fn(),
     archiveWorkspaceForPerson: vi.fn(), closeWorkspace: vi.fn(), closeWorkspaceForPerson: vi.fn(), restoreSavedTabGroup: vi.fn(), deleteSavedTabGroup: vi.fn(),
-    updateMcpTabGroup: vi.fn(), updateArchivedWorkspacePreferences: vi.fn()
+    updateMcpTabGroup: vi.fn(), updateArchivedWorkspacePreferences: vi.fn(),
+    // The open and archived workspaces, and the operations that hold either busy.
+    mcpTabGroups: new Map([['active', { id: 'active', name: 'Project' }]]),
+    savedTabGroups: new Map([['archived', { id: 'archived', name: 'Archive' }]]),
+    workspaceOperations: new Map<string, { action: string; settled?: Promise<void> }>(),
+    savedWorkspaceOperations: new Map<string, { action: string; settled?: Promise<void> }>(),
+    // Copying a workspace key for an agent reads its key and writes the clipboard in main.
+    isWorkspaceAgentAccessible: vi.fn(() => true),
+    mcpWorkspaceResumeKey: vi.fn(() => AGENT_KEY),
+    options: { copyText: vi.fn(async (_text: string) => undefined) }
   }
   const edit = vi.fn()
-  return { state, manager, edit, run: (input: unknown) => runHomeWorkspaceAction(manager, input, edit) }
+  return { state, manager, edit, run: (input: unknown) => runHomeWorkspaceAction(manager as never, input, edit) }
 }
 
 describe('trusted Home workspace actions', () => {
+  it('copies an open workspace key for an agent in main, never sends it to Home, and refuses an archive', async () => {
+    const h = harness()
+    const result = await h.run({ view: 'copy-agent-key', workspaceId: 'active' })
+    expect(h.manager.options.copyText).toHaveBeenCalledOnce()
+    expect(h.manager.options.copyText.mock.calls[0]![0]).toContain(`"workspaceId":"active","resumeKey":"${AGENT_KEY}"`)
+    expect(JSON.stringify(result)).not.toContain('hrw1_')
+    await expect(h.run({ view: 'copy-agent-key', workspaceId: 'archived' })).rejects.toThrow('Restore this workspace')
+    expect(h.manager.options.copyText).toHaveBeenCalledOnce()
+  })
   it('opens an empty workspace in its own scope and returns only Home fields', async () => {
     const h = harness()
     const result = await h.run({ view: 'open', workspaceId: 'active' })
@@ -47,6 +101,52 @@ describe('trusted Home workspace actions', () => {
     expect(h.manager.updateMcpTabGroup).toHaveBeenCalledWith('active', { deletionProtected: true })
     await h.run({ view: 'preferences', workspaceId: 'archived', hiddenFromSidebar: false })
     expect(h.manager.updateArchivedWorkspacePreferences).toHaveBeenCalledWith('archived', { hiddenFromSidebar: false })
+  })
+  it('applies a preference switched while another operation holds the workspace busy once it ends, to where it is then', async () => {
+    const h = harness()
+    let end!: () => void
+    const settled = new Promise<void>(resolve => { end = resolve })
+    h.manager.workspaceOperations.set('active', { action: 'archiving the workspace', settled })
+    const switched = h.run({ view: 'preferences', workspaceId: 'active', hiddenFromSidebar: true })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(h.manager.updateMcpTabGroup).not.toHaveBeenCalled()
+    // The operation archived it, so the switch applies to the archive.
+    h.manager.workspaceOperations.delete('active')
+    h.manager.mcpTabGroups.delete('active')
+    h.manager.savedTabGroups.set('active', { id: 'active', name: 'Project' })
+    end()
+    await switched
+    expect(h.manager.updateMcpTabGroup).not.toHaveBeenCalled()
+    expect(h.manager.updateArchivedWorkspacePreferences).toHaveBeenCalledExactlyOnceWith('active', { hiddenFromSidebar: true })
+  })
+  it('applies a preference of an archive another operation holds busy once it ends', async () => {
+    const h = harness()
+    let end!: () => void
+    const settled = new Promise<void>(resolve => { end = resolve })
+    h.manager.savedWorkspaceOperations.set('archived', { action: 'restoring the archived workspace', settled })
+    const switched = h.run({ view: 'preferences', workspaceId: 'archived', deletionProtected: true })
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(h.manager.updateArchivedWorkspacePreferences).not.toHaveBeenCalled()
+    h.manager.savedWorkspaceOperations.delete('archived')
+    end()
+    await switched
+    expect(h.manager.updateArchivedWorkspacePreferences).toHaveBeenCalledExactlyOnceWith('archived', { deletionProtected: true })
+  })
+  it('checks Home again after the wait, and changes nothing for a sender that is no longer Home', async () => {
+    const h = harness()
+    let end!: () => void
+    const settled = new Promise<void>(resolve => { end = resolve })
+    h.manager.workspaceOperations.set('active', { action: 'copying workspace data', settled })
+    let home = true
+    const stillHome = vi.fn(() => { if (!home) throw new Error('Rejected IPC from a page that is not Home') })
+    const switched = runHomeWorkspaceAction(h.manager as never, { view: 'preferences', workspaceId: 'active', hiddenFromSidebar: true }, h.edit, stillHome)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    home = false
+    h.manager.workspaceOperations.delete('active')
+    end()
+    await expect(switched).rejects.toThrow('not Home')
+    expect(stillHome).toHaveBeenCalledOnce()
+    expect(h.manager.updateMcpTabGroup).not.toHaveBeenCalled()
   })
   it('respects global interaction lock for destructive lifecycle operations', async () => {
     const h = harness()

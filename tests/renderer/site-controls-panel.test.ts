@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import SiteControlsPanel from '../../src/renderer/src/components/SiteControlsPanel.vue'
+import SiteControlsPanel from '../../src/renderer/src/features/site-controls/SiteControlsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { AddressSecurity } from '../../src/shared/address-security.js'
 import type { PanelDock, SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../src/shared/types.js'
 import { getByTooltip } from './helpers/tooltip.js'
 
@@ -24,11 +25,16 @@ function renderPanel(options: {
   dock?: PanelDock
   refresh?: () => unknown
   keepsSeparatePanelOpen?: () => boolean
+  security?: AddressSecurity | null
+  reloadOffered?: boolean
+  clearData?: () => unknown
+  origin?: string
 } = {}) {
   const setPermission = options.setPermission ?? vi.fn(() => true)
   const resetPermission = vi.fn(() => true)
   const openPermissionSettings = vi.fn()
   const openPrivacySettings = vi.fn()
+  const reloadPage = vi.fn()
   const view = render(SiteControlsPanel, {
     global: { plugins: [createHronautI18n(options.locale ?? 'en-US')] },
     props: {
@@ -36,26 +42,54 @@ function renderPanel(options: {
       dock: options.dock ?? 'right',
       hostname: 'example.test',
       addressKind: 'Secure',
-      origin: 'https://example.test',
+      security: options.security === undefined ? 'secure' : options.security,
+      origin: options.origin ?? 'https://example.test',
       summary: options.summary === null ? null : { origin: 'https://example.test', ...(options.summary ?? { cookieCount: 2, historyEntries: 3, historyVisits: 5 }) },
       state: options.state ?? 'idle',
       message: '',
       permissions: options.permissions ?? [cameraPermission],
       locale: options.locale ?? 'en-US',
-      permissionLabel: (permission: string) => permission === 'geolocation' ? 'Location' : 'Camera',
+      permissionLabel: (permission: string) => ({ geolocation: 'Location', sound: 'Sound' })[permission] ?? 'Camera',
       permissionPending: options.permissionPending ?? (() => false),
       setPermission,
       resetPermission,
+      reloadOffered: options.reloadOffered ?? false,
+      reloadPage,
       openPermissionSettings,
       openPrivacySettings,
       refresh: options.refresh ?? vi.fn(),
+      clearData: options.clearData ?? vi.fn(),
       keepsSeparatePanelOpen: options.keepsSeparatePanelOpen ?? (() => false)
     }
   })
-  return { view, setPermission, resetPermission, openPermissionSettings, openPrivacySettings }
+  return { view, setPermission, resetPermission, openPermissionSettings, openPrivacySettings, reloadPage }
 }
 
 describe('SiteControlsPanel', () => {
+  it('says first whether the connection is secure, as Chrome’s site information does', () => {
+    const { view } = renderPanel()
+    expect(screen.getByText('Connection is secure')).toBeVisible()
+    expect(screen.getByText('Your information (for example, passwords or credit card numbers) is private when it is sent to this site.')).toBeVisible()
+    view.unmount()
+
+    renderPanel({ security: 'not-secure' })
+    expect(screen.getByText('Your connection to this site is not secure')).toBeVisible()
+    expect(screen.getByText(/You should not enter any sensitive information on this site/)).toBeVisible()
+    expect(screen.queryByText('Connection is secure')).toBeNull()
+  })
+
+  it('says a page on this computer is not secure, and that its connection stays on the computer', () => {
+    renderPanel({ security: 'local', locale: 'uk-UA' })
+    expect(screen.getByText('З’єднання з цим сайтом не захищене')).toBeVisible()
+    expect(screen.getByText('Ця сторінка надходить із цього комп’ютера, тож її з’єднання не виходить за його межі.')).toBeVisible()
+    expect(screen.queryByText(/конфіденційну інформацію/)).toBeNull()
+  })
+
+  it('shows no connection without a website address', () => {
+    renderPanel({ security: null })
+    expect(screen.queryByText(/connection/i)).toBeNull()
+  })
+
   it('owns site summary and permission interactions', async () => {
     const { setPermission, resetPermission, openPermissionSettings, openPrivacySettings } = renderPanel()
     const user = userEvent.setup()
@@ -72,6 +106,24 @@ describe('SiteControlsPanel', () => {
     expect(resetPermission).toHaveBeenCalledWith(cameraPermission)
     expect(openPermissionSettings).toHaveBeenCalledOnce()
     expect(openPrivacySettings).toHaveBeenCalledOnce()
+  })
+
+  // A page already using a permission, such as its camera, goes on with it until it loads again, as Chrome's site
+  // information says once a permission changed.
+  it('offers to reload the page once a permission changed, and says so as it appears', async () => {
+    const { view, reloadPage } = renderPanel()
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+
+    await view.rerender({ reloadOffered: true })
+    expect(status).toHaveTextContent('To apply your updated settings to this site, reload this page')
+    await userEvent.setup().click(within(status).getByRole('button', { name: 'Reload' }))
+    expect(reloadPage).toHaveBeenCalledOnce()
+
+    // Also once the page has no custom decision left, as after Reset to default.
+    await view.rerender({ permissions: [] })
+    expect(screen.getByText('No custom decisions for this website. Hronaut will ask when a permission is needed.')).toBeVisible()
+    expect(within(screen.getByRole('status')).getByRole('button', { name: 'Reload' })).toBeVisible()
   })
 
   it('emits dock and close model changes', async () => {
@@ -116,6 +168,13 @@ describe('SiteControlsPanel', () => {
     expect(screen.getByRole('button', { name: 'Reset Location permission for https://widget.test (on https://example.test)' })).toBeVisible()
     await user.selectOptions(widgetLocation, 'deny')
     expect(setPermission).toHaveBeenCalledWith(embedded, 'deny')
+  })
+
+  it('names a website muted with Mute Site as Sound, muted', () => {
+    renderPanel({ permissions: [{ origin: 'https://example.test', permission: 'sound', decision: 'deny', workspaceId: WORKSPACE }] })
+    const sound = screen.getByRole('combobox', { name: 'Sound permission for https://example.test' })
+    expect(sound).toHaveValue('deny')
+    expect(within(sound).getAllByRole('option').map((option) => option.textContent)).toEqual(['Allow', 'Mute'])
   })
 
   it('counts the custom decisions in the interface language', () => {
@@ -183,5 +242,30 @@ describe('Site controls docked back from its window', () => {
     const { view } = renderPanel({ dock: 'window', summary: null, refresh, keepsSeparatePanelOpen: () => true })
     await view.rerender({ dock: 'right' })
     expect(refresh).not.toHaveBeenCalled()
+  })
+  it('asks before clearing the website\'s data, with the keyboard on Cancel', async () => {
+    const user = userEvent.setup()
+    const clearData = vi.fn()
+    const { view } = renderPanel({ clearData })
+    const clear = screen.getByRole('button', { name: 'Clear data for this website' })
+    await user.click(clear)
+    expect(screen.getByText('Delete cookies and site data for https://example.test? You may be signed out of this website.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    expect(clearData).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText(/Delete cookies and site data/)).not.toBeVisible()
+    expect(screen.getByRole('button', { name: 'Clear data for this website' })).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Clear data for this website' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(clearData).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Clear data for this website' })).toHaveFocus()
+
+    // A question left open goes with the website it named.
+    await user.click(screen.getByRole('button', { name: 'Clear data for this website' }))
+    await view.rerender({ origin: 'https://other.test' })
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+    expect(clearData).toHaveBeenCalledOnce()
   })
 })

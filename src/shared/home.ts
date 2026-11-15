@@ -1,12 +1,14 @@
 import type { AgentGuide, ClientConfigurationOptions } from './client-configuration.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from './home-workspaces.js'
-import type { McpActivityOutcome, McpActivityResult, McpListenErrorCode, McpPortMoveResult, McpServerStatus } from './types.js'
+import type { BrowserTabOverviewPreview, McpActivityOutcome, McpActivityResult, McpListenErrorCode, McpPortMoveResult, McpServerStatus } from './types.js'
+import type { HomeTabAction, HomeTabsState } from './home-tabs.js'
 import type { ResolvedThemeName } from './theme.js'
 import type { ConnectedAgent } from './agent-status.js'
 import type { AgentPresenceState, AgentRecentStep } from './agent-presence.js'
 import type { AgentStepKind } from './agent-steps.js'
 import type { MessageSchema } from './locales/en-US.js'
 import type { ClaudeCodeSetupPreview, ClaudeCodeSetupResult, HomeSetupState } from './claude-code-setup.js'
+import type { Confirmation } from './confirmation.js'
 
 export interface HomeReadinessCheck {
   state: string
@@ -77,16 +79,28 @@ export interface HomeBootstrap {
   messages: MessageSchema
   dashboard: HomeDashboard
   workspaces: HomeWorkspaceState
+  /** The operating system, for the keys Home names: Cmd on macOS, Ctrl elsewhere. */
+  platform: string
 }
 export interface HronautHomeApi {
   onShowWorkspaces(listener: () => void): () => void
   /** Something Home shows changed; read /api/status again. Carries nothing. */
   onChanged?(listener: () => void): () => void
+  /** Search tabs asks Home to show its Tabs view with the search field focused. */
+  onShowTabs?(listener: () => void): () => void
+  /** Tabs changed; read them again while the Tabs view shows. Carries nothing. */
+  onTabsChanged?(listener: () => void): () => void
+  getTabs?(): Promise<HomeTabsState>
+  /** The last frames kept of the tabs; tabs without one are left out. */
+  getTabPreviews?(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
+  /** A bounded full-page picture of an awake, loaded tab. */
+  getTabPagePreview?(tabId: string): Promise<BrowserTabOverviewPreview>
+  tabAction?(action: HomeTabAction): Promise<HomeTabsState>
   getWorkspaces(): Promise<HomeWorkspaceState>
   workspaceAction(request: HomeWorkspaceAction): Promise<HomeWorkspaceState>
   copyText(text: string): Promise<void>
-  /** Asks natively with Cancel as the default button, and waits like `window.confirm`; true only for OK. */
-  confirm?(message: string): boolean
+  /** Asks in Hronaut's own dialog over the window, with Cancel focused; true only for OK. */
+  confirm?(question: Confirmation): Promise<boolean>
   openAgentGuide(id: AgentGuide['id']): Promise<void>
   openVsCodeInstall(): Promise<void>
   openSetupHelp(): Promise<void>

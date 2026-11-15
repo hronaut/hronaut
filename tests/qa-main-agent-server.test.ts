@@ -5,6 +5,40 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AgentPresenceRegistry } from '../src/main/mcp/agent-presence.js'
 import { McpHttpServer, type McpHttpServerOptions, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
+  getMcpGroupState: (browser: { getMcpGroupState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpGroupState(...args),
+  tabBelongsToMcpGroup: (browser: { tabBelongsToMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabBelongsToMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  stop: (browser: { stop: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.stop(...args)
+}))
+// A fake browser that stubs no pause answers has no paused or taken-over tab.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
+  hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
+
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const otherWorkspaceId = '01912345-6789-7abc-8def-0123456789ac'
 const tabId = '01912345-678a-7abc-8def-0123456789ab'
@@ -141,25 +175,47 @@ describe('Home agent data from the MCP server', () => {
     expect(server.getHomeFeed()).toEqual([expect.objectContaining({ workspaceId, step: 'working', outcome: 'done' })])
   })
 
-  it('forgets the feed when history is cleared, telling main once and not again for an empty feed', async () => {
+  // Clearing the history left each agent's "All steps" naming, and showing pictures of, the pages it had cleared.
+  it('forgets agents\' steps, in the feed and in "All steps", when history is cleared, telling main once and not again when none are left', async () => {
     const { server, onAgentPresenceChanged, connect, listTabs } = await startServer()
     const claude = await connect('Claude Code')
     await listTabs(claude.client)
     expect(server.getHomeFeed()).toHaveLength(1)
+    const agent = server.getAgentPresence()[workspaceId]?.[0]
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toHaveLength(1)
     const revision = server.homeFeedRevision
+    const stepsRevision = server.agentStepHistoryRevision
     onAgentPresenceChanged.mockClear()
 
-    server.forgetHomeFeed()
+    server.forgetAgentStepsSince()
     expect(server.getHomeFeed()).toEqual([])
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toEqual([])
+    expect(server.getAgentPresence()[workspaceId]?.[0]?.recentSteps).toEqual([])
     expect(server.homeFeedRevision).toBeGreaterThan(revision)
+    expect(server.agentStepHistoryRevision).toBeGreaterThan(stepsRevision)
     expect(onAgentPresenceChanged).toHaveBeenCalledOnce()
 
     onAgentPresenceChanged.mockClear()
-    server.forgetHomeFeed()
-    server.forgetHomeFeed(workspaceId)
+    server.forgetAgentStepsSince()
+    server.forgetAgentStepsSince(0)
     expect(onAgentPresenceChanged).not.toHaveBeenCalled()
-    // The agent's own steps for the shell stay; only Home's feed goes with history.
-    expect(server.getAgentPresence()[workspaceId]?.[0]?.recentSteps.length).toBeGreaterThan(0)
+    // The agent is still connected; its next step is listed as usual.
+    await listTabs(claude.client)
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toHaveLength(1)
+  })
+
+  it('forgets only the steps agents took from a time range\'s start when history is cleared for it', async () => {
+    const { server, connect, listTabs } = await startServer()
+    const claude = await connect('Claude Code')
+    await listTabs(claude.client)
+    const agent = server.getAgentPresence()[workspaceId]?.[0]
+    const [first] = server.getHomeFeed()
+    server.forgetAgentStepsSince(first!.at + 1)
+    expect(server.getHomeFeed()).toHaveLength(1)
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toHaveLength(1)
+    server.forgetAgentStepsSince(first!.at)
+    expect(server.getHomeFeed()).toEqual([])
+    expect(server.getAgentStepHistory(agent!.clientKey, workspaceId, [])).toEqual([])
   })
 
   it('forgets one workspace\'s feed entries and keeps the others', async () => {
@@ -172,7 +228,7 @@ describe('Home agent data from the MCP server', () => {
     const other = await claude.client.callTool({ name: 'browser_tabs', arguments: { workspaceId: otherWorkspaceId } }) as CallToolResult
     expect(other.isError, text(other)).not.toBe(true)
     expect(new Set(server.getHomeFeed().map((entry) => entry.workspaceId))).toEqual(new Set([workspaceId, otherWorkspaceId]))
-    server.forgetHomeFeed(otherWorkspaceId)
+    server.forgetAgentWorkspaceSteps(otherWorkspaceId)
     expect(server.getHomeFeed().map((entry) => entry.workspaceId)).toEqual([workspaceId])
   })
 
@@ -232,12 +288,12 @@ describe('workspace activity and connected agents from a presence snapshot', () 
     const idle = { id: 'idle-session', name: 'Idle Agent' }
     const working = { id: 'working-session', name: 'Working Agent' }
     const asking = { id: 'asking-session', name: 'Asking Agent' }
-    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'shop.example/cart' })
-    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'shop.example/cart' })
-    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'docs.example/guide' })
-    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'docs.example/guide' })
+    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'shop.example/cart' }, 0)
+    registry.track(idle, workspaceId, { activityId: 'i', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'shop.example/cart' }, 10)
+    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'started', occurredAt: 0, source: 'call', target: 'docs.example/guide' }, 0)
+    registry.track(idle, otherWorkspaceId, { activityId: 'o', toolName: 'browser_navigate', phase: 'finished', occurredAt: 10, source: 'call', target: 'docs.example/guide' }, 10)
     const now = 60_000
-    registry.track(working, workspaceId, { activityId: 'w', toolName: 'browser_click', phase: 'started', occurredAt: now - 100, source: 'call', target: 'Pay' })
+    registry.track(working, workspaceId, { activityId: 'w', toolName: 'browser_click', phase: 'started', occurredAt: now - 100, source: 'call', target: 'Pay' }, now - 100)
     registry.recordAttention(asking, workspaceId, 'attention-9', tabId, now - 50)
     const presence = presenceOf(registry, now, 'attention-9')
 
@@ -258,7 +314,7 @@ describe('workspace activity and connected agents from a presence snapshot', () 
     const { server } = await startServer()
     const registry = new AgentPresenceRegistry()
     const asking = { id: 'asking-session', name: 'claude-code' }
-    registry.track(asking, otherWorkspaceId, { activityId: 'a', toolName: 'browser_click', phase: 'started', occurredAt: 59_000, source: 'call' })
+    registry.track(asking, otherWorkspaceId, { activityId: 'a', toolName: 'browser_click', phase: 'started', occurredAt: 59_000, source: 'call' }, 59_000)
     registry.recordAttention(asking, workspaceId, 'attention-3', undefined, 59_500)
     const expected = {
       key: registry.clientKey('asking-session'),

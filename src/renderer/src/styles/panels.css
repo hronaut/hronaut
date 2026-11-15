@@ -52,6 +52,9 @@
 
 @container (max-width: 420px) {
   .accessibility-audit-summary, .design-overview-summary, .page-metadata-summary, .memory-summary { @apply [grid-template-columns:repeat(2,_minmax(0,_1fr))]; }
+  /* Each count reads as a line, as "3 warnings", so no label is cut in a narrow dock. */
+  .inspector-issues-panel > .panel-scroll-body > .inspector-issues-summary { @apply static [grid-template-columns:minmax(0,_1fr)] [gap:6px]; }
+  .inspector-issues-summary article { @apply [grid-template-columns:auto_minmax(0,_1fr)] items-baseline [min-height:0] [gap:8px] [padding:7px_10px]; }
   .performance-vitals, .design-color-groups, .social-metadata-cards { @apply [grid-template-columns:1fr]; }
   .site-storage-tools .site-storage-search { @apply [flex-basis:100%]; }
 }

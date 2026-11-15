@@ -120,18 +120,27 @@ test('preserves a selected global command when live tab state removes website co
   await appWindow.getByRole('button', { name: 'Open command palette' }).click()
 
   const palette = appWindow.getByRole('dialog', { name: 'Commands' })
-  const settingsCommand = palette.getByRole('option', { name: /Open Settings/ })
-  await settingsCommand.hover()
-  await expect(palette.locator('[role="option"][aria-selected="true"]')).toHaveAttribute('id', 'command-palette-settings')
+  const selected = palette.locator('[role="option"][aria-selected="true"]')
+  const search = palette.getByRole('combobox', { name: 'Search commands' })
+  // Chosen with the keyboard. Under Xvfb the system's pointer rests where Playwright's never goes, and the window is
+  // handed its events, as when the pages under the palette hide: chosen with Playwright's pointer, Open Settings lost
+  // the selection to the row under the system's, the pointer having seemed to move from one to the other.
+  for (let presses = 0; await selected.getAttribute('id') !== 'command-palette-settings'; presses += 1) {
+    if (presses > 80) throw new Error('ArrowDown never reached Open Settings')
+    const before = await selected.getAttribute('id')
+    await search.press('ArrowDown')
+    await expect(selected).not.toHaveAttribute('id', before ?? '')
+  }
   await expect(palette.getByRole('option', { name: /Capture area screenshot/ })).toBeVisible()
 
+  // The list loses the website's commands, under the system's resting pointer too.
   await appWindow.evaluate('window.hronaut.openHome()')
   await expect(appWindow.locator('.toolbar')).toBeHidden()
   await expect(palette.getByRole('option', { name: /Capture area screenshot/ })).toHaveCount(0)
-  await expect(palette.locator('[role="option"][aria-selected="true"]')).toHaveAttribute('id', 'command-palette-settings')
-  await expect(palette.getByRole('combobox', { name: 'Search commands' })).toBeFocused()
+  await expect(selected).toHaveAttribute('id', 'command-palette-settings')
+  await expect(search).toBeFocused()
 
-  await palette.getByRole('combobox', { name: 'Search commands' }).press('Enter')
+  await search.press('Enter')
   await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
 })
 

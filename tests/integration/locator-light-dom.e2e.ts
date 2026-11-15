@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 test('generates usable light-DOM locators instead of ambiguous shadow-piercing matches', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   const server = createServer((_request, response) => {
@@ -27,8 +27,7 @@ test('generates usable light-DOM locators instead of ambiguous shadow-piercing m
     }
     const { activeTabId: tabId } = await call('browser_new_tab', { url, active: true })
     await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(tabId), tabId)
-    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(page => page.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#save')).toBeVisible()
     expect((await call('browser_generate_locator', { tabId, selector: '#save' })).strategy).toBe('role')
     await page.locator('#host').evaluate(host => {

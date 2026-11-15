@@ -3,7 +3,7 @@ import { createTestingPinia } from '@pinia/testing'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import GeneralSettings from '../../src/renderer/src/components/GeneralSettings.vue'
+import GeneralSettings from '../../src/renderer/src/features/settings/GeneralSettings.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { useSettingsStore } from '../../src/renderer/src/stores/settings.js'
 import type { RendererSettingsState } from '../../src/shared/types.js'
@@ -17,6 +17,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       tabPosition: 'top',
       useSystemTitleBar: false,
       searchEngine: 'google',
+      siteSearches: [],
       hideInTray: true,
       launchAtStartup: false,
       launchMinimized: false,
@@ -25,6 +26,9 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: [],
+      secureDnsMode: 'automatic',
+      secureDnsTemplate: '',
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,
@@ -34,10 +38,14 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
+      saveDialogDirectory: null,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
+      graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: locale
+      languagePreference: locale,
+      spellCheck: true,
+      spellCheckLanguages: []
     },
     systemTheme: 'light',
     systemLocale: locale,
@@ -93,6 +101,7 @@ describe('GeneralSettings', () => {
     expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual(['General', 'Startup and tray', 'Agent activity'])
     expect(screen.getAllByRole('combobox').map((control) => control.getAttribute('aria-label'))).toEqual(['Interface language', 'Attention sound'])
     expect(screen.getAllByRole('checkbox').map((control) => control.id)).toEqual([
+      'setting-spell-check',
       'setting-hide-in-tray',
       'setting-launch-at-startup',
       'setting-launch-minimized',
@@ -201,12 +210,132 @@ describe('GeneralSettings', () => {
     expect(pin).not.toBeChecked()
   })
 
+  it('turns spell check off and on, and keeps the switch as it was when the change fails', async () => {
+    let fail = false
+    const setSpellCheck = vi.fn(async (spellCheck: boolean) => {
+      if (fail) throw new Error('disk full')
+      return { ...snapshot('en-US').settings, spellCheck }
+    })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { setSpellCheck } })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    const rendered = render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+
+    const spelling = screen.getByRole('checkbox', { name: /^Spell check/ })
+    expect(spelling).toBeChecked()
+    expect(spelling).toHaveAccessibleName(/Check for spelling errors when you type text on websites/)
+    const user = userEvent.setup()
+    await user.click(spelling)
+    expect(setSpellCheck).toHaveBeenLastCalledWith(false)
+    expect(spelling).not.toBeChecked()
+    fail = true
+    await user.click(spelling)
+    expect(setSpellCheck).toHaveBeenLastCalledWith(true)
+    await vi.waitFor(() => expect(spelling).not.toBeChecked())
+    expect(rendered.emitted().settingError).toHaveLength(1)
+  })
+
+  it('lists the spell check languages, adds one and removes one, keeping at least one', async () => {
+    let fail = false
+    const setSpellCheckLanguages = vi.fn(async (spellCheckLanguages: string[]) => {
+      if (fail) throw new Error('disk full')
+      return { ...snapshot('en-US').settings, spellCheckLanguages }
+    })
+    const getSpellCheckLanguages = vi.fn(async () => ({ available: ['de', 'en-GB', 'en-US', 'uk'], automatic: ['en-US'] }))
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages, setSpellCheckLanguages } })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    const rendered = render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+    const list = await screen.findByRole('list', { name: 'Spell check languages' })
+    const languages = () => Array.from(list.querySelectorAll('li')).map((item) => item.textContent?.trim())
+
+    // None chosen: the automatic language, which cannot be removed while it is the only one.
+    expect(languages()).toEqual(['American English'])
+    const removeAmerican = screen.getByRole('button', { name: 'Remove American English' })
+    expect(removeAmerican).toHaveAttribute('aria-disabled', 'true')
+    const user = userEvent.setup()
+    await user.click(removeAmerican)
+    expect(setSpellCheckLanguages).not.toHaveBeenCalled()
+
+    const add = screen.getByRole('combobox', { name: 'Add language' })
+    expect(Array.from(add.querySelectorAll('option')).map((option) => option.textContent)).toEqual(['Add language', 'British English', 'German', 'Ukrainian'])
+    await user.selectOptions(add, 'uk')
+    expect(setSpellCheckLanguages).toHaveBeenLastCalledWith(['en-US', 'uk'])
+    await vi.waitFor(() => expect(languages()).toEqual(['American English', 'Ukrainian']))
+    expect(add).toHaveValue('')
+
+    await user.click(screen.getByRole('button', { name: 'Remove American English' }))
+    expect(setSpellCheckLanguages).toHaveBeenLastCalledWith(['uk'])
+    await vi.waitFor(() => expect(languages()).toEqual(['Ukrainian']))
+    // Focus stays with the list, not on another language's button a held Enter would press.
+    await vi.waitFor(() => expect(list).toHaveFocus())
+
+    fail = true
+    await user.selectOptions(add, 'de')
+    expect(setSpellCheckLanguages).toHaveBeenLastCalledWith(['uk', 'de'])
+    await vi.waitFor(() => expect(rendered.emitted().settingError).toHaveLength(1))
+    expect(languages()).toEqual(['Ukrainian'])
+  })
+
+  it('names the languages in the interface language, starting with a capital', async () => {
+    const getSpellCheckLanguages = vi.fn(async () => ({ available: ['en-US', 'uk'], automatic: ['uk'] }))
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages } })
+    const pinia = createTestingPinia({ stubActions: false, createSpy: vi.fn, initialState: { settings: snapshot('uk-UA') } })
+    render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('uk-UA')] } })
+    const list = await screen.findByRole('list', { name: 'Мови перевірки правопису' })
+    expect(list.querySelector('li')?.textContent?.trim()).toBe('Українська')
+    expect(screen.getByRole('button', { name: 'Видалити мову: Українська' })).toBeInTheDocument()
+  })
+
+  it('cannot change the spell check languages while spell check is off', async () => {
+    const getSpellCheckLanguages = vi.fn(async () => ({ available: ['en-US', 'uk'], automatic: ['en-US'] }))
+    const setSpellCheckLanguages = vi.fn()
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages, setSpellCheckLanguages } })
+    const settings = { ...snapshot('en-US').settings, spellCheck: false, spellCheckLanguages: ['uk', 'en-US'] }
+    const pinia = createTestingPinia({ stubActions: false, createSpy: vi.fn, initialState: { settings: { ...snapshot('en-US'), settings } } })
+    render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+    expect(await screen.findByRole('combobox', { name: 'Add language' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Remove Ukrainian' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: 'Remove American English' })).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove Ukrainian' }))
+    expect(setSpellCheckLanguages).not.toHaveBeenCalled()
+  })
+
+  it('shows no spell check languages where the system picks them, as on macOS, or when main cannot list them', async () => {
+    for (const getSpellCheckLanguages of [vi.fn(async () => ({ available: [], automatic: [] })), vi.fn(async () => { throw new Error('gone') })]) {
+      Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages } })
+      const pinia = createTestingPinia({ stubActions: false, createSpy: vi.fn, initialState: { settings: snapshot('en-US') } })
+      const rendered = render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+      await vi.waitFor(() => expect(getSpellCheckLanguages).toHaveBeenCalledOnce())
+      await Promise.resolve()
+      expect(screen.queryByRole('list', { name: 'Spell check languages' })).toBeNull()
+      expect(screen.queryByRole('combobox', { name: 'Add language' })).toBeNull()
+      expect(screen.getByRole('checkbox', { name: /^Spell check/ })).toBeVisible()
+      rendered.unmount()
+    }
+  })
+
   it('has the agent cursor setting and the General section in every language', () => {
     for (const locale of SUPPORTED_LOCALES) {
       const i18n = createHronautI18n(locale).global
       for (const key of [
         'appearance.agentCursor.label',
         'appearance.agentCursor.description',
+        'appearance.spellCheck.label',
+        'appearance.spellCheck.description',
+        'native.context.spellCheck',
+        'native.context.checkSpelling',
+        'native.context.spellCheckLanguageSettings',
+        'appearance.spellCheckLanguages.label',
+        'appearance.spellCheckLanguages.description',
+        'appearance.spellCheckLanguages.add',
+        'appearance.spellCheckLanguages.remove',
         'shell.agentCard.cursor',
         'settings.nav.general',
         'settings.nav.generalDescription',

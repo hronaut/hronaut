@@ -16,9 +16,9 @@ import IconVisibility from '~icons/material-symbols/visibility-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { AppUpdateState, BrowserDownloadState } from '../../../shared/types.js'
-import type { McpStatusControlsController } from '../composables/useMcpStatusController.js'
-import McpStatusControls from './McpStatusControls.vue'
-import UpdateNotification from './UpdateNotification.vue'
+import type { McpStatusControlsController } from '../features/mcp/useMcpStatusController.js'
+import McpStatusControls from '../features/mcp/McpStatusControls.vue'
+import UpdateNotification from '../features/updates/UpdateNotification.vue'
 import { vTooltip } from '../ui/tooltip.js'
 import { ignoreHeldEnter } from '../held-enter.js'
 
@@ -26,7 +26,6 @@ const props = defineProps<{
   interactionPending?: boolean
   audioPending?: boolean
   commandPaletteOpen: boolean
-  tabSearchOpen: boolean
   downloadsOpen: boolean
   historyOpen: boolean
   settingsOpen: boolean
@@ -47,7 +46,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggleCommandPalette: []
-  toggleTabSearch: []
+  /** Search tabs: Home's Tabs view, a tab rather than a panel, so the button has no open state. */
+  openHomeTabs: []
   toggleDownloads: []
   toggleHistory: []
   toggleAllTabsMuted: []
@@ -88,9 +88,8 @@ watch(() => props.licenseReminderShown, (shown) => {
       v-tooltip="t('shell.actions.searchTabsTitle')"
       :aria-label="t('shell.actions.searchTabs')"
       aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
-      :aria-expanded="tabSearchOpen"
       @keydown="ignoreHeldEnter"
-      @click="emit('toggleTabSearch')"
+      @click="emit('openHomeTabs')"
     >
       <IconTabSearch aria-hidden="true" />
     </UiButton>

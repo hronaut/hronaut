@@ -5,10 +5,11 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserInspectorIssuesReport } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs } from './trusted-dialog-fixture.js'
 
 const text = (result: CallToolResult): string => result.content.filter(item => item.type === 'text').map(item => item.type === 'text' ? item.text : '').join('\n')
 
-test('reports observed Basic challenges by origin and request kind without answering them', async ({ electronApp, mcpPort, mcpToken }) => {
+test('reports observed Basic challenges by origin and request kind, whichever answer the person gives', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   const authorizationHeaders: string[] = []
   const server = createServer((request, response) => {
     if (request.headers.authorization) authorizationHeaders.push(request.headers.authorization)
@@ -36,6 +37,8 @@ test('reports observed Basic challenges by origin and request kind without answe
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
       requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
     }))
+    // The person cancels every sign-in the website asks for, so it shows the page it sends without credentials.
+    await answerEveryTrustedDialog(appWindow, 'Cancel')
     const workspace = await call('browser_workspaces', { action: 'create', name: 'Auth challenges', storage: 'scratch' })
     const workspaceId = (JSON.parse(text(workspace)) as { id: string }).id
     const opened = await call('browser_new_tab', { workspaceId, url: `${origin}/start` })
@@ -82,7 +85,9 @@ test('reports observed Basic challenges by origin and request kind without answe
     await visit('/start', 'Start')
     expect(await issues()).toMatchObject({ authChallenges: [], authChallengesTruncated: false })
 
-    // Hronaut keeps Electron's default cancellation and never supplies credentials.
+    // Hronaut asked the person each time, and with every sign-in cancelled, never supplied credentials.
+    expect((await answeredTrustedDialogs(appWindow)).every(headline => headline === `Sign in to ${origin}`)).toBe(true)
+    expect(await answeredTrustedDialogs(appWindow)).not.toEqual([])
     expect(authorizationHeaders).toEqual([])
   } finally {
     await client.close().catch(() => undefined)

@@ -31,4 +31,15 @@ describe('Home activity feed', () => {
     expect(feed.list()).toEqual([])
     expect(feed.revision).toBe(revision + 2)
   })
+
+  it('forgets the steps from a time on, as history cleared for a time range', () => {
+    const feed = new HomeActivityFeed()
+    feed.add(entry('a', 100)); feed.add(entry('b', 200)); feed.add(entry('a', 300))
+    const revision = feed.revision
+    feed.forgetSince(400)
+    expect(feed.revision).toBe(revision)
+    feed.forgetSince(200)
+    expect(feed.list().map((item) => item.at)).toEqual([100])
+    expect(feed.revision).toBe(revision + 1)
+  })
 })

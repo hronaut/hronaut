@@ -1,9 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import { nextTick, ref, type Ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import CommandPalette from '../../src/renderer/src/components/CommandPalette.vue'
-import { RECENT_COMMANDS_KEY, useCommandPaletteController } from '../../src/renderer/src/composables/useCommandPaletteController.js'
-import { useCommandPaletteSearch } from '../../src/renderer/src/composables/useCommandPaletteSearch.js'
+import CommandPalette from '../../src/renderer/src/features/command-palette/CommandPalette.vue'
+import { RECENT_COMMANDS_KEY, useCommandPaletteController } from '../../src/renderer/src/features/command-palette/useCommandPaletteController.js'
+import { useCommandPaletteSearch } from '../../src/renderer/src/features/command-palette/useCommandPaletteSearch.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { LocalPreferenceStorage } from '../../src/renderer/src/local-preferences.js'
 import { goToTab, goToWorkspace, type WorkspaceNavigation } from '../../src/renderer/src/workspace-navigation.js'
@@ -635,7 +635,7 @@ describe('CommandPalette search results', () => {
 
   it('ignores a resting pointer while results change under it, but not when the same rows come back', async () => {
     let now = 1_000
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
     const sections = ref<CommandPaletteResultSection[]>([
       { id: 'tabs', results: [result('tabs', 'a', 'Zeta a'), result('tabs', 'b', 'Zeta b')] }
     ])
@@ -644,6 +644,8 @@ describe('CommandPalette search results', () => {
     now += 1_000
 
     const first = screen.getByRole('option', { name: /Zeta a/ })
+    // The search's new rows moved under the pointer, whose first event only says where it rests.
+    await fireEvent.pointerMove(first, { clientX: 40, clientY: 76 })
     await fireEvent.pointerMove(first, { clientX: 40, clientY: 80 })
     expect(first).toHaveAttribute('aria-selected', 'true')
 

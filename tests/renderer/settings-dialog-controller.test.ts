@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   useSettingsDialogController,
   type SettingsSection
-} from '../../src/renderer/src/composables/useSettingsDialogController.js'
+} from '../../src/renderer/src/features/settings/useSettingsDialogController.js'
 import { SETTINGS_NAVIGATION } from '../../src/renderer/src/settings-navigation.js'
 
 function deferred() {

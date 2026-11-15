@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import { computed, defineComponent, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useAddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
+import { useAddressBarController } from '../../src/renderer/src/features/address-bar/useAddressBarController.js'
 import type { BrowserHistoryEntry, BrowserTabState } from '../../src/shared/types.js'
 
 // Paste and Go in the address field's native menu sends the clipboard text here, to open as Enter would.
@@ -37,6 +37,7 @@ function createHarness(history: BrowserHistoryEntry[] = []) {
     setup() {
       controller = useAddressBarController({
         activeTab: computed(() => activeTab.value),
+        tabs: ref([]),
         bookmarks: ref([]),
         history: ref(history),
         theme: () => 'dark',
@@ -46,6 +47,7 @@ function createHarness(history: BrowserHistoryEntry[] = []) {
         onOpen: vi.fn(),
         onNavigate,
         onOpenInNewTab,
+        onSwitchToTab: vi.fn(async () => true),
         onRemoveVisit: vi.fn(async () => undefined),
         onRemoveVisitFailed: vi.fn(),
         onFocusLeft: vi.fn()

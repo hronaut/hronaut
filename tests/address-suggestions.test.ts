@@ -11,7 +11,7 @@ describe('buildLocalAddressSuggestions', () => {
     { id: 'release', title: 'Project release notes', url: 'https://release.example/', visitCount: 2 }
   ]
 
-  it('keeps open tabs out of address suggestions and deduplicates saved URLs across sources', () => {
+  it('deduplicates saved URLs across sources', () => {
     expect(buildLocalAddressSuggestions({
       query: 'project',
       bookmarks,
@@ -19,6 +19,49 @@ describe('buildLocalAddressSuggestions', () => {
     })).toEqual([
       expect.objectContaining({ kind: 'history', title: 'Project release notes', visitCount: 2 })
     ])
+  })
+
+  // Open tabs were kept out of the address bar: a page open in another tab could only be opened again. Chrome offers
+  // Switch to this tab on such a row, and lists the open tabs with @tabs.
+  it('marks a bookmark or visit open in another tab, by the address each is matched with', () => {
+    const tabs = [
+      { id: 'tab-docs', title: 'Docs', url: 'https://docs.example/guide#section' },
+      { id: 'tab-design', title: 'Design', url: 'https://design.example/' },
+      { id: 'tab-design-2', title: 'Design again', url: 'https://design.example/' }
+    ]
+    expect(buildLocalAddressSuggestions({ query: '', bookmarks, history, tabs })).toEqual([
+      // A visit is a page, whatever section the tab shows.
+      expect.objectContaining({ id: 'history:docs-history', openTabId: 'tab-docs' }),
+      expect.not.objectContaining({ openTabId: expect.anything() }),
+      // The first tab that shows it.
+      expect.objectContaining({ id: 'bookmark:design', openTabId: 'tab-design' })
+    ])
+    // A bookmark is its own address, section and all.
+    expect(buildLocalAddressSuggestions({ query: '@bookmarks guide', bookmarks, history, tabs }))
+      .toEqual([{ id: 'bookmark:duplicate', kind: 'bookmark', title: 'Saved documentation', url: 'https://docs.example/guide' }])
+    expect(buildLocalAddressSuggestions({ query: '@bookmarks guide', bookmarks, history, tabs: [{ id: 'exact', title: 'Guide', url: 'https://docs.example/guide' }] }))
+      .toEqual([expect.objectContaining({ id: 'bookmark:duplicate', openTabId: 'exact' })])
+  })
+
+  it('lists the open tabs with @tabs, each its own row in the tab strip\'s order, and switching is the row\'s action', () => {
+    const tabs = [
+      { id: 'one', title: 'Client dashboard', url: 'https://app.example/dashboard' },
+      { id: 'two', title: 'Client dashboard', url: 'https://app.example/dashboard' },
+      { id: 'three', title: 'Search', url: 'https://www.search.example/?q=client' },
+      { id: 'four', title: 'Docs', url: 'https://docs.example/' }
+    ]
+    expect(buildLocalAddressSuggestions({ query: '@TABS client', bookmarks, history, tabs })).toEqual([
+      { id: 'tab:one', kind: 'tab', title: 'Client dashboard', url: 'https://app.example/dashboard', openTabId: 'one' },
+      { id: 'tab:two', kind: 'tab', title: 'Client dashboard', url: 'https://app.example/dashboard', openTabId: 'two' },
+      { id: 'tab:three', kind: 'tab', title: 'Search', url: 'https://www.search.example/?q=client', openTabId: 'three' }
+    ])
+    // A site's tabs come first for a site's name, as visits do.
+    expect(buildLocalAddressSuggestions({ query: '@tabs app', bookmarks, history, tabs: [{ id: 'notes', title: 'Notes on the app', url: 'https://notes.example/' }, ...tabs] })
+      .map(suggestion => suggestion.id)).toEqual(['tab:one', 'tab:two', 'tab:notes'])
+    expect(buildLocalAddressSuggestions({ query: '@tabs', bookmarks, history, tabs, limit: 2 }).map(suggestion => suggestion.id)).toEqual(['tab:one', 'tab:two'])
+    // Without @tabs, tabs are not rows of their own; with no other tab, @tabs finds nothing.
+    expect(buildLocalAddressSuggestions({ query: 'dashboard', bookmarks, history, tabs })).toEqual([])
+    expect(buildLocalAddressSuggestions({ query: '@tabs', bookmarks, history })).toEqual([])
   })
 
   it('supports explicit local scopes, multi-term matching, and bounded output', () => {

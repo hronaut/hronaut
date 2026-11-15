@@ -3,7 +3,7 @@ import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol
 import type { HronautApi } from '../../src/shared/types.js'
 import type { ScreenshotAnnotationReport } from '../../src/shared/screenshot-annotations.js'
 import { test as base, expect, text } from './capability-fixtures.js'
-import { closeHronaut, launchHronaut } from './fixtures.js'
+import { closeHronaut, launchHronaut, pageAt } from './fixtures.js'
 
 const test = base.extend<{ displayScale: number }>({
   displayScale: [1, { option: true }],
@@ -22,7 +22,7 @@ for (const displayScale of [1, 2]) test.describe(`annotated viewport at native s
       expect(result.isError, text(result)).not.toBe(true)
       return result
     }
-    const page = electronApp.context().pages().find(page => page.url() === fixtureUrl)!
+    const page = await pageAt(electronApp, fixtureUrl)
     await page.setContent('<style>body{margin:0;height:2200px}button{position:absolute;width:120px;height:60px;background:blue;border:0;color:blue}#target{left:80px;top:160px}#other{left:260px;top:160px}#offscreen{top:2000px}#partial{left:-20px;top:250px}#hidden{top:340px}</style><div role="dialog"><button id="target">Repeated private-canary</button><button id="other">Repeated private-canary</button></div><button id="offscreen">Offscreen</button><button id="partial">Partial</button><button id="hidden">Hidden later</button><div contenteditable="true">private-editor-canary</div><input value="private-form-canary">')
     for (const dpr of [1, 2]) for (const zoom of [100, 125]) {
       await call('browser_emulate', { viewport: { width: 800, height: 600, deviceScaleFactor: dpr, mobile: false, touch: false, orientation: 'portrait' } })

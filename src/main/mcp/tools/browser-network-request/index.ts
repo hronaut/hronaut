@@ -4,6 +4,7 @@ import { type BrowserNetworkRequestCopyFormat, formatNetworkRequestCopy } from '
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { networkRequestDetails } from '../../../browser/network-inspection/network-inspection.js'
 
 // Keeps the retained request's check until the call settles, so the detail is published only if it still holds.
 function networkDetailSettlement() {
@@ -38,7 +39,7 @@ export function registerBrowserNetworkRequest(context: McpToolContext): void {
       maxChars?: number
       copyAs?: 'json' | BrowserNetworkRequestCopyFormat
     }, call: WorkspaceToolCall<ReturnType<typeof networkDetailSettlement>>) => {
-      const details = await manager.networkRequestDetails(tabId, requestId, maxChars, true, assertCurrent => {
+      const details = await networkRequestDetails(manager, tabId, requestId, maxChars, true, assertCurrent => {
         call.settlement.retain(() => { call.requireCurrentTarget(); assertCurrent() })
       })
       return textResult(copyAs && copyAs !== 'json' ? formatNetworkRequestCopy(details, copyAs) : details)

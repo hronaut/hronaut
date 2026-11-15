@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { bindTrayActivation } from '../src/main/tray-activation.js'
+import { bindTrayActivation } from '../src/main/attention/tray-activation.js'
 
 describe('tray activation', () => {
   it.each(['linux', 'win32', 'darwin'] as const)('preserves native activation behavior on %s', platform => {

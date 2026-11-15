@@ -1,7 +1,17 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
-import { registerIncidentPackageIpc } from '../src/main/incident-package-ipc.js'
+import { registerIncidentPackageIpc } from '../src/main/incident/incident-package-ipc.js'
 import type { IncidentDraft, IncidentPreview } from '../src/shared/incident-package.js'
+
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  browserState: (browser: { getState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getState(...args)
+}))
+vi.mock('../src/main/browser/repro-recorder/browser-repro-recorder.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/repro-recorder/browser-repro-recorder.js')>(),
+  reproRecording: (browser: { reproRecording: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reproRecording(...args)
+}))
 
 function fixture() {
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()

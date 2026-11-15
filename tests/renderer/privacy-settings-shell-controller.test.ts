@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { usePrivacySettingsShellController } from '../../src/renderer/src/composables/usePrivacySettingsShellController.js'
-import type { SettingsSection } from '../../src/renderer/src/composables/useSettingsDialogController.js'
+import { usePrivacySettingsShellController } from '../../src/renderer/src/features/settings/usePrivacySettingsShellController.js'
+import type { SettingsSection } from '../../src/renderer/src/features/settings/useSettingsDialogController.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -21,7 +21,6 @@ function createController() {
     downloadsOpen: ref(true),
     bookmarksOpen: ref(true),
     historyOpen: ref(true),
-    tabSearchOpen: ref(true),
     zoomOpen: ref(true),
     addressSuggestionsOpen: ref(true)
   }

@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerEveryTrustedDialog, answeredTrustedDialogs } from './trusted-dialog-fixture.js'
 
 test('clears global history while preserving workspace storage and retained records', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
@@ -40,7 +40,8 @@ test('clears global history while preserving workspace storage and retained reco
     await appWindow.keyboard.press('Control+Shift+Delete')
     const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(dialog.getByRole('heading', { name: 'Global history', exact: true })).toBeVisible()
-    await expect(dialog.getByRole('checkbox')).toHaveCount(0)
+    // Global history clears without asking what to clear; the panel's one switch is Secure DNS's.
+    await expect(dialog.getByRole('region', { name: 'Global history' }).getByRole('checkbox')).toHaveCount(0)
     await expect(dialog.getByText('Global history & legacy data')).toHaveCount(0)
     const search = dialog.getByRole('searchbox', { name: 'Search websites', exact: true })
     await search.fill(`unrelated ${origin}`)
@@ -50,10 +51,11 @@ test('clears global history while preserving workspace storage and retained reco
     await expect(dialog.getByRole('button', { name: `Clear history for ${origin}`, exact: true })).toBeVisible()
     await expect(search).toBeFocused()
     expect(await appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(2)
-    await answerConfirmations(electronApp, 'ok')
+    await answerEveryTrustedDialog(appWindow, 'OK')
     await dialog.getByRole('button', { name: `Clear history for ${origin}` }).click()
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toMatchObject([{ url: otherUrl }])
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(1)
+    expect(await answeredTrustedDialogs(appWindow)).toEqual([`Clear browsing history for ${origin}?`])
     await expect(dialog.locator('.janitor-site')).toHaveCount(0)
     await expect(search).toHaveValue(` HISTORY   ${origin.toUpperCase()} `)
     await dialog.getByRole('button', { name: 'Clear history…', exact: true }).click()

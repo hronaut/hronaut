@@ -1,6 +1,8 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { sanitizeSoftNavigations, softNavigationPageFunction } from '../src/shared/performance-soft-navigation.js'
+import { sanitizeSoftNavigations } from '../src/shared/performance-soft-navigation.js'
+import { softNavigationsInPage } from '../src/shared/performance-soft-navigation.page.js'
+import { pageFunctionExpression } from '../src/shared/page-script.js'
 import type { BrowserPerformanceSoftNavigations } from '../src/shared/types.js'
 
 function collector(supported = true, method = true) {
@@ -14,7 +16,7 @@ function collector(supported = true, method = true) {
     constructor(callback: typeof entries) { entries = callback }
     observe(options: unknown) { registrations.push(options) }
   }
-  const read = runInNewContext(`(${softNavigationPageFunction})()`, {
+  const read = runInNewContext(`${pageFunctionExpression(softNavigationsInPage)}()`, {
     URL, PerformanceObserver: Observer,
     PerformanceSoftNavigation: { prototype: { getLargestInteractionContentfulPaint: method ? () => {} : undefined } },
     performance: { now: () => now },

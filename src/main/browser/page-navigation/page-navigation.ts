@@ -1,12 +1,27 @@
+import { webContents as electronWebContents, type WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
+import { asksToSignIn, pageLoadTimedOut } from '../http-auth/http-auth.js'
 import { localizedLoadFailure } from '../load-failure-error.js'
 import { PAGE_LOAD_WAIT_MS, settledWithin } from '../page-waits/page-load-limit.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
+import { keepSessionCookies } from '../session-cookies/saved-session-cookies.js'
+import { appLinkScheme, openAppLinkForPerson } from '../app-links/typed-app-link.js'
 import { isHronautHomeUrl, normalizeAddress } from '../url.js'
-import type { PageNavigationAccess, PageNavigationTab } from './page-navigation-access.js'
+import type { Browser } from '../browser.js'
+import { assertWorkspaceNavigationAllowed, workspaceMayOpen, workspaceNavigationAllowed } from '../workspace-navigation/workspace-navigation.js'
+import { forgetTabsOpenedFrom } from '../link-tab-placement/link-tab-openers.js'
+import { findTab, getTab, orderedTabs } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { waitForPage } from '../page-waits/page-waits.js'
+import { selectTabForPerson } from '../tab-selection/person-tab-switch.js'
+import { focusPageAfterQuestion } from '../trusted-chrome-focus/trusted-chrome-focus.js'
 
 // A copy of the tab manager's own check, which its load and wake handling keep using.
 const ABORTED_LOAD_ERROR = -3
+// How long a failed load waits for Electron to report that the page's renderer exited.
+const RENDERER_EXIT_REPORT_WAIT_MS = 100
 
 function isAbortedLoad(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -18,47 +33,246 @@ function isAbortedLoad(error: unknown): boolean {
 }
 
 /**
+ * Follows the exits of a page's renderer that Electron reports while a load runs. A crashed page's load starts a new
+ * renderer, so an exit before the load is not the load's.
+ */
+function watchRendererExit(webContents: WebContents): { reported(waitMs: number): Promise<boolean>; stop(): void } {
+  let exited = false
+  let exitReported: (() => void) | undefined
+  const onRendererGone = (): void => {
+    exited = true
+    exitReported?.()
+  }
+  webContents.on('render-process-gone', onRendererGone)
+  return {
+    // Whether an exit was reported, waiting up to waitMs for one.
+    reported: (waitMs) => (exited ? Promise.resolve(true) : new Promise<boolean>((resolve) => {
+      const wait = setTimeout(() => resolve(exited), waitMs)
+      exitReported = () => {
+        clearTimeout(wait)
+        resolve(true)
+      }
+    })),
+    stop: () => {
+      webContents.removeListener('render-process-gone', onRendererGone)
+    }
+  }
+}
+
+/**
+ * Whether the tab is a new tab at the end of its workspace that has shown nothing but its blank page, or not yet that.
+ * A tab asleep or loading in turn has shown nothing yet either, but it stands for its own address.
+ */
+function isUntouchedNewTabAtEnd(browser: Browser, tab: BrowserTab): boolean {
+  const contents = tab.webContents
+  if (tab.url !== 'about:blank' || contents.isDestroyed() || !['', 'about:blank'].includes(contents.getURL())
+    || contents.navigationHistory.length() > 1) return false
+  return orderedTabs(browser).filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId).at(-1) === tab
+}
+
+/**
+ * The tab, with its page: a tab whose page is gone for good, as one Electron destroyed while the tab stayed open, says
+ * so in the person's language, and keeps saying it is gone, rather than failing on the destroyed page.
+ */
+function tabWithPage(browser: Browser, tabId?: string): BrowserTab {
+  const tab = getTab(browser, tabId)
+  assertPageKept(tab)
+  return tab
+}
+
+/** Says, as `tabWithPage` does, that the tab's page is gone, as one Electron destroyed while the tab woke. */
+function assertPageKept(tab: BrowserTab): void {
+  if (tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.navigation.pageDestroyed')
+}
+
+/** Wakes the tab, and says its page is gone once Electron destroyed it as it woke, whether the wake ended or failed. */
+async function wakeTabWithPage(browser: Browser, tab: BrowserTab): Promise<void> {
+  try {
+    await browser.wakeTab(tab.id)
+  } catch (error) {
+    assertPageKept(tab)
+    throw error
+  }
+  assertPageKept(tab)
+}
+
+/**
  * Loads an address or search in the tab. An agent workspace cannot open Home,
  * and its navigation policy is checked before the load starts. A load that a
  * policy denial or an abort ended resolves; any other failure of the current
- * load throws. A page that asks before it is left, as an editor with unsaved
- * changes does, keeps itself open: a person who started the load is asked, as
- * Chrome asks "Leave site?", and an agent gets an error saying so instead of a
- * load that silently did not happen.
+ * load throws. A load the page's renderer ended by exiting resolves for a
+ * person, as the tab says its page stopped working, as Chrome does; an agent is
+ * told the renderer exited, which a network error would not say. A page that
+ * asks before it is left, as an editor with unsaved changes does, keeps itself
+ * open: a person who started the load is asked, as Chrome asks "Leave site?",
+ * and an agent gets an error saying so instead of a load that silently did not
+ * happen.
  */
-export async function navigate<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, url: string, tabId?: string,
-  options: { byPerson?: boolean } = {}): Promise<BrowserState> {
-  const tab = access.getTab(tabId)
-  const normalized = normalizeAddress(url, access.searchEngine())
+export async function navigate(browser: Browser, url: string, tabId?: string,
+  options: { byPerson?: boolean; typed?: boolean } = {}): Promise<BrowserState> {
+  const tab = tabWithPage(browser, tabId)
+  const normalized = normalizeAddress(url, browser.options.getSearchEngine?.())
+  // A link to another app the person typed or chose, such as mailto:, goes to that app, as in Chrome; an agent's stays
+  // refused below.
+  const appScheme = options.byPerson ? appLinkScheme(normalized) : undefined
+  if (appScheme) {
+    await openAppLinkForPerson(browser, normalized, appScheme)
+    return browserState(browser)
+  }
   if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
     throw new LocalizedError('appErrors.navigation.homeInAgentWorkspace')
   }
   if (tab.mcpGroupId) {
-    access.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
+    assertWorkspaceNavigationAllowed(browser, tab.mcpGroupId, normalized, 'direct')
     // A tab sent to another address starts a new task, so its workspace forgets which page opened which tab, as Chrome
-    // does for a typed address.
-    access.forgetTabsOpenedFrom(tab.mcpGroupId)
+    // does for a typed address. An address the person typed or chose makes a new or duplicated tab forget the tab it
+    // goes back to when it closes too, which only the tab in view still has; a link dropped on it or the certificate
+    // page's Proceed does not, as in Chrome. A new tab at the end of its workspace that has shown nothing else goes to
+    // one address first, as in Chrome, so a quick look-up from it still goes back to the tab it was opened from.
+    if (!isUntouchedNewTabAtEnd(browser, tab)) {
+      forgetTabsOpenedFrom(browser.tabs.values(), tab.mcpGroupId)
+      if (options.typed) delete tab.returnsToTabId
+    }
+  }
+  // A tab restored asleep loads nothing before its workspace's session cookies are back, and its wake loads first. A
+  // sleeping tab wakes first, so the page the new one replaces is its own; one already waking is replaced, as a load
+  // replaces the one before it in Chrome.
+  if (tab.pageReady) await tab.pageReady
+  assertPageKept(tab)
+  if (tab.sleeping && !tab.wakePromise) await wakeTabWithPage(browser, tab)
+  // A workspace's sites get the session cookies it saved at the last quit, as its first page does, which this load
+  // then replaces.
+  if (!isHronautHomeUrl(normalized)) {
+    await keepSessionCookies(tab.webContents.session)
+    assertPageKept(tab)
   }
   const webContents = tab.webContents
   const documentGeneration = tab.documentGeneration
-  const loaded = await loadAddress(access, tab, normalized, false)
-  // A person sees the tab still loading, as in Chrome; an agent would otherwise read the page it left.
-  if (loaded === 'not-shown' && !options.byPerson) throw new LocalizedError('appErrors.page.loadTimedOut')
-  if (loaded !== 'asked-to-stay') return access.getState()
+  const loaded = await loadAddress(browser, tab, normalized, false)
+  // A person sees the tab still loading, as in Chrome; an agent would otherwise read the page it left. A website that
+  // asks the person to sign in first holds the page until they do, so the agent is told that instead.
+  if (loaded === 'not-shown' && !options.byPerson) {
+    throw pageLoadTimedOut(webContents)
+  }
+  if (loaded === 'renderer-exited' && !options.byPerson) throw new RendererExitedError(true)
+  if (loaded !== 'asked-to-stay') return browserState(browser)
   if (!options.byPerson) throw new Error(PAGE_ASKED_TO_STAY)
-  // The question is only the person's while the same page is still open in the tab. The page keeps running while it is
-  // open, unlike under Chrome's own question, so an address change within the page, as an editor's autosave makes,
-  // still leaves it.
-  const samePage = (): boolean => access.findTab(tab.id) === tab && tab.webContents === webContents
-    && !webContents.isDestroyed() && tab.documentGeneration === documentGeneration
-  if (!samePage() || !await access.confirmLeavePage() || !samePage()) return access.getState()
+  if (!await personLeavesPage(browser, tab, webContents, documentGeneration, 'leave')) return browserState(browser)
   // The workspace's sites may have changed while the question was open.
-  if (tab.mcpGroupId) access.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
-  await loadAddress(access, tab, normalized, true)
-  return access.getState()
+  if (tab.mcpGroupId) assertWorkspaceNavigationAllowed(browser, tab.mcpGroupId, normalized, 'direct')
+  await loadAddress(browser, tab, normalized, true)
+  return browserState(browser)
 }
 
 const PAGE_ASKED_TO_STAY = 'The page asked to confirm before it is left (a beforeunload prompt, as a page with unsaved changes shows), so it stayed open and nothing was loaded. To open the address anyway, use browser_new_tab. Otherwise finish or save what the page holds first. browser_close_tab closes the tab and discards its unsaved changes.'
+const PAGE_ASKED_TO_STAY_IN_HISTORY = 'The page asked to confirm before it is left (a beforeunload prompt, as a page with unsaved '
+  + 'changes shows), so it stayed open and nothing was loaded. Finish or save what the page holds first. browser_close_tab '
+  + 'closes the tab and discards its unsaved changes.'
+
+/** The person's questions about leaving pages, which come one at a time, each over its own page. */
+const leaveQuestions = new WeakMap<Browser, Promise<unknown>>()
+
+/**
+ * Asks the person whether to leave a page that asked to confirm before it is left, as Chrome asks "Leave site?" or
+ * "Reload site?", and resolves true when they leave it. Questions about several pages, as Reload of several selected
+ * tabs asks, come one after another, so each shows over the page it is about.
+ */
+function personLeavesPage(browser: Browser, tab: BrowserTab, webContents: WebContents, documentGeneration: number,
+  question: 'leave' | 'reload'): Promise<boolean> {
+  const asked = (leaveQuestions.get(browser) ?? Promise.resolve())
+    .then(() => askPersonToLeave(browser, tab, webContents, documentGeneration, question))
+  leaveQuestions.set(browser, asked.catch(() => undefined))
+  return asked
+}
+
+/**
+ * Asks the person about one page. The question is only the person's while the same page is still open in the tab. The
+ * page keeps running while it is open, unlike under Chrome's own question, so an address change within the page, as
+ * an editor's autosave makes, still leaves it.
+ */
+async function askPersonToLeave(browser: Browser, tab: BrowserTab, webContents: WebContents, documentGeneration: number,
+  question: 'leave' | 'reload'): Promise<boolean> {
+  const samePage = (): boolean => findTab(browser, tab.id) === tab && tab.webContents === webContents
+    && !webContents.isDestroyed() && tab.documentGeneration === documentGeneration
+  if (!samePage()) return false
+  // The question is about this page, so its tab comes into view first, as when a link was dropped on a tab behind the
+  // one shown.
+  await showTab(browser, tab)
+  if (!samePage()) return false
+  if (!await confirmLeavePage(browser, question)) {
+    // The person keeps editing the page, which takes the keyboard as the page they asked for would have once loaded.
+    if (samePage()) focusPageAfterQuestion(browser, tab.webContents)
+    return false
+  }
+  return samePage()
+}
+
+/**
+ * Starts a navigation that leaves the tab's page, such as Back or Reload, which the page may refuse by asking before it
+ * is left, as an editor with unsaved changes does. A person who started it is asked, as Chrome asks "Leave site?" or
+ * "Reload site?", and once they leave the page the navigation starts again if `stillWanted` says it still goes where
+ * they asked; an agent gets an error saying so instead of a navigation that silently did not happen. It resolves
+ * whether the navigation started.
+ */
+async function leavePage(browser: Browser, tab: BrowserTab, start: () => void, question: 'leave' | 'reload',
+  options: { byPerson?: boolean }, stillWanted: () => boolean = () => true): Promise<boolean> {
+  const webContents = tab.webContents
+  const documentGeneration = tab.documentGeneration
+  if (await startNavigation(webContents, start, false) === 'started') return true
+  if (!options.byPerson) throw new Error(PAGE_ASKED_TO_STAY_IN_HISTORY)
+  if (!await personLeavesPage(browser, tab, webContents, documentGeneration, question) || !stillWanted()) return false
+  return await startNavigation(webContents, start, true) === 'started'
+}
+
+/**
+ * Starts a navigation of the page with `start` and settles 'asked-to-stay' when the page kept itself open by asking
+ * before it is left, or 'started' once the navigation started, the page stopped loading or closed, or the load wait
+ * passed. With `leave` the page's question is skipped, once, as the person already answered it. Without a listener
+ * Electron keeps the page and cancels the navigation, as an abort that is otherwise silent. The page's question comes
+ * before the navigation starts, so the listener goes once it starts and cannot answer a question the new page asks
+ * later.
+ */
+function startNavigation(webContents: WebContents, start: () => void,
+  leave: boolean): Promise<'started' | 'asked-to-stay'> {
+  return new Promise((resolve, reject) => {
+    const stopWatching = (): void => {
+      clearTimeout(wait)
+      webContents.removeListener('will-prevent-unload', onPreventUnload)
+      webContents.removeListener('did-start-navigation', onNavigationStart)
+      webContents.removeListener('did-stop-loading', onStopped)
+      webContents.removeListener('destroyed', onStopped)
+    }
+    const settle = (outcome: 'started' | 'asked-to-stay'): void => {
+      stopWatching()
+      resolve(outcome)
+    }
+    const onPreventUnload = (event: Electron.Event): void => {
+      if (!leave) {
+        settle('asked-to-stay')
+        return
+      }
+      event.preventDefault()
+      leave = false
+    }
+    // A change within the page that the page makes itself, as an autosave's address change, is not the navigation
+    // asked for, which no frame starts, as a Back to an entry a web app added within its page.
+    const onNavigationStart = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>): void => {
+      if (details.isMainFrame && (!details.isSameDocument || !details.initiator)) settle('started')
+    }
+    const onStopped = (): void => settle('started')
+    const wait = setTimeout(onStopped, PAGE_LOAD_WAIT_MS)
+    webContents.on('will-prevent-unload', onPreventUnload)
+    webContents.on('did-start-navigation', onNavigationStart)
+    webContents.on('did-stop-loading', onStopped)
+    webContents.once('destroyed', onStopped)
+    try {
+      start()
+    } catch (error) {
+      stopWatching()
+      reject(error)
+    }
+  })
+}
 
 /**
  * Loads the address in the tab and settles once the load ends, a policy denial
@@ -66,12 +280,13 @@ const PAGE_ASKED_TO_STAY = 'The page asked to confirm before it is left (a befor
  * returns 'asked-to-stay' when the page asked before it is left
  * and so kept itself open; with `leave`, that question is skipped, once, as the
  * person already answered it. It returns 'not-shown' when the wait passed before
- * the new page replaced the one the tab showed.
+ * the new page replaced the one the tab showed, and 'renderer-exited' when the
+ * load failed because the page's renderer exited while it loaded.
  */
-async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tab: Tab, normalized: string,
-  leave: boolean): Promise<'done' | 'asked-to-stay' | 'not-shown'> {
+async function loadAddress(browser: Browser, tab: BrowserTab, normalized: string,
+  leave: boolean): Promise<'done' | 'asked-to-stay' | 'not-shown' | 'renderer-exited'> {
   const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
-  access.prepareDiagnosticNavigation(tab)
+  browser.prepareDiagnosticNavigation(tab)
   type NavigationOutcome =
     | { kind: 'loaded' }
     | { kind: 'loading' }
@@ -101,158 +316,281 @@ async function loadAddress<Tab extends PageNavigationTab>(access: PageNavigation
   }
   let shown = false
   const onShown = (): void => { shown = true }
+  let stopWaitingForStop = (): void => undefined
+  const stopsLoading = (): Promise<void> => new Promise((resolve) => {
+    const stopped = (): void => {
+      stopWaitingForStop()
+      resolve()
+    }
+    stopWaitingForStop = () => webContents.removeListener('did-stop-loading', stopped)
+    webContents.on('did-stop-loading', stopped)
+  })
   const stopWatchingUnload = (): void => {
     webContents.removeListener('will-prevent-unload', onPreventUnload)
     webContents.removeListener('did-start-navigation', onNavigationStart)
   }
-  webContents.on('will-frame-navigate', detectPolicyDenial)
-  webContents.on('will-redirect', detectPolicyDenial)
-  webContents.on('will-prevent-unload', onPreventUnload)
-  webContents.on('did-start-navigation', onNavigationStart)
-  webContents.on('did-navigate', onShown)
-  const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
-    () => ({ kind: 'loaded' }),
-    (error: unknown) => ({ kind: 'failed', error })
-  )
-  // A page whose load never ends, such as one with an image its server never answers, keeps loading in the tab, as in
-  // Chrome, while the navigation returns.
-  let loadWait: ReturnType<typeof setTimeout> | undefined
-  const stillLoading = new Promise<NavigationOutcome>((resolve) => {
-    loadWait = setTimeout(() => resolve({ kind: 'loading' }), PAGE_LOAD_WAIT_MS)
-  })
-  let outcome: NavigationOutcome
+  const rendererExit = watchRendererExit(webContents)
   try {
-    // Electron can leave loadURL pending after preventDefault() rejects a
-    // redirect. A policy decision is already terminal for this navigation,
-    // so do not strand renderer IPC waiting for a load event that may never
-    // arrive under compositor pressure.
-    outcome = await Promise.race([load, policyDenial, stillLoading])
+    let loadWait: ReturnType<typeof setTimeout> | undefined
+    let outcome: NavigationOutcome
+    try {
+      webContents.on('will-frame-navigate', detectPolicyDenial)
+      webContents.on('will-redirect', detectPolicyDenial)
+      webContents.on('will-prevent-unload', onPreventUnload)
+      webContents.on('did-start-navigation', onNavigationStart)
+      webContents.on('did-navigate', onShown)
+      const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
+        // A page that started before this one can finish loading while this one waits for the person to sign in, as
+        // when an agent sends a new tab on before its first page showed, and Electron then settles this load: it
+        // has loaded only once the tab stops loading.
+        () => asksToSignIn(webContents) ? stopsLoading().then(() => ({ kind: 'loaded' })) : { kind: 'loaded' },
+        (error: unknown) => ({ kind: 'failed', error })
+      )
+      // A page whose load never ends, such as one with an image its server never answers, keeps loading in the tab, as
+      // in Chrome, while the navigation returns.
+      const stillLoading = new Promise<NavigationOutcome>((resolve) => {
+        loadWait = setTimeout(() => resolve({ kind: 'loading' }), PAGE_LOAD_WAIT_MS)
+      })
+      // Electron can leave loadURL pending after preventDefault() rejects a
+      // redirect. A policy decision is already terminal for this navigation,
+      // so do not strand renderer IPC waiting for a load event that may never
+      // arrive under compositor pressure.
+      outcome = await Promise.race([load, policyDenial, stillLoading])
+    } finally {
+      clearTimeout(loadWait)
+      webContents.removeListener('will-frame-navigate', detectPolicyDenial)
+      webContents.removeListener('will-redirect', detectPolicyDenial)
+      webContents.removeListener('did-navigate', onShown)
+      stopWaitingForStop()
+      stopWatchingUnload()
+    }
+    // A page that showed before it is the one shown while this one waits for the person to sign in.
+    if (outcome.kind === 'loading') return shown && !asksToSignIn(webContents) ? 'done' : 'not-shown'
+    if (outcome.kind !== 'failed' || findTab(browser, tab.id) !== tab
+      || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
+    if (askedToStay) return 'asked-to-stay'
+    // Electron fails a load whose renderer exits with a bare ERR_FAILED, as if the network had, and can do so a task
+    // before it reports the exit, so a failure waits a moment for that report.
+    const navigationGeneration = tab.navigationGeneration
+    const rendererExited = await rendererExit.reported(RENDERER_EXIT_REPORT_WAIT_MS)
+    // A newer load in the tab, or its closing, replaced this one meanwhile, and only the newer one is reported.
+    if (findTab(browser, tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
+      || tab.navigationGeneration !== navigationGeneration
+      || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
+    if (rendererExited) return 'renderer-exited'
+    if (!isAbortedLoad(outcome.error)) throw localizedLoadFailure(outcome.error)
+    return 'done'
   } finally {
-    clearTimeout(loadWait)
-    webContents.removeListener('will-frame-navigate', detectPolicyDenial)
-    webContents.removeListener('will-redirect', detectPolicyDenial)
-    webContents.removeListener('did-navigate', onShown)
-    stopWatchingUnload()
+    rendererExit.stop()
   }
-  if (outcome.kind === 'loading') return shown ? 'done' : 'not-shown'
-  if (outcome.kind !== 'failed' || access.findTab(tab.id) !== tab
-    || tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) return 'done'
-  if (askedToStay) return 'asked-to-stay'
-  if (!isAbortedLoad(outcome.error)) throw localizedLoadFailure(outcome.error)
-  return 'done'
 }
 
-/** Goes back in the tab's history, unless the workspace's navigation policy denies the entry. */
-export async function back<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
-  const tab = access.getTab(tabId)
+/**
+ * Goes back in the tab's history, unless the workspace's navigation policy denies the entry. A page that asks before it
+ * is left is handled as `navigate` handles it.
+ */
+export async function back(browser: Browser, tabId?: string, options: { byPerson?: boolean } = {}): Promise<BrowserState> {
+  const tab = tabWithPage(browser, tabId)
+  // A sleeping tab wakes first, so Back goes from the page it wakes to, not from its sleeping page.
+  if (tab.sleeping || tab.wakePromise) await wakeTabWithPage(browser, tab)
   if (tab.webContents.navigationHistory.canGoBack()) {
     const history = tab.webContents.navigationHistory
-    const target = history.getAllEntries()[history.getActiveIndex() - 1]
+    const activeIndex = history.getActiveIndex()
+    const target = history.getAllEntries()[activeIndex - 1]
     if (tab.mcpGroupId
       && target
-      && !access.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return access.getState()
-    access.prepareDiagnosticNavigation(tab)
-    await history.goBack()
+      && !workspaceNavigationAllowed(browser, tab.mcpGroupId, target.url, 'history')) return browserState(browser)
+    browser.prepareDiagnosticNavigation(tab)
+    await leavePage(browser, tab, historyStep(browser, tab, activeIndex, -1), 'leave', options,
+      () => stillSteps(browser, tab, activeIndex, -1, target?.url))
   }
-  return access.getState()
+  return browserState(browser)
 }
 
-/** Goes forward in the tab's history, unless the workspace's navigation policy denies the entry. */
-export async function forward<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
-  const tab = access.getTab(tabId)
+/**
+ * Goes forward in the tab's history, unless the workspace's navigation policy denies the entry. A page that asks before
+ * it is left is handled as `navigate` handles it.
+ */
+export async function forward(browser: Browser, tabId?: string, options: { byPerson?: boolean } = {}): Promise<BrowserState> {
+  const tab = tabWithPage(browser, tabId)
+  // A sleeping tab wakes first, so Forward goes from the page it wakes to, not from its sleeping page.
+  if (tab.sleeping || tab.wakePromise) await wakeTabWithPage(browser, tab)
   if (tab.webContents.navigationHistory.canGoForward()) {
     const history = tab.webContents.navigationHistory
-    const target = history.getAllEntries()[history.getActiveIndex() + 1]
+    const activeIndex = history.getActiveIndex()
+    const target = history.getAllEntries()[activeIndex + 1]
     if (tab.mcpGroupId
       && target
-      && !access.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return access.getState()
-    access.prepareDiagnosticNavigation(tab)
-    await history.goForward()
+      && !workspaceNavigationAllowed(browser, tab.mcpGroupId, target.url, 'history')) return browserState(browser)
+    browser.prepareDiagnosticNavigation(tab)
+    await leavePage(browser, tab, historyStep(browser, tab, activeIndex, 1), 'leave', options,
+      () => stillSteps(browser, tab, activeIndex, 1, target?.url))
   }
-  return access.getState()
+  return browserState(browser)
+}
+
+/**
+ * Back or Forward from the page at activeIndex, as a start that leavePage calls again once the person left a page that
+ * asked. Chromium's Back and Forward skip pages that moved on by themselves, without the person's activation, such as
+ * one that opened the next by script, so they can land past the next page, while the workspace's navigation policy is
+ * checked for the next page only. While a page further along is one the workspace may not open, they go exactly one
+ * step, to the page checked. That is decided as they start, since the policy can change while the person is asked.
+ */
+function historyStep(browser: Browser, tab: BrowserTab, activeIndex: number, step: -1 | 1): () => void {
+  const history = tab.webContents.navigationHistory
+  return () => {
+    const groupId = tab.mcpGroupId
+    if (groupId) {
+      const entries = history.getAllEntries()
+      const further = step < 0 ? entries.slice(0, Math.max(activeIndex - 1, 0)) : entries.slice(activeIndex + 2)
+      if (further.some(entry => !workspaceMayOpen(browser, groupId, entry.url))) {
+        history.goToIndex(activeIndex + step)
+        return
+      }
+    }
+    if (step < 0) history.goBack()
+    else history.goForward()
+  }
+}
+
+/**
+ * Whether Back or Forward, once the person left a page that asked, still goes to the page it was asked for: the tab
+ * stands where it did in its history, the same page is one step away, and its workspace may still open it. The page
+ * runs while the question is open, and adding an entry within itself drops the pages Forward went to.
+ */
+function stillSteps(browser: Browser, tab: BrowserTab, activeIndex: number, step: -1 | 1, url: string | undefined): boolean {
+  const history = tab.webContents.navigationHistory
+  const target = history.getAllEntries()[activeIndex + step]
+  return history.getActiveIndex() === activeIndex && target !== undefined && target.url === url
+    && !(tab.mcpGroupId && !workspaceNavigationAllowed(browser, tab.mcpGroupId, target.url, 'history'))
 }
 
 /**
  * Goes to a page of the tab's history that the person picked from the list Back or Forward shows, unless the
  * workspace's navigation policy denies it. A list that is out of date by then, because the tab moved in its history or
- * the history changed, goes nowhere rather than to whichever page now sits at that place.
+ * the history changed, goes nowhere rather than to whichever page now sits at that place, also once the person
+ * answered a page that asked before it is left.
  */
-export function goToHistoryEntry<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId: string,
-  entry: { index: number; url: string; activeIndex: number }): BrowserState {
-  const tab = access.findTab(tabId)
-  if (!tab || tab.sleeping || tab.wakePromise || tab.webContents.isDestroyed()) return access.getState()
+export async function goToHistoryEntry(browser: Browser, tabId: string,
+  entry: { index: number; url: string; activeIndex: number }): Promise<BrowserState> {
+  const tab = findTab(browser, tabId)
+  if (!tab || tab.sleeping || tab.wakePromise || tab.webContents.isDestroyed()) return browserState(browser)
   const history = tab.webContents.navigationHistory
-  if (history.getActiveIndex() !== entry.activeIndex || history.getAllEntries()[entry.index]?.url !== entry.url) {
-    return access.getState()
-  }
-  if (tab.mcpGroupId && !access.workspaceNavigationAllowed(tab.mcpGroupId, entry.url, 'history')) return access.getState()
-  access.prepareDiagnosticNavigation(tab)
-  history.goToIndex(entry.index)
-  return access.getState()
+  const stillListed = (): boolean => history.getActiveIndex() === entry.activeIndex
+    && history.getAllEntries()[entry.index]?.url === entry.url
+    && !(tab.mcpGroupId && !workspaceNavigationAllowed(browser, tab.mcpGroupId, entry.url, 'history'))
+  if (!stillListed()) return browserState(browser)
+  browser.prepareDiagnosticNavigation(tab)
+  await leavePage(browser, tab, () => history.goToIndex(entry.index), 'leave', { byPerson: true }, stillListed)
+  return browserState(browser)
 }
 
 /** Reloads the tab's page, waking a sleeping tab first. */
-export async function reload<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
-  return reloadPage(access, tabId, false)
+export async function reload(browser: Browser, tabId?: string, options: { byPerson?: boolean } = {}): Promise<BrowserState> {
+  return reloadPage(browser, tabId, false, options)
 }
 
 /** Reloads the tab's page and its resources from the network. */
-export async function reloadIgnoringCache<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): Promise<BrowserState> {
-  return reloadPage(access, tabId, true)
+export async function reloadIgnoringCache(browser: Browser, tabId?: string,
+  options: { byPerson?: boolean } = {}): Promise<BrowserState> {
+  return reloadPage(browser, tabId, true, options)
 }
 
 /**
- * Reloads the tab's page: retries a failed load or a gone renderer at its
- * address, replaces an unresponsive renderer, or reloads the page, then waits
- * for it to load.
+ * Reloads the tab's page: retries a failed load at its address, reloads a crashed page's entry in a new renderer as
+ * Chrome's sad tab does, replaces an unresponsive renderer, or reloads the page, then waits for it to load. A page
+ * that asks before it is left is handled as `navigate` handles it.
  */
-async function reloadPage<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId: string | undefined, ignoreCache: boolean): Promise<BrowserState> {
-  const tab = access.getTab(tabId)
-  if (access.isRendererRecovering(tab.webContents)) throw new LocalizedError('appErrors.navigation.recoveryRunning')
-  access.prepareDiagnosticNavigation(tab)
+async function reloadPage(browser: Browser, tabId: string | undefined, ignoreCache: boolean,
+  options: { byPerson?: boolean }): Promise<BrowserState> {
+  const tab = tabWithPage(browser, tabId)
+  if (browser.rendererRecovery.isRecovering(tab.webContents)) throw new LocalizedError('appErrors.navigation.recoveryRunning')
+  browser.prepareDiagnosticNavigation(tab)
   // Waking can show the page from the cache, as Back does, so the woken page is reloaded too.
-  if (tab.sleeping || tab.wakePromise) await access.wakeTab(tab.id)
+  if (tab.sleeping || tab.wakePromise) await wakeTabWithPage(browser, tab)
   const pageProblem = tab.pageProblem
   tab.pageProblem = undefined
-  access.changed(false)
-  if (pageProblem?.kind === 'load-error' || pageProblem?.kind === 'renderer-gone') {
+  publishChange(browser, false)
+  if (pageProblem?.kind === 'renderer-gone') {
+    // The page's own history entry, with the page it was opened from as its referrer, as Chrome reloads a crashed tab;
+    // loading its address anew sent no referrer.
+    if (ignoreCache) tab.webContents.reloadIgnoringCache()
+    else tab.webContents.reload()
+  } else if (pageProblem?.kind === 'load-error') {
     // A page whose load never ends is left loading, and the caller is told.
     const loaded = await settledWithin(tab.webContents.loadURL(pageProblem.url, ignoreCache
       ? { extraHeaders: 'Cache-Control: no-cache\r\nPragma: no-cache\r\n' }
       : undefined).catch(() => undefined))
-    if (!loaded) throw new LocalizedError('appErrors.page.loadTimedOut')
+    if (!loaded) throw pageLoadTimedOut(tab.webContents)
   } else if (pageProblem?.kind === 'unresponsive') {
     const contents = tab.webContents
     const navigationGeneration = tab.navigationGeneration
-    const isCurrent = (): boolean => access.findTab(tab.id) === tab
+    const isCurrent = (): boolean => findTab(browser, tab.id) === tab
       && tab.webContents === contents && !contents.isDestroyed()
       && tab.navigationGeneration === navigationGeneration
     try {
-      await access.recoverRenderer(contents, async () => {
+      await browser.rendererRecovery.recover(contents, async () => {
         if (!isCurrent()) throw new LocalizedError('appErrors.navigation.recoveryPageChanged')
         // Reloading before the old process exits can stop at its crash rather
         // than load a replacement. Await that one intentional exit first.
         if (ignoreCache) contents.reloadIgnoringCache()
         else contents.reload()
-        await access.waitForPage(tab.id, 30_000)
+        await waitForPage(browser, tab.id, 30_000)
       })
     } catch (error) {
       if (isCurrent() && !tab.pageProblem) {
         tab.pageProblem = pageProblem
-        access.changed(false)
+        publishChange(browser, false)
       }
       throw error
     }
   } else {
-    if (ignoreCache) tab.webContents.reloadIgnoringCache()
-    else tab.webContents.reload()
+    const webContents = tab.webContents
+    const start = (): void => {
+      if (ignoreCache) webContents.reloadIgnoringCache()
+      else webContents.reload()
+    }
+    if (!await leavePage(browser, tab, start, 'reload', options)) return browserState(browser)
   }
-  await access.waitForPage(tab.id, 30_000)
-  return access.getState()
+  await waitForPage(browser, tab.id, 30_000)
+  return browserState(browser)
 }
 
 /** Stops the tab's current load. */
-export function stop<Tab extends PageNavigationTab>(access: PageNavigationAccess<Tab>, tabId?: string): BrowserState {
-  access.getTab(tabId).webContents.stop()
-  return access.getState()
+export function stop(browser: Browser, tabId?: string): BrowserState {
+  tabWithPage(browser, tabId).webContents.stop()
+  return browserState(browser)
+}
+
+/**
+ * Escape that the page with the keyboard left alone: as in Chrome, it stops that page while it loads. A page that has
+ * loaded keeps its own requests going, and Home, which Hronaut loads again by itself, is left alone.
+ */
+export function stopFocusedPageLoading(browser: Browser): void {
+  const webContents = focusedTab(browser)?.webContents
+  if (!webContents || webContents.isDestroyed() || !webContents.isLoading() || isHronautHomeUrl(webContents.getURL())) return
+  webContents.stop()
+}
+
+/** The tab whose page has the keyboard, if a tab's page has it. */
+function focusedTab(browser: Browser): BrowserTab | undefined {
+  const focused = electronWebContents.getFocusedWebContents()
+  const tabId = focused ? browser.webContentsToTab.get(focused.id) : undefined
+  return tabId ? findTab(browser, tabId) : undefined
+}
+
+/** Brings the tab into view, as the person's click on it does, unless it is the tab shown. */
+async function showTab(browser: Browser, tab: BrowserTab): Promise<void> {
+  if (browser.activeTabId !== tab.id) await selectTabForPerson(browser, tab.id)
+}
+
+/** Asks the person whether to leave a page that asked to confirm before it is left; true leaves it, and a question that could not be asked keeps the page. */
+async function confirmLeavePage(browser: Browser, question: 'leave' | 'reload'): Promise<boolean> {
+  try {
+    return await (browser.options.confirmBeforeUnloadLeave?.(question) ?? Promise.resolve(false))
+  } catch (error) {
+    console.error('[browser] Could not ask before leaving a page with unsaved changes:', error)
+    browser.options.onActionFailed?.('confirm leaving a page', error)
+    return false
+  }
 }

@@ -1,0 +1,82 @@
+export const zhCNQualityAuditText = {
+  categories: {
+    accessibility: '无障碍',
+    performance: '性能',
+    metadata: '元数据和 SEO',
+    security: '安全性',
+    pwa: 'PWA 和离线',
+    'browser-issues': 'Chromium 问题'
+  },
+  statuses: {
+    pass: '通过',
+    info: '信息',
+    warning: '警告',
+    error: '错误',
+    'not-applicable': '不适用'
+  },
+  severities: {
+    error: '错误',
+    warning: '警告',
+    info: '信息'
+  },
+  fixed: {
+    accessibilityClear: '未发现自动检测到的 WCAG AA 违规',
+    performanceNone: '本次访问中未观察到 Web Vitals',
+    metadataClear: '未发现元数据问题',
+    securitySecure: '主文档使用安全传输',
+    pwaNone: '未检测到 PWA 或离线应用功能',
+    browserIssuesClear: '未发现保留的 Chromium 问题',
+    webVitalsNotObserved: '本次访问中未观察到 Web Vitals；请重新加载页面并与之交互，然后再重新运行审核。',
+    insecureTransport: '主文档未使用正常的安全传输。',
+    certificateExpired: '主文档的证书已过期。',
+    certificateNotYetValid: '主文档的证书尚未生效。',
+    certificateInvalid: '主文档的证书当前无效。',
+    pwaInspectionPartial: '此次审核中部分 PWA 诊断不可用。'
+  },
+  caveats: {
+    localDiagnostic: '这是根据 Hronaut 证据汇总的有限本地诊断，并非 Lighthouse 分数或认证。',
+    accessibilityAutomation: '无障碍自动化检测无法取代键盘、屏幕阅读器、缩放、动态效果和真人可用性测试。',
+    performanceVisit: '性能反映的是当前的本地访问和环境；请在有代表性的条件下重复进行重要的测量。',
+    pwaOptional: '对于不提供离线应用功能的网站，PWA 不被视为必要条件。',
+    reloadIssues: '如需重现仅在启动时出现的 Chromium 问题，请先重新加载，然后重新运行此审核。'
+  },
+  text: {
+    violations: '{count} 项违规',
+    violationNodes: '{count} 个受影响的节点',
+    accessibilityViolations: '{violations}，涉及{nodes}',
+    affectedNodes: '{count} 个受影响的节点',
+    accessibilityFinding: '{help}（{nodes}）',
+    rulesPassed: '{count} 条规则已通过',
+    checksNeedReview: '{count} 项检查需要审核',
+    needsHumanReview: '有 {count} 项无障碍检查需要人工审核。',
+    performanceGood: '观察到的 {total} 项 Web Vitals 中有 {good} 项良好',
+    metricEvidence: '{name}：{value}（{rating}）',
+    metricFinding: '{name} 的评级为{rating}，数值为 {value}。',
+    resources: '{count} 个资源',
+    longTasks: '{count} 个长任务',
+    metadataIssues: '{count} 个元数据问题',
+    language: '语言：{language}',
+    languageMissing: '语言：缺失',
+    canonicalUrls: '规范网址：{count}',
+    structuredData: '结构化数据：{valid} 个有效 · {invalid} 个无效',
+    securityState: '安全状态：{state}',
+    securityStateFinding: 'Chromium 报告主文档的安全状态为{state}。',
+    transportSecure: '传输：安全',
+    transportInsecure: '传输：不安全',
+    protocol: '协议：{protocol}',
+    protocolUnavailable: '协议：不可用',
+    certificateValid: '证书：有效',
+    certificateInvalid: '证书：无效',
+    certificateUnavailable: '证书：不可用',
+    registrations: '{count} 个 Service Worker 注册',
+    caches: '{count} 个缓存',
+    manifestPresent: '清单：存在',
+    manifestMissing: '清单：未检测到',
+    controlledYes: '受 Service Worker 控制：是',
+    controlledNo: '受 Service Worker 控制：否',
+    installabilityIssues: '可安装性问题：{count}',
+    installabilityFinding: 'Chromium 报告了一个 PWA 可安装性问题：{issue}。',
+    installabilityUnknown: 'Chromium 报告了一个 PWA 可安装性问题：未知问题。',
+    browserIssues: '{count} 个浏览器生成的问题'
+  }
+}

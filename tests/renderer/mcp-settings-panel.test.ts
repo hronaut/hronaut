@@ -2,8 +2,8 @@ import { ref } from 'vue'
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import McpSettingsPanel from '../../src/renderer/src/components/McpSettingsPanel.vue'
-import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
+import McpSettingsPanel from '../../src/renderer/src/features/mcp/McpSettingsPanel.vue'
+import { useMcpSettingsController } from '../../src/renderer/src/features/mcp/useMcpSettingsController.js'
 import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
@@ -51,7 +51,7 @@ function renderPanel(
     }
     return settings.value
   })
-  const confirmDisableAuthentication = vi.fn(() => true)
+  const confirmDisableAuthentication = vi.fn(async () => true)
   const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => initialCapabilityProfiles)
   const createCapabilityProfile = vi.fn(async () => ({
     profile: {
@@ -249,7 +249,7 @@ describe('McpSettingsPanel', () => {
   it('restores the authentication checkbox when disabling is cancelled', async () => {
     const { controller, confirmDisableAuthentication, setAuthentication, settings } = renderPanel()
     settings.value = { ...settings.value, mcpAuthentication: true }
-    confirmDisableAuthentication.mockReturnValueOnce(false)
+    confirmDisableAuthentication.mockResolvedValueOnce(false)
     const user = userEvent.setup()
     const authentication = screen.getByRole('checkbox', { name: /^Require MCP authentication/ })
 

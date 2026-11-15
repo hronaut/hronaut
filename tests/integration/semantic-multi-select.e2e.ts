@@ -1,6 +1,7 @@
 import { test, expect, text } from './capability-fixtures.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi, McpTabActivity } from '../../src/shared/types.js'
+import { pageAt } from './fixtures.js'
 
 type Witness = { values: string[]; other: string; events: { type: string; values: string[]; trusted: boolean }[] }
 const html='<select id="choices" multiple><option value="a" selected>A label secret</option><optgroup label="Group"><option value="b">B</option><option value="x">X</option><option value="c">C</option></optgroup><option value="">Empty</option></select><input id="other" value="unrelated-secret">'
@@ -8,7 +9,7 @@ const setup=`document.body.innerHTML=${JSON.stringify(html)};window.selectionEve
 const witness=`({values:Array.from(document.querySelector('#choices').selectedOptions,o=>o.value),other:document.querySelector('#other').value,events:window.selectionEvents})`
 
 test('semantic option sets replace, clear and preserve single-value compatibility', async ({ capabilities, electronApp }) => {
-  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  const page=await pageAt(electronApp, capabilities.fixtureUrl)
   await page.evaluate(setup)
   for (const values of [['c','b'],[''],[]]) {
     await page.evaluate('window.selectionEvents=[]')
@@ -45,7 +46,7 @@ const invalid = [
   ['option cap', "for(let i=0;i<1001;i++)document.querySelector('#choices').add(new Option('extra','extra'+i))",['b']]
 ] as const
 for(const [name,mutation,values] of invalid) test(`semantic option set rejects ${name} without partial selection`,async({capabilities,electronApp})=>{
-  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  const page=await pageAt(electronApp, capabilities.fixtureUrl)
   await page.evaluate(setup);if(mutation)await page.evaluate(mutation+';void 0')
   const before=await page.evaluate<Witness>(witness)
   const result=await capabilities.client.callTool({name:'browser_select',arguments:{tabId:capabilities.tabId,selector:'#choices',values:[...values]}}) as CallToolResult
@@ -56,7 +57,7 @@ for(const [name,mutation,values] of invalid) test(`semantic option set rejects $
 })
 
 for(const change of ['revert','replace','options','disable','value-collision','change-event'] as const)test(`semantic option set reports ${change} handler uncertainty without replay`,async({capabilities,electronApp})=>{
-  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  const page=await pageAt(electronApp, capabilities.fixtureUrl)
   await page.evaluate(setup)
   const mutation=change==='revert'?"e.target.options[0].selected=true":change==='replace'?"e.target.outerHTML='<select id=choices multiple><option value=replacement selected>replacement</option></select>'":change==='options'?"e.target.add(new Option('extra','extra'))":change==='value-collision'?"e.target.querySelector('option[value=c]').value='b'":change==='change-event'?"e.target.options[0].selected=true":"e.target.disabled=true"
   await page.evaluate(`document.querySelector('#choices').addEventListener('${change==='change-event'?'change':'input'}',e=>{${mutation}});void 0`)
@@ -69,7 +70,7 @@ for(const change of ['revert','replace','options','disable','value-collision','c
 
 for(const change of ['pause','cancel','navigation','access','close'] as const)test(`semantic option set vetoes ${change} after preparation`,async({capabilities,electronApp,appWindow})=>{
   const {fixtureUrl,tabId,client}=capabilities
-  const page=electronApp.context().pages().find(p=>p.url()===fixtureUrl)!
+  const page=await pageAt(electronApp, fixtureUrl)
   await page.evaluate(setup)
   await electronApp.evaluate(({webContents},url)=>{
     const page=webContents.getAllWebContents().find(p=>p.getURL()===url)!,original=page.executeJavaScript,isolated=page.executeJavaScriptInIsolatedWorld
@@ -110,7 +111,7 @@ for(const change of ['pause','cancel','navigation','access','close'] as const)te
 })
 
 for (const variant of ['first-legend-ref','hostile-prototype'] as const) test(`semantic option set supports ${variant}`,async({capabilities,electronApp})=>{
-  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  const page=await pageAt(electronApp, capabilities.fixtureUrl)
   await page.evaluate(setup)
   await page.evaluate(variant==='first-legend-ref'?"document.querySelector('#choices').outerHTML='<fieldset disabled><legend>'+document.querySelector('#choices').outerHTML+'</legend></fieldset>';document.querySelector('#choices').dataset.hronautRef='safe-ref'":"Object.defineProperty(HTMLOptionElement.prototype,'selected',{get(){throw Error('hostile getter')},set(){throw Error('hostile setter')}})")
   const result=await capabilities.client.callTool({name:'browser_select',arguments:{tabId:capabilities.tabId,...(variant==='first-legend-ref'?{ref:'safe-ref'}:{selector:'#choices'}),values:['b','c']}}) as CallToolResult
@@ -119,7 +120,7 @@ for (const variant of ['first-legend-ref','hostile-prototype'] as const) test(`s
 })
 
 for (const boundary of ['neither','both','nonselect','shadow','frame'] as const) test(`semantic option set refuses ${boundary} target contract`,async({capabilities,electronApp})=>{
-  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  const page=await pageAt(electronApp, capabilities.fixtureUrl)
   await page.evaluate(setup)
   if(boundary==='nonselect')await page.evaluate("document.querySelector('#choices').outerHTML='<div id=choices role=listbox>Custom</div>'")
   if(boundary==='shadow')await page.evaluate("const select=document.querySelector('#choices');const host=document.createElement('div');document.body.append(host);host.attachShadow({mode:'open'}).append(select);void 0")
@@ -131,7 +132,7 @@ for (const boundary of ['neither','both','nonselect','shadow','frame'] as const)
 })
 
 for (const disabled of [true,false]) for (const clear of [false,true]) test(`semantic wrapped optgroup disabled=${disabled} clear=${clear}`,async({capabilities,electronApp})=>{
-  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  const page=await pageAt(electronApp, capabilities.fixtureUrl)
   await page.evaluate(setup)
   const before=await page.evaluate(({disabled,clear})=>{
     const group=document.querySelector('optgroup')!,wrapper=document.createElement('div')
@@ -157,7 +158,7 @@ for (const disabled of [true,false]) for (const clear of [false,true]) test(`sem
 })
 
 test('semantic wrapped optgroup disabled by input handler invalidates readback',async({capabilities,electronApp})=>{
-  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  const page=await pageAt(electronApp, capabilities.fixtureUrl)
   await page.evaluate(setup)
   await page.evaluate("const group=document.querySelector('optgroup'),wrapper=document.createElement('div');wrapper.append(...group.children);group.append(wrapper);document.querySelector('#choices').addEventListener('input',()=>{group.disabled=true});void 0")
   const result=await capabilities.client.callTool({name:'browser_select',arguments:{tabId:capabilities.tabId,selector:'#choices',values:['b','c']}}) as CallToolResult

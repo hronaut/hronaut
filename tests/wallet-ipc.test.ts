@@ -112,7 +112,9 @@ it.each([
   ['wallets:unlock', [false]], ['wallets:prepare-import', ['evm', 'private-key', null]],
   ['wallets:prepare-import', ['invalid-family', 'private-key', 'fixture']],
   ['wallets:prepare-import', ['evm', 'invalid-format', 'fixture']],
-  ['wallets:set-policy', [{}]]
+  ['wallets:set-policy', [{}]], ['wallets:confirm-import', ['import-token', { name: 'Fixture' }]],
+  ['wallets:add-watch-only', [{ name: 'Fixture', chainFamily: 'evm', workspaceIds: [] }]],
+  ['wallets:update', ['wallet-1', { name: 7 }]]
 ] as const)('rejects malformed %s arguments before calling a service operation', async (channel, args) => {
   const { service, broker, invoke } = fixture()
   await expect(invoke(channel, ...args)).rejects.toThrow()
@@ -124,10 +126,13 @@ it.each([
 it('preserves native recovery confirmation and broker ownership of mutations', async () => {
   const { host, service, broker, invoke } = fixture()
   const input = { name: 'Fixture', chainFamily: 'evm', workspaceIds: [] }
+  await expect(invoke('wallets:generate', input)).rejects.toThrow()
+  expect(host.generateWallet).not.toHaveBeenCalled()
+  const network = { id: 'local', name: 'Local', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' }
   const failure = new Error('Wallet creation cancelled before recovery confirmation')
   host.generateWallet.mockRejectedValueOnce(failure)
-  await expect(invoke('wallets:generate', input)).rejects.toBe(failure)
-  expect(host.generateWallet).toHaveBeenCalledWith(input)
+  await expect(invoke('wallets:generate', { ...input, network })).rejects.toBe(failure)
+  expect(host.generateWallet).toHaveBeenCalledWith({ ...input, network, availableInAllWorkspaces: false, dedicatedAgent: false })
   expect(host.service).not.toHaveBeenCalled()
   await invoke('wallets:prepare-import', 'evm', 'private-key', 'fixture')
   expect(service.prepareImport).toHaveBeenCalledWith('evm', 'private-key', 'fixture')

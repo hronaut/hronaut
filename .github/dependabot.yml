@@ -1,60 +1,37 @@
 version: 2
 
+# One weekly pull request carries every npm update together with the Playwright Docker image, which must stay on the
+# locked Playwright version (tests/docker-playwright-version.test.ts); GitHub Actions updates get one of their own.
 multi-ecosystem-groups:
-  playwright:
+  dependencies:
     open-pull-requests-limit: 10
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:15"
-      timezone: "Europe/Kyiv"
-
-updates:
-  - package-ecosystem: "npm"
-    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:00"
       timezone: "Europe/Kyiv"
-    open-pull-requests-limit: 10
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    patterns:
+      - "*"
+    multi-ecosystem-group: "dependencies"
     ignore:
-      - dependency-name: "@playwright/test"
       # typescript-eslint 8 supports TypeScript below 6.1. Remove when it supports TypeScript 7.
       - dependency-name: "typescript"
         versions:
           - "7.x"
-      # Electron 44.4.x shifts trusted controls after compact navigation; 44.4.1 also crashes continuity QA.
-      - dependency-name: "electron"
-        versions:
-          - "44.4.x"
-    groups:
-      production-minor-patch:
-        dependency-type: "production"
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      development-minor-patch:
-        dependency-type: "development"
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
-  - package-ecosystem: "npm"
-    directory: "/"
-    patterns:
-      - "@playwright/test"
-    multi-ecosystem-group: "playwright"
-
+  # Without an allow list, an entry that joins a multi-ecosystem group opens a pull request of its own for every other
+  # dependency it finds. Dependabot names an image without its registry: mcr.microsoft.com/playwright is "playwright".
   - package-ecosystem: "docker"
     directory: "/"
+    allow:
+      - dependency-name: "playwright"
     patterns:
-      - "mcr.microsoft.com/playwright"
-    multi-ecosystem-group: "playwright"
+      - "playwright"
+    multi-ecosystem-group: "dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -65,9 +42,6 @@ updates:
       timezone: "Europe/Kyiv"
     open-pull-requests-limit: 10
     groups:
-      actions-minor-patch:
+      actions:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"

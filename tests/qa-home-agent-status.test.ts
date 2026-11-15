@@ -121,7 +121,7 @@ describe('Home status Details facts (#870)', () => {
     details.open = true
     summary.focus()
     expect(details.open).toBe(true)
-    query<HTMLButtonElement>('#home-tab-connect').focus()
+    query<HTMLButtonElement>('#home-tab-agents').focus()
     expect(details.open).toBe(false)
   })
 

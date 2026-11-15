@@ -7,6 +7,8 @@ vi.mock('electron', () => {
       session: { partition: 'workspace' },
       isDestroyed: () => false,
       setAudioMuted: () => undefined,
+      isLoading: () => false,
+      getURL: () => '',
       loadURL: () => Promise.resolve(),
       navigationHistory: { restore: () => Promise.resolve() }
     }
@@ -15,18 +17,47 @@ vi.mock('electron', () => {
   }
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined } }
 })
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+// It also stubs changed, the workspace's navigation check and observation generation, the session hooks and the page
+// events, which createTab runs through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertWorkspaceNavigationAllowed(...args)
+}))
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  workspaceObservationGeneration: (browser: { workspaceObservationGeneration: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceObservationGeneration(...args)
+}))
+vi.mock('../src/main/browser/session-hooks/session-hooks.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/session-hooks/session-hooks.js')>(),
+  installSessionHooks: (browser: { installSessionHooks: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.installSessionHooks(...args)
+}))
+// Every tab closes with a page that closes itself; these fake pages emit no events.
+vi.mock('../src/main/browser/tab-events/page-close-events.js', () => ({ attachPageCloseEvents: () => undefined }))
+vi.mock('../src/main/browser/tab-events/leave-site-question.js', () => ({ attachLeaveSiteQuestion: () => undefined }))
+vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
+  attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
+}))
+import { Browser } from '../src/main/browser/browser.js'
 
 const AGENT = '01912345-6789-7abc-8def-0123456789ab'
 
 /** A browser with one open workspace whose tabs are created for real, with their views faked. */
 function fixture() {
   const configureSession = vi.fn()
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
     initialized: true,
     restoringLayout: false,
-    options: { partition: 'persist:hronaut', configureSession },
+    options: { partition: 'persist:hronaut', configureSession, getLocale: () => 'en-US' },
     window: {
       isDestroyed: () => false,
       isFocused: () => true,
@@ -58,7 +89,7 @@ function fixture() {
     layout: vi.fn(),
     changed: vi.fn(),
     getState: () => ({})
-  }) as BrowserTabsManager
+  }) as Browser
   const createTab = (options: Record<string, unknown>) => (
     manager as unknown as { createTab(options: Record<string, unknown>): Promise<unknown> }
   ).createTab(options)

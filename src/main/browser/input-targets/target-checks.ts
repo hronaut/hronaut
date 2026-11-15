@@ -1,15 +1,23 @@
 import type { WebContents } from 'electron'
+import type { BrowserTab } from '../browser-tab.js'
+import { pageScriptsRunNow } from '../page-script-readiness.js'
+import { PAGE_PINCHED } from '../page-zoom/pinch-zoom.js'
 
 /**
  * Requires the point inside the page's visual viewport at default scale and
- * without an offset, checking validate once the layout metrics arrive.
+ * without an offset, checking validate once the layout metrics arrive. A page
+ * a person pinched larger meanwhile is refused with `pinched`'s error, when
+ * given, which says how to go on.
  */
-export async function assertRightClickViewport(webContents: WebContents, x: number, y: number, validate: () => void): Promise<void> {
+export async function assertRightClickViewport(
+  webContents: WebContents, x: number, y: number, validate: () => void, pinched?: () => Error
+): Promise<void> {
   const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
     cssVisualViewport?: { clientWidth: number; clientHeight: number; scale: number; offsetX: number; offsetY: number }
   }
   validate()
   const viewport = metrics.cssVisualViewport
+  if (viewport && pinched && visualViewportPinched(viewport)) throw pinched()
   if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0
     || !Number.isFinite(viewport.clientWidth) || !Number.isFinite(viewport.clientHeight)
     || x < 0 || y < 0 || x >= viewport.clientWidth || y >= viewport.clientHeight) {
@@ -81,12 +89,82 @@ function filledBefore(index: number | undefined): string {
   return index === 2 ? ' Form field 1 was already filled.' : ` Form fields 1–${index - 1} were already filled.`
 }
 
-/** Requires the coordinate point inside the page's visible viewport. */
+/**
+ * Whether the agent's native pointer input refuses a pinched page of this tab: not in a phone viewport the agent
+ * emulates, which sets its own scale, can show its page panned at it, and keeps that scale when the zoom is reset.
+ */
+export function refusesPinchedPage(tab: Pick<BrowserTab, 'emulation'>): boolean {
+  return tab.emulation.viewport?.mobile !== true
+}
+
+/** The refusal of native input on a page a person pinched larger, saying how to go on. */
+export function pinchedPageError(action: 'click' | 'hover' | 'drag' | 'wheel' | 'touch'): Error {
+  return new Error(`${action[0]!.toUpperCase()}${action.slice(1)} with native input needs the page at its normal scale, and it is pinched larger. `
+    + 'Reset it with browser_zoom (action reset), then try again.')
+}
+
+async function refusePinchedPage(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
+  if (await webContents.executeJavaScript(PAGE_PINCHED, false) === true) throw pinchedPageError(action)
+}
+
+/**
+ * Refuses native pointer input on a page a person pinched larger: Chromium sends it to the part of the page the pinch
+ * shows, from its offset, so a point measured on the page would land somewhere else. A page going to another document,
+ * or still reading its own, is not asked, as a script would wait for it and hold the input with it; hover and drag
+ * check again right before they are sent, and a native click before it presses. A page no script runs in, such as a
+ * page's source or a page whose renderer exited, is left to the input: a native click reports there that it pressed
+ * nothing, and hover and drag are refused by their own page script.
+ */
+export async function assertPageAtNormalScale(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
+  if (!pageScriptsRunNow(webContents)) return
+  let pinched: unknown
+  try {
+    pinched = await webContents.executeJavaScript(PAGE_PINCHED, false)
+  } catch {
+    return
+  }
+  if (pinched === true) throw pinchedPageError(action)
+}
+
+/**
+ * As assertPageAtNormalScale, from Chromium's visual viewport with the debugger already attached, right before the input
+ * is sent: it waits for no document and finds a pinch made since the page was measured. Its scale is the pinch alone,
+ * whatever the page zoom; a phone viewport emulated in Developer Tools has a scale of 1 or less while not pinched, though
+ * its layout viewport can be wider than the part shown.
+ */
+export async function assertPageAtNormalScaleBeforeInput(webContents: WebContents, action: 'click' | 'hover' | 'drag'): Promise<void> {
+  if (await pagePinchedBeforeInput(webContents)) throw pinchedPageError(action)
+}
+
+/** Whether Chromium's visual viewport shows the page pinched larger or panned, read with the debugger already attached. */
+export async function pagePinchedBeforeInput(webContents: WebContents): Promise<boolean> {
+  const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
+    cssVisualViewport?: { scale: number; offsetX: number; offsetY: number }
+  } | undefined
+  const visual = metrics?.cssVisualViewport
+  return visual !== undefined && visualViewportPinched(visual)
+}
+
+/**
+ * Whether Chromium's visual viewport, as Page.getLayoutMetrics gives it, shows the page pinched larger or panned. A phone
+ * viewport an agent emulates can show a page wider than the phone panned at its own scale, which this also reports, so
+ * callers leave phone viewports out (see refusesPinchedPage) or refuse emulation before asking.
+ */
+export function visualViewportPinched(visual: { scale: number; offsetX: number; offsetY: number }): boolean {
+  return visual.scale > 1.001 || Math.abs(visual.offsetX) > 0.01 || Math.abs(visual.offsetY) > 0.01
+}
+
+/**
+ * Requires the coordinate point inside the page's visible viewport, with the page at its normal scale unless
+ * `refusePinch` is false (see refusesPinchedPage).
+ */
 export async function assertPointInsideVisibleViewport(
   webContents: WebContents,
   point: { x: number; y: number },
-  action: 'click' | 'hover' | 'drag'
+  action: 'click' | 'hover' | 'drag',
+  refusePinch = true
 ): Promise<void> {
+  if (refusePinch) await refusePinchedPage(webContents, action)
   const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', false) as {
     width: number
     height: number

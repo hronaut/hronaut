@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { navigate } from '../../../browser/page-navigation/page-navigation.js'
 
 export function registerBrowserNavigate(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -11,7 +12,7 @@ export function registerBrowserNavigate(context: McpToolContext): void {
       description: toolDescription('browser_navigate'),
       inputSchema: { url: z.string().min(1), tabId: tabIdSchema.optional() }
     },
-    tabTool('browser_navigate', async ({ url, tabId }: { url: string; tabId?: string }) => textResult(await manager.navigate(url, tabId))),
+    tabTool('browser_navigate', async ({ url, tabId }: { url: string; tabId?: string }) => textResult(await navigate(manager, url, tabId))),
     { stepTarget: input => ({ url: input.url }), publicObserverAllowed: true }
   )
 }

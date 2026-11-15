@@ -1,35 +1,46 @@
 import { webContents as electronWebContents, type WebContents } from 'electron'
 import { clearRendererAgentInputFlag, NativeInputCleanupError } from '../native-input-cleanup.js'
 import { printDialogHolds, whenPrintDialogCloses } from '../print-dialog-guard.js'
-import type { AgentInputScopeAccess } from './agent-input-scope-access.js'
+import { WebsiteDialogOpenError, websiteDialogHolds, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
+import type { Browser } from '../browser.js'
+import { findTab } from '../browser-core.js'
 import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput } from './focus-isolation.js'
+import { syncHumanInteractionInputGuard } from '../interaction-lock/human-input-guard.js'
 
 /**
- * Runs an agent's input to a page. The outermost run isolates window focus,
+ * Runs an agent's input to a page, refused unsent while a website dialog
+ * holds the page. The outermost run isolates window focus,
  * remembers where the person's focus was and marks the page's renderer as
  * receiving agent input (unless deferred); nested runs only count. When the
  * outermost run ends it clears the renderer flag, restores the native input
  * guard of a locked tab, puts the person's focus back and releases focus
  * isolation, reporting cleanup failures through onCleanupFailure.
  */
-export async function withAgentInput<Tab, T>(
-  access: AgentInputScopeAccess<Tab>,
+export async function withAgentInput<T>(
+  browser: Browser,
   webContents: WebContents,
   operation: () => Promise<T>,
   options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
 ): Promise<T> {
-  const depth = (access.agentInputWebContents().get(webContents.id) ?? 0) + 1
+  const depth = (browser.agentInputWebContents.get(webContents.id) ?? 0) + 1
+  // Chromium drops input to a page its website dialog holds, so the agent's input would reach nothing.
+  if (depth === 1 && websiteDialogHolds(webContents)) throw new WebsiteDialogOpenError(false)
   if (depth === 1) {
-    const mainWindowFocused = access.window().isFocused()
-    access.agentInputFocusGuardReleases().set(webContents.id, beginAgentFocusIsolation(access))
-    access.agentInputFocusSnapshots().set(webContents.id, {
+    const mainWindowFocused = browser.window.isFocused()
+    browser.agentInputFocusGuardReleases.set(webContents.id, beginAgentFocusIsolation(browser))
+    browser.agentInputFocusSnapshots.set(webContents.id, {
       mainWindowFocused,
       focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null
     })
   }
-  access.agentInputWebContents().set(webContents.id, depth)
+  browser.agentInputWebContents.set(webContents.id, depth)
+  browser.pageFind.noteAgentInput(webContents)
   let nativeCleanupFailure: NativeInputCleanupError | undefined
   try {
+    // A file field the agent's input opens gets no system file chooser, which would hold the person's window for a page
+    // they may not see: Chromium cancels it, as the field's cancel event tells the page, and the agent uploads with
+    // browser_file_upload instead. The person's own clicks open it as usual.
+    if (depth === 1) await interceptFileChoosers(webContents, true)
     if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
       // Without a user gesture: marking the page must not give it a person's activation, which a hover or a scroll
       // never gives in Chrome. A click, a key or typing gives the page its own activation.
@@ -41,28 +52,35 @@ export async function withAgentInput<Tab, T>(
     throw error
   } finally {
     try {
-      const remaining = Math.max(0, (access.agentInputWebContents().get(webContents.id) ?? 1) - 1)
+      const remaining = Math.max(0, (browser.agentInputWebContents.get(webContents.id) ?? 1) - 1)
       if (remaining > 0) {
-        access.agentInputWebContents().set(webContents.id, remaining)
+        browser.agentInputWebContents.set(webContents.id, remaining)
       } else {
-        access.agentInputWebContents().delete(webContents.id)
-        const focusSnapshot = access.agentInputFocusSnapshots().get(webContents.id)
-        access.agentInputFocusSnapshots().delete(webContents.id)
+        browser.agentInputWebContents.delete(webContents.id)
+        const focusSnapshot = browser.agentInputFocusSnapshots.get(webContents.id)
+        browser.agentInputFocusSnapshots.delete(webContents.id)
         try {
           if (!webContents.isDestroyed()) {
+            await interceptFileChoosers(webContents, false)
             await clearRendererAgentInputFlag(webContents, options.onCleanupFailure)
             if (printDialogHolds(webContents)) {
               // The page's print dialog kept the flag from being cleared. Without it, the person's own pointer input
               // to Hronaut's element picker and screenshot area on this page would still read as an agent's.
               void whenPrintDialogCloses(webContents).then(async () => {
-                if (!webContents.isDestroyed() && !access.agentInputWebContents().has(webContents.id)) await clearRendererAgentInputFlag(webContents)
+                if (!webContents.isDestroyed() && !browser.agentInputWebContents.has(webContents.id)) await clearRendererAgentInputFlag(webContents)
               })
             }
-            const tabId = access.tabIdForWebContents(webContents.id)
-            const tab = tabId ? access.findTab(tabId) : undefined
-            if (!webContents.isDestroyed() && tab && access.isHumanInteractionLocked(tab)) {
+            if (websiteDialogHolds(webContents)) {
+              // The same for a website dialog the agent's input opened, such as a confirm on a Delete button.
+              void whenWebsiteDialogCloses(webContents).then(async () => {
+                if (!webContents.isDestroyed() && !browser.agentInputWebContents.has(webContents.id)) await clearRendererAgentInputFlag(webContents)
+              })
+            }
+            const tabId = browser.webContentsToTab.get(webContents.id)
+            const tab = tabId ? findTab(browser, tabId) : undefined
+            if (!webContents.isDestroyed() && tab && browser.isHumanInteractionLocked(tab)) {
               try {
-                await access.syncHumanInteractionInputGuard(tab)
+                await syncHumanInteractionInputGuard(browser, tab)
               } catch (error) {
                 options.onCleanupFailure?.()
                 // Preserve acknowledged input uncertainty, but otherwise keep
@@ -73,10 +91,10 @@ export async function withAgentInput<Tab, T>(
           }
         } finally {
           try {
-            restoreHumanFocusAfterAgentInput(access, webContents, focusSnapshot)
+            restoreHumanFocusAfterAgentInput(browser, webContents, focusSnapshot)
           } finally {
-            const releaseFocusGuard = access.agentInputFocusGuardReleases().get(webContents.id)
-            access.agentInputFocusGuardReleases().delete(webContents.id)
+            const releaseFocusGuard = browser.agentInputFocusGuardReleases.get(webContents.id)
+            browser.agentInputFocusGuardReleases.delete(webContents.id)
             releaseFocusGuard?.()
           }
         }
@@ -86,4 +104,15 @@ export async function withAgentInput<Tab, T>(
       throw error
     }
   }
+}
+
+/** Has Chromium cancel the file choosers the page opens, or show them again; a page without its debugger is left as it is. */
+async function interceptFileChoosers(webContents: WebContents, enabled: boolean): Promise<void> {
+  if (webContents.isDestroyed()) return
+  try {
+    if (!webContents.debugger.isAttached()) return
+  } catch {
+    return
+  }
+  await webContents.debugger.sendCommand('Page.setInterceptFileChooserDialog', { enabled, cancel: true }).catch(() => undefined)
 }

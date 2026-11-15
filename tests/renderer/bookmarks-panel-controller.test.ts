@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useBookmarksPanelController } from '../../src/renderer/src/composables/useBookmarksPanelController.js'
+import { useBookmarksPanelController } from '../../src/renderer/src/features/bookmarks/useBookmarksPanelController.js'
 import type { BrowserBookmark } from '../../src/shared/types.js'
 
 function bookmark(id: string, title = `Page ${id}`): BrowserBookmark {
@@ -256,13 +256,16 @@ describe('bookmarks panel controller', () => {
     const pendingAdd = new Promise<BrowserBookmark[]>((resolve) => {
       resolveAdd = resolve
     })
-    const { bookmarks, addBookmark, controller } = createController([])
+    const { bookmarks, addBookmark, controller, open } = createController([])
     addBookmark.mockReturnValue(pendingAdd)
+    // Open, so that the first call is the one that adds.
+    open.value = true
 
     const first = controller.toggleCurrent()
     const duplicate = controller.toggleCurrent()
     expect(addBookmark).toHaveBeenCalledTimes(1)
     expect(controller.pendingAction.value).toBe('add:https://example.test/current')
+    await expect(duplicate).resolves.toBeUndefined()
 
     resolveAdd?.([bookmark('current', 'Current page')])
     await Promise.all([first, duplicate])

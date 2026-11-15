@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ToastOverlay, placeToastOverlay, toastOverlayWidth, type ToastOverlayLayout, type ToastOverlaySurface } from '../src/main/toast-overlay.js'
+import { ToastOverlay, placeToastOverlay, toastOverlayWidth, type ToastOverlayLayout, type ToastOverlaySurface } from '../src/main/overlays/toast-overlay.js'
 import {
   parseToastOverlayMeasurement,
   parseToastOverlayMessage,

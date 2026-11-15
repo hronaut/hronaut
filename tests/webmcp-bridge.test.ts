@@ -8,6 +8,7 @@ import {
   webMcpStatusScript,
   type WebMcpPageListing
 } from '../src/main/browser/webmcp-bridge.js'
+import { webMcpCallFromPage, webMcpListingFromPage } from '../src/main/browser/webmcp/webmcp-page-answers.js'
 
 interface TestTool extends Record<string, unknown> {
   name: string
@@ -63,7 +64,7 @@ describe('WebMCP page bridge', () => {
     }
     installModelContext([iframe, topLevel])
     const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
-    expect(listed.descriptors).toEqual([
+    expect(JSON.parse(listed.descriptorJson!)).toEqual([
       expect.objectContaining({
         name: 'increment',
         inputSchema: { type: 'object', properties: { amount: { type: 'number' } } }
@@ -101,6 +102,36 @@ describe('WebMCP page bridge', () => {
       status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible',
       result: { value: { marker: 'ok' } }
     })
+    expect(webMcpCallFromPage(called)).toEqual({
+      supported: true, status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible', result: { value: { marker: 'ok' } }
+    })
+  })
+
+  it('gives main a listing and a long result that pass its own checks unchanged', async () => {
+    const tool: TestTool = {
+      name: 'read',
+      title: 'Quotes " and \\ slashes\u0001',
+      inputSchema: JSON.stringify({ type: 'object' }),
+      window,
+      origin: location.origin,
+      execute: () => ({ parts: Array.from({ length: 10 }, () => 'y'.repeat(19_000)) })
+    }
+    installModelContext([tool])
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    expect(webMcpListingFromPage(listed)).toEqual({
+      listed: true,
+      descriptorJson: listed.descriptorJson,
+      tools: [{ name: 'read', title: tool.title, inputSchema: { type: 'object' } }]
+    })
+    const called = await window.eval(webMcpCallScript({
+      descriptorJson: listed.descriptorJson!,
+      toolName: 'read',
+      arguments: {}
+    })) as Record<string, unknown>
+    expect(called.result).toMatchObject({ value: { serialization: 'truncated-json' }, truncated: true })
+    expect(webMcpCallFromPage(called)).toEqual({
+      supported: true, status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible', result: called.result
+    })
   })
 
   it('classifies a synchronous callback throw as a possibly effectful dispatch', async () => {
@@ -133,6 +164,71 @@ describe('WebMCP page bridge', () => {
       status: 'TOOL_ERROR', dispatch: 'dispatched', effects: 'possible',
       error: 'synthetic synchronous failure'
     })
+  })
+
+  it('reports a tool whose result or error cannot be read as one that ran', async () => {
+    let calls = 0
+    const tool: TestTool = { name: 'odd', window, origin: location.origin, execute: () => undefined }
+    const answers = [
+      () => ({ get value(): never { throw new Error('unreadable result') } }),
+      () => { throw Object.create(null) as unknown }
+    ]
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: {
+        getTools: async () => [tool],
+        executeTool: () => answers[calls++]!()
+      }
+    })
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    const call = async (): Promise<Record<string, unknown>> => await window.eval(webMcpCallScript({
+      descriptorJson: listed.descriptorJson!,
+      toolName: 'odd',
+      arguments: {}
+    })) as Record<string, unknown>
+
+    expect(await call()).toEqual({
+      supported: true, status: 'OUTCOME_UNKNOWN', dispatch: 'dispatched', effects: 'possible', reason: 'result-unreadable',
+      error: 'unreadable result'
+    })
+    expect(await call()).toEqual({
+      supported: true, status: 'TOOL_ERROR', dispatch: 'dispatched', effects: 'possible',
+      error: 'The page threw a value that cannot be read'
+    })
+    expect(calls).toBe(2)
+  })
+
+  it('gives a value JSON has no form for as its text, cut as long strings are, and main keeps that text', async () => {
+    const huge = 10n ** 30_000n
+    const tool: TestTool = { name: 'odd', window, origin: location.origin, execute: () => undefined }
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: {
+        getTools: async () => [tool],
+        executeTool: async () => ({ big: 10n, huge, label: Symbol('x'.repeat(30_000)), missing: undefined })
+      }
+    })
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    const called = await window.eval(webMcpCallScript({
+      descriptorJson: listed.descriptorJson!,
+      toolName: 'odd',
+      arguments: {}
+    })) as Record<string, unknown>
+    const value = { big: '10', huge: huge.toString().slice(0, 20_000), label: `Symbol(${'x'.repeat(30_000)})`.slice(0, 20_000), missing: 'undefined' }
+    expect(called.result).toEqual({ value, truncated: true })
+    expect(webMcpCallFromPage(called)).toMatchObject({ status: 'TOOL_RETURNED', result: { value, truncated: true } })
+  })
+
+  it('refuses a tool whose input schema is nested deeper than main reads', async () => {
+    let schema: unknown = { type: 'string' }
+    for (let level = 0; level < 64; level++) schema = { items: schema }
+    const tool: TestTool = { name: 'deep', inputSchema: schema, window, origin: location.origin, execute: () => undefined }
+    installModelContext([tool])
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    expect(listed).toMatchObject({ supported: true, status: 'WEBMCP_ERROR', error: 'WebMCP tool deep has an input schema nested more than 64 levels deep' })
+    tool.inputSchema = (schema as { items: unknown }).items
+    const shallower = await window.eval(webMcpListScript()) as WebMcpPageListing
+    expect(webMcpListingFromPage(shallower)).toMatchObject({ listed: true })
   })
 
   it('bounds page tool enumeration with the same operation deadline', async () => {

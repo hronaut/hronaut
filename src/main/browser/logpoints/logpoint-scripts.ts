@@ -59,7 +59,7 @@ export async function listScripts(send: CdpSend, known: LogpointScriptRecord[], 
   const scripts: LogpointScript[] = []
   for (const script of listed) {
     const loaded = !script.sourceMapUrl ? undefined
-      : Date.now() < budget.deadline ? await loadSourceMap(send, page.mainFrameId, script, budget) : 'not-checked' as const
+      : performance.now() < budget.deadline ? await loadSourceMap(send, page.mainFrameId, script, budget) : 'not-checked' as const
     scripts.push(describeScript(script, loaded))
   }
   const unaddressed = frameScripts(known, page.frames).filter(script => script.url === undefined).length

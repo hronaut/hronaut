@@ -4,6 +4,9 @@ import { type BrowserVideoOptions, videoOptionsShape } from '../../../../shared/
 import type { PendingVideoInspection, VideoSourceBinding } from '../../../browser/video-recorder.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { inspectVideo, videoRecording } from '../../../browser/video-recording/video-recording.js'
+import { tabBelongsToMcpGroup } from '../../../browser/workspace-scope/workspace-scope.js'
+import { agentVideoState } from './agent-video-state.js'
 
 // An inspected frame and its pixels are published only if the call still has its authority when it settles.
 function videoInspectionSettlement() {
@@ -42,15 +45,15 @@ export function registerBrowserVideo(context: McpToolContext): void {
         requireActiveCapabilityDispatch('browser_video', call.input)
         requireAgentWorkspace(call.workspaceId)
         if (call.writeLeaseGeneration) workspaceLeases.require(call.workspaceId, client.id, call.writeLeaseGeneration)
-        if (call.tabId && !manager.tabBelongsToMcpGroup(call.workspaceId, call.tabId)) throw workspaceAuthorizationError()
+        if (call.tabId && !tabBelongsToMcpGroup(manager, call.workspaceId, call.tabId)) throw workspaceAuthorizationError()
       }
       const options = Object.fromEntries(Object.keys(videoOptionsShape).filter(key => (input as Record<string, unknown>)[key] !== undefined).map(key => [key, (input as Record<string, unknown>)[key]])) as BrowserVideoOptions
       if (options.action === 'inspect') {
-        const pending = await manager.inspectVideo(videoInspectionSchema.parse(options), validateInspection, call.signal)
+        const pending = await inspectVideo(manager, videoInspectionSchema.parse(options), validateInspection, call.signal)
         call.settlement.retain(pending)
         return textResult(pending.report)
       }
-      return textResult(await manager.videoRecording(options, validateRecording, call.signal))
+      return textResult(agentVideoState(await videoRecording(manager, options, validateRecording, call.signal), manager.options.downloadDirectory))
     }, 'never'),
     {
       settlement: videoInspectionSettlement,

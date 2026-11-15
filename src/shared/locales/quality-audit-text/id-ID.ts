@@ -1,0 +1,82 @@
+export const idIDQualityAuditText = {
+  categories: {
+    accessibility: 'Aksesibilitas',
+    performance: 'Performa',
+    metadata: 'Metadata dan SEO',
+    security: 'Keamanan',
+    pwa: 'PWA dan offline',
+    'browser-issues': 'Masalah Chromium'
+  },
+  statuses: {
+    pass: 'lulus',
+    info: 'info',
+    warning: 'peringatan',
+    error: 'error',
+    'not-applicable': 'tidak berlaku'
+  },
+  severities: {
+    error: 'error',
+    warning: 'peringatan',
+    info: 'info'
+  },
+  fixed: {
+    accessibilityClear: 'Tidak ditemukan pelanggaran WCAG AA otomatis',
+    performanceNone: 'Tidak ada Web Vitals yang teramati dalam kunjungan ini',
+    metadataClear: 'Tidak ditemukan masalah metadata',
+    securitySecure: 'Transport dokumen utama aman',
+    pwaNone: 'Tidak terdeteksi fitur PWA atau aplikasi offline',
+    browserIssuesClear: 'Tidak ditemukan masalah Chromium yang disimpan',
+    webVitalsNotObserved: 'Tidak ada Web Vitals yang teramati dalam kunjungan saat ini; muat ulang dan berinteraksilah dengan halaman sebelum menjalankan ulang audit.',
+    insecureTransport: 'Dokumen utama tidak menggunakan transport aman yang sehat.',
+    certificateExpired: 'Sertifikat dokumen utama sudah kedaluwarsa.',
+    certificateNotYetValid: 'Sertifikat dokumen utama belum berlaku.',
+    certificateInvalid: 'Sertifikat dokumen utama saat ini tidak valid.',
+    pwaInspectionPartial: 'Beberapa diagnostik PWA tidak tersedia untuk audit ini.'
+  },
+  caveats: {
+    localDiagnostic: 'Ini adalah diagnostik lokal terbatas yang disusun dari bukti Hronaut; ini bukan skor Lighthouse atau sertifikasi.',
+    accessibilityAutomation: 'Otomatisasi aksesibilitas tidak dapat menggantikan pengujian keyboard, pembaca layar, zoom, gerakan, dan kegunaan oleh manusia.',
+    performanceVisit: 'Performa mencerminkan kunjungan dan lingkungan lokal saat ini; ulangi pengukuran penting dalam kondisi yang representatif.',
+    pwaOptional: 'PWA tidak dianggap sebagai persyaratan untuk situs yang tidak menyediakan fitur aplikasi offline.',
+    reloadIssues: 'Muat ulang sebelum mereproduksi masalah Chromium yang hanya muncul saat startup, lalu jalankan ulang audit ini.'
+  },
+  text: {
+    violations: '{count} pelanggaran',
+    violationNodes: '{count} node terdampak',
+    accessibilityViolations: '{violations} di {nodes}',
+    affectedNodes: '{count} node terdampak',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: '{count} aturan lulus',
+    checksNeedReview: '{count} pemeriksaan perlu ditinjau',
+    needsHumanReview: '{count} pemeriksaan aksesibilitas perlu ditinjau oleh manusia.',
+    performanceGood: '{good} dari {total} Web Vitals yang teramati berstatus baik',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: '{name} dinilai {rating} pada {value}.',
+    resources: '{count} resource',
+    longTasks: '{count} long task',
+    metadataIssues: '{count} masalah metadata',
+    language: 'Bahasa: {language}',
+    languageMissing: 'Bahasa: tidak ada',
+    canonicalUrls: 'URL kanonis: {count}',
+    structuredData: 'Data terstruktur: {valid} valid · {invalid} tidak valid',
+    securityState: 'Status keamanan: {state}',
+    securityStateFinding: 'Chromium melaporkan status keamanan dokumen utama sebagai {state}.',
+    transportSecure: 'Transport: aman',
+    transportInsecure: 'Transport: tidak aman',
+    protocol: 'Protokol: {protocol}',
+    protocolUnavailable: 'Protokol: tidak tersedia',
+    certificateValid: 'Sertifikat: valid',
+    certificateInvalid: 'Sertifikat: tidak valid',
+    certificateUnavailable: 'Sertifikat: tidak tersedia',
+    registrations: '{count} pendaftaran service worker',
+    caches: '{count} cache',
+    manifestPresent: 'Manifes: ada',
+    manifestMissing: 'Manifes: tidak terdeteksi',
+    controlledYes: 'Dikontrol oleh service worker: ya',
+    controlledNo: 'Dikontrol oleh service worker: tidak',
+    installabilityIssues: 'Masalah kemampuan instal: {count}',
+    installabilityFinding: 'Chromium melaporkan masalah kemampuan instal PWA: {issue}.',
+    installabilityUnknown: 'Chromium melaporkan masalah kemampuan instal PWA: masalah tidak diketahui.',
+    browserIssues: '{count} masalah yang dihasilkan browser'
+  }
+}

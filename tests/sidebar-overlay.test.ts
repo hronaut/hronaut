@@ -7,8 +7,8 @@ import {
   type SidebarOverlayLayout,
   type SidebarOverlayMenu,
   type SidebarOverlaySurface
-} from '../src/main/sidebar-overlay.js'
-import { registerOverlayViewsIpc } from '../src/main/overlay-views-ipc.js'
+} from '../src/main/overlays/sidebar-overlay.js'
+import { registerOverlayViewsIpc } from '../src/main/overlays/overlay-views-ipc.js'
 import {
   parseSidebarOverlayIntent,
   parseSidebarOverlayPointer,
@@ -67,7 +67,6 @@ function model(overrides: Partial<SidebarOverlayModel> = {}): SidebarOverlayMode
     },
     footer: {
       commandPaletteOpen: false,
-      tabSearchOpen: false,
       downloadsOpen: false,
       historyOpen: false,
       settingsOpen: false,
@@ -95,6 +94,9 @@ describe('sidebar overlay contracts', () => {
     expect(parseSidebarOverlayRequest(request)).toEqual(request)
     expect(parseSidebarOverlayRequest({ id: 4, model: model({ tint: '#1A2B3C' }) }).model.tint).toBe('#1A2B3C')
     const rail = model().rail
+    // The split views put aside, whose tabs the rail marks as paired.
+    const paired = { ...model(), rail: { ...rail, restingSplitViews: [{ firstTabId: 'alpha', secondTabId: 'beta', orientation: 'horizontal' }] } }
+    expect(parseSidebarOverlayRequest({ id: 5, model: paired })).toEqual({ id: 5, model: paired })
     const bad: unknown[] = [
       null,
       { id: 0, model: model() },
@@ -113,6 +115,8 @@ describe('sidebar overlay contracts', () => {
       { id: 1, model: { ...model(), rail: { ...rail, tabs: Array.from({ length: 1_001 }, (_, index) => tab(`tab-${index}`)) } } },
       { id: 1, model: { ...model(), rail: { ...rail, workspaces: [{ id: 'research', name: 'Research', description: '', color: 'teal' }] } } },
       { id: 1, model: { ...model(), rail: { ...rail, scrollTop: Number.NaN } } },
+      { id: 1, model: { ...model(), rail: { ...rail, restingSplitViews: [{ firstTabId: 'alpha', secondTabId: 'beta', orientation: 'diagonal' }] } } },
+      { id: 1, model: { ...model(), rail: { ...rail, restingSplitViews: Array.from({ length: 501 }, () => ({ firstTabId: 'alpha', secondTabId: 'beta', orientation: 'vertical' })) } } },
       { id: 1, model: { ...model(), footer: { ...model().footer, downloadCount: 100 } } },
       { id: 1, model: { ...model(), footer: { ...model().footer, mcp: { ...model().footer.mcp, state: { status: 'lost', paused: false } } } } }
     ]
@@ -148,7 +152,6 @@ describe('sidebar overlay contracts', () => {
       { kind: 'switch-workspace' },
       { kind: 'stay-here' },
       { kind: 'toggle-rail-pinned' },
-      { kind: 'drag-start' },
       { kind: 'scroll', top: 120 },
       { kind: 'dismiss' },
       { kind: 'footer', action: 'command-palette' },
@@ -713,10 +716,14 @@ describe('sidebar overlay IPC', () => {
     const overlay = { refused: vi.fn(), show: vi.fn(), hide: vi.fn(), rendered: vi.fn(), pointer: vi.fn(), received: vi.fn(), tooltip: vi.fn((request: unknown) => request) }
     const tooltips = { show: vi.fn(), hide: vi.fn(), measured: vi.fn(), shownId: undefined as number | undefined }
     const view = { webContents: {} }
+    const isMainShellSender = (event: IpcMainEvent) => (event as unknown as { shell?: boolean }).shell === true
+    // As the app's check does, it refuses every sender, the shell too, once startup has failed.
     const assertMainShellSender = vi.fn((event: IpcMainEvent) => {
-      if ((event as unknown as { shell?: boolean }).shell !== true) throw new Error('Rejected IPC from a non-shell renderer')
+      if (options.startupFailure) throw options.startupFailure
+      if (!isMainShellSender(event)) throw new Error('Rejected IPC from a non-shell renderer')
     })
     registerOverlayViewsIpc({ on: (channel: string, handler: (event: IpcMainEvent, value?: unknown) => void) => { handlers.set(channel, handler) } } as never, {
+      isMainShellSender,
       assertMainShellSender,
       workspaceStartupFailure: () => options.startupFailure,
       shellTooltips: () => tooltips as never,
@@ -726,7 +733,9 @@ describe('sidebar overlay IPC', () => {
       toastOverlayView: () => ({ isSender: () => false }),
       tooltipView: () => ({ isSender: () => false }),
       sidebarOverlay: () => overlay as never,
-      sidebarOverlayView: () => ({ isSender: (event: Pick<IpcMainEvent, 'sender'>) => event.sender === view.webContents })
+      sidebarOverlayView: () => ({ isSender: (event: Pick<IpcMainEvent, 'sender'>) => event.sender === view.webContents }),
+      statusBubble: () => ({}) as never,
+      statusBubbleView: () => ({ isSender: () => false })
     })
     const fromView = { sender: Object.assign(view.webContents, { getZoomFactor: () => 1.25 }) } as unknown as IpcMainEvent
     const fromShell = { shell: true, sender: {} } as unknown as IpcMainEvent
@@ -736,7 +745,7 @@ describe('sidebar overlay IPC', () => {
   }
 
   it('admits the view\'s reports only from the view, and the shell\'s requests only from the shell', () => {
-    const { overlay, send, fromView, fromShell, fromPage } = registered()
+    const { overlay, tooltips, send, fromView, fromShell, fromPage } = registered()
     for (const [channel, value] of [
       ['sidebar-overlay-view:rendered', { revision: 1 }],
       ['sidebar-overlay-view:pointer', { hovered: true, held: false }],
@@ -744,11 +753,16 @@ describe('sidebar overlay IPC', () => {
       ['sidebar-overlay-view:tooltip-show', { id: 1, text: 'Home', anchor: { x: 0, y: 0, width: 32, height: 32 }, placement: 'right', theme: 'dark' }],
       ['sidebar-overlay-view:tooltip-hide', 1]
     ] as const) {
-      expect(() => send(channel, fromPage, value)).toThrow('Rejected IPC from a non-sidebar renderer')
-      expect(() => send(channel, fromShell, value)).toThrow('Rejected IPC from a non-sidebar renderer')
+      // Dropped: nothing waits for an answer, and a throw would be an uncaught exception in main.
+      send(channel, fromPage, value)
+      send(channel, fromShell, value)
     }
     expect(overlay.rendered).not.toHaveBeenCalled()
+    expect(overlay.pointer).not.toHaveBeenCalled()
     expect(overlay.received).not.toHaveBeenCalled()
+    expect(overlay.tooltip).not.toHaveBeenCalled()
+    expect(tooltips.show).not.toHaveBeenCalled()
+    expect(tooltips.hide).not.toHaveBeenCalled()
     expect(() => send('sidebar-overlay:show', fromView, { id: 1, model: model() })).toThrow('Rejected IPC from a non-shell renderer')
     expect(() => send('sidebar-overlay:hide', fromPage, 1)).toThrow('Rejected IPC from a non-shell renderer')
     expect(overlay.show).not.toHaveBeenCalled()
@@ -769,7 +783,7 @@ describe('sidebar overlay IPC', () => {
     expect(failed.overlay.refused).toHaveBeenCalledWith(3)
     expect(failed.overlay.show).not.toHaveBeenCalled()
     // Another sender's id ends nothing, which could keep the shell's later reveals from opening.
-    expect(() => failed.send('sidebar-overlay:show', failed.fromPage, { id: 1_000_000, model: model() })).toThrow('Rejected IPC from a non-shell renderer')
+    failed.send('sidebar-overlay:show', failed.fromPage, { id: 1_000_000, model: model() })
     expect(failed.overlay.refused).toHaveBeenCalledTimes(1)
   })
 

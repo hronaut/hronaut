@@ -53,10 +53,13 @@ function harness(specs: WorkspaceSpec[], startIn: string) {
   }
   const browser = {
     closeTab: vi.fn(async () => state.value),
+    closeTabs: vi.fn(async () => state.value),
     reopenClosedTab: vi.fn(async () => state.value),
     selectTab: vi.fn(async (tabId: string) => show(tabId)),
     reload: vi.fn(async () => state.value),
     reloadIgnoringCache: vi.fn(async () => state.value),
+    reorderTab: vi.fn(async () => state.value),
+    focusActivePage: vi.fn(async () => undefined),
     newTab: vi.fn(async (options?: { mcpGroupId?: string; active?: boolean }) => {
       const created = tab(`${options?.mcpGroupId}-new`, options!.mcpGroupId!)
       state.value = { ...state.value, tabs: [...state.value.tabs, created] }
@@ -70,8 +73,8 @@ function harness(specs: WorkspaceSpec[], startIn: string) {
     settingsOpen: ref(false),
     canRunAction: () => true,
     openNewTab: noop, focusAddress: noop, openFind: noop, setZoom: noop, toggleCurrentBookmark: noop,
-    toggleVisitHistory: noop, toggleDownloads: noop, toggleTabSearch: noop, openPrivacySettings: noop, toggleCommandPalette: noop,
-    toggleElementPicker: noop, toggleDeveloperTools: noop,
+    toggleVisitHistory: noop, toggleDownloads: noop, openHomeTabs: noop, openPrivacySettings: noop, toggleCommandPalette: noop,
+    toggleElementPicker: noop, toggleDeveloperTools: noop, showDeveloperToolsConsole: noop,
     onError: vi.fn()
   })
   controllers.push(controller)

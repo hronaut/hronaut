@@ -99,6 +99,15 @@ describe('UI primitives', () => {
     general.focus()
     await fireEvent.keyDown(general, { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: 'Privacy' })).toHaveAttribute('aria-selected', 'true')
+    // With Alt, Ctrl or Cmd these keys are the browser's: Alt+Home went to the first tab instead of opening Home.
+    const privacy = screen.getByRole('tab', { name: 'Privacy' })
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true, ...modifiers })
+      privacy.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    await nextTick()
+    expect(privacy).toHaveAttribute('aria-selected', 'true')
   })
 
   it.each(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'])('supports %s selection, focus, and wrapping in segmented controls', async (key) => {

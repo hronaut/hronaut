@@ -23,6 +23,8 @@ vi.mock('electron', () => {
         isDevToolsOpened: () => false,
         setAudioMuted() {},
         focus: () => { focused.push(String(id)) },
+        isLoading: () => false,
+        getURL: () => '',
         loadURL: () => Promise.resolve(),
         navigationHistory: { restore: () => Promise.resolve() }
       })
@@ -33,8 +35,46 @@ vi.mock('electron', () => {
   return { session: {}, webContents: { getFocusedWebContents: () => null }, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }
 })
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+// The prototype-built browser below stubs changed and getState; split view publishes through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
+// The prototype-built browser below stubs scheduleTabOverviewPreview, which showing a page asks for its overview preview with.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  scheduleTabOverviewPreview: (browser: { scheduleTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.scheduleTabOverviewPreview(...args)
+}))
+
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+
+// It also stubs the workspace's navigation check and observation generation, the session hooks and the page events,
+// which createTab runs through these.
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertWorkspaceNavigationAllowed(...args)
+}))
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  workspaceObservationGeneration: (browser: { workspaceObservationGeneration: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceObservationGeneration(...args)
+}))
+vi.mock('../src/main/browser/session-hooks/session-hooks.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/session-hooks/session-hooks.js')>(),
+  installSessionHooks: (browser: { installSessionHooks: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.installSessionHooks(...args)
+}))
+vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
+  attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
+}))
+const { Browser } = await import('../src/main/browser/browser.js')
 const { attachPagePointerEvents } = await import('../src/main/browser/tab-events/page-pointer-events.js')
+const { openSplitView, openSplitViewAndWait } = await import('../src/main/browser/split-view/split-view.js')
+const { selectTabAndWait } = await import('../src/main/browser/tab-selection/tab-selection.js')
 
 const PERSON = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -47,16 +87,12 @@ interface Manager {
   wakeTab: (tabId: string) => Promise<unknown>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
   selectTab(tabId: string): unknown
-  selectTabAndWait(tabId: string): Promise<unknown>
-  openSplitView(tabId: string): unknown
-  openSplitViewAndWait(tabId: string): Promise<unknown>
-  pagePointerEventsAccess(): never
 }
 
 function browser() {
   let finishWake!: () => void
   const waking = new Promise<void>((resolve) => { finishWake = resolve })
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, restoringLayout: false,
     options: { partition: 'persist:hronaut' },
     window: {
@@ -65,12 +101,12 @@ function browser() {
       contentView: { children: [], addChildView: vi.fn(), removeChildView: vi.fn() }
     },
     tabs: new Map(), closedTabs: [], detachedClosedTabs: new Set(), workspaceOperations: new Map(),
-    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, splitViewGeneration: 0,
+    webContentsToTab: new Map(), openedTabObservations: new Map(), activeTabId: null, splitView: null, restingSplitViews: [], splitViewGeneration: 0,
     tabSelectionGeneration: 0, toolbarHeight: 60, contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(), agentWheel: new Map(),
     screenshotAreaSessions: new Map(), elementPickerSessions: new Map(), browserContentOccluded: false, pageFullscreenTabs: new Set(),
     reproRecorder: { observeReproMouse: vi.fn() }, mcpActivityFollower: { noteHumanInput: vi.fn() },
-    scheduleTabOverviewPreview: vi.fn(), shouldBlockHumanMouseInput: () => false, agentWheelUnderWay: () => false,
+    scheduleTabOverviewPreview: vi.fn(),
     mcpTabGroups: new Map([[PERSON, {
       id: PERSON, name: 'Mine', description: '', color: 'blue', createdAt: '', lastUsedAt: '', activeTabId: null,
       storageId: '8e3da8ea-cba4-41c2-9619-a6e04a493a44', origins: [], navigationPolicy: { mode: 'unrestricted', rules: [] },
@@ -78,8 +114,7 @@ function browser() {
     }]]),
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] }
+    getState: () => ({}), text: (key: string) => key
   }) as Manager
   // Restoring a sleeping page takes until the test lets it finish, as loading a slow site does.
   manager.wakeTab = vi.fn(async (tabId: string) => {
@@ -96,9 +131,9 @@ async function personInSplitViewWithASleepingTab(manager: Manager) {
   const right = await manager.createTab({ url: 'https://right.example/', mcpGroupId: PERSON, active: false })
   const sleeper = await manager.createTab({ url: 'https://slow.example/', mcpGroupId: PERSON, active: false })
   sleeper.sleeping = true
-  attachPagePointerEvents(manager.pagePointerEventsAccess(), right as never, right.webContents as never)
+  attachPagePointerEvents(manager as never, right as never, right.webContents as never)
   manager.selectTab(left.id)
-  manager.openSplitView(right.id)
+  openSplitView(manager as never, right.id)
   const split = structuredClone(manager.splitView)
   focused.length = 0
   return { left, right, sleeper, split }
@@ -109,7 +144,7 @@ describe('a sleeping tab the person clicked, then went back to their split view 
     const { manager, finishWake } = browser()
     const { right, sleeper, split } = await personInSplitViewWithASleepingTab(manager)
 
-    const selecting = manager.selectTabAndWait(sleeper.id)
+    const selecting = selectTabAndWait(manager as never, sleeper.id)
     // The person clicks into the right-hand page, which makes it the active pane.
     right.webContents.emit('before-mouse-event', { preventDefault: vi.fn() }, { type: 'mouseDown', button: 'left', x: 40, y: 40 })
     expect(manager.activeTabId).toBe(right.id)
@@ -124,8 +159,8 @@ describe('a sleeping tab the person clicked, then went back to their split view 
     const { manager, finishWake } = browser()
     const { right, sleeper, split } = await personInSplitViewWithASleepingTab(manager)
 
-    const selecting = manager.selectTabAndWait(sleeper.id)
-    await manager.selectTabAndWait(right.id)
+    const selecting = selectTabAndWait(manager as never, sleeper.id)
+    await selectTabAndWait(manager as never, right.id)
     focused.length = 0
     finishWake()
     await selecting
@@ -144,9 +179,9 @@ describe('a sleeping tab the person clicked, then opened a split view instead wh
     sleeper.sleeping = true
     manager.selectTab(notes.id)
 
-    const selecting = manager.selectTabAndWait(sleeper.id)
+    const selecting = selectTabAndWait(manager as never, sleeper.id)
     // The person opens the reference beside their notes with the split view button.
-    await manager.openSplitViewAndWait(reference.id)
+    await openSplitViewAndWait(manager as never, reference.id)
     const split = structuredClone(manager.splitView)
     expect(split).toMatchObject({ firstTabId: notes.id, secondTabId: reference.id })
     focused.length = 0

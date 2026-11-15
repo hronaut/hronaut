@@ -1,0 +1,113 @@
+import type { Browser } from '../browser/browser.js'
+import { HOME_CARD_ICON_MAX_LENGTH, HOME_CARD_TAB_LIMIT, type HomeWorkspaceAction, type HomeWorkspaceEditorRequest, type HomeWorkspaceState } from '../../shared/home-workspaces.js'
+import { closeWorkspaceForPerson, restoreSavedTabGroup, updateArchivedWorkspacePreferences, archiveWorkspaceForPerson, deleteSavedTabGroup } from '../browser/workspace-archive/workspace-archive.js'
+import { updateMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { buildBrowserState } from '../browser/browser-state/browser-state.js'
+import { openHome } from '../browser/home-tabs/home-tabs.js'
+import { closeWorkspace } from '../browser/mcp-tab-groups/close-mcp-tab-group.js'
+import { newTab } from '../browser/new-tabs/open-new-tab.js'
+import { whenArchivedWorkspaceIdle, whenWorkspaceIdle } from '../browser/workspace-operations/workspace-operations.js'
+import { copyWorkspaceAgentKey } from '../browser/workspace-agent-key/workspace-agent-key.js'
+
+/**
+ * What Home shows of the workspaces and tabs. It goes to Home, never to the shell as an action's reply, so a change
+ * waiting to be published waits on (see StatePublication.beforeRead).
+ */
+export function homeWorkspaceState(manager: Browser): HomeWorkspaceState {
+  const state = buildBrowserState(manager)
+  const shown = new Map<string | undefined, number>()
+  // Only the tabs a card shows carry their icon, and only a small image one, so polling stays light.
+  const icon = (tab: HomeWorkspaceState['tabs'][number]): string | undefined => {
+    const count = shown.get(tab.mcpGroupId) ?? 0
+    shown.set(tab.mcpGroupId, count + 1)
+    const value = tab.faviconDataUrl
+    return count < HOME_CARD_TAB_LIMIT && value && value.length <= HOME_CARD_ICON_MAX_LENGTH && value.startsWith('data:image/') ? value : undefined
+  }
+  return {
+    activeTabId: state.activeTabId,
+    allHumanInteractionLocked: state.allHumanInteractionLocked,
+    mcpTabGroups: state.mcpTabGroups,
+    savedTabGroups: state.savedTabGroups,
+    // Home needs page labels for search, without diagnostics or page contents.
+    tabs: state.tabs.map(tab => {
+      const faviconDataUrl = icon(tab)
+      return { id: tab.id, mcpGroupId: tab.mcpGroupId, title: tab.title, url: tab.url, ...(faviconDataUrl ? { faviconDataUrl } : {}) }
+    })
+  }
+}
+
+/** Runs a workspace action Home asked for; `stillHome` checks the sender again after any wait for a busy workspace. */
+export async function runHomeWorkspaceAction(
+  manager: Browser,
+  input: unknown,
+  edit: (request: HomeWorkspaceEditorRequest) => void,
+  stillHome: () => void = () => undefined
+): Promise<HomeWorkspaceState> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Invalid workspace action')
+  const request = input as HomeWorkspaceAction
+  const state = buildBrowserState(manager)
+  if (request.view === 'create' || request.view === 'templates') {
+    edit({ view: request.view })
+    return homeWorkspaceState(manager)
+  }
+  if (!('workspaceId' in request) || typeof request.workspaceId !== 'string') throw new TypeError('Invalid workspace action')
+  const active = state.mcpTabGroups.find(group => group.id === request.workspaceId)
+  const archived = state.savedTabGroups.find(group => group.id === request.workspaceId)
+  if (!active && !archived) throw new Error('Workspace is no longer available.')
+  switch (request.view) {
+    case 'edit':
+      if (!active) throw new Error('Restore this workspace to edit its settings.')
+      edit({ view: 'edit', workspaceId: request.workspaceId })
+      break
+    case 'transfer': edit({ view: 'transfer', workspaceId: request.workspaceId }); break
+    case 'copy-agent-key':
+      if (!active) throw new Error('Restore this workspace to copy its key for an agent.')
+      await copyWorkspaceAgentKey(manager, request.workspaceId)
+      break
+    case 'open':
+    case 'restore':
+      if (archived) await restoreSavedTabGroup(manager, archived.id)
+      else if (active) {
+        const tabId = active.activeTabId ?? state.tabs.find(tab => tab.mcpGroupId === active.id)?.id
+        if (tabId) manager.selectTab(tabId)
+        else await newTab(manager, { mcpGroupId: active.id, active: true })
+      }
+      if (request.view === 'restore') await openHome(manager)
+      break
+    case 'archive':
+      if (state.allHumanInteractionLocked && state.tabs.some(tab => tab.mcpGroupId === request.workspaceId)) throw new Error('Unlock the browser before archiving a workspace.')
+      // The shell offers Undo, as for archiving from the workspace's own menu.
+      await archiveWorkspaceForPerson(manager, request.workspaceId)
+      break
+    case 'clear':
+      if (!active) throw new Error('Only an open workspace can be cleared from this view.')
+      if (request.undoable !== undefined && typeof request.undoable !== 'boolean') throw new TypeError('Invalid workspace action')
+      // With Undo it is archived and deleted once Undo ends; Home asked first when the archive had no room for that.
+      if (request.undoable) await closeWorkspaceForPerson(manager, request.workspaceId)
+      else await closeWorkspace(manager, request.workspaceId)
+      break
+    case 'delete':
+      if (state.allHumanInteractionLocked) throw new Error('Unlock the browser before deleting a workspace.')
+      await deleteSavedTabGroup(manager, request.workspaceId)
+      break
+    case 'preferences': {
+      const updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean } = {}
+      for (const key of ['hiddenFromSidebar', 'deletionProtected'] as const) {
+        if (request[key] !== undefined) {
+          if (typeof request[key] !== 'boolean') throw new TypeError('Invalid workspace preference')
+          updates[key] = request[key]
+        }
+      }
+      if (!Object.keys(updates).length) throw new TypeError('Choose a workspace preference')
+      // A switch flipped while another operation holds the workspace busy waits for it and then applies, to the
+      // workspace open or archived by then.
+      await (active ? whenWorkspaceIdle(manager, active.id) : whenArchivedWorkspaceIdle(manager, request.workspaceId))
+      stillHome()
+      if (manager.mcpTabGroups.has(request.workspaceId)) updateMcpTabGroup(manager, request.workspaceId, updates)
+      else updateArchivedWorkspacePreferences(manager, request.workspaceId, updates)
+      break
+    }
+    default: throw new TypeError('Invalid workspace action')
+  }
+  return homeWorkspaceState(manager)
+}

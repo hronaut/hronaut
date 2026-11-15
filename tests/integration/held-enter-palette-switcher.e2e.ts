@@ -71,7 +71,10 @@ test('a held Enter on the command palette button leaves the choice of command to
   const search = palette.getByRole('combobox', { name: 'Search commands' })
   await holdEnterIntoSearch(appWindow, search)
   await expect(palette).toBeVisible()
-  // A new press runs the selected command: with nothing typed, Switch workspace, which shows the switcher instead.
+  // The held Enter ran nothing and left the palette on the command it opened on, its first one.
+  await expect(palette.getByRole('option').first()).toHaveAttribute('aria-selected', 'true')
+  // A new press runs the selected command: typing Switch workspace selects it, and Enter shows the workspace switcher.
+  await search.fill('Switch workspace')
   await expect(search).toHaveAttribute('aria-activedescendant', 'command-palette-switch-workspace')
   await appWindow.keyboard.press('Enter')
   const switcher = appWindow.getByRole('dialog', { name: 'Switch workspace' })

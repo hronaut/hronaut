@@ -61,7 +61,13 @@ test('acquires native scalar media state without page accessors or observation m
       const mutationCount = await page.executeJavaScript('mediaMutations', false)
       rows.push({ scenario: 'progressing-muted', state: await read() })
       if (await page.executeJavaScript('mediaMutations', false) !== mutationCount) throw new Error('Observation mutated playback')
-      await new Promise(resolve => setTimeout(resolve, 1100))
+      // Even on an idle machine the one-second clip ends about 1.1 s after the muted read, so a fixed wait has almost no
+      // margin under load; wait for the element's own ended state instead.
+      const endBy = Date.now() + 10_000
+      while (!await page.executeJavaScript("nativeRead('ended')", false)) {
+        if (Date.now() > endBy) throw new Error('Synthetic audio did not end')
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
       rows.push({ scenario: 'ended', state: await read() })
       await page.executeJavaScript('liveFixture()', true)
       rows.push({ scenario: 'infinite', state: await read('#live') })

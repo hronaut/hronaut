@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   resolveDetachedPanelId,
   useDetachedPanelPresentationController
-} from '../../src/renderer/src/composables/useDetachedPanelPresentationController.js'
+} from '../../src/renderer/src/features/panels/useDetachedPanelPresentationController.js'
 
 afterEach(() => {
   document.documentElement.removeAttribute('data-panel-window')

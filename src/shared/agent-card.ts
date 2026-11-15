@@ -10,7 +10,7 @@ import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
  * user's choices to the shell, which carries them out with the shell's own browser API.
  */
 export const AGENT_CARD_ACTIONS = [
-  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'pin-on', 'pin-off', 'hand-back', 'dismiss',
+  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'pin-on', 'pin-off', 'hand-back', 'skip', 'dismiss',
   'review-decision', 'answer-check', 'answer-resolve', 'answer-reject', 'all-steps'
 ] as const
 export type AgentCardAction = typeof AGENT_CARD_ACTIONS[number]

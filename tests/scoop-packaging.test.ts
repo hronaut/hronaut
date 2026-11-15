@@ -182,7 +182,10 @@ describe('Scoop package QA', () => {
 })
 
 // The production workflow runs Bash on Ubuntu; native Windows need not provide it.
-describe.skipIf(process.platform === 'win32')('Scoop manifest push', () => {
+// Each test starts about twenty git, bash and node processes. That takes a quarter
+// second on an idle machine, but the validate job runs lint, typecheck and the build
+// beside the tests, and there one of these took over five seconds (3.14.28 rehearsal).
+describe.skipIf(process.platform === 'win32')('Scoop manifest push', { timeout: 30_000 }, () => {
   it('replays the manifest commit on a main that moved during the release', async () => {
     const result = await pushManifestAfterConcurrentMerge({ 'notes.txt': 'merged while the release ran\n' })
 

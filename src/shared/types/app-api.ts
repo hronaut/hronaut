@@ -1,8 +1,12 @@
+import type { Confirmation } from '../confirmation.js'
 import type { SearchEngineName } from '../search-engine.js'
+import type { SiteSearchDraft } from '../site-search.js'
+import type { SecureDnsMode } from '../secure-dns.js'
 import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
 import type { LanguagePreference } from '../locale.js'
 import type { TabPosition } from '../tab-position.js'
+import type { SiteIconChanges, SiteIcons } from '../site-icons.js'
 import type { DesktopWindowPlatform, WindowChromeMode } from '../title-bar.js'
 import type {
   WalletCreateInput,
@@ -17,6 +21,8 @@ import type {
 } from '../wallet.js'
 import type { CommercialLicenseState } from './license.js'
 import type { BrowserActionFailure } from './page-problems.js'
+import type { ShellTabField } from '../tab-field.js'
+import type { TaskManagerProcess } from './task-manager.js'
 import type {
   McpCapabilityCredentialResult,
   McpCapabilityProfileCreateInput,
@@ -32,14 +38,18 @@ import type {
   SitePermissionDecision,
   SitePermissionEntry,
   SitePermissionScope,
+  SpellCheckLanguages,
   ThemeName
 } from './settings.js'
 import type { CredentialImportResult, CredentialStorageStatus, CredentialSummary } from './credentials.js'
 import type { AppReleaseHistoryPage, AppUpdateState } from './updates.js'
 import type {
   BookmarkCollectionSnapshot,
+  BookmarkTabsOutcome,
+  BookmarkImportResult,
   BrowserBookmark,
   BrowserDownloadState,
+  BrowserHistoryChanges,
   BrowserHistoryEntry,
   BrowsingDataClearOptions,
   BrowsingDataSiteSummary,
@@ -48,7 +58,8 @@ import type {
 } from './browsing-data.js'
 import type { DetachablePanelId, PanelDock, PanelRedockRequest } from './panels.js'
 
-export type HelpMenuAction = 'shortcuts' | 'about' | 'support'
+/** What an item of the application menu asks Hronaut's window to show: a Help dialog, or a part of Settings. */
+export type HelpMenuAction = 'shortcuts' | 'about' | 'support' | 'settings'
 
 export interface HronautBookmarkCollectionsApi {
   list(): Promise<BookmarkCollectionSnapshot>
@@ -56,6 +67,11 @@ export interface HronautBookmarkCollectionsApi {
   rename(id: string, name: string): Promise<BookmarkCollectionSnapshot>
   remove(id: string): Promise<BookmarkCollectionSnapshot>
   assign(bookmarkId: string, collectionId: string | null): Promise<BookmarkCollectionSnapshot>
+  /**
+   * Bookmark all tabs, as in Chrome: the open tabs of a workspace, or of no workspace for null, go in a new collection
+   * with this name.
+   */
+  bookmarkTabs(workspaceId: string | null, name: string): Promise<BookmarkTabsOutcome>
   onChanged(listener: (snapshot: BookmarkCollectionSnapshot) => void): () => void
 }
 
@@ -64,6 +80,11 @@ export interface HronautPanelWindowApi {
   close(): Promise<void>
   setActive(panel: DetachablePanelId): Promise<void>
   redock(panel: DetachablePanelId, dock: Exclude<PanelDock, 'window'>): Promise<void>
+  /**
+   * Bookmark all tabs while Bookmarks is in its own window: that window shows Bookmarks and asks what to call the
+   * collection the workspace's tabs go in, null for the tabs in no workspace.
+   */
+  bookmarkAllTabs(workspaceId: string | null): Promise<void>
   onPanelRequested(listener: (panel: DetachablePanelId) => void): () => void
   onActivePanelChanged(listener: (panel: DetachablePanelId) => void): () => void
   onRedockRequested(listener: (request: PanelRedockRequest) => void): () => void
@@ -71,24 +92,42 @@ export interface HronautPanelWindowApi {
 }
 
 export interface HronautDownloadsApi {
-  list(): Promise<BrowserDownloadState[]>
+  /** Every download; with `checkFiles`, as when the Downloads panel opens, also checks finished files are still there. */
+  list(checkFiles?: boolean): Promise<BrowserDownloadState[]>
   pause(downloadId: string): Promise<BrowserDownloadState[]>
   resume(downloadId: string): Promise<BrowserDownloadState[]>
   cancel(downloadId: string): Promise<BrowserDownloadState[]>
+  /** Downloads a cancelled or failed download's address again, as a new download in its workspace, as Chrome's Retry. */
+  retry(downloadId: string): Promise<BrowserDownloadState[]>
   removeFinished(downloadId: string): Promise<BrowserDownloadState[]>
   clearFinished(): Promise<BrowserDownloadState[]>
   showInFolder(downloadId: string): Promise<void>
+  /** Drags a completed download's file out of this window, as from Chrome's downloads; call it on the row's dragstart. */
+  startDrag(downloadId: string): Promise<void>
   onChanged(listener: (downloads: BrowserDownloadState[]) => void): () => void
+}
+
+/** The Task manager's view of Hronaut's processes, as Chrome's Task manager. */
+export interface HronautTaskManagerApi {
+  /** Every process with its memory and CPU use since the previous reading. */
+  list(): Promise<TaskManagerProcess[]>
+  /** Ends a page process the list lets end; its tabs show that their page was ended. */
+  endProcess(pid: number): Promise<void>
 }
 
 export interface HronautBookmarksApi {
   collections?: HronautBookmarkCollectionsApi
   list(): Promise<BrowserBookmark[]>
-  add(url: string, title: string): Promise<BrowserBookmark[]>
+  /** Saves a page, or updates the bookmark of an address saved before; a new bookmark goes into the collection named, if it is still there. */
+  add(url: string, title: string, collectionId?: string): Promise<BrowserBookmark[]>
   addIfMissing(url: string, title: string): Promise<BrowserBookmark[]>
   rename(id: string, title: string): Promise<BrowserBookmark[]>
   updateDestination(id: string, url: string): Promise<BrowserBookmark[]>
   remove(id: string): Promise<BrowserBookmark[]>
+  /** Saves every bookmark to an HTML bookmarks file the person picks, as Chrome exports them: how many, or null when they cancel. */
+  exportFile(): Promise<number | null>
+  /** Adds the bookmarks of an HTML bookmarks file the person picks, as Chrome imports them, or null when they cancel. */
+  importFile(): Promise<BookmarkImportResult | null>
   onChanged(listener: (bookmarks: BrowserBookmark[]) => void): () => void
 }
 
@@ -97,11 +136,18 @@ export interface HronautHistoryApi {
   remove(id: string): Promise<BrowserHistoryEntry[]>
   clear(): Promise<BrowserHistoryEntry[]>
   onChanged(listener: (entries: BrowserHistoryEntry[]) => void): () => void
+  /** Pages visited or retitled, sent together a few times a second while pages load rather than the whole history. */
+  onUpdated(listener: (changes: BrowserHistoryChanges) => void): () => void
+  /** The icons tabs showed for the pages in the history and bookmarks. */
+  siteIcons(): Promise<SiteIcons>
+  /** Pages' icons that changed, or null for those let go with the history and bookmarks. */
+  onSiteIconsChanged(listener: (changes: SiteIconChanges) => void): () => void
 }
 
 export interface HronautBrowsingDataApi {
   summary(): Promise<BrowsingDataSummary>
   siteSummary(url: string, tabId: string): Promise<BrowsingDataSiteSummary>
+  clearSite(url: string, tabId: string): Promise<BrowsingDataSiteSummary>
   websites(): Promise<BrowsingDataWebsiteSummary[]>
   clear(options: BrowsingDataClearOptions): Promise<BrowsingDataSummary>
 }
@@ -117,6 +163,11 @@ export interface HronautSettingsApi {
   setTabPosition(position: TabPosition): Promise<AppSettings>
   setUseSystemTitleBar(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
+  addSiteSearch(draft: SiteSearchDraft): Promise<AppSettings>
+  updateSiteSearch(id: string, draft: SiteSearchDraft): Promise<AppSettings>
+  removeSiteSearch(id: string): Promise<AppSettings>
+  /** Sets how website addresses are looked up, with the chosen provider's DNS over HTTPS address kept for Secure. */
+  setSecureDns(mode: SecureDnsMode, template: string): Promise<AppSettings>
   setHideInTray(enabled: boolean): Promise<AppSettings>
   setLaunchAtStartup(enabled: boolean): Promise<AppSettings>
   setLaunchMinimized(enabled: boolean): Promise<AppSettings>
@@ -125,9 +176,14 @@ export interface HronautSettingsApi {
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
+  setSpellCheck(enabled: boolean): Promise<AppSettings>
+  /** The spell check languages Hronaut has dictionaries for, and the one checked while none is chosen. */
+  getSpellCheckLanguages(): Promise<SpellCheckLanguages>
+  setSpellCheckLanguages(languages: string[]): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setAllowWebsiteFileSaving(enabled: boolean): Promise<AppSettings>
+  setSitePermissionsBlockedByDefault(permissions: string[]): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
@@ -146,6 +202,14 @@ export interface HronautSettingsApi {
   setMemorySaverEnabled(enabled: boolean): Promise<AppSettings>
   setMemorySaverTimeoutMinutes(timeoutMinutes: MemorySaverTimeoutMinutes): Promise<AppSettings>
   resetMemorySaver(): Promise<AppSettings>
+  setGraphicsAcceleration(enabled: boolean): Promise<AppSettings>
+  /** Whether this run draws with graphics acceleration, as the saved setting said at its start. */
+  graphicsAccelerationInUse(): Promise<boolean>
+  /**
+   * Restarts Hronaut to apply a change that takes effect at the next start, after asking about downloads in progress as
+   * Quit does; resolves false when they are kept.
+   */
+  restart(): Promise<boolean>
   setCheckForUpdatesOnStartup(enabled: boolean): Promise<AppSettings>
   setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState>
   onChanged(listener: (settings: AppSettings) => void): () => void
@@ -172,10 +236,10 @@ export interface HronautShellApi {
   windowChrome: WindowChromeState
   isWindowFocused(): Promise<boolean>
   /**
-   * Asks in a native dialog with Cancel as the default button, in the interface language, so Enter never chooses OK,
-   * and waits like `window.confirm`; true only when the person chose OK.
+   * Asks in Hronaut's own dialog over the window, in the interface language, with Cancel focused, so Enter never
+   * chooses OK; true only when the person chose OK.
    */
-  confirm(message: string): boolean
+  confirm(question: Confirmation): Promise<boolean>
   setToolbarHeight(height: number): void
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
   /** Hides or shows the page views under trusted chrome; main's report that they left the screen names `request`. */
@@ -192,6 +256,14 @@ export interface HronautShellApi {
   /** Hides the tooltip with this id, or any tooltip when none is given. */
   hideTooltip(id?: number): void
   setFollowAgentActivitySuspended(suspended: boolean): void
+  /** The shown tab's field that has the keyboard in the shell, or null; main gives it back on coming back to the tab. */
+  setTabFieldFocused(field: ShellTabField | null): void
+  /** Whether History is open; its key pressed in a page then closes it and leaves the page the keyboard. */
+  setHistoryShown(shown: boolean): void
+  /** Main showed the tab again whose field had the keyboard when it was left; the shell gives it back, or the page. */
+  onTabFieldFocusReturned(listener: (tabId: string, field: ShellTabField) => void): () => void
+  /** Main gives the shell back the keyboard a page took; the field that had it takes it back without its suggestions. */
+  onKeyboardGivenBack(listener: () => void): () => void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
   onClipboardFailed(listener: (message: string) => void): () => void
   onActionFailed(listener: (failure: BrowserActionFailure) => void): () => void
@@ -280,6 +352,8 @@ export interface HronautCredentialsApi {
   remove(id: string): Promise<boolean>
   clear(): Promise<void>
   onChanged(listener: (credentials: CredentialSummary[]) => void): () => void
+  /** Secure storage answered after startup, as it does once the person unlocks a keyring that stayed locked at sign-in. */
+  onStatusChanged(listener: (status: CredentialStorageStatus) => void): () => void
 }
 
 export interface HronautUpdatesApi {

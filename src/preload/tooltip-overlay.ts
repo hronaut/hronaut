@@ -1,5 +1,7 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge } from 'electron'
+import { TOOLTIP_OVERLAY_VIEW_IPC } from '../shared/ipc/shell-tooltip.js'
 import type { ShellTooltipMeasurement, ShellTooltipState } from '../shared/shell-tooltip.js'
+import { send, subscribe } from './bridges/ipc.js'
 
 export interface HronautTooltipOverlayViewApi {
   onState(listener: (state: ShellTooltipState) => void): () => void
@@ -7,12 +9,8 @@ export interface HronautTooltipOverlayViewApi {
 }
 
 const api: HronautTooltipOverlayViewApi = {
-  onState: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: ShellTooltipState): void => listener(state)
-    ipcRenderer.on('tooltip-overlay:state', handler)
-    return () => ipcRenderer.removeListener('tooltip-overlay:state', handler)
-  },
-  measured: (measurement) => ipcRenderer.send('tooltip-overlay:measured', measurement)
+  onState: (listener) => subscribe(TOOLTIP_OVERLAY_VIEW_IPC.state, (state) => listener(state)),
+  measured: (measurement) => send(TOOLTIP_OVERLAY_VIEW_IPC.measured, measurement)
 }
 
 contextBridge.exposeInMainWorld('hronautTooltipOverlayView', api)

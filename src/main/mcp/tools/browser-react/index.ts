@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { REACT_INSPECTION_ACTIONS, type ReactInspectionCommand } from '../../../../shared/react-inspection.js'
-import type { ReactInspectionAuthority } from '../../../browser/react-inspection.js'
+import type { ReactInspectionAuthority } from '../../../browser/react-inspection/react-inspection.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
@@ -23,7 +23,7 @@ export function registerBrowserReact(context: McpToolContext): void {
         assertCurrent: call.requireCurrentTarget,
         epoch: createHash('sha256').update(JSON.stringify([client.id, call.controlRevision, call.writeLeaseGeneration, capabilityAuthorizationFingerprint])).digest('hex')
       }
-      return textResult(await manager.reactInspection(tabId, { action, subtreeId }, reactAuthority))
+      return textResult(await manager.reactInspectionController.run(tabId, { action, subtreeId }, reactAuthority))
     }, 'never')
   )
 }

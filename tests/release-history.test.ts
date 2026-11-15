@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ReleaseHistoryService } from '../src/main/release-history.js'
+import { ReleaseHistoryService } from '../src/main/updates/release-history.js'
 
 function release(overrides: Record<string, unknown> = {}) {
   return {
@@ -74,6 +74,24 @@ describe('ReleaseHistoryService', () => {
     now = 111
     expect((await service.getPage(1)).releases[0]!.title).toBe('Hronaut 1.11.4')
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps its cache for its lifetime on the monotonic clock, whatever the wall clock does', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      const fetch = vi.fn(async () => new Response(JSON.stringify([release()])))
+      const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch, cacheTtlMs: 100 })
+      await service.getPage(1)
+      vi.setSystemTime(Date.now() + 60 * 60_000)
+      await service.getPage(1)
+      expect(fetch).toHaveBeenCalledOnce()
+      vi.setSystemTime(Date.now() - 2 * 60 * 60_000)
+      vi.advanceTimersByTime(100)
+      await service.getPage(1)
+      expect(fetch).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('bypasses a fresh cache for an explicit refresh while retaining it as an offline fallback', async () => {

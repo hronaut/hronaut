@@ -9,6 +9,8 @@ import type {
   AddressSuggestionSelection
 } from '../../shared/address-suggestions.js'
 import type { AppSettings, SupportedLocale } from '../../shared/types.js'
+import { ADDRESS_OVERLAY_IPC, ADDRESS_OVERLAY_VIEW_IPC } from '../../shared/ipc/address-overlay.js'
+import { sendTo } from '../typed-ipc.js'
 
 interface AddressSuggestionSurface {
   view: WebContentsView
@@ -30,8 +32,8 @@ interface AddressSuggestionOverlayHost {
 }
 
 export interface AddressSuggestionOverlay {
-  /** Admits only the suggestions page in the view that shows now. */
-  assertAddressOverlaySender(event: IpcMainEvent): void
+  /** Whether a report came from the suggestions page in the current view, which a view the window closed is not. */
+  isAddressOverlaySender(event: IpcMainEvent): boolean
   /** Shows the shell's suggestions under the address field, loading the view first if needed. */
   show(request: AddressSuggestionOverlayRequest, sender: Pick<WebContents, 'getZoomFactor'>): void
   /** Hides the suggestions when the shell asks, including after a dismissal it acknowledges. */
@@ -72,15 +74,10 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
     return pathToFileURL(join(__dirname, '../renderer/address-overlay.html')).href
   }
 
-  function assertAddressOverlaySender(event: Electron.IpcMainEvent): void {
-    const actual = event.senderFrame?.url
-    if (
-      !addressSuggestionSurface
-      || event.sender !== addressSuggestionSurface.webContents
-      || !host.trustedUrlMatches(actual, trustedAddressOverlayUrl())
-    ) {
-      throw new Error('Rejected IPC from a non-address-overlay renderer')
-    }
+  function isAddressOverlaySender(event: Electron.IpcMainEvent): boolean {
+    return !!addressSuggestionSurface
+      && event.sender === addressSuggestionSurface.webContents
+      && host.trustedUrlMatches(event.senderFrame?.url, trustedAddressOverlayUrl())
   }
 
   function hideAddressSuggestionOverlay(): void {
@@ -144,7 +141,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
           hideAddressSuggestionOverlay()
           addressSuggestionSurface = null
           if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
-            host.mainWindowRefs.window.webContents.send('address-overlay:dismissed', surface.sessionId)
+            sendTo(host.mainWindowRefs.window.webContents, ADDRESS_OVERLAY_IPC.dismissed, surface.sessionId)
           }
         })
         webContents.on('render-process-gone', () => {
@@ -189,6 +186,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
       sessionId: request.sessionId,
       suggestions: request.suggestions,
       selectedIndex: request.selectedIndex,
+      ...(request.selectedAction ? { selectedAction: request.selectedAction } : {}),
       theme: request.theme,
       locale: host.resolvedLocale()
     }
@@ -207,7 +205,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
       const height = view.getVisible() ? Math.min(view.getBounds().height, bounds.maxHeight) : 1
       view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: Math.max(1, height) })
       host.mainWindowRefs.window.contentView.addChildView(view)
-      webContents.send('address-overlay:state', state)
+      sendTo(webContents, ADDRESS_OVERLAY_VIEW_IPC.state, state)
     }).catch((error) => console.error('[address-overlay] Failed to show suggestions:', error))
   }
 
@@ -247,7 +245,7 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
   function select(selection: AddressSuggestionSelection): void {
     if (selection.sessionId !== addressSuggestionSurface?.sessionId) return
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
-      host.mainWindowRefs.window.webContents.send('address-overlay:selected', selection)
+      sendTo(host.mainWindowRefs.window.webContents, ADDRESS_OVERLAY_IPC.selected, selection)
     }
     // A row opened behind leaves the suggestions open, as in Chrome; the shell hides them itself if its field lost focus.
     if (selection.disposition) return
@@ -290,5 +288,5 @@ export function createAddressSuggestionOverlay(host: AddressSuggestionOverlayHos
     addressSuggestionOverlayDismissalPending = false
   }
 
-  return { assertAddressOverlaySender, show, hide, measured, select, returnFocus, currentView, owns, setZoomFactor, mainWindowClosed }
+  return { isAddressOverlaySender, show, hide, measured, select, returnFocus, currentView, owns, setZoomFactor, mainWindowClosed }
 }

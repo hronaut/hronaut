@@ -1,22 +1,22 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import BrowserAddressBar from '../../src/renderer/src/components/BrowserAddressBar.vue'
-import DetachedPanelUnavailableState from '../../src/renderer/src/components/DetachedPanelUnavailableState.vue'
+import BrowserAddressBar from '../../src/renderer/src/features/address-bar/BrowserAddressBar.vue'
+import DetachedPanelUnavailableState from '../../src/renderer/src/features/panels/DetachedPanelUnavailableState.vue'
 import PageProblemBar from '../../src/renderer/src/components/PageProblemBar.vue'
 import {
   useActiveTabPresentationController,
   type ActiveTabPresentationController
 } from '../../src/renderer/src/composables/useActiveTabPresentationController.js'
-import type { AddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
-import type { EmulationController } from '../../src/renderer/src/composables/useEmulationController.js'
-import type { PageToolsPresentationController } from '../../src/renderer/src/composables/usePageToolsPresentationController.js'
-import type { SiteDataSummaryController } from '../../src/renderer/src/composables/useSiteDataSummaryController.js'
+import type { AddressBarController } from '../../src/renderer/src/features/address-bar/useAddressBarController.js'
+import type { EmulationController } from '../../src/renderer/src/features/emulation/useEmulationController.js'
+import type { PageToolsPresentationController } from '../../src/renderer/src/features/page-tools/usePageToolsPresentationController.js'
+import type { SiteDataSummaryController } from '../../src/renderer/src/features/site-controls/useSiteDataSummaryController.js'
 import {
   useSitePermissionsController,
   type SitePermissionsController
-} from '../../src/renderer/src/composables/useSitePermissionsController.js'
+} from '../../src/renderer/src/features/site-controls/useSitePermissionsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserTabState, SitePermissionEntry } from '../../src/shared/types.js'
 
@@ -56,6 +56,7 @@ describe('extracted shell components', () => {
     const submit = vi.fn()
     const openRoutes = vi.fn()
     const resetPermission = vi.fn(async () => true)
+    const reloadTab = vi.fn()
     const addressController = {
       address: ref('https://example.test/app'),
       input: ref<HTMLInputElement | null>(null),
@@ -64,6 +65,8 @@ describe('extracted shell components', () => {
       suggestions: ref([]),
       visible: ref(false),
       selected: ref(undefined),
+      keyword: ref(null),
+      keywordHint: ref(null),
       suggestionId: vi.fn(),
       suggestionMeta: vi.fn(),
       handleFocus: vi.fn(),
@@ -77,6 +80,7 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
+      activeSecurity: ref('secure'),
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -125,7 +129,8 @@ describe('extracted shell components', () => {
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
           openSitePermissionSettings: vi.fn(),
-          openSitePrivacySettings: vi.fn()
+          openSitePrivacySettings: vi.fn(),
+          reloadTab
         }
       }
     })
@@ -143,6 +148,16 @@ describe('extracted shell components', () => {
     expect(resetPermission).toHaveBeenCalledWith(permission)
     expect(screen.getByRole('button', { name: 'Site controls for example.test' })).toHaveFocus()
     expect(view.emitted()['update:siteControlsOpen']).toBeUndefined()
+
+    // The page goes on with what it was allowed until it loads again, which the panel offers while the tab says so.
+    const offer = 'To apply your updated settings to this site, reload this page'
+    expect(screen.queryByText(offer)).toBeNull()
+    await view.rerender({ activeTab: { ...tab(), permissionReloadOffered: true } })
+    expect(screen.getByText(offer)).toBeVisible()
+    await user.click(within(screen.getByRole('dialog', { name: 'example.test' })).getByRole('button', { name: 'Reload' }))
+    expect(reloadTab).toHaveBeenCalledExactlyOnceWith('tab-1')
+    await view.rerender({ activeTab: tab() })
+    expect(screen.queryByText(offer)).toBeNull()
   })
 
   it('does not reopen site controls or steal focus after a permission reset becomes stale', async () => {
@@ -161,6 +176,7 @@ describe('extracted shell components', () => {
       activeOrigin: ref('https://example.test'),
       activeHostname: ref('example.test'),
       activeSitePermissions: ref([permission]),
+      activeSecurity: ref('secure'),
       activeAddressKind: ref('Secure HTTPS connection'),
       activeTabUsesDefaultProfile: ref(true)
     } as unknown as ActiveTabPresentationController
@@ -178,6 +194,8 @@ describe('extracted shell components', () => {
           suggestions: ref([]),
           visible: ref(false),
           selected: ref(undefined),
+          keyword: ref(null),
+          keywordHint: ref(null),
           suggestionId: vi.fn(),
           suggestionMeta: vi.fn(),
           handleFocus: vi.fn(),
@@ -218,7 +236,8 @@ describe('extracted shell components', () => {
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
           openSitePermissionSettings: vi.fn(),
-          openSitePrivacySettings: vi.fn()
+          openSitePrivacySettings: vi.fn(),
+          reloadTab: vi.fn()
         }
       }
     })
@@ -260,6 +279,7 @@ describe('extracted shell components', () => {
       translate: (key, parameters) => i18n.global.t(key, parameters ?? {}),
       workspaces: () => [{ id: WORKSPACE, name: 'Client A', archived: false }],
       fileSaving: { enabled: () => false, set: async () => undefined },
+      defaults: { blocked: () => [], set: async () => undefined },
       onError: vi.fn()
     })
     sitePermissionsController.replace([saved])
@@ -288,6 +308,8 @@ describe('extracted shell components', () => {
           suggestions: ref([]),
           visible: ref(false),
           selected: ref(undefined),
+          keyword: ref(null),
+          keywordHint: ref(null),
           suggestionId: vi.fn(),
           suggestionMeta: vi.fn(),
           handleFocus: vi.fn(),
@@ -315,7 +337,8 @@ describe('extracted shell components', () => {
           setSitePermission: sitePermissionsController.setDecision,
           resetSitePermission: sitePermissionsController.remove,
           openSitePermissionSettings: vi.fn(),
-          openSitePrivacySettings: vi.fn()
+          openSitePrivacySettings: vi.fn(),
+          reloadTab: vi.fn()
         }
       }
     })
@@ -354,6 +377,8 @@ describe('extracted shell components', () => {
         suggestions: ref([]),
         visible: ref(false),
         selected: ref(undefined),
+        keyword: ref(null),
+        keywordHint: ref(null),
         suggestionId: vi.fn(),
         suggestionMeta: vi.fn(),
         handleFocus: vi.fn(),
@@ -367,6 +392,7 @@ describe('extracted shell components', () => {
         activeOrigin: ref('https://example.test'),
         activeHostname: ref('example.test'),
         activeSitePermissions: ref([]),
+        activeSecurity: ref('secure'),
         activeAddressKind: ref('Secure HTTPS connection'),
         activeTabUsesDefaultProfile: ref(true)
       } as unknown as ActiveTabPresentationController,
@@ -393,7 +419,8 @@ describe('extracted shell components', () => {
         setSitePermission: vi.fn(async () => true),
         resetSitePermission: vi.fn(async () => true),
         openSitePermissionSettings: vi.fn(),
-        openSitePrivacySettings: vi.fn()
+        openSitePrivacySettings: vi.fn(),
+        reloadTab: vi.fn()
       }
     }
     const view = render(BrowserAddressBar, { global, props })
@@ -448,6 +475,52 @@ describe('extracted shell components', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('ERR_NAME_NOT_RESOLVED (-105)')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }))
     expect(view.emitted().retry).toHaveLength(1)
+  })
+
+  it('offers no Try again for a page gone for good, which it says to close and reopen, and one for a crashed page', async () => {
+    // Try again on a page Electron destroyed while its tab stayed open could only fail.
+    const gone = (reason: string) => tab({
+      kind: 'renderer-gone',
+      title: 'This page is no longer available',
+      message: 'Close this tab and reopen it from Recently closed.',
+      url: 'https://example.test/app',
+      reason
+    })
+    const view = render(PageProblemBar, { global, props: { tab: gone('renderer-destroyed'), details: () => '' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('Close this tab and reopen it from Recently closed.')
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    await view.rerender({ tab: gone('crashed') })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }))
+    expect(view.emitted().retry).toHaveLength(1)
+  })
+
+  it('names the split view\'s pane its page is shown in', async () => {
+    const problem = tab({ kind: 'load-error', title: 'Site unavailable', message: 'Hronaut could not load this page.', url: 'https://example.test/app' })
+    const view = render(PageProblemBar, { global, props: { tab: problem, details: () => '' } })
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/page$|Right page|Left page/)
+    for (const [pane, name] of [['left', 'Left page'], ['right', 'Right page'], ['top', 'Top page'], ['bottom', 'Bottom page']] as const) {
+      await view.rerender({ tab: problem, pane, details: () => '' })
+      expect(screen.getByRole('alert')).toHaveTextContent(`${name}Site unavailable`)
+    }
+  })
+
+  it('offers to open a page anyway only when the certificate the tab refused allows it', async () => {
+    const problem = (canProceed: boolean) => tab({
+      kind: 'load-error',
+      title: 'Your connection is not private',
+      message: 'Someone might be trying to steal your information from staging.example.',
+      url: 'https://staging.example/login',
+      errorCode: -202,
+      errorDescription: 'ERR_CERT_AUTHORITY_INVALID',
+      certificate: { host: 'staging.example', canProceed }
+    })
+    const view = render(PageProblemBar, { global, props: { tab: problem(true), details: () => 'ERR_CERT_AUTHORITY_INVALID (-202)' } })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Proceed to staging.example…' }))
+    expect(view.emitted().proceed).toHaveLength(1)
+    expect(view.emitted().retry).toBeUndefined()
+    await view.rerender({ tab: problem(false) })
+    expect(screen.queryByTestId('page-problem-proceed')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible()
   })
 
   it('owns the unavailable detached-panel state, docking, and close action', async () => {

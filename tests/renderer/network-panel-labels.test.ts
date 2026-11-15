@@ -1,9 +1,9 @@
 import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import NetworkContentSearch from '../../src/renderer/src/components/NetworkContentSearch.vue'
-import NetworkPanel from '../../src/renderer/src/components/NetworkPanel.vue'
-import { createNetworkLabels } from '../../src/renderer/src/composables/network/network-labels.js'
+import NetworkContentSearch from '../../src/renderer/src/features/network/NetworkContentSearch.vue'
+import NetworkPanel from '../../src/renderer/src/features/network/NetworkPanel.vue'
+import { createNetworkLabels } from '../../src/renderer/src/features/network/modules/network-labels.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import {
   networkResponseSourceLabel,

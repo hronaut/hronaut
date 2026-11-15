@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import FindInPageBar from '../../src/renderer/src/components/FindInPageBar.vue'
+import FindInPageBar from '../../src/renderer/src/features/find/FindInPageBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { MAX_FIND_QUERY_LENGTH, type BrowserFindResult, type BrowserTabState, type HronautApi } from '../../src/shared/types.js'
 
@@ -37,12 +37,15 @@ function deferred<T>() {
 
 function renderBar(options: {
   activeTab?: BrowserTabState
-  browser?: Partial<Pick<HronautApi, 'findInPage' | 'stopFindInPage'>>
+  browser?: Partial<Pick<HronautApi, 'findInPage' | 'stopFindInPage' | 'findSelectionText'>>
 } = {}) {
   const activeTab = options.activeTab ?? tab('first')
   const browser = {
     findInPage: vi.fn(options.browser?.findInPage ?? (async (): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 }))),
-    stopFindInPage: vi.fn(options.browser?.stopFindInPage ?? (async () => undefined))
+    stopFindInPage: vi.fn(options.browser?.stopFindInPage ?? (async () => undefined)),
+    forwardFindKey: vi.fn(async () => undefined),
+    findSelectionText: vi.fn(options.browser?.findSelectionText ?? (async (_tabId: string) => '')),
+    focusActivePage: vi.fn(async () => undefined)
   }
   const view = render(FindInPageBar, {
     global: { plugins: [createHronautI18n('en-US')] },
@@ -264,6 +267,58 @@ describe('FindInPageBar', () => {
     await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledWith('first'))
   })
 
+  it.each(['Find text', 'Next match'])('closes Find and clicks the active match on Ctrl+Enter in %s, as Chrome does', async (name) => {
+    // Ctrl+Enter searched again like Enter, so a match in a link could only be followed by closing Find and clicking it.
+    const { view, browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    await fireEvent.update(search, 'pricing')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(1))
+    const target = name === 'Find text' ? search : screen.getByRole('button', { name })
+
+    const follow = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })
+    target.dispatchEvent(follow)
+    expect(follow.defaultPrevented).toBe(true)
+
+    expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { activateMatch: true }))
+    expect(browser.findInPage).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['Shift', { shiftKey: true }],
+    ['Alt', { altKey: true }],
+    ['Meta', { metaKey: true }]
+  ])('keeps Ctrl+%s+Enter a search, not a click on the match', async (_modifier, modifiers) => {
+    const { view, browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    await fireEvent.update(search, 'pricing')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(1))
+
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, ...modifiers, bubbles: true, cancelable: true }))
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(2))
+    expect(view.emitted()['update:open']?.at(-1)).not.toEqual([false])
+    expect(browser.stopFindInPage).not.toHaveBeenCalledWith('first', { activateMatch: true })
+  })
+
+  it('leaves Find open on a Ctrl+Enter that confirms an IME composition', async () => {
+    const { view, browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    await fireEvent.update(search, 'pricing')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledTimes(1))
+
+    const follow = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, isComposing: true, bubbles: true, cancelable: true })
+    search.dispatchEvent(follow)
+    await nextTick()
+
+    expect(follow.defaultPrevented).toBe(false)
+    expect(view.emitted()['update:open']).toBeUndefined()
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
+    expect(browser.findInPage).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves Find open on an Escape that a control in the bar already handled', async () => {
     const { view } = renderBar()
     const search = screen.getByRole('searchbox', { name: 'Find text' })
@@ -290,13 +345,16 @@ describe('FindInPageBar', () => {
     expect(view.emitted()['update:open']).toBeUndefined()
   })
 
-  it('closes and clears the original page search when the active tab changes', async () => {
+  // Find belongs to its tab, as in Chrome: the page keeps its search, without selecting its match, which would move the
+  // page's focus to its link, in a tab the person left.
+  it('hides Find when the active tab changes, leaving the original page search', async () => {
     const { view, browser } = renderBar()
     await vi.waitFor(() => expect(screen.getByRole('searchbox', { name: 'Find text' })).toHaveFocus())
 
     await view.rerender({ activeTab: tab('second') })
+    await flushPromises()
 
-    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledWith('first'))
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
   })
 
@@ -325,7 +383,7 @@ describe('FindInPageBar', () => {
 
     await view.rerender({ activeTab: { ...activeTab, ...changes } })
 
-    expect(browser.stopFindInPage).toHaveBeenCalledWith('first')
+    expect(browser.stopFindInPage).toHaveBeenCalledWith('first', { clearSelection: true })
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
     expect(screen.queryByText('1 / 3')).not.toBeInTheDocument()
   })
@@ -374,7 +432,7 @@ describe('FindInPageBar', () => {
     pending.resolve({ activeMatchOrdinal: 1, matches: 9 })
     await pending.promise
 
-    expect(browser.stopFindInPage).toHaveBeenCalledWith('first')
+    expect(browser.stopFindInPage).toHaveBeenCalledWith('first', { clearSelection: true })
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
     expect(screen.queryByText('1 / 9')).not.toBeInTheDocument()
   })
@@ -390,16 +448,43 @@ describe('FindInPageBar', () => {
     expect(screen.getByText('1 / 3')).toBeVisible()
   })
 
-  it('invalidates pending work and clears the page selection when unmounted', async () => {
+  it('invalidates pending work and ends the page search, without selecting its match, when unmounted', async () => {
     const pending = deferred<BrowserFindResult>()
     const { view, browser } = renderBar({ browser: { findInPage: () => pending.promise } })
     await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
 
     view.unmount()
 
-    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledWith('first'))
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { clearSelection: true }))
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
     pending.resolve({ activeMatchOrdinal: 1, matches: 1 })
+  })
+
+  // As in Chrome, where closing Find leaves the match selected in the page.
+  it('clears the page selection once the field is emptied, and keeps it when the person closes Find', async () => {
+    const { browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await fireEvent.update(search, 'needle')
+    await vi.waitFor(() => expect(screen.getByText('1 / 3')).toBeVisible())
+
+    await fireEvent.update(search, '')
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { clearSelection: true }))
+
+    await fireEvent.update(search, 'needle')
+    await vi.waitFor(() => expect(screen.getByText('1 / 3')).toBeVisible())
+    browser.stopFindInPage.mockClear()
+    await fireEvent.keyDown(search, { key: 'Escape' })
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first'))
+  })
+
+  it('keeps the match selected when the person clicks Close', async () => {
+    const { browser } = renderBar()
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+    await vi.waitFor(() => expect(screen.getByText('1 / 3')).toBeVisible())
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Close find in page' }))
+
+    await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first'))
   })
 })
 
@@ -451,7 +536,10 @@ describe('Find Next and Find Previous', () => {
     const activeTab = tab('first')
     const browser = {
       findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
-      stopFindInPage: vi.fn(async (_tabId: string) => undefined)
+      stopFindInPage: vi.fn(async (_tabId: string) => undefined),
+      forwardFindKey: vi.fn(async () => undefined),
+      findSelectionText: vi.fn(async (_tabId: string) => ''),
+      focusActivePage: vi.fn(async () => undefined)
     }
     const wrapper = mount(FindInPageBar, {
       attachTo: document.body,
@@ -511,15 +599,313 @@ describe('Find Next and Find Previous', () => {
     } finally { wrapper.unmount() }
   })
 
-  it('leave Find itself repeating its search from the start', async () => {
+  // As in Chrome, Find in an open bar only takes the keyboard to its field, so the page keeps the match in view.
+  it('leave Find itself selecting its text in the open bar, keeping the current match', async () => {
+    const { wrapper, browser, activeTab, exposed, field } = mountBar(true)
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      browser.findInPage.mockResolvedValueOnce({ activeMatchOrdinal: 2, matches: 3 })
+      await wrapper.find('input[type="search"]').trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      expect(wrapper.find('.find-count').text()).toBe('2 / 3')
+      field().blur()
+      browser.findInPage.mockClear()
+      browser.stopFindInPage.mockClear()
+
+      await exposed.openForTab(activeTab)
+      await flushPromises()
+
+      expect(browser.findInPage).not.toHaveBeenCalled()
+      expect(browser.stopFindInPage).not.toHaveBeenCalled()
+      expect(wrapper.find('.find-count').text()).toBe('2 / 3')
+      expect(document.activeElement).toBe(field())
+      expect([field().selectionStart, field().selectionEnd]).toEqual([0, 'needle'.length])
+    } finally { wrapper.unmount() }
+  })
+
+  it('leave Find itself searching for its last text again once Find has closed', async () => {
     const { wrapper, browser, activeTab, exposed } = mountBar(true)
     try {
       await flushPromises()
       await wrapper.find('input[type="search"]').setValue('needle')
       await flushPromises()
+      await wrapper.find('input[type="search"]').trigger('keydown', { key: 'Escape' })
+      await flushPromises()
+      expect(wrapper.props('open')).toBe(false)
+      expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first')
       browser.findInPage.mockClear()
+
       await exposed.openForTab(activeTab)
-      expect(browser.findInPage).toHaveBeenCalledWith(expect.objectContaining({ forward: true, findNext: true }))
+
+      // From the start of the match Find closed on, which the page keeps selected, so that match is found again.
+      expect(browser.findInPage).toHaveBeenCalledOnce()
+      expect(browser.findInPage).toHaveBeenCalledWith({
+        tabId: 'first', query: 'needle', forward: true, findNext: true, caseSensitive: false, fromSelectionStart: true
+      })
     } finally { wrapper.unmount() }
+  })
+
+  it('search for the last text again from the match Find closed on when Find opens another way', async () => {
+    const { wrapper, browser } = mountBar(true)
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      await wrapper.find('input[type="search"]').trigger('keydown', { key: 'Escape' })
+      await flushPromises()
+      browser.findInPage.mockClear()
+
+      await wrapper.setProps({ open: true })
+      await flushPromises()
+
+      expect(browser.findInPage).toHaveBeenCalledExactlyOnceWith({
+        tabId: 'first', query: 'needle', forward: true, findNext: true, caseSensitive: false, fromSelectionStart: true
+      })
+    } finally { wrapper.unmount() }
+  })
+})
+
+describe('the keyboard in Find', () => {
+  // Following the agents' activity waits while it is there, since showing another tab would hide Find.
+  it('is reported while focus is anywhere in the bar, and no longer once it leaves or Find closes', async () => {
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    const wrapper = mount(FindInPageBar, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        open: true,
+        activeTab: tab('first'),
+        browser: {
+          findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
+          stopFindInPage: vi.fn(async () => undefined),
+          forwardFindKey: vi.fn(async () => undefined),
+          findSelectionText: vi.fn(async (_tabId: string) => ''),
+          focusActivePage: vi.fn(async () => undefined)
+        },
+        'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next }),
+        'onUpdate:focused': (next: boolean) => wrapper.setProps({ focused: next })
+      }
+    })
+    try {
+      await flushPromises()
+      const field = wrapper.find<HTMLInputElement>('input[type="search"]').element
+      expect(document.activeElement).toBe(field)
+      expect(wrapper.props('focused')).toBe(true)
+      wrapper.find<HTMLButtonElement>('button[aria-label="Close find in page"]').element.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      // A click on the count or between the controls focuses the bar itself.
+      wrapper.find<HTMLElement>('.find-bar').element.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      outside.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(false)
+
+      // Leaving the window, or the keyboard going to the page, takes it out of the bar with no new target.
+      field.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      field.blur()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(false)
+
+      field.focus()
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(true)
+      await wrapper.setProps({ open: false })
+      await flushPromises()
+      expect(wrapper.props('focused')).toBe(false)
+    } finally {
+      wrapper.unmount()
+      outside.remove()
+    }
+  })
+})
+
+// Closing Find with Escape or its Close button left the keyboard in Hronaut's window, so Space, Page Down and the arrow
+// keys no longer scrolled the page and typing went nowhere. Chrome gives the keyboard back to the page.
+describe('closing Find', () => {
+  function mountOpenBar() {
+    const activeTab = tab('first')
+    const browser = {
+      findInPage: vi.fn(async (_request: unknown): Promise<BrowserFindResult> => ({ activeMatchOrdinal: 1, matches: 3 })),
+      stopFindInPage: vi.fn(async (_tabId: string, _options?: { activateMatch: boolean }) => undefined),
+      forwardFindKey: vi.fn(async () => undefined),
+      findSelectionText: vi.fn(async (_tabId: string) => ''),
+      focusActivePage: vi.fn(async () => undefined)
+    }
+    const wrapper = mount(FindInPageBar, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open: true, activeTab, browser, 'onUpdate:open': (next: boolean) => wrapper.setProps({ open: next }) }
+    })
+    const field = () => wrapper.find<HTMLInputElement>('input[type="search"]').element
+    const closeButton = () => wrapper.find<HTMLButtonElement>('button[aria-label="Close find in page"]').element
+    const key = (target: EventTarget, type: 'keydown', init: KeyboardEventInit) =>
+      target.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init }))
+    return { wrapper, browser, field, closeButton, key }
+  }
+
+  // Main drops the repeats of a key still held from the shell once the page has the keyboard (page-keyboard-events), so
+  // the page takes it at once, as in Chrome, and a held Escape or Enter goes no further.
+  it('gives the keyboard back to the page when Escape closes it', async () => {
+    const { wrapper, browser, field, key } = mountOpenBar()
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('needle')
+      await flushPromises()
+      key(field(), 'keydown', { key: 'Escape' })
+      await flushPromises()
+      expect(wrapper.props('open')).toBe(false)
+      expect(browser.focusActivePage).toHaveBeenCalledOnce()
+    } finally { wrapper.unmount() }
+  })
+
+  it('gives it back when Close is clicked or pressed', async () => {
+    for (const detail of [1, 0]) {
+      const { wrapper, browser, closeButton } = mountOpenBar()
+      try {
+        await flushPromises()
+        closeButton().dispatchEvent(new MouseEvent('click', { bubbles: true, detail }))
+        await flushPromises()
+        expect(wrapper.props('open')).toBe(false)
+        expect(browser.focusActivePage).toHaveBeenCalledOnce()
+      } finally { wrapper.unmount() }
+    }
+  })
+
+  it('gives it back when Ctrl+Enter follows the match', async () => {
+    const { wrapper, browser, field, key } = mountOpenBar()
+    try {
+      await flushPromises()
+      await wrapper.find('input[type="search"]').setValue('pricing')
+      await flushPromises()
+      key(field(), 'keydown', { key: 'Enter', ctrlKey: true })
+      await flushPromises()
+      expect(browser.stopFindInPage).toHaveBeenCalledWith('first', { activateMatch: true })
+      expect(browser.focusActivePage).toHaveBeenCalledOnce()
+    } finally { wrapper.unmount() }
+  })
+
+  it('leaves the keyboard where it is when another tab or page ends Find', async () => {
+    const { wrapper, browser } = mountOpenBar()
+    try {
+      await flushPromises()
+      await wrapper.setProps({ activeTab: tab('second') })
+      await flushPromises()
+      expect(wrapper.props('open')).toBe(false)
+      expect(browser.focusActivePage).not.toHaveBeenCalled()
+    } finally { wrapper.unmount() }
+
+    // Nor when the bar goes away with Find open.
+    const unmounted = mountOpenBar()
+    await flushPromises()
+    unmounted.wrapper.unmount()
+    await flushPromises()
+    expect(unmounted.browser.focusActivePage).not.toHaveBeenCalled()
+  })
+})
+
+// As in Chrome, whose find bar sends these keys from its field on to the page, which scrolls it.
+describe('the keys that scroll the page from the Find field', () => {
+  const press = async (type: 'keyDown' | 'keyUp', init: KeyboardEventInit) => {
+    const event = new KeyboardEvent(type === 'keyDown' ? 'keydown' : 'keyup', { bubbles: true, cancelable: true, ...init })
+    screen.getByRole('searchbox', { name: 'Find text' }).dispatchEvent(event)
+    await flushPromises()
+    return event.defaultPrevented
+  }
+  const key = (overrides: Record<string, unknown>) => ({ shift: false, control: false, alt: false, meta: false, repeat: false, ...overrides })
+
+  it('sends Up, Down, Page Up and Page Down, pressed, held and released, on to the page, and keeps them from the field', async () => {
+    const { browser } = renderBar()
+    await vi.waitFor(() => expect(screen.getByRole('searchbox', { name: 'Find text' })).toHaveFocus())
+    expect(await press('keyDown', { key: 'ArrowDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowDown', repeat: true })).toBe(true)
+    expect(await press('keyUp', { key: 'ArrowDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowUp', shiftKey: true })).toBe(true)
+    expect(await press('keyDown', { key: 'PageDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'PageUp', altKey: true })).toBe(true)
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyDown', key: 'ArrowDown', repeat: true })],
+      ['first', key({ type: 'keyUp', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyDown', key: 'ArrowUp', shift: true })],
+      ['first', key({ type: 'keyDown', key: 'PageDown' })],
+      ['first', key({ type: 'keyDown', key: 'PageUp', alt: true })]
+    ])
+    expect(browser.findInPage).not.toHaveBeenCalled()
+  })
+
+  it('sends Home and End with Ctrl, and leaves Home and End alone in the field', async () => {
+    const { browser } = renderBar()
+    expect(await press('keyDown', { key: 'Home' })).toBe(false)
+    expect(await press('keyUp', { key: 'End', shiftKey: true })).toBe(false)
+    expect(await press('keyDown', { key: 'End', ctrlKey: true })).toBe(true)
+    expect(await press('keyDown', { key: 'Home', ctrlKey: true, shiftKey: true })).toBe(true)
+    // Ctrl released first, as the page got the key pressed.
+    expect(await press('keyUp', { key: 'End' })).toBe(true)
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'End', control: true })],
+      ['first', key({ type: 'keyDown', key: 'Home', control: true, shift: true })],
+      ['first', key({ type: 'keyUp', key: 'End' })]
+    ])
+  })
+
+  it('sends the release of each key it sent, whatever is held by then, and releases the rest once the field loses the keyboard', async () => {
+    const { browser } = renderBar()
+    const field = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(field).toHaveFocus())
+    // Ctrl pressed while Page Down is held makes its repeats and release Ctrl+Page Down, which go to the next tab.
+    expect(await press('keyDown', { key: 'PageDown', code: 'PageDown' })).toBe(true)
+    expect(await press('keyDown', { key: 'PageDown', code: 'PageDown', ctrlKey: true, repeat: true })).toBe(false)
+    expect(await press('keyUp', { key: 'PageDown', code: 'PageDown', ctrlKey: true })).toBe(true)
+    expect(await press('keyUp', { key: 'PageDown', code: 'PageDown' })).toBe(false)
+    expect(await press('keyDown', { key: 'ArrowDown', code: 'ArrowDown' })).toBe(true)
+    expect(await press('keyUp', { key: 'ArrowDown', code: 'ArrowDown', isComposing: true })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowUp', code: 'ArrowUp', shiftKey: true })).toBe(true)
+    field.blur()
+    await flushPromises()
+    expect(await press('keyUp', { key: 'ArrowUp', code: 'ArrowUp' })).toBe(false)
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'PageDown' })],
+      ['first', key({ type: 'keyUp', key: 'PageDown', control: true })],
+      ['first', key({ type: 'keyDown', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyUp', key: 'ArrowDown' })],
+      ['first', key({ type: 'keyDown', key: 'ArrowUp', shift: true })],
+      ['first', key({ type: 'keyUp', key: 'ArrowUp' })]
+    ])
+  })
+
+  it('releases the keys the page still has pressed from the field when Find closes', async () => {
+    const { browser } = renderBar()
+    await vi.waitFor(() => expect(screen.getByRole('searchbox', { name: 'Find text' })).toHaveFocus())
+    expect(await press('keyDown', { key: 'PageDown', code: 'PageDown' })).toBe(true)
+    await press('keyDown', { key: 'Escape', code: 'Escape' })
+    expect(browser.forwardFindKey.mock.calls).toEqual([
+      ['first', key({ type: 'keyDown', key: 'PageDown' })],
+      ['first', key({ type: 'keyUp', key: 'PageDown' })]
+    ])
+  })
+
+  it('leaves the browser its own keys, such as Ctrl+Page Down going to the next tab, also while held', async () => {
+    const { browser } = renderBar()
+    expect(await press('keyDown', { key: 'PageDown', ctrlKey: true })).toBe(false)
+    expect(await press('keyDown', { key: 'PageDown', ctrlKey: true, repeat: true })).toBe(false)
+    expect(await press('keyDown', { key: 'PageUp', ctrlKey: true, shiftKey: true })).toBe(false)
+    expect(await press('keyUp', { key: 'PageUp', ctrlKey: true })).toBe(false)
+    expect(browser.forwardFindKey).not.toHaveBeenCalled()
+  })
+
+  it('sends nothing while an input method composes, or for Enter and the other keys', async () => {
+    const { browser } = renderBar()
+    expect(await press('keyDown', { key: 'ArrowDown', isComposing: true })).toBe(false)
+    expect(await press('keyDown', { key: 'Enter' })).toBe(true)
+    expect(await press('keyDown', { key: 'ArrowLeft' })).toBe(false)
+    expect(await press('keyDown', { key: 'a' })).toBe(false)
+    expect(browser.forwardFindKey).not.toHaveBeenCalled()
   })
 })

@@ -1,0 +1,60 @@
+export const plPLPwaLifecycle = {
+  title: 'Historia service workerów',
+  note: 'Tylko zaobserwowane zmiany; wcześniejsze lub szybkie przejścia mogą być pominięte.',
+  start: 'Obserwuj przez 2 minuty',
+  stop: 'Zatrzymaj obserwację',
+  refresh: 'Odśwież',
+  clear: 'Wyczyść historię',
+  active: 'Trwa obserwacja',
+  stopped: 'Przechwytywanie zatrzymane',
+  waiting: 'Oczekuje',
+  coverage: 'Zakres i prywatność',
+  caveats: {
+    observedTimes: 'Czasy pokazują, kiedy zaobserwowano zmianę, a nie kiedy nastąpiła, a przechwytywanie nigdy nie ma pełnej historii.',
+    polling: 'Rejestracje są sprawdzane raz na sekundę, więc wczesne przejścia i krótkotrwałe rejestracje mogą zostać pominięte.',
+    scope: 'Rejestracje należą do tego źródła najwyższego poziomu i obszaru roboczego, nie tylko do tej karty.',
+    identities: 'Identyfikatory workerów dotyczą tylko tego przechwytywania i odróżniają wersje tego samego skryptu.',
+    interruption: 'Nawigacja, przeładowanie lub zamknięcie strony albo utrata debugera lub dostępu przerywa przechwytywanie. Zatrzymanie lub przerwanie może pominąć jeszcze nieodczytane zdarzenia.',
+    limits: 'Przechwytywanie przechowuje najwyżej 100 zdarzeń, 20 rejestracji i 100 workerów przez maksymalnie dwie minuty; w pamięci zostaje pięć przechwyceń, a rozpoczęcie kolejnego usuwa najstarsze zatrzymane.',
+    longUrls: 'Adresy dłuższe niż 2048 znaków są pomijane, zamiast częściowo pokazywać adres, który może zawierać dane logowania.',
+    metadataOnly: 'Obserwowane są tylko metadane. Hronaut nigdy nie aktualizuje, nie wysyła wiadomości, nie aktywuje ani nie uruchamia workerów, nie czyści pamięci podręcznych i nie zmienia uprawnień.',
+    sleeping: 'Uśpione lub zamrożone karty nie są wybudzane. Uśpienie lub zamrożenie przerywa przechwytywanie zamiast utrzymywać stronę aktywną.',
+    snapshot: 'Odczyty pokazują ostatnią wykonaną migawkę. Pełna historia ani cały czas życia każdego workera nie są gwarantowane.'
+  },
+  kinds: {
+    initial: 'rozpoczęto przechwytywanie',
+    'registration-initial': 'rejestracja już istnieje',
+    'registration-discovered': 'znaleziono rejestrację',
+    'registration-removed': 'usunięto rejestrację',
+    updatefound: 'znaleziono aktualizację',
+    statechange: 'zmieniono stan',
+    controllerchange: 'zmieniono kontroler'
+  },
+  workerStates: {
+    parsed: 'przetworzony',
+    installing: 'instaluje się',
+    installed: 'zainstalowany',
+    activating: 'aktywuje się',
+    activated: 'aktywny',
+    redundant: 'zbędny'
+  },
+  reasons: {
+    stopped: 'zatrzymano na żądanie',
+    replaced: 'zastąpiono nowym przechwytywaniem',
+    shutdown: 'zamknięto Hronaut',
+    navigation: 'strona zmieniła adres',
+    'renderer-unavailable': 'proces strony zakończony',
+    'debugger-detached': 'debuger odłączony',
+    'duration-limit': 'osiągnięto limit dwóch minut',
+    'initial-read-unavailable': 'pierwszy odczyt nieudany',
+    'page-observer-unavailable': 'obserwator strony zatrzymany',
+    'context-or-authority-lost': 'utracono kontekst strony',
+    'worker-limit': 'osiągnięto limit workerów',
+    'event-limit': 'osiągnięto limit zdarzeń',
+    'registration-limit': 'osiągnięto limit rejestracji',
+    'discovery-unavailable': 'wykrywanie rejestracji nieudane',
+    unsupported: 'service workery nieobsługiwane',
+    'workspace-control-changed': 'zmieniono kontrolę obszaru roboczego',
+    'ownership-released': 'zwolniono obszar roboczy'
+  }
+}

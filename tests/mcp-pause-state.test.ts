@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { McpPauseState } from '../src/main/mcp-pause-state.js'
+import { McpPauseState } from '../src/main/mcp-runtime/mcp-pause-state.js'
 
 describe('McpPauseState', () => {
   it('keeps an effective pause while a temporary lease is active', () => {

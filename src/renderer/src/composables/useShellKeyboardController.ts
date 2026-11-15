@@ -1,5 +1,6 @@
 import {
   browserShortcutAction,
+  isBrowserKey,
   websiteKeptShortcutAction,
   type BrowserShortcutAction,
   type BrowserShortcutInput
@@ -9,7 +10,6 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 export interface ShellKeyboardSurface {
   isOpen: () => boolean
   close: () => void
-  toggleShortcut?: BrowserShortcutAction
   /** True while the surface is shown in a window of its own, beside the one that has the keyboard. */
   inOwnWindow?: () => boolean
 }
@@ -52,6 +52,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     const input: BrowserShortcutInput = {
       key: event.key,
       code: event.code,
+      keyCode: event.keyCode,
       control: event.ctrlKey,
       meta: event.metaKey,
       alt: event.altKey,
@@ -60,30 +61,30 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
       composing,
       mac: window.hronautShell?.windowChrome.platform === 'darwin'
     }
-    // Hronaut's own window has no website to keep F5, Alt+D, F3 or Ctrl+G.
+    // Hronaut's own window has no website to keep F5, Alt+D, F3, Ctrl+G or F6.
     const shortcut = browserShortcutAction(input) ?? websiteKeptShortcutAction(input)
+    // A browser key left alone goes on to the application menu, which acts on the page in view. Under the palette or a
+    // dialog that page is behind them, so there the key goes nowhere.
+    const browserKey = isBrowserKey(input)
     guardInteraction(event)
     if (event.defaultPrevented || composing) return
     // A held Escape repeats. Only its first press closes anything, so holding it after closing one surface, such as
     // Find, does not close the next one too, such as a panel in its own window.
     const escape = event.key === 'Escape' && !event.repeat
     // Its own two shortcuts reach the open palette: each closes its list or turns to the other one.
+    // The Escape that closes it goes no further either, so Shift+Escape does not open the Task manager in its place.
     if (options.commandPalette.isOpen() && shortcut !== 'command-palette' && shortcut !== 'switch-workspace') {
       if (escape) options.commandPalette.close()
+      if (browserKey) event.preventDefault()
       return
     }
     const activeModal = options.modalSurfaces.find((surface) => surface.isOpen())
     if (activeModal) {
-      if (shortcut && shortcut === activeModal.toggleShortcut) {
-        event.preventDefault()
-        activeModal.close()
-        return
-      }
-      // The open modal takes every Escape, so a repeat cannot reach a field under it, such as Tab search's query.
+      // The open modal takes every Escape, so a repeat cannot reach a field under it, such as Find's.
       if (event.key === 'Escape') {
         event.preventDefault()
         if (escape) closeFirst(options.modalSurfaces)
-      }
+      } else if (browserKey) event.preventDefault()
       return
     }
     if (shortcut) {

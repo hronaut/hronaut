@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useSiteControlsShellController } from '../../src/renderer/src/composables/useSiteControlsShellController.js'
+import { useSiteControlsShellController } from '../../src/renderer/src/features/site-controls/useSiteControlsShellController.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -21,7 +21,6 @@ function createController() {
     downloadsOpen: ref(true),
     bookmarksOpen: ref(true),
     historyOpen: ref(true),
-    tabSearchOpen: ref(true),
     zoomOpen: ref(true),
     addressSuggestionsOpen: ref(true)
   }

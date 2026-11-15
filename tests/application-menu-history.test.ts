@@ -1,8 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-type Item = { label?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: { triggeredByAccelerator?: boolean }) => void }
+type Item = { label?: string; accelerator?: string; click?: (item: unknown, window: unknown, event: Partial<Electron.KeyboardEvent>) => void }
 const installed = vi.hoisted(() => ({ template: [] as Array<{ label?: string; submenu?: Item[] }> }))
-vi.mock('electron', () => ({ Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
+vi.mock('electron', () => ({ app: { on: () => undefined }, Menu: { buildFromTemplate: (template: typeof installed.template) => template, setApplicationMenu: (menu: typeof installed.template) => { installed.template = menu } } }))
 import { createApplicationMenu } from '../src/main/windows/application-menu.js'
+
+// The menu calls the history gesture with the browser; it runs on the fake browser's stub.
+vi.mock('../src/main/browser/history-gesture/history-gesture.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/history-gesture/history-gesture.js')>(),
+  historyGesture: (browser: { historyGesture: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.historyGesture(...args)
+}))
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/page-navigation/page-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-navigation/page-navigation.js')>(),
+  back: (browser: { back: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.back(...args),
+  forward: (browser: { forward: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.forward(...args)
+}))
 
 // Hronaut had no keys for Back and Forward: Alt+Left and Alt+Right, or Cmd+[ and Cmd+] on macOS, did nothing.
 
@@ -18,6 +30,7 @@ function viewItems(on: NodeJS.Platform) {
     text: (key) => key, showWindow: vi.fn(), mainWindow: () => mainWindow as never, checkForUpdates: vi.fn(), requestQuit: vi.fn(),
     runNativeBrowserAction: (action, callback) => { actions.push(action); callback() },
     runShortcut: vi.fn(),
+    runPageNextPane: vi.fn(),
     tabs: () => tabs as never
   }).installApplicationMenu()
   const view = installed.template.find((menu) => menu.label === 'native.menu.view')!.submenu!
@@ -38,21 +51,24 @@ describe('Back and Forward in the View menu', () => {
   it('go back and forward in the shown tab like the toolbar\'s arrows when chosen', () => {
     const { tabs, actions, mainWindow, back, forward } = viewItems('linux')
     back.click!(back, mainWindow, {})
-    expect(tabs.back).toHaveBeenCalledWith()
+    expect(tabs.back).toHaveBeenCalledWith(undefined, { byPerson: true })
     forward.click!(forward, undefined, { triggeredByAccelerator: false })
-    expect(tabs.forward).toHaveBeenCalledWith()
+    expect(tabs.forward).toHaveBeenCalledWith(undefined, { byPerson: true })
+    // Chosen with the keyboard after Alt, which Electron reports as an accelerator without the Alt its key holds.
+    back.click!(back, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
+    expect(tabs.back).toHaveBeenCalledTimes(2)
     expect(tabs.historyGesture).not.toHaveBeenCalled()
-    expect(actions).toEqual(['go back', 'go forward'])
+    expect(actions).toEqual(['go back', 'go forward', 'go back'])
   })
 
   it('go by the rules of the person\'s own input from their keys, and only in the main window', () => {
     const { tabs, actions, mainWindow, back, forward } = viewItems('linux')
-    back.click!(back, mainWindow, { triggeredByAccelerator: true })
-    forward.click!(forward, mainWindow, { triggeredByAccelerator: true })
+    back.click!(back, mainWindow, { triggeredByAccelerator: true, altKey: true })
+    forward.click!(forward, mainWindow, { triggeredByAccelerator: true, altKey: true })
     expect(tabs.historyGesture.mock.calls).toEqual([['back'], ['forward']])
     // Typed in a panel in its own window, the key would change a page out of view.
-    back.click!(back, { id: 2, webContents: {} }, { triggeredByAccelerator: true })
-    back.click!(back, undefined, { triggeredByAccelerator: true })
+    back.click!(back, { id: 2, webContents: {} }, { triggeredByAccelerator: true, altKey: true })
+    back.click!(back, undefined, { triggeredByAccelerator: true, altKey: true })
     expect(tabs.historyGesture).toHaveBeenCalledTimes(2)
     expect(tabs.back).not.toHaveBeenCalled()
     expect(actions).toEqual(['go back', 'go forward'])

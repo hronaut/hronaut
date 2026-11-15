@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 // Home's connected agents: one row per client, the busiest first, its sessions behind a toggle, each saying what it is
 // doing and in which workspace, with that workspace a click away.
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { groupAgents } from '../src/renderer/src/home/agent-list.js'
 import type { HomeWorkspaceState } from '../src/shared/home-workspaces.js'
 import { agent, baseDashboard, byId, emptyWorkspaces, flush, installHomeHooks, isoMinutesAgo, mountTestHome, openWorkspace, query, words } from './qa-home-harness.js'
 
 installHomeHooks()
+// The connected agents and their live activity are in the Agents view.
+beforeEach(() => { window.localStorage.setItem('hronaut.home.view.v2', 'connected') })
 
 const shop = openWorkspace('shop', { name: 'Acme Store', color: 'green' })
 const docs = openWorkspace('docs', { name: 'Docs', color: 'purple' })

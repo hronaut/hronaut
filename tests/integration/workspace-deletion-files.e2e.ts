@@ -2,10 +2,10 @@ import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, collectRendererDiagnostics, expect, launchHronaut, test } from './fixtures.js'
 
 for (const mode of ['active', 'archived'] as const) {
-  test(`explicit ${mode} deletion removes files next startup and preserves active and archived profiles`, async ({ profileDirectory, mcpPort }) => {
+  test(`explicit ${mode} deletion removes files next startup and preserves active and archived profiles`, async ({ profileDirectory, mcpPort }, testInfo) => {
     const server = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<title>Deletion fixture</title>') })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address(); if (!address || typeof address === 'string') throw new Error('No fixture port')
@@ -16,8 +16,13 @@ for (const mode of ['active', 'archived'] as const) {
       const group = await instance.window.evaluate(async ({ url, name }) => {
         const api = (window as unknown as { hronaut: HronautApi }).hronaut
         const state = await api.createWorkspace({ name, storage: 'scratch' })
-        await api.navigate({ tabId: state.activeTabId!, url })
-        return state.mcpTabGroups.find(g => g.name === name)!.id
+        const group = state.mcpTabGroups.find(g => g.name === name)!.id
+        // The page opens at its address in place of the workspace's blank tab. Playwright emulates focus in every page
+        // it attaches to, and Chromium's renderer can crash (FocusController::FocusHasChanged) when that emulation ends
+        // as an unfocused page swaps out its blank document for the first address it navigates to.
+        await api.newTab({ url, active: true, mcpGroupId: group })
+        await api.closeTab(state.activeTabId!)
+        return group
       }, { url, name })
       await expect.poll(() => instance.app.evaluate(({ webContents }, url) => webContents.getAllWebContents().some(w => w.getURL() === url && !w.isLoading()), url)).toBe(true)
       const path = await instance.app.evaluate(async ({ webContents }, url) => {
@@ -65,6 +70,10 @@ for (const mode of ['active', 'archived'] as const) {
       }
       const settled = JSON.parse(await readFile(join(profileDirectory, 'tabs.json'), 'utf8'))
       expect(settled.deletedWorkspaceStorageIds ?? []).not.toContain(storageId)
+    } catch (error) {
+      // This test launches Hronaut itself, so the fixture attaches no renderer report for it; closing would drop it.
+      await testInfo.attach('renderer-exits', { body: JSON.stringify(await collectRendererDiagnostics(instance.app)), contentType: 'application/json' }).catch(() => undefined)
+      throw error
     } finally { await closeHronaut(instance.app); await closeFixtureServer(server) }
   })
 }

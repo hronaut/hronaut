@@ -1,8 +1,58 @@
-import { Menu, type BaseWindow, type BrowserWindow, type KeyboardEvent, type MenuItemConstructorOptions } from 'electron'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import { Menu, app, type BaseWindow, type BrowserWindow, type KeyboardEvent, type MenuItemConstructorOptions } from 'electron'
+import type { Browser } from '../browser/browser.js'
 import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState, HelpMenuAction } from '../../shared/types.js'
+import { toggleDevTools } from '../browser/devtools/devtools.js'
+import { historyGesture } from '../browser/history-gesture/history-gesture.js'
+import { back, forward, reload, reloadIgnoringCache, stopFocusedPageLoading } from '../browser/page-navigation/page-navigation.js'
+import { printShownPage } from '../browser/page-print/page-print.js'
+import { saveShownPage } from '../browser/page-save/page-save.js'
+import { viewShownPageSource } from '../browser/page-source/page-source.js'
+import { newTab } from '../browser/new-tabs/open-new-tab.js'
+import { UPDATES_IPC } from '../../shared/ipc/updates.js'
+import { SHELL_IPC } from '../../shared/ipc/shell.js'
+import { sendTo } from '../typed-ipc.js'
+import { requestShellShortcut } from './shell-key-handoff.js'
+
+type MenuClick = NonNullable<MenuItemConstructorOptions['click']>
+
+/**
+ * Whether a menu item's click comes from its key rather than from the menu. Electron reports any click without a mouse
+ * button as triggered by an accelerator, so also an item chosen with the keyboard, after Alt elsewhere than macOS, or
+ * with Ctrl+F2 or VoiceOver on macOS. Such a choice lacks the modifiers the item's key holds, and an item without a key
+ * is only ever chosen. On macOS the key is the person's own when they set one for the item in System Settings.
+ */
+function clickedByItsKey(item: { accelerator?: string | null; userAccelerator?: string | null }, event: KeyboardEvent): boolean {
+  const mac = process.platform === 'darwin'
+  const accelerator = (mac ? item.userAccelerator : null) ?? item.accelerator
+  if (!event.triggeredByAccelerator || !accelerator) return false
+  return accelerator.split('+').slice(0, -1).every((modifier) => {
+    switch (modifier.toLowerCase()) {
+      case 'commandorcontrol':
+      case 'cmdorctrl':
+        return mac ? event.metaKey === true : event.ctrlKey === true
+      case 'command':
+      case 'cmd':
+      case 'super':
+      case 'meta':
+        return event.metaKey === true
+      case 'control':
+      case 'ctrl':
+        return event.ctrlKey === true
+      case 'alt':
+      case 'option':
+        return event.altKey === true
+      case 'shift':
+        return event.shiftKey === true
+      default:
+        return true
+    }
+  })
+}
+
+/** The website tabs Ctrl with a digit goes to; Ctrl+9 goes to the last one. */
+const TAB_POSITIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const
 
 interface ApplicationMenuHost {
   /** Translates into the current interface language; read on every build because the language can change. */
@@ -17,34 +67,48 @@ interface ApplicationMenuHost {
   runNativeBrowserAction(action: string, callback: () => unknown): void
   /** Runs a browser shortcut as a key the page in focus left alone does, in the shell or on its tab. */
   runShortcut(action: BrowserShortcutAction): void
-  tabs(): Pick<BrowserTabsManager, 'newTab' | 'back' | 'forward' | 'historyGesture' | 'reload' | 'reloadIgnoringCache' | 'printShownPage' | 'saveShownPage' | 'viewShownPageSource' | 'toggleDevTools' | 'setZoom'> | null
+  /** Goes to the pane after the page in focus, for an F6 the page left alone. */
+  runPageNextPane(): void
+  tabs(): Browser | null
 }
 
 /**
  * The native application menu. `installApplicationMenu` builds it again in the current language. Dependencies stay
  * lazy because the menu is installed before the window exists.
  */
-export function createApplicationMenu(host: ApplicationMenuHost): { installApplicationMenu(): void } {
+export function createApplicationMenu(host: ApplicationMenuHost): {
+  installApplicationMenu(): void
+  /** Shows the window and asks its shell to open what a Help menu item or Settings opens. */
+  requestHelp(action: HelpMenuAction): void
+} {
+  /** Runs an action on the browser once it is up, and gives back what the action returns for its failure report. */
+  function withBrowser<T>(action: (browser: Browser) => T): T | undefined {
+    const browser = host.tabs()
+    return browser ? action(browser) : undefined
+  }
+
   function requestHelp(action: HelpMenuAction): void {
     host.showWindow()
-    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('help:open', action)
+    if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) sendTo(host.mainWindow()!.webContents, SHELL_IPC.helpRequested, action)
   }
 
   function openRepository(): void {
     host.showWindow()
     host.runNativeBrowserAction(
       'open GitHub repository',
-      () => host.tabs()?.newTab({ url: 'https://github.com/hronaut/hronaut', active: true })
+      () => withBrowser((browser) => newTab(browser, { url: 'https://github.com/hronaut/hronaut', active: true }))
     )
   }
 
   // Choosing Back or Forward goes like the toolbar's arrow. Their keys go by the rules of the person's own input on the
   // shown tab, and only from the main window: typed in a panel in its own window, they would change a page out of view.
-  function goInHistory(direction: 'back' | 'forward', window: BaseWindow | undefined, event: KeyboardEvent): void {
-    if (!event.triggeredByAccelerator) {
-      host.runNativeBrowserAction(`go ${direction}`, () => direction === 'back' ? host.tabs()?.back() : host.tabs()?.forward())
+  function goInHistory(direction: 'back' | 'forward', window: BaseWindow | undefined, byKey: boolean): void {
+    if (!byKey) {
+      host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => direction === 'back'
+        ? back(browser, undefined, { byPerson: true })
+        : forward(browser, undefined, { byPerson: true })))
     } else if (window !== undefined && window.id === host.mainWindow()?.id) {
-      host.runNativeBrowserAction(`go ${direction}`, () => host.tabs()?.historyGesture(direction))
+      host.runNativeBrowserAction(`go ${direction}`, () => withBrowser((browser) => historyGesture(browser, direction)))
     }
   }
 
@@ -52,53 +116,207 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
   // closed, as in Chrome. Their keys are Chrome's, which a website may keep, as a web editor does to go to a line: as
   // keys of the menu they reach it only when the website or field in focus leaves them alone, and never from an agent,
   // and only from the main window, since typed in a panel in its own window they would search a page out of view.
-  function findAgain(action: 'find-next' | 'find-previous', window: BaseWindow | undefined, event: KeyboardEvent): void {
-    if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+  function findAgain(action: 'find-next' | 'find-previous', window: BaseWindow | undefined, byKey: boolean): void {
+    if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
     // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
-    if (!event.triggeredByAccelerator) host.showWindow()
+    if (!byKey) host.showWindow()
     host.runShortcut(action)
   }
 
-  // Chrome's keys a website may keep (websiteKeptShortcutAction). As keys of the menu they reach it only when the
-  // website or field in focus leaves them alone, and never from an agent; typed in a panel in its own window, they
-  // would act on a page out of view. Hidden, because Reload, the address bar and the Edit menu's Find Next and Find
-  // Previous already show their main keys.
+  // Actual Size, Zoom In and Zoom Out zoom the page in view as their keys do in Hronaut's window, which leaves Hronaut
+  // Home and a page under Settings at their zoom. Their keys are Chrome's keys a website may keep (websiteKeptKeyClick).
+  function zoomShownPage(action: 'zoom-reset' | 'zoom-in' | 'zoom-out'): MenuClick {
+    return websiteKeptKeyClick((chosen) => {
+      // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
+      if (chosen) host.showWindow()
+      host.runShortcut(action)
+    }, { shown: true })
+  }
+
+  // The keys pressed in Hronaut's windows, views and pages, not counting a held key's repeats. A key the window or page
+  // in focus leaves alone reaches the menu only after it answered the key, so later keys may be counted by then.
+  let keyPresses = 0
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('before-input-event', (_inputEvent, input) => {
+      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !input.isAutoRepeat) keyPresses += 1
+    })
+  })
+
+  /**
+   * Whether a key press reaches a menu item for the first time, as Chrome runs a command that is not repeatable, such
+   * as Downloads, once for a held key: the repeats the window or page in focus leaves alone reach the menu too. A
+   * repeat that reaches the menu after another key was counted acts again.
+   */
+  function newKeyPress(): () => boolean {
+    let press: number | undefined
+    return () => {
+      if (keyPresses === press) return false
+      press = keyPresses
+      return true
+    }
+  }
+
+  /**
+   * The click of a menu item whose key is one of Chrome's keys a website may keep (websiteKeptShortcutAction). As the
+   * menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from an agent;
+   * typed in a panel in its own window it would act on a page out of view, and Hronaut's window runs it itself, so one
+   * it leaves alone, as under one of its dialogs or the command palette, does nothing here either. Held down, it acts
+   * once (newKeyPress), as in Chrome, unless Chrome repeats its command, as it moves the tab, goes to the next pane and
+   * finds the next match. A shown item chosen from the menu acts each time; a hidden one acts only by its key.
+   */
+  function websiteKeptKeyClick(
+    run: (chosen: boolean) => void,
+    { shown = false, repeatable = false }: { shown?: boolean; repeatable?: boolean } = {}
+  ): MenuClick {
+    const pressed = newKeyPress()
+    return (item, window, event) => {
+      // A hidden item is never chosen from the menu.
+      const byKey = shown ? clickedByItsKey(item, event) : event.triggeredByAccelerator === true
+      if (!byKey) {
+        if (shown) run(true)
+        return
+      }
+      const main = host.mainWindow()
+      if (window === undefined || !main || window.id !== main.id || main.webContents.isFocused()) return
+      if (repeatable || pressed()) run(false)
+    }
+  }
+
+  /**
+   * A menu item's click that acts once for each press of its key (newKeyPress), and always when chosen from the menu or
+   * when no window of Hronaut's has focus: a key typed in detached DevTools, or on macOS with every window closed,
+   * passes through no web contents that counts it.
+   */
+  function oncePerKeyPress(click: MenuClick): MenuClick {
+    const pressed = newKeyPress()
+    return (item, window, event) => {
+      if (clickedByItsKey(item, event) && !pressed() && window !== undefined) return
+      click(item, window, event)
+    }
+  }
+
+  // Chrome's keys a website may keep (websiteKeptShortcutAction) that no visible item shows: Reload, Zoom In, Zoom Out,
+  // Actual Size and the Edit menu's Find Next and Find Previous show their main keys, and Find, the address bar,
+  // Bookmarks and History have no menu. On macOS only the keys with Cmd and those that move the tab are Chrome's there.
   function websiteKeptKeys(): MenuItemConstructorOptions[] {
-    if (process.platform === 'darwin') return []
-    const item = (label: string, accelerator: string, action: BrowserShortcutAction): MenuItemConstructorOptions => ({
+    const stopLoading = (): void => host.runNativeBrowserAction('stop loading the page', () => withBrowser(stopFocusedPageLoading))
+    const item = (
+      label: string,
+      accelerator: string,
+      action: BrowserShortcutAction | (() => void),
+      repeatable = false
+    ): MenuItemConstructorOptions => ({
       label,
       accelerator,
       visible: false,
-      click: (_item, window, event) => {
-        if (event.triggeredByAccelerator && window !== undefined && window.id === host.mainWindow()?.id) host.runShortcut(action)
-      }
+      click: websiteKeptKeyClick(() => {
+        if (typeof action === 'function') action()
+        else host.runShortcut(action)
+      }, { repeatable })
     })
+    const everywhere = [
+      item(host.text('runtime.shortcuts.moveTabNext'), 'Ctrl+Shift+PageDown', 'move-tab-next', true),
+      item(host.text('runtime.shortcuts.moveTabPrevious'), 'Ctrl+Shift+PageUp', 'move-tab-previous', true),
+      item(host.text('runtime.shortcuts.bookmark'), 'CmdOrCtrl+D', 'bookmark'),
+      item(host.text('runtime.shortcuts.history'), process.platform === 'darwin' ? 'Cmd+Y' : 'Ctrl+H', 'visit-history'),
+      item(host.text('runtime.shortcuts.find'), 'CmdOrCtrl+F', 'find'),
+      item(host.text('runtime.shortcuts.address'), 'CmdOrCtrl+L', 'focus-address'),
+      // Zoom In shows Ctrl/Cmd with +, which takes Shift; Chrome's main key types = without it.
+      item(host.text('zoom.in'), 'CmdOrCtrl+=', 'zoom-in')
+    ]
+    if (process.platform === 'darwin') return everywhere
     return [
       item(host.text('native.menu.reload'), 'F5', 'reload'),
       item(host.text('native.menu.reloadWithoutCache'), 'Shift+F5', 'reload-ignoring-cache'),
       item(host.text('native.menu.reloadWithoutCache'), 'Ctrl+F5', 'reload-ignoring-cache'),
+      // Escape runs here rather than in Hronaut's window: it stops the page that has the keyboard, and only while that
+      // page loads, so a page in full screen stays there.
+      item(host.text('runtime.shortcuts.stop'), 'Escape', stopLoading),
       item(host.text('runtime.shortcuts.address'), 'Alt+D', 'focus-address'),
-      item(host.text('native.menu.findNext'), 'F3', 'find-next'),
-      item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous')
+      item(host.text('runtime.shortcuts.address'), 'Ctrl+E', 'focus-address'),
+      item(host.text('shell.home.open'), 'Alt+Home', 'open-home'),
+      // Hronaut's window and its rail run F6 themselves, going to the page; from a page it goes to the next pane.
+      item(host.text('runtime.shortcuts.nextPane'), 'F6', host.runPageNextPane, true),
+      item(host.text('runtime.shortcuts.nextPane'), 'Shift+F6', host.runPageNextPane, true),
+      item(host.text('native.menu.findNext'), 'F3', 'find-next', true),
+      item(host.text('native.menu.findPrevious'), 'Shift+F3', 'find-previous', true),
+      ...everywhere,
+      // With the digits of the number row and, as in Chrome, of the numeric keypad.
+      ...TAB_POSITIONS.flatMap((position) => [`Ctrl+${position}`, `Ctrl+num${position}`].map((accelerator) => (
+        item(host.text('runtime.shortcuts.directTab'), accelerator, `select-tab-${position}` as const)
+      ))),
+      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+9', 'select-last-tab'),
+      item(host.text('runtime.shortcuts.lastTab'), 'Ctrl+num9', 'select-last-tab'),
+      // Not the visible items' own labels. Zoom also has the numeric keypad's keys, as in Chrome.
+      item(host.text('zoom.out'), 'Ctrl+Shift+-', 'zoom-out'),
+      item(host.text('zoom.in'), 'Ctrl+numadd', 'zoom-in'),
+      item(host.text('zoom.out'), 'Ctrl+numsub', 'zoom-out'),
+      item(host.text('runtime.shortcuts.resetZoom'), 'Ctrl+num0', 'zoom-reset')
     ]
   }
 
+  // macOS's own items of an application's menu, as Chrome has them there: About and Settings first, then the system's
+  // Services and hiding. Their roles give Hide its Cmd+H and Hide Others its Cmd+Option+H.
+  function macApplicationItems(): { first: MenuItemConstructorOptions[]; beforeQuit: MenuItemConstructorOptions[] } {
+    if (process.platform !== 'darwin') return { first: [], beforeQuit: [] }
+    return {
+      first: [
+        { label: host.text('native.menu.about'), click: () => requestHelp('about') },
+        { type: 'separator' },
+        { label: host.text('native.menu.settings'), accelerator: 'Cmd+,', click: () => requestHelp('settings') },
+        { type: 'separator' }
+      ],
+      beforeQuit: [
+        { role: 'services', label: host.text('native.menu.services') },
+        { type: 'separator' },
+        { role: 'hide', label: host.text('native.menu.hide') },
+        { role: 'hideOthers', label: host.text('native.menu.hideOthers') },
+        { role: 'unhide', label: host.text('native.menu.showAll') },
+        { type: 'separator' }
+      ]
+    }
+  }
+
+  // macOS's Window menu, as Chrome's there: Minimize with its Cmd+M, Zoom, and Bring All to Front, with the system
+  // listing the open windows after them.
+  function macWindowMenu(): MenuItemConstructorOptions[] {
+    if (process.platform !== 'darwin') return []
+    return [{
+      label: host.text('native.menu.window'),
+      role: 'window',
+      submenu: [
+        { role: 'minimize', label: host.text('native.menu.minimize') },
+        { role: 'zoom', label: host.text('native.menu.zoom') },
+        { type: 'separator' },
+        { role: 'front', label: host.text('native.menu.bringAllToFront') }
+      ]
+    }]
+  }
+
   function installApplicationMenu(): void {
+    const macItems = macApplicationItems()
+    // View Page Source, Save Page As and Print act once for a held key, as in Chrome, after their key passed its checks.
+    const sourcePress = newKeyPress()
+    const savePress = newKeyPress()
+    const printPress = newKeyPress()
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
         {
           label: 'Hronaut',
           submenu: [
+            ...macItems.first,
             { label: host.text('native.menu.show'), accelerator: 'CmdOrCtrl+Shift+H', click: host.showWindow },
             {
               label: host.text('native.menu.checkUpdates'),
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('updates:open')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, UPDATES_IPC.open)
                 void host.checkForUpdates()
               }
             },
             { type: 'separator' },
+            ...macItems.beforeQuit,
             {
               label: host.text('native.menu.quit'),
               accelerator: 'CmdOrCtrl+Q',
@@ -109,23 +327,30 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
         {
           label: host.text('native.menu.edit'),
           submenu: [
-            { role: 'undo' },
-            { role: 'redo' },
+            // Labeled, as Electron names a role in English only. macOS's Edit menu also pastes as plain text and deletes.
+            { role: 'undo', label: host.text('native.context.undo') },
+            { role: 'redo', label: host.text('native.context.redo') },
             { type: 'separator' },
-            { role: 'cut' },
-            { role: 'copy' },
-            { role: 'paste' },
-            { role: 'selectAll' },
+            { role: 'cut', label: host.text('native.context.cut') },
+            { role: 'copy', label: host.text('native.context.copy') },
+            { role: 'paste', label: host.text('native.context.paste') },
+            ...(process.platform === 'darwin'
+              ? [
+                  { role: 'pasteAndMatchStyle' as const, label: host.text('native.context.pasteMatchStyle') },
+                  { role: 'delete' as const, label: host.text('native.context.delete') }
+                ]
+              : []),
+            { role: 'selectAll', label: host.text('native.context.selectAll') },
             { type: 'separator' },
             {
               label: host.text('native.menu.findNext'),
               accelerator: 'CmdOrCtrl+G',
-              click: (_item, window, event) => findAgain('find-next', window, event)
+              click: (item, window, event) => findAgain('find-next', window, clickedByItsKey(item, event))
             },
             {
               label: host.text('native.menu.findPrevious'),
               accelerator: 'CmdOrCtrl+Shift+G',
-              click: (_item, window, event) => findAgain('find-previous', window, event)
+              click: (item, window, event) => findAgain('find-previous', window, clickedByItsKey(item, event))
             }
           ]
         },
@@ -137,7 +362,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: 'CmdOrCtrl+Shift+P',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('browser:shortcut-requested', 'command-palette')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) requestShellShortcut(mainWindow.webContents, 'command-palette')
               }
             },
             {
@@ -145,7 +371,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+C' : 'Ctrl+Shift+C',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('browser:shortcut-requested', 'pick-element')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.shortcutRequested, 'pick-element')
               }
             },
             {
@@ -153,11 +380,33 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               // Chrome's key, which a website may keep, as a web editor does to show its own panel: as the menu's key it
               // reaches the menu only when the website or field in focus leaves it alone, and never from an agent.
               // Like a page's browser keys, it takes a page out of full screen, which would cover the panel.
+              // A held key opens or closes the panel once, as in Chrome.
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+L' : 'Ctrl+J',
-              click: () => {
+              click: oncePerKeyPress(() => {
                 host.showWindow()
                 host.runShortcut('downloads')
-              }
+              })
+            },
+            {
+              label: host.text('native.menu.taskManager'),
+              // Chrome's key elsewhere than macOS, where Chrome gives it none. As the menu's key it reaches the menu only
+              // when the website or field in focus leaves it alone, and never from an agent.
+              ...(process.platform === 'darwin' ? {} : { accelerator: 'Shift+Escape' }),
+              click: oncePerKeyPress(() => {
+                host.showWindow()
+                host.runShortcut('task-manager')
+              })
+            },
+            {
+              label: host.text('native.menu.bookmarkAllTabs'),
+              // Chrome's key, which a website may keep, as a web editor does to show its Run and Debug view: as the
+              // menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from
+              // an agent. Hronaut's window then asks what to call the collection for the workspace in view.
+              accelerator: process.platform === 'darwin' ? 'Cmd+Shift+D' : 'Ctrl+Shift+D',
+              click: oncePerKeyPress(() => {
+                host.showWindow()
+                host.runShortcut('bookmark-all-tabs')
+              })
             },
             { type: 'separator' },
             {
@@ -165,27 +414,32 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               // Chrome's keys. As keys of the menu they reach it only when the website or field in focus leaves them
               // alone, as in Chrome, and never from an agent: Chromium keeps the keys an agent sends from the menu.
               accelerator: process.platform === 'darwin' ? 'Cmd+[' : 'Alt+Left',
-              click: (_item, window, event) => goInHistory('back', window, event)
+              click: (item, window, event) => goInHistory('back', window, clickedByItsKey(item, event))
             },
             {
               label: host.text('native.menu.forward'),
               accelerator: process.platform === 'darwin' ? 'Cmd+]' : 'Alt+Right',
-              click: (_item, window, event) => goInHistory('forward', window, event)
+              click: (item, window, event) => goInHistory('forward', window, clickedByItsKey(item, event))
             },
             {
               label: host.text('native.menu.reload'),
+              // Chrome's keys, which a website may keep, as a web editor opens recent folders with Ctrl+R.
               accelerator: 'CmdOrCtrl+R',
-              click: () => host.runNativeBrowserAction('reload', () => host.tabs()?.reload())
+              click: websiteKeptKeyClick(() => host.runNativeBrowserAction('reload', () => withBrowser((browser) => (
+                reload(browser, undefined, { byPerson: true })
+              ))), { shown: true })
             },
             {
               label: host.text('native.menu.reloadWithoutCache'),
               accelerator: 'CmdOrCtrl+Shift+R',
-              click: () => host.runNativeBrowserAction('reload without cache', () => host.tabs()?.reloadIgnoringCache())
+              click: websiteKeptKeyClick(() => host.runNativeBrowserAction('reload without cache', () => withBrowser((browser) => (
+                reloadIgnoringCache(browser, undefined, { byPerson: true })
+              ))), { shown: true })
             },
             ...websiteKeptKeys(),
             {
               label: host.text('native.menu.developerTools'),
-              click: () => host.runNativeBrowserAction('toggle Developer Tools', () => host.tabs()?.toggleDevTools())
+              click: () => host.runNativeBrowserAction('toggle Developer Tools', () => withBrowser(toggleDevTools))
             },
             {
               label: host.text('native.menu.viewSource'),
@@ -193,11 +447,13 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               // the menu only when the website or field in focus leaves it alone, and never from an agent. Typed in a
               // panel in its own window, it would open the source of a page out of view.
               accelerator: process.platform === 'darwin' ? 'Cmd+Alt+U' : 'Ctrl+U',
-              click: (_item, window, event) => {
-                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+              click: (item, window, event) => {
+                const byKey = clickedByItsKey(item, event)
+                if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (byKey && !sourcePress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
-                if (!event.triggeredByAccelerator) host.showWindow()
-                host.runNativeBrowserAction('view page source', () => host.tabs()?.viewShownPageSource())
+                if (!byKey) host.showWindow()
+                host.runNativeBrowserAction('view page source', () => withBrowser(viewShownPageSource))
               }
             },
             {
@@ -205,7 +461,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               accelerator: 'CmdOrCtrl+Shift+F',
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('browser:shortcut-requested', 'toggle-full-page')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, SHELL_IPC.shortcutRequested, 'toggle-full-page')
               }
             },
             { type: 'separator' },
@@ -215,11 +472,13 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               // reaches the menu only when the website or field in focus leaves it alone, and never from an agent. Typed
               // in a panel in its own window, it would save a page out of view.
               accelerator: 'CmdOrCtrl+S',
-              click: (_item, window, event) => {
-                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
+              click: (item, window, event) => {
+                const byKey = clickedByItsKey(item, event)
+                if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (byKey && !savePress()) return
                 // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray.
-                if (!event.triggeredByAccelerator) host.showWindow()
-                host.runNativeBrowserAction('save the page', () => host.tabs()?.saveShownPage())
+                if (!byKey) host.showWindow()
+                host.runNativeBrowserAction('save the page', () => withBrowser(saveShownPage))
               }
             },
             {
@@ -228,39 +487,48 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               // menu's key it reaches the menu only when the website or field in focus leaves it alone, and never from
               // an agent. Typed in a panel in its own window, it would print a page out of view.
               accelerator: 'CmdOrCtrl+P',
-              click: (_item, window, event) => {
-                if (event.triggeredByAccelerator && (window === undefined || window.id !== host.mainWindow()?.id)) return
-                host.runNativeBrowserAction('print the page', () => host.tabs()?.printShownPage())
+              click: (item, window, event) => {
+                const byKey = clickedByItsKey(item, event)
+                if (byKey && (window === undefined || window.id !== host.mainWindow()?.id)) return
+                if (byKey && !printPress()) return
+                // Chosen from the menu, the main window may be hidden behind a panel in its own window or in the tray, as
+                // for Save Page As, and the print dialog would then be for a page out of view.
+                if (!byKey) host.showWindow()
+                host.runNativeBrowserAction('print the page', () => withBrowser(printShownPage))
               }
             },
             { type: 'separator' },
             {
               label: host.text('native.menu.actualSize'),
               accelerator: 'CmdOrCtrl+0',
-              click: () => host.runNativeBrowserAction('reset page zoom', () => host.tabs()?.setZoom({ action: 'reset' }))
+              click: zoomShownPage('zoom-reset')
             },
             {
               label: host.text('native.menu.zoomIn'),
               accelerator: 'CmdOrCtrl+Plus',
-              click: () => host.runNativeBrowserAction('zoom in', () => host.tabs()?.setZoom({ action: 'in' }))
+              click: zoomShownPage('zoom-in')
             },
             {
               label: host.text('native.menu.zoomOut'),
               accelerator: 'CmdOrCtrl+-',
-              click: () => host.runNativeBrowserAction('zoom out', () => host.tabs()?.setZoom({ action: 'out' }))
+              click: zoomShownPage('zoom-out')
             },
-            { role: 'togglefullscreen' }
+            { role: 'togglefullscreen', label: host.text('native.menu.toggleFullScreen') }
           ]
         },
+        ...macWindowMenu(),
         {
           label: host.text('native.menu.help'),
+          // On macOS the system adds its search of the menus to the Help menu.
+          ...(process.platform === 'darwin' ? { role: 'help' as const } : {}),
           submenu: [
             {
               label: host.text('native.menu.shortcuts'),
               accelerator: 'CmdOrCtrl+Shift+/',
               click: () => requestHelp('shortcuts')
             },
-            { label: host.text('native.menu.about'), click: () => requestHelp('about') },
+            // On macOS About is in the Hronaut menu, as in Chrome there.
+            ...(process.platform === 'darwin' ? [] : [{ label: host.text('native.menu.about'), click: () => requestHelp('about') }]),
             { label: host.text('native.menu.support'), click: () => requestHelp('support') },
             { type: 'separator' },
             { label: host.text('native.menu.repository'), click: openRepository },
@@ -268,7 +536,8 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               label: host.text('native.menu.checkUpdatesPlain'),
               click: () => {
                 host.showWindow()
-                host.mainWindow()?.webContents.send('updates:open')
+                const mainWindow = host.mainWindow()
+                if (mainWindow) sendTo(mainWindow.webContents, UPDATES_IPC.open)
                 void host.checkForUpdates()
               }
             }
@@ -278,5 +547,5 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
     )
   }
 
-  return { installApplicationMenu }
+  return { installApplicationMenu, requestHelp }
 }

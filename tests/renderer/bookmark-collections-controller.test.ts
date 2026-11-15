@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { expect, it, vi } from 'vitest'
-import type { BookmarkCollectionSnapshot } from '../../src/shared/types.js'
-import { useBookmarkCollectionsController } from '../../src/renderer/src/composables/useBookmarkCollectionsController.js'
+import type { BookmarkCollectionSnapshot, BookmarkTabsOutcome } from '../../src/shared/types.js'
+import { useBookmarkCollectionsController } from '../../src/renderer/src/features/bookmarks/useBookmarkCollectionsController.js'
 
 function fixture() {
   const open = ref(false)
@@ -13,6 +13,9 @@ function fixture() {
     list: vi.fn(async () => initial), create: vi.fn(async (_name: string) => initial),
     rename: vi.fn(async (_id: string, _name: string) => initial), remove: vi.fn(async (_id: string) => initial),
     assign: vi.fn(async (_id: string, _collection: string | null) => initial),
+    bookmarkTabs: vi.fn(async (_workspaceId: string | null, _name: string): Promise<BookmarkTabsOutcome> => {
+      throw new Error('Not used')
+    }),
     onChanged: vi.fn((listener: typeof notify) => { notify = listener; return unsubscribe })
   }
   const controller = useBookmarkCollectionsController({ open, blocked, api, translate: key => `t:${key}` })
@@ -34,6 +37,30 @@ it('filters All, Unfiled and one collection and preserves newer subscription sna
     notify({ revision: 2, collections: [{ id: 'one', name: 'Stale', bookmarkIds: ['a'] }] })
     expect(controller.selection.value).toBe('unfiled')
     expect(controller.collections.value).toEqual([])
+  } finally { controller.dispose() }
+})
+
+it('shows a collection again when Undo puts it back, unless the person picked another meanwhile', () => {
+  const { controller, notify } = fixture()
+  try {
+    // After Undo the panel stayed on Unfiled, so the bookmarks put back in the collection were not shown.
+    controller.selection.value = 'c:one'
+    notify({ revision: 2, collections: [] })
+    expect(controller.selection.value).toBe('unfiled')
+    notify({ revision: 3, collections: [{ id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('unfiled')
+    notify({ revision: 4, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }, { id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('c:one')
+    // Once shown again, a later removal and return of another collection does not move the selection.
+    notify({ revision: 5, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }] })
+    notify({ revision: 6, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }, { id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('c:one')
+
+    notify({ revision: 7, collections: [{ id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('unfiled')
+    controller.selection.value = 'all'
+    notify({ revision: 8, collections: [{ id: 'one', name: 'One', bookmarkIds: ['a'] }, { id: 'two', name: 'Two', bookmarkIds: [] }] })
+    expect(controller.selection.value).toBe('all')
   } finally { controller.dispose() }
 })
 

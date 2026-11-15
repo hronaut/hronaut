@@ -13,41 +13,33 @@ import {
   type CdpAppManifestResult,
   type CdpInstallabilityError
 } from '../../../shared/pwa.js'
+import type { PwaPageRegistrations, PwaPageWorker } from '../../../shared/pwa.page.js'
 import type { BrowserPwaOptions, BrowserPwaReport } from '../../../shared/types.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import { isUnavailableCdpMethod } from '../unavailable-cdp-method.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
-import type { PwaInspectionAccess, PwaInspectionTab } from './pwa-inspection-access.js'
 
 const PWA_INSPECTOR_WORLD_ID = ISOLATED_WORLDS.pwaInspector
 
 /** A bounded, read-only report of the tab's service workers, web app manifest, installability and Cache Storage for its top-level origin. */
-export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspectionAccess<Tab>, options: BrowserPwaOptions = {}): Promise<BrowserPwaReport> {
-  const tab = access.getTab(options.tabId)
+export async function inspectPwa(browser: Browser, options: BrowserPwaOptions = {}): Promise<BrowserPwaReport> {
+  const tab = getTab(browser, options.tabId)
   const pageUrl = new URL(tab.url)
   if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
     throw new Error('Offline app inspection is available only for HTTP and HTTPS tabs.')
   }
-  const requireCurrentPage = inspectionPageGuard(access, tab, 'offline app inspection')
+  const requireCurrentPage = inspectionPageGuard(browser, tab, 'offline app inspection')
   const normalized = normalizeBrowserPwaOptions(options)
   const rawRegistrations = await tab.webContents.executeJavaScriptInIsolatedWorld(
     PWA_INSPECTOR_WORLD_ID,
     [{ code: pwaRegistrationsPageScript() }],
     false
-  ) as {
-    supported: boolean
-    controlled: boolean
-    controller?: { scriptUrl: string; state: string }
-    registrations: Array<{
-      scope: string
-      updateViaCache: string
-      installing?: { scriptUrl: string; state: string }
-      waiting?: { scriptUrl: string; state: string }
-      active?: { scriptUrl: string; state: string }
-      navigationPreload?: { supported: boolean }
-    }>
-    truncated?: boolean
-  }
+  ) as PwaPageRegistrations
   requireCurrentPage()
-  const worker = (value: { scriptUrl: string; state: string } | undefined) => value ? {
+  const worker = (value: PwaPageWorker | undefined) => value ? {
     scriptUrl: redactNetworkUrl(value.scriptUrl).slice(0, 4_096),
     state: redactDiagnosticText(value.state).slice(0, 64)
   } : undefined
@@ -87,7 +79,7 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
   }
 
   try {
-    await access.withDebugger(tab.webContents, async () => {
+    await withDebugger(browser, tab.webContents, async () => {
       requireCurrentPage()
       try {
         const manifestResult = await tab.webContents.debugger.sendCommand('Page.getAppManifest') as CdpAppManifestResult
@@ -100,7 +92,7 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
           installabilityErrors = installabilityResult.installabilityErrors ?? []
         } catch (error) {
           report.installabilityInspectionAvailable = false
-          if (!access.isUnavailableCdpMethod(error)) {
+          if (!isUnavailableCdpMethod(error)) {
             report.caveats.push(`${PWA_INSTALLABILITY_UNAVAILABLE_PREFIX}${redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)}`)
           }
         }
@@ -187,11 +179,11 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
 }
 
 /** A check that throws once the tab closed, changed page contents or navigated after this call, naming the inspection it interrupted. */
-function inspectionPageGuard<Tab extends PwaInspectionTab>(access: PwaInspectionAccess<Tab>, tab: Tab, inspection: string): () => void {
+function inspectionPageGuard(browser: Browser, tab: BrowserTab, inspection: string): () => void {
   const navigationGeneration = tab.navigationGeneration
   const contents = tab.webContents
   return () => {
-    if (access.findTab(tab.id) !== tab
+    if (findTab(browser, tab.id) !== tab
       || tab.webContents !== contents
       || contents.isDestroyed()
       || tab.navigationGeneration !== navigationGeneration) {

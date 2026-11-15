@@ -7,6 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi, HronautSettingsApi } from '../../src/shared/types.js'
 import { test, expect, expectFixtureSuccess } from './fixtures.js'
 import { text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type Gate = { held: boolean; actionId: string; release(): void; restore(): void }
 type Scope = typeof globalThis & { __labelAuditGate?: Gate }
@@ -42,11 +43,10 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
       restoreTransport = () => { transport.send = send }
       if (credential) {
         // Home never sees capability profile ids, so this waits for the profile's session to be initialized.
-        await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
-          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ name: string; initializedAt?: string }> }
+        await expect.poll(async () => {
+          const state = await homeStatus<{ clients: Array<{ name: string; initializedAt?: string }> }>(electronApp)
           return state.clients.some(client => client.name === 'label-publication' && Boolean(client.initializedAt))
-        })).toBe(true)
+        }).toBe(true)
       }
       const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
       const workspaceResult = await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Label publication' })
@@ -119,11 +119,10 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
         expect(text(result)).not.toContain(marker); expect(text(result)).not.toContain('createdTabId')
         if (change === 'capability revoke') expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', permission: 'denied', policyDecision: expect.any(Object) })
       }
-      await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string } }> }
+      await expect.poll(async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string } }> }>(electronApp)
         return state.recentActivity.filter(activity => activity.toolName === 'browser_new_tab' && activity.tabId === id).map(activity => activity.result.outcome)
-      }, id)).toEqual([change === 'newer label' ? 'succeeded' : change === 'cancel' || change === 'disconnect' ? 'cancelled' : 'outcome-unknown'])
+      }).toEqual([change === 'newer label' ? 'succeeded' : change === 'cancel' || change === 'disconnect' ? 'cancelled' : 'outcome-unknown'])
       if (change !== 'newer label') expect(received.join('\n')).not.toContain(marker)
       await info.attach('creation-publication', { body: JSON.stringify({ change, result }), contentType: 'application/json' })
       // Audit events do not copy authored labels. Stop flush is checked in the

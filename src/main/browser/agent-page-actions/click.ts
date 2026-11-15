@@ -1,4 +1,6 @@
-import { NativeClickAdmissionError, nativeClickObserver, nativeClickProgress, type NativeClickProgress } from '../native-click-admission.js'
+import type { WebContents } from 'electron'
+import type { BrowserDialogHandlingOptions } from '../../../shared/types.js'
+import { acquireNativeClickAdmission, NativeClickAdmissionError, nativeClickObserver, nativeClickProgress, type NativeClickProgress } from '../native-click-admission.js'
 import { NativeInputCleanupError } from '../native-input-cleanup.js'
 import {
   type AgentPointerIdentity,
@@ -8,24 +10,74 @@ import {
   targetPointScript
 } from '../page-scripts.js'
 import type { OpenedTabObservation } from '../click-opened-tabs.js'
-import type { AgentPageActionsAccess, AgentPageActionsTab, BrowserClickModifier, BrowserClickTarget } from './agent-page-actions-access.js'
+import type { Browser } from '../browser.js'
+import { showAgentPointer } from '../agent-pointer/agent-pointer.js'
+import { evaluateWithAttachedDebugger, mainWorldContextId } from '../debugger-evaluation/debugger-evaluation.js'
+import { coordinatePointOrValidateTarget } from '../input-targets/input-targets.js'
+import {
+  assertClickTargetEnabled, assertPageAtNormalScale, assertPageAtNormalScaleBeforeInput, assertPointInsideVisibleViewport,
+  assertRightClickViewport, pagePinchedBeforeInput, refusesPinchedPage
+} from '../input-targets/target-checks.js'
+import { dispatchNativeClick } from '../native-click/native-click.js'
+import { rightClickEnvironment } from '../native-click/right-click-environment.js'
+import { assertRightClickPlatform } from '../owned-right-click.js'
+import { withOptionalDialogHandling } from '../website-dialogs/website-dialogs.js'
+import { WebsiteDialogOpenError } from '../website-dialog-guard.js'
+import { getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
+import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { observeOpenedTabs, stopObservingOpenedTabs } from '../click-opened-tabs.js'
+import { agentLeaveRefusals } from '../tab-events/leave-site-question.js'
+
+/** A key held for one native click; ControlOrMeta is Meta on macOS and Control elsewhere. */
+export type BrowserClickModifier = 'Shift' | 'Control' | 'Meta' | 'ControlOrMeta'
+
+/** What an agent's click names: a tab, a control by ref or selector or a point, and how to click it. */
+export type BrowserClickTarget = {
+  tabId?: string
+  ref?: string
+  selector?: string
+  x?: number
+  y?: number
+  doubleClick?: boolean
+  native?: boolean
+  button?: 'left' | 'right'
+  modifiers?: readonly BrowserClickModifier[]
+} & BrowserDialogHandlingOptions
+
+/** What a click reports when the navigation it started was cancelled because the page asked before it is left. */
+const PAGE_ASKED_TO_STAY_AFTER_CLICK = 'The page asked to confirm before it is left (a beforeunload prompt, as a page with '
+  + 'unsaved changes shows), so the navigation this click started was cancelled and the page stayed open. To open the '
+  + 'link anyway, use browser_new_tab with its address. Otherwise finish or save what the page holds first. '
+  + 'browser_close_tab closes the tab and discards its unsaved changes.'
 
 /**
  * An agent's click on a control or at a point in the tab's page, reporting the
- * tabs the page opened meanwhile that are still open in its workspace.
+ * tabs the page opened meanwhile that are still open in its workspace, and when
+ * the page kept itself open against the navigation the click started.
  */
-export async function click<Tab extends AgentPageActionsTab>(access: AgentPageActionsAccess<Tab>, target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-  let observed: { tab: Tab; observation: OpenedTabObservation } | undefined
+export async function click(browser: Browser, target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
+  let observed: { tab: BrowserTab; observation: OpenedTabObservation } | undefined
+  let refusalsBefore: { webContents: WebContents; count: number } | undefined
   try {
-    const result = await dispatchClick(access, target, validateClick, recordClickProgress, retainClickAuthority, (tab) => {
-      observed = { tab, observation: access.observeOpenedTabs(tab) }
+    const result = await dispatchClick(browser, target, validateClick, recordClickProgress, retainClickAuthority, (tab) => {
+      observed = { tab, observation: observeOpenedTabs(browser, tab) }
+      refusalsBefore = { webContents: tab.webContents, count: agentLeaveRefusals(tab.webContents) }
     }, agent)
     const current = observed
     observed = undefined
-    const opened = current && access.stopObservingOpenedTabs(current.tab, current.observation)
-    return opened && result && typeof result === 'object' ? { ...result, tabsOpenedDuringClick: opened } : result
+    const opened = current && stopObservingOpenedTabs(browser, current.tab, current.observation)
+    const stayed = refusalsBefore && agentLeaveRefusals(refusalsBefore.webContents) > refusalsBefore.count
+    if (!result || typeof result !== 'object') return result
+    return {
+      ...result,
+      ...(opened ? { tabsOpenedDuringClick: opened } : {}),
+      ...(stayed ? { pageAskedToStay: PAGE_ASKED_TO_STAY_AFTER_CLICK } : {})
+    }
   } finally {
-    if (observed) access.stopObservingOpenedTabs(observed.tab, observed.observation)
+    if (observed) stopObservingOpenedTabs(browser, observed.tab, observed.observation)
   }
 }
 
@@ -36,16 +88,16 @@ export async function click<Tab extends AgentPageActionsTab>(access: AgentPageAc
  * authority, and a native click whose release or target cleanup was not
  * confirmed blocks further semantic clicks on that page.
  */
-async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageActionsAccess<Tab>, target: BrowserClickTarget, validateClick: ((validateContext: () => void) => void) | undefined, recordClickProgress: ((progress: NativeClickProgress) => void) | undefined, retainClickAuthority: ((authority: { validate(): void; dispose(): void }) => void) | undefined, observeTab: (tab: Tab) => void, agent?: AgentPointerIdentity): Promise<unknown> {
+async function dispatchClick(browser: Browser, target: BrowserClickTarget, validateClick: ((validateContext: () => void) => void) | undefined, recordClickProgress: ((progress: NativeClickProgress) => void) | undefined, retainClickAuthority: ((authority: { validate(): void; dispose(): void }) => void) | undefined, observeTab: (tab: BrowserTab) => void, agent?: AgentPointerIdentity): Promise<unknown> {
   const rightClick = target.button === 'right'
   if (rightClick) {
-    access.assertRightClickPlatform(process.platform)
+    assertRightClickPlatform(process.platform)
     if (!target.tabId || !target.native || target.doubleClick || target.x !== undefined || target.y !== undefined
       || Boolean(target.ref) === Boolean(target.selector)) throw new Error('Right-click requires one native semantic click.')
   }
   const modifierBits = target.modifiers === undefined ? 0 : clickModifierBits(target, process.platform)
-  const coordinatePoint = access.coordinatePointOrValidateTarget(target, 'click')
-  const tab = access.getTab(target.tabId)
+  const coordinatePoint = coordinatePointOrValidateTarget(target, 'click')
+  const tab = getTab(browser, target.tabId)
   observeTab(tab)
   const webContents = tab.webContents
   const dialogAction = target.dialogAction
@@ -58,67 +110,78 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
   if (target.native && dialogAction !== undefined) {
     throw new TypeError('native cannot be combined with dialogAction or promptText')
   }
+  // Before the click begins, so that the agent learns how to go on rather than that the click's outcome is unknown.
+  const refusePinch = refusesPinchedPage(tab)
+  if (refusePinch && !coordinatePoint && (target.doubleClick || target.native)) await assertPageAtNormalScale(webContents, 'click')
   // A reload may already be pending when the click begins. Its commit does
   // not increment navigationGeneration again, but replaces the target document.
-  const authority = access.nativeInputAuthority(tab, validateClick)
+  const authority = nativeInputAuthority(browser, tab, validateClick)
   let environment: { validate(): void; dispose(): void } | undefined
   const assertClickCurrent = (): void => { authority.validate(); environment?.validate() }
   let retained = false
   try {
-    if (rightClick) { environment = access.rightClickEnvironment(tab); assertClickCurrent() }
+    if (rightClick) { environment = rightClickEnvironment(browser, tab); assertClickCurrent() }
     if (coordinatePoint) {
-      await access.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
-      await access.showAgentPointer(webContents, coordinatePoint, 'click', { agent })
+      await assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click', refusePinch)
+      await showAgentPointer(browser, webContents, coordinatePoint, 'click', { agent })
       if (dialogAction !== undefined) {
-        await access.withAgentInput(webContents, () => access.withOptionalDialogHandling(webContents, target, async () => {
-          const contextId = await access.mainWorldContextId(webContents)
+        await withAgentInput(browser, webContents, () => withOptionalDialogHandling(browser, webContents, target, async () => {
+          const contextId = await mainWorldContextId(browser, webContents)
           assertClickCurrent()
-          await access.evaluateWithAttachedDebugger(
+          await evaluateWithAttachedDebugger(
             webContents,
             dialogAwareCoordinateClickScript(coordinatePoint, dialogAction, target.promptText),
             contextId
           )
         }))
       } else {
-        await access.withAgentInput(webContents, () => access.withDebugger(
-          webContents,
-          () => access.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClick)
-        ))
+        await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
+          // A pinch made while the pointer moved there would send the click elsewhere.
+          if (refusePinch) await assertPageAtNormalScaleBeforeInput(webContents, 'click')
+          return dispatchNativeClick(browser, webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClick)
+        }))
       }
       return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
     }
     if (target.doubleClick || target.native) {
       const progress = nativeClickProgress()
       const publish = (): void => {
-        if (progress.targetCleanup === 'unconfirmed' || progress.inputCleanupFailed) access.unconfirmedSemanticClicks().add(webContents)
+        if (progress.targetCleanup === 'unconfirmed' || progress.inputCleanupFailed) browser.unconfirmedSemanticClicks.add(webContents)
         recordClickProgress?.({ ...progress })
       }
       const observer = nativeClickObserver(progress, publish)
       publish()
       try {
         assertClickCurrent()
-        if (access.unconfirmedSemanticClicks().has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
+        if (browser.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
         progress.preparationAttempted = true; publish()
-        const result = await access.withAgentInput(webContents, () => access.withDebugger(webContents, async () => {
-          if (access.unconfirmedSemanticClicks().has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
-          const admission = await access.acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish)
+        const result = await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async () => {
+          if (browser.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
+          const admission = await acquireNativeClickAdmission(
+            webContents.debugger, { ...target, refusePinch }, assertClickCurrent, progress, publish, webContents
+          )
           let failure: unknown
           try {
             assertClickCurrent()
+            // A page still reading its document is not asked before the click. Refused only at the press, it would have
+            // been scrolled to the target, which pans the pinched view, and had the pointer moved there first.
+            if (refusePinch && await pagePinchedBeforeInput(webContents)) throw new NativeClickAdmissionError('PAGE_PINCHED', { ...progress })
             // Retain the original before any page-owned flag setter or scroll preparation.
             await webContents.executeJavaScript('window.__hronautAgentInputActive = true', false).catch(() => undefined)
             assertClickCurrent()
             let point = await webContents.executeJavaScript(targetPointScript(target), false) as { x: number; y: number; tag: string }
-            await access.showAgentPointer(webContents, point, 'click', { agent })
+            await showAgentPointer(browser, webContents, point, 'click', { agent })
             assertClickCurrent()
             point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), false) as typeof point
-            try { access.assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
+            try { assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
             if (environment && retainClickAuthority && !retained) {
               retainClickAuthority({ validate: assertClickCurrent, dispose: () => { environment?.dispose(); authority.dispose() } })
               retained = true
             }
-            await access.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
-              await access.assertRightClickViewport(webContents, x, y, assertClickCurrent)
+            await dispatchNativeClick(browser, webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
+              // A pinch made while the pointer moved there is refused as before the move, saying how to go on.
+              await assertRightClickViewport(webContents, x, y, assertClickCurrent,
+                refusePinch ? () => new NativeClickAdmissionError('PAGE_PINCHED', { ...progress }) : undefined)
               await admission.sample(x, y)
             } : admission.sample, observer, rightClick, modifierBits)
             return { ok: true, tag: point.tag, ...(target.doubleClick ? { doubleClick: true } : {}),
@@ -127,38 +190,40 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
           } catch (error) { failure = error; throw error }
           finally {
             if (progress.downAttempted > progress.upAcknowledged
-              || (rightClick && progress.downAttempted > progress.downAcknowledged)) access.unconfirmedSemanticClicks().add(webContents)
+              || (rightClick && progress.downAttempted > progress.downAcknowledged)) browser.unconfirmedSemanticClicks.add(webContents)
             try { await admission.dispose() } catch (error) { if (!failure) throw error }
           }
         }, assertClickCurrent), { deferRendererFlag: true, onCleanupFailure: () => { progress.inputCleanupFailed = true; publish() } })
         if (progress.inputCleanupFailed) throw new NativeClickAdmissionError('NATIVE_INPUT_CLEANUP_FAILED', { ...progress })
         return result
       } catch (error) {
+        // Nothing reached a page its website dialog holds.
+        if (error instanceof WebsiteDialogOpenError && !error.sent) throw error
         throw new NativeClickAdmissionError(error instanceof NativeClickAdmissionError ? error.reason
           : error instanceof NativeInputCleanupError ? 'NATIVE_INPUT_CLEANUP_FAILED' : 'CONTEXT_OR_INPUT_UNCERTAIN', { ...progress }, error)
       }
     }
     const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), false)
       .catch(() => undefined) as { x: number; y: number } | undefined
-    if (pointerPoint) await access.showAgentPointer(webContents, pointerPoint, 'click', { agent })
-    const result = await access.withAgentInput(webContents, () => {
+    if (pointerPoint) await showAgentPointer(browser, webContents, pointerPoint, 'click', { agent })
+    const result = await withAgentInput(browser, webContents, () => {
       if (dialogAction === undefined) {
         // Pointer rendering and input preparation await page work. Recheck
         // authority immediately before the semantic action, just as for native input.
         assertClickCurrent()
         return webContents.executeJavaScript(targetActionScript('click', target), true)
       }
-      return access.withOptionalDialogHandling(webContents, target, async () => {
-        const contextId = await access.mainWorldContextId(webContents)
+      return withOptionalDialogHandling(browser, webContents, target, async () => {
+        const contextId = await mainWorldContextId(browser, webContents)
         assertClickCurrent()
-        return access.evaluateWithAttachedDebugger(
+        return evaluateWithAttachedDebugger(
           webContents,
           dialogAwareClickScript(target, dialogAction, target.promptText),
           contextId
         )
       })
     })
-    access.assertClickTargetEnabled(result)
+    assertClickTargetEnabled(result)
     return result
   } finally {
     if (!retained) { environment?.dispose(); authority.dispose() }

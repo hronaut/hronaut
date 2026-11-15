@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserElementInspection, BrowserState } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
@@ -38,8 +38,7 @@ for (const independentBody of [false, true]) {
       }
       const opened = await call('browser_new_tab', { url, active: true }) as BrowserState
       const tabId = opened.activeTabId!
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-      const page = electronApp.context().pages().find(page => page.url() === url)!
+      const page = await pageAt(electronApp, url)
       await expect(page.locator('#nested')).toBeVisible()
       await page.locator('#focus').focus()
       const inspect = async (selector: string, includeScroll = true) => {

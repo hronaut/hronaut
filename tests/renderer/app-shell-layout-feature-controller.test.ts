@@ -12,14 +12,13 @@ interface Harness {
   controller: AppShellLayoutFeatureController
   wrapper: VueWrapper
   dock: Ref<PanelDock>
-  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'trustedDialog' | 'agentSteps', Ref<boolean>>
+  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'taskManager' | 'qrCode' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval' | 'trustedDialog' | 'agentSteps', Ref<boolean>>
   overlays: {
     updateNotice: Ref<boolean>
     find: Ref<boolean>
     zoom: Ref<boolean>
     activePanel: Ref<DetachablePanelId | null>
     addressSuggestions: Ref<boolean>
-    tabSearch: Ref<boolean>
     downloads: Ref<boolean>
     history: Ref<boolean>
     splitMenu: Ref<boolean>
@@ -61,6 +60,8 @@ function createHarness(detachedWindow = false): Harness {
     commandPalette: ref(false),
     helpDialog: ref(false),
     releaseHistory: ref(false),
+    taskManager: ref(false),
+    qrCode: ref(false),
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     walletApproval: ref(false),
@@ -73,7 +74,6 @@ function createHarness(detachedWindow = false): Harness {
     zoom: ref(false),
     activePanel: ref<DetachablePanelId | null>(null),
     addressSuggestions: ref(false),
-    tabSearch: ref(false),
     downloads: ref(false),
     history: ref(false),
     splitMenu: ref(false),
@@ -134,6 +134,31 @@ afterEach(() => {
 })
 
 describe('useAppShellLayoutFeatureController', () => {
+  // A tab's Find coming back would close a docked panel, or cover a menu or dialog, the person opened meanwhile.
+  it('reports another surface open beside Find, which a tab\'s Find waits for', () => {
+    const harness = createHarness()
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(false)
+    harness.overlays.find.value = true
+    harness.overlays.updateNotice.value = true
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(false)
+
+    const surfaces = [
+      ...Object.values(harness.modals),
+      ...(['zoom', 'addressSuggestions', 'downloads', 'history', 'splitMenu', 'siteControls', 'siteStorage', 'bookmarks'] as const)
+        .map((name) => harness.overlays[name])
+    ]
+    for (const surface of surfaces) {
+      surface.value = true
+      expect(harness.controller.surfaceBesideFindOpen.value).toBe(true)
+      surface.value = false
+    }
+    harness.overlays.activePanel.value = 'console'
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(true)
+    // A panel in a window of its own leaves room for Find, which opening does not close it for.
+    harness.separatePanel.value = true
+    expect(harness.controller.surfaceBesideFindOpen.value).toBe(false)
+  })
+
   it('owns full-modal state and synchronously clears native address suggestions', () => {
     const harness = createHarness()
 
@@ -182,8 +207,8 @@ describe('useAppShellLayoutFeatureController', () => {
     const elementsFromPoint = vi.fn((): Element[] => [])
     Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: elementsFromPoint })
     try {
-      // Search tabs and Create workspace draw their backdrop under the native controls in the top-right corner.
-      for (const open of [harness.overlays.tabSearch, harness.modals.workspaceEditor]) {
+      // The command palette and Create workspace draw their backdrop under the native controls in the top-right corner.
+      for (const open of [harness.modals.commandPalette, harness.modals.workspaceEditor]) {
         document.body.append(backdrop)
         elementsFromPoint.mockReturnValue([backdrop])
         open.value = true
@@ -295,7 +320,7 @@ describe('useAppShellLayoutFeatureController', () => {
       await nextTick()
       await nextTick()
       expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
-      // Picking a tab in Search tabs withdraws the snapshot; holding the page back would leave an empty window.
+      // Picking a tab in the command palette withdraws the snapshot; holding the page back would leave an empty window.
       setPageSnapshotOnScreen(false)
       await nextTick()
       await nextTick()
@@ -357,6 +382,28 @@ describe('useAppShellLayoutFeatureController', () => {
     expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
   })
 
+  it('hides the website under the Task manager, as under the other dialogs', async () => {
+    const harness = createHarness()
+
+    harness.modals.taskManager.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(harness.controller.fullModalOpen.value).toBe(true)
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
+  })
+
+  it('hides the website under the QR code dialog, as under the other dialogs', async () => {
+    const harness = createHarness()
+
+    harness.modals.qrCode.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(harness.controller.fullModalOpen.value).toBe(true)
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
+  })
+
   it("reveals What's new immediately above website content without waiting for a window resize", async () => {
     const harness = createHarness()
 
@@ -372,27 +419,5 @@ describe('useAppShellLayoutFeatureController', () => {
       bottom: 0,
       left: 0
     })
-  })
-
-  it('treats tab search as an immediately occluding full modal', async () => {
-    const harness = createHarness()
-
-    harness.overlays.addressSuggestions.value = true
-    harness.overlays.tabSearch.value = true
-
-    expect(harness.controller.fullModalOpen.value).toBe(true)
-    expect(harness.closeAddressSuggestions).toHaveBeenCalledOnce()
-
-    await nextTick()
-    await nextTick()
-
-    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
-    expect(harness.setContentInsets).toHaveBeenLastCalledWith({
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0
-    })
-    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true, overlayEntranceEpoch())
   })
 })

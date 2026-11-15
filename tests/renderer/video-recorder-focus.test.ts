@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import VideoRecorder from '../../src/renderer/src/components/VideoRecorder.vue'
+import VideoRecorder from '../../src/renderer/src/features/video/VideoRecorder.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../src/shared/video.js'
 

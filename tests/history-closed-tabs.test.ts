@@ -3,18 +3,43 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserClosedTabState } from '../src/shared/types.js'
-import { createBookmarksAndHistory } from '../src/main/bookmarks-and-history.js'
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { createBookmarksAndHistory } from '../src/main/bookmarks-history/bookmarks-and-history.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { forgetClosedTabs, reopenClosedTabEntry } from '../src/main/browser/tab-reopening/tab-reopening.js'
-import type { TabReopeningAccess, TabReopeningTab } from '../src/main/browser/tab-reopening/tab-reopening-access.js'
-import { HistoryStore } from '../src/main/history-store.js'
-import { registerBrowsingDataIpc } from '../src/main/browsing-data-ipc.js'
+import { HistoryStore } from '../src/main/bookmarks-history/history-store.js'
+import { registerBrowsingDataIpc } from '../src/main/site-data/browsing-data-ipc.js'
 import { registerCollectionIpc } from '../src/main/collection-ipc.js'
-import { createSiteData } from '../src/main/site-data.js'
+import { createSiteData } from '../src/main/site-data/site-data.js'
 
 vi.mock('electron', () => ({
   session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => tmpdir() }, powerMonitor: { on: () => undefined }
 }))
+// The browsers below stub changed, which forgetting cleared pages publishes through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
+// The tab runtime below stubs workspaceSession and withWorkspaceSiteDataCleanup, through which an agent clears a website's data.
+vi.mock('../src/main/browser/workspace-data/workspace-data.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-data/workspace-data.js')>(),
+  workspaceSession: (browser: { workspaceSession: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceSession(...args),
+  withWorkspaceSiteDataCleanup: (browser: { withWorkspaceSiteDataCleanup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withWorkspaceSiteDataCleanup(...args)
+}))
+// Forgetting history pages is a function now; the hosts' tests below reach the fake's stub, and the tab manager's own test runs the real one.
+vi.mock('../src/main/browser/tab-history-pages/forget-history-pages.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-history-pages/forget-history-pages.js')>(),
+  forgetHistoryPages: (browser: { forgetHistoryPages: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.forgetHistoryPages(...args)
+}))
+
+// Clearing history forgets the certificates the person chose to trust anyway, which certificate-errors.test.ts covers.
+const { forgetTrustedCertificates } = vi.hoisted(() => ({ forgetTrustedCertificates: vi.fn<(scope?: { host?: string, session?: object }) => void>() }))
+vi.mock('../src/main/browser/certificate-errors/certificate-errors.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/certificate-errors/certificate-errors.js')>(),
+  forgetTrustedCertificates
+}))
+/** Whether every call so far forgot the certificates for every host in every workspace. */
+const forgotAll = () => forgetTrustedCertificates.mock.calls.length > 0
+  && forgetTrustedCertificates.mock.calls.every(([scope]) => scope?.host === undefined && scope?.session === undefined)
 
 const temporaryDirectories: string[] = []
 
@@ -22,29 +47,29 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-function closedTab(url: string): BrowserClosedTabState {
-  return { id: `closed-${url}`, title: url, url, pinned: false, closedAt: '2026-10-20T16:00:00.000Z' }
+function closedTab(url: string, mcpGroupId?: string): BrowserClosedTabState {
+  return { id: `closed-${url}`, title: url, url, pinned: false, closedAt: '2026-10-20T16:00:00.000Z', ...(mcpGroupId ? { mcpGroupId } : {}) }
 }
 
 /**
  * Recently closed tabs as the tab manager keeps them, with the manager's own forgetting function. Reopening one opens
  * no tab until the test calls failOpening, and then fails, as opening a tab in a workspace that just closed does.
  */
-function recentlyClosed(urls: string[]) {
-  const closedTabs = urls.map(closedTab)
+function recentlyClosed(urls: string[], mcpGroupId?: string) {
+  const closedTabs = urls.map((url) => closedTab(url, mcpGroupId))
   const detachedClosedTabs = new Set<BrowserClosedTabState[]>()
   let failOpening!: (error: Error) => void
-  const access = {
-    closedTabs: () => closedTabs,
-    detachedClosedTabs: () => detachedClosedTabs,
-    tabCount: () => 1,
+  const browser = {
+    closedTabs,
+    detachedClosedTabs,
+    tabs: new Map([['open', {}]]),
     createTab: () => new Promise<never>((_resolve, reject) => { failOpening = reject })
-  } as unknown as TabReopeningAccess<TabReopeningTab>
+  } as unknown as Browser
   return {
     closedTabs,
-    access,
+    browser,
     failOpening: (error: Error) => failOpening(error),
-    tabs: { forgetClosedTabs: vi.fn((matches: (url: string) => boolean) => { forgetClosedTabs(access, matches) }) }
+    tabs: { forgetHistoryPages: vi.fn((matches: (url: string) => boolean, workspaceId?: string) => { forgetClosedTabs(browser, matches, workspaceId) }) }
   }
 }
 
@@ -63,7 +88,7 @@ async function historyWith(urls: string[]): Promise<HistoryStore> {
 describe('recently closed tabs and the history', () => {
   it('forgets only the closed tabs whose address matches', () => {
     const { closedTabs, tabs } = recentlyClosed(['https://a.example/', 'https://b.example/x', 'https://a.example/y'])
-    tabs.forgetClosedTabs((url) => url.startsWith('https://a.example/'))
+    tabs.forgetHistoryPages((url) => url.startsWith('https://a.example/'))
     expect(closedTabs.map((tab) => tab.url)).toEqual(['https://b.example/x'])
   })
 
@@ -73,18 +98,23 @@ describe('recently closed tabs and the history', () => {
     const { closedTabs, tabs } = recentlyClosed(['https://bank.example/statement?id=7', 'https://news.example/'])
     const history = await historyWith(['https://bank.example/statement?id=7'])
     const runtime = createBookmarksAndHistory({
-      state: { bookmarks: null, history },
+      state: { bookmarks: null, history, siteIcons: null },
       sendToShellWindows: vi.fn(),
       mcpServer: () => null,
-      tabs: () => tabs,
+      tabs: () => tabs as never,
       offerUndo: vi.fn()
     })
+    forgetTrustedCertificates.mockClear()
     await runtime.agentHistory.clear()
     expect(closedTabs).toEqual([])
+    // So do the certificates the person chose to trust anyway, in every workspace, as in Chrome.
+    expect(forgotAll()).toBe(true)
 
     closedTabs.push(closedTab('https://mail.example/inbox'))
+    forgetTrustedCertificates.mockClear()
     runtime.historyCleared()
     expect(closedTabs).toEqual([])
+    expect(forgotAll()).toBe(true)
   })
 
   it('forgets the closed tabs of one removed history page, fragment and sign-in aside', async () => {
@@ -94,10 +124,10 @@ describe('recently closed tabs and the history', () => {
     ])
     const history = await historyWith(['https://docs.example/guide', 'https://docs.example/other'])
     const runtime = createBookmarksAndHistory({
-      state: { bookmarks: null, history },
+      state: { bookmarks: null, history, siteIcons: null },
       sendToShellWindows: vi.fn(),
       mcpServer: () => null,
-      tabs: () => tabs,
+      tabs: () => tabs as never,
       offerUndo: vi.fn()
     })
     const guide = history.list().find((entry) => entry.url === 'https://docs.example/guide')!
@@ -119,7 +149,9 @@ describe('recently closed tabs and the history', () => {
       assertTrustedSender: () => undefined,
       bookmarks: () => { throw new Error('Not used') },
       history: () => history,
+      siteIcons: () => ({ pages: {}, icons: {} }),
       downloads: () => { throw new Error('Not used') },
+      tabs: () => { throw new Error('Not used') },
       publishBookmarks: () => [],
       publishVisitHistory: () => [],
       historyCleared,
@@ -150,18 +182,87 @@ describe('recently closed tabs and the history', () => {
       sitePermissionStore: () => null,
       mcpServer: () => null,
       publishVisitHistory: () => undefined,
-      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') }
+      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') },
+      clearWebsiteData: async () => { throw new Error('Not used') }
     })
+    forgetTrustedCertificates.mockClear()
     await handlers.get('browsing-data:clear')!({}, { history: true, origin: 'https://shop.example' })
     expect(closedTabs.map((tab) => tab.url)).toEqual([...otherWebsites, 'https://news.example/', 'not a url'])
+    // The certificates the person chose to trust anyway for the website go too, in every workspace, as in Chrome.
+    expect(forgetTrustedCertificates).toHaveBeenCalledExactlyOnceWith({ host: 'shop.example' })
+    forgetTrustedCertificates.mockClear()
     await handlers.get('browsing-data:clear')!({}, { history: true })
     expect(closedTabs).toEqual([])
+    expect(forgotAll()).toBe(true)
   })
 
-  it('forgets the closed tabs of a website whose history an agent clears', async () => {
-    const { closedTabs, tabs } = recentlyClosed(['https://shop.example/cart', ...otherWebsites, 'https://news.example/'])
+  // As Chrome's Delete browsing data, the last hour goes and what was visited before it stays. Electron gives a tab's
+  // pages no visit times, so Recently closed keeps only pages the history shows a visit to from before the hour only.
+  it('clears a time range of history, with those pages\' closed tabs and the steps Home lists from then', async () => {
+    const hour = 60 * 60 * 1000
+    const { closedTabs, tabs } = recentlyClosed([
+      'https://old.example/', 'https://recent.example/page#top', 'https://never.example/', 'https://both.example/',
+      'view-source:https://old.example/', 'view-source:https://recent.example/page', 'data:text/html,private'
+    ])
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-closed-tabs-test-'))
+    temporaryDirectories.push(directory)
+    let now = Date.now() - 3 * hour
+    const history = new HistoryStore(join(directory, 'history.json'), () => now)
+    await history.load()
+    await history.record({ url: 'https://old.example/', title: 'Old' })
+    await history.record({ url: 'https://both.example/', title: 'Both' })
+    now = Date.now()
+    await history.record({ url: 'https://recent.example/page', title: 'Recent' })
+    await history.record({ url: 'https://both.example/', title: 'Both' })
+    const handlers = new Map<string, (...args: unknown[]) => unknown>()
+    const forgetAgentStepsSince = vi.fn()
+    registerBrowsingDataIpc({
+      assertTrustedSender: () => undefined,
+      handleBrowserIpc: ((channel: string, listener: (...args: unknown[]) => unknown) => { handlers.set(channel, listener) }) as never,
+      tabs: () => ({ ...tabs, getState: () => ({ tabs: [] }) }) as never,
+      historyStore: () => history,
+      bookmarkStore: () => null,
+      credentialStore: () => null,
+      sitePermissionStore: () => null,
+      mcpServer: () => ({ forgetAgentStepsSince }),
+      publishVisitHistory: () => undefined,
+      currentBrowsingDataSiteSummary: async () => { throw new Error('Not used') },
+      clearWebsiteData: async () => { throw new Error('Not used') }
+    })
+    const clear = async (options: unknown) => handlers.get('browsing-data:clear')!({}, options)
+    const before = Date.now()
+    forgetTrustedCertificates.mockClear()
+    await clear({ history: true, timeRange: 'lastHour' })
+    // As in Chrome, every certificate the person chose to trust anyway goes, whatever the time range.
+    expect(forgetTrustedCertificates).toHaveBeenCalledOnce()
+    expect(forgotAll()).toBe(true)
+    expect(history.list().map(({ url, visitCount }) => [url, visitCount])).toEqual([['https://both.example/', 1], ['https://old.example/', 1]])
+    expect(closedTabs.map((tab) => tab.url)).toEqual(['https://old.example/', 'view-source:https://old.example/'])
+    expect(forgetAgentStepsSince).toHaveBeenCalledOnce()
+    const [since] = forgetAgentStepsSince.mock.calls[0] as [number]
+    expect(since).toBeGreaterThanOrEqual(before - hour)
+    expect(since).toBeLessThanOrEqual(Date.now() - hour)
+
+    for (const options of [
+      { history: true, timeRange: 'lastYear' },
+      { history: true, timeRange: 3_600_000 },
+      // A website's history is cleared for all time, as in Chrome.
+      { history: true, origin: 'https://old.example', timeRange: 'lastHour' }
+    ]) await expect(clear(options)).rejects.toThrow('Invalid history clearing options')
+    await clear({ history: true, timeRange: 'allTime' })
+    expect(history.list()).toEqual([])
+    expect(closedTabs).toEqual([])
+    // All time: every step agents took goes.
+    expect(forgetAgentStepsSince).toHaveBeenCalledTimes(2)
+    expect(forgetAgentStepsSince.mock.calls[1]).toEqual([])
+  })
+
+  it('forgets the closed tabs of a website whose history an agent clears, only in its workspace', async () => {
+    const { closedTabs, tabs } = recentlyClosed(['https://shop.example/cart', ...otherWebsites, 'https://news.example/'], 'workspace')
+    // The person's tab on the website in another workspace is not the agent's to forget.
+    closedTabs.push(closedTab('https://shop.example/orders', 'other-workspace'))
     const history = await historyWith(['https://shop.example/cart'])
-    const browserSession = { cookies: { get: async () => [] } }
+    const browserSession = { cookies: { get: async () => [] }, clearData: vi.fn(async () => undefined) }
     const { agentSiteData } = createSiteData({
       tabs: () => ({
         ...tabs,
@@ -171,14 +272,21 @@ describe('recently closed tabs and the history', () => {
       historyStore: () => history,
       publishVisitHistory: () => undefined
     })
+    forgetTrustedCertificates.mockClear()
     await agentSiteData.clear('workspace', 'https://shop.example', ['history'])
-    expect(closedTabs.map((tab) => tab.url)).toEqual([...otherWebsites, 'https://news.example/'])
+    expect(tabs.forgetHistoryPages).toHaveBeenCalledWith(expect.any(Function), 'workspace')
+    expect(forgetTrustedCertificates).toHaveBeenCalledExactlyOnceWith({ host: 'shop.example', session: browserSession })
+    expect(closedTabs.map((tab) => tab.url)).toEqual([...otherWebsites, 'https://news.example/', 'https://shop.example/orders'])
+    // Clearing only the website's cache keeps them, as in Chrome.
+    await agentSiteData.clear('workspace', 'https://shop.example', ['cache'])
+    expect(browserSession.clearData).toHaveBeenCalledOnce()
+    expect(forgetTrustedCertificates).toHaveBeenCalledOnce()
   })
 
   it('keeps a closed tab forgotten when the history is cleared while it reopens and reopening it fails', async () => {
-    const { closedTabs, access, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
-    const reopening = reopenClosedTabEntry(access, closedTabs[0]!.id, true)
-    tabs.forgetClosedTabs(() => true)
+    const { closedTabs, browser, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
+    const reopening = reopenClosedTabEntry(browser, closedTabs[0]!.id, true)
+    tabs.forgetHistoryPages(() => true)
     failOpening(new Error('The tab could not be opened.'))
     await expect(reopening).rejects.toThrow('could not be opened')
     // The failed reopening used to put the statement back in Recently closed, after Clear all had forgotten it.
@@ -186,9 +294,9 @@ describe('recently closed tabs and the history', () => {
   })
 
   it('remembers a closed tab again when reopening it fails and the history cleared meanwhile did not show it', async () => {
-    const { closedTabs, access, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
-    const reopening = reopenClosedTabEntry(access, closedTabs[0]!.id, true)
-    tabs.forgetClosedTabs((url) => url === 'https://news.example/')
+    const { closedTabs, browser, failOpening, tabs } = recentlyClosed(['https://bank.example/statement', 'https://news.example/'])
+    const reopening = reopenClosedTabEntry(browser, closedTabs[0]!.id, true)
+    tabs.forgetHistoryPages((url) => url === 'https://news.example/')
     failOpening(new Error('The tab could not be opened.'))
     await expect(reopening).rejects.toThrow('could not be opened')
     expect(closedTabs.map((tab) => tab.url)).toEqual(['https://bank.example/statement'])
@@ -196,24 +304,26 @@ describe('recently closed tabs and the history', () => {
 })
 
 describe('the tab manager forgetting recently closed tabs', () => {
-  it('publishes the state, without saving the session, only when it forgets one, also one held aside', () => {
+  it('publishes the state, without saving the session, only when it forgets one, also one held aside', async () => {
+    const { forgetHistoryPages } = await vi.importActual<typeof import('../src/main/browser/tab-history-pages/forget-history-pages.js')>('../src/main/browser/tab-history-pages/forget-history-pages.js')
     const reopening = [closedTab('https://bank.example/statement')]
     const changed = vi.fn()
     const internals = {
       closedTabs: [closedTab('https://news.example/'), closedTab('https://bank.example/')],
       detachedClosedTabs: new Set([reopening]),
+      tabs: new Map(),
       changed
     }
-    const manager = Object.assign(Object.create(BrowserTabsManager.prototype), internals) as BrowserTabsManager
-    manager.forgetClosedTabs((url) => url.startsWith('https://mail.example/'))
+    const manager = Object.assign(Object.create(Browser.prototype), internals) as Browser
+    forgetHistoryPages(manager, (url) => url.startsWith('https://mail.example/'))
     expect(changed).not.toHaveBeenCalled()
 
     // A tab held aside while it reopens is forgotten too, so it cannot come back.
-    manager.forgetClosedTabs((url) => url === 'https://bank.example/statement')
+    forgetHistoryPages(manager, (url) => url === 'https://bank.example/statement')
     expect(reopening).toEqual([])
     expect(changed).toHaveBeenCalledExactlyOnceWith(false)
 
-    manager.forgetClosedTabs((url) => url.startsWith('https://bank.example/'))
+    forgetHistoryPages(manager, (url) => url.startsWith('https://bank.example/'))
     expect(internals.closedTabs.map((tab) => tab.url)).toEqual(['https://news.example/'])
     expect(changed).toHaveBeenCalledTimes(2)
     expect(changed).toHaveBeenLastCalledWith(false)

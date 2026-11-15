@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/vue'
 import { afterEach, expect, it, vi } from 'vitest'
-import SplitViewDivider from '../../src/renderer/src/components/SplitViewDivider.vue'
+import SplitViewDivider from '../../src/renderer/src/features/split-view/SplitViewDivider.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { HronautSplitDividerApi, SplitDividerGeometry } from '../../src/shared/split-view.js'
 

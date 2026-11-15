@@ -1,11 +1,15 @@
 import { nativeTheme } from 'electron'
-import type { ToastOverlay } from '../toast-overlay.js'
-import type { SidebarOverlay } from '../sidebar-overlay.js'
+import type { ToastOverlay } from '../overlays/toast-overlay.js'
+import type { SidebarOverlay } from '../overlays/sidebar-overlay.js'
+import type { StatusBubbleOverlay } from '../overlays/status-bubble-overlay.js'
 import type { AddressSuggestionOverlay } from './address-suggestion-overlay.js'
 import type { MainWindowRefs } from './main-window.js'
+import { applyMainWindowMinimumSize } from './main-window-minimum-size.js'
 import type { PanelWindowRefs } from './panel-window.js'
 import { CYBERPUNK_TURBO_COLORS, themeColorScheme, type ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, RendererSettingsState, ThemeName } from '../../shared/types.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
+import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
 
 /** Each theme's window background, which the main and panel windows show before and behind the shell. */
 export const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
@@ -42,7 +46,9 @@ interface WindowAppearanceHost {
   toastOverlay: Pick<ToastOverlay, 'relayout'>
   /** The tab rail opened over the page, which the scale resizes. */
   sidebarOverlay: Pick<SidebarOverlay, 'relayout'>
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  /** The status bubble at a page's corner, which the scale resizes and the theme colors. */
+  statusBubble: Pick<StatusBubbleOverlay, 'layoutChanged'>
+  sendToShellWindows: EventSender
   currentRendererSettingsState(): RendererSettingsState
 }
 
@@ -60,6 +66,7 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
     host.applyMainWindowBackground()
     host.panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
     host.applyMainWindowTitleBarOverlay()
+    host.statusBubble.layoutChanged()
   }
 
   function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
@@ -68,10 +75,13 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
         window.webContents.setZoomFactor(scale)
       }
     }
+    const mainWindow = host.mainWindowRefs.window
+    if (mainWindow && !mainWindow.isDestroyed()) applyMainWindowMinimumSize(mainWindow, scale)
     host.addressSuggestionOverlay.setZoomFactor(scale)
     host.applyMainWindowTitleBarOverlay()
     host.toastOverlay.relayout()
     host.sidebarOverlay.relayout()
+    host.statusBubble.layoutChanged()
   }
 
   /** Repaints both windows and tells both shells when the system's appearance changes; startup calls it once. */
@@ -81,11 +91,12 @@ export function createWindowAppearance(host: WindowAppearanceHost): {
       if (host.settings().theme === 'system') {
         host.panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
         host.applyMainWindowTitleBarOverlay()
+        host.statusBubble.layoutChanged()
       }
       // The system theme, reduced transparency or a high-contrast mode can each bring the material or take it away.
       host.applyMainWindowBackground()
-      host.sendToShellWindows('settings:system-theme-changed', systemTheme)
-      host.sendToShellWindows('settings:renderer-state-changed', host.currentRendererSettingsState())
+      host.sendToShellWindows(SETTINGS_IPC.systemThemeChanged, systemTheme)
+      host.sendToShellWindows(SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())
     })
   }
 

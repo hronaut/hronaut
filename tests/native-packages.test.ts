@@ -240,7 +240,7 @@ function linesIn(script: string, ...lines: string[]): number[] {
 
 describe('the packaging workflows', () => {
   it.each([
-    ['release.yml', 'build-macos', 'mac', 'npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never -c.mac.forceCodeSigning=true'],
+    ['release.yml', 'build-macos', 'mac', 'npx electron-builder --mac dmg zip --x64 --arm64 --publish never -c.mac.forceCodeSigning=true'],
     ['release.yml', 'build-linux', 'linux', 'npx electron-builder --linux "$PACKAGE_TARGET" --x64 --arm64 --publish never'],
     ['ci.yml', 'package-macos-release-candidate', 'mac', 'npx electron-builder --mac --publish never -c.mac.forceCodeSigning=true']
   ])('install both CPUs\' packages after npm ci and before the %s %s build, and check the apps after it', async (file, job, system, build) => {

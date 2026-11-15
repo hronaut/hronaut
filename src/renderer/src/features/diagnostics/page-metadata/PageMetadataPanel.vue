@@ -2,7 +2,7 @@
 import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../../../ui/UiButton.vue'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'

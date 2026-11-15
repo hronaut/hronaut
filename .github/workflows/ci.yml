@@ -31,8 +31,10 @@ jobs:
         run: npm ci
 
       # ESLint's cache is left out: its type-aware rules depend on other files, and a cached result for an unchanged
-      # file hid an error that a change elsewhere caused.
+      # file hid an error that a change elsewhere caused. A release rehearsal typechecks from scratch as the release
+      # does, because the release takes its result.
       - name: Restore static-analysis state
+        if: ${{ !startsWith(github.ref_name, 'release/') }}
         uses: actions/cache/restore@v6
         with:
           path: |
@@ -60,31 +62,43 @@ jobs:
           key: static-analysis-v3-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'package.json', 'eslint.config.mjs', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-${{ github.sha }}
 
   integration-shard:
-    name: Electron integration shard ${{ matrix.shard }}/8
+    name: Electron integration shard ${{ matrix.shard }}/12
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
       - name: Run Electron integration tests in Docker
         env:
-          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"
-          HRONAUT_INTEGRATION_SHARD_WORKERS: "1"
+          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"
+          HRONAUT_INTEGRATION_SHARD_WORKERS: "2"
           HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
+          HRONAUT_INTEGRATION_RUN_PERFORMANCE: "${{ matrix.shard == 2 }}"
         run: bash scripts/run-integration-ci.sh
 
+      # Also after a pass that needed a flaky-test recheck: the first failures' traces are what the fix needs.
       - name: Upload Electron failure diagnostics
-        if: failure()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: ci-artifacts/
           if-no-files-found: ignore
           retention-days: 7
+
+      # How long each test took, to refresh tests/integration/durations.json (see CONTRIBUTING.md).
+      - name: Upload Electron test durations
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: durations-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: test-durations/
+          if-no-files-found: ignore
+          retention-days: 30
 
   integration:
     name: integration

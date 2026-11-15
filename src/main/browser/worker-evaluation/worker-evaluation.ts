@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
-import { javascriptLiteral } from '../../../shared/javascript-literal.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import {
   WORKER_EVALUATION_CAVEATS,
@@ -9,6 +9,7 @@ import {
   type WorkerListReport,
   type WorkerSummary
 } from '../../../shared/worker-evaluation.js'
+import { workerResultInPage } from './worker-evaluation.page.js'
 
 interface WorkerTab {
   id: string
@@ -215,15 +216,7 @@ async function withAttachedWorkers<R>(
 
 /** Wraps the script so the worker returns its value as bounded JSON text, which crosses the protocol whatever its size. */
 function workerScript(script: string): string {
-  const limit = WORKER_EVALUATION_LIMITS.maxResultChars
-  return `(async () => {
-    const value = await (0, eval)(${javascriptLiteral(script)});
-    if (value === undefined) return { kind: 'undefined' };
-    let text;
-    try { text = JSON.stringify(value); } catch { return { kind: 'unserializable' }; }
-    if (typeof text !== 'string') return { kind: 'unserializable' };
-    return text.length > ${limit} ? { kind: 'truncated', text: text.slice(0, ${limit}), totalChars: text.length } : { kind: 'json', text };
-  })()`
+  return pageScript(workerResultInPage, script, WORKER_EVALUATION_LIMITS.maxResultChars)
 }
 
 /** Reads the wrapper's answer again in the main process, since worker code can replace what the wrapper calls. */

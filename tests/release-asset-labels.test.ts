@@ -5,6 +5,7 @@ describe('release asset labels', () => {
   it.each([
     ['release-history.json', 'Verified release history'],
     ['hashes.txt', 'SHA-256 checksums'],
+    ['hronaut-sbom.cdx.json', 'Software bill of materials (CycloneDX)'],
     ['hronaut-mcp-server.json', 'MCP Registry metadata'],
     ['hronaut-operator-manifest.json', 'Version-matched agent operator contract'],
     ['hronaut-mcp-adapter-1.11.35.mcpb', 'MCPB adapter'],

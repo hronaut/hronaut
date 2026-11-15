@@ -71,7 +71,7 @@ export class ActivityFailureDiagnostics {
 
   main<T>(operation: () => Promise<T>, label: 'state' | 'failure-probe' = 'state'): Promise<T> {
     return this.observe('main', label, operation, value => label === 'failure-probe' && value && typeof value === 'object' && 'unavailable' in value
-      ? value.unavailable === 'Main process did not respond to diagnostics within 1000ms' ? 'deadline-exceeded' : 'rejected'
+      ? value.unavailable === 'Main process did not respond to diagnostics within 2000ms' ? 'deadline-exceeded' : 'rejected'
       : 'completed')
   }
 

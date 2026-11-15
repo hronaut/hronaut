@@ -1,33 +1,17 @@
 import { createHash } from 'node:crypto'
 import { nativeImage, type WebContents } from 'electron'
-import { snapshotDeltaInvalidationReason, type BrowserSnapshotDeltaContext } from '../../../shared/snapshot-delta.js'
+import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import type { BrowserScreenshotFormat } from '../../../shared/types.js'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
+import type { Browser } from '../browser.js'
+import { screenshot } from '../screenshots/screenshots.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
 
 const SCREENSHOT_OBSERVATION_WORLD_ID = ISOLATED_WORLDS.screenshotObservation
 
 /** How long one geometry read may take. A page held by a dialog, a debugger pause or a busy script never answers. */
 export const TRACKED_SCREENSHOT_GEOMETRY_TIMEOUT_MS = 1_000
-
-/** The tab fields a tracked screenshot reads. */
-export interface TrackedScreenshotTab {
-  id: string
-  webContents: WebContents
-}
-
-/**
- * What a tracked screenshot needs from the tab manager, which keeps the tabs,
- * the observation context and the CSS state preview private and owns the
- * ordinary viewport capture.
- */
-export interface TrackedScreenshotAccess<Tab extends TrackedScreenshotTab> {
-  getTab(tabId?: string): Tab
-  findTab(tabId: string): Tab | undefined
-  snapshotDeltaContext(tab: Tab): BrowserSnapshotDeltaContext
-  /** The forced CSS state on the tab, if any: which states on which selector, since when, and whether its removal is uncertain. */
-  cssStatePreview(tab: Tab): { states: string[]; selector: string; startedAt: string; resetUncertain?: boolean } | undefined
-  captureViewport(options: TrackedScreenshotOptions & { tabId: string }): Promise<{ data: Buffer; mimeType: 'image/png' | 'image/jpeg' }>
-}
 
 export interface TrackedScreenshotOptions {
   tabId?: string
@@ -35,6 +19,12 @@ export interface TrackedScreenshotOptions {
   quality?: number
   maxWidth?: number
   maxHeight?: number
+}
+
+/** The forced CSS state on the tab, if any: which states on which selector, since when, and whether its removal is uncertain. */
+function forcedCssState(browser: Browser, tab: BrowserTab): { states: string[]; selector: string; startedAt: string; resetUncertain?: boolean } | undefined {
+  const summary = browser.cssStatePreview.summary(tab)
+  return summary ? { states: [...summary.states], selector: summary.selector, startedAt: summary.startedAt, ...(summary.resetUncertain ? { resetUncertain: true } : {}) } : undefined
 }
 
 /** Why a tracked screenshot cannot be compared with any other. */
@@ -45,7 +35,7 @@ export interface TrackedScreenshot {
   tabId: string
   data: Buffer
   mimeType: 'image/png' | 'image/jpeg'
-  /** The SHA-256 of the image's decoded pixels and its size. Compared within this session, never published. */
+  /** The SHA-256 of the image's pixels and its size. Compared within this session, never published. */
   pixels: { digest: string; width: number; height: number }
   /**
    * Everything two captures must share to be compared: the tab, its document, observation and human input
@@ -57,32 +47,30 @@ export interface TrackedScreenshot {
 }
 
 /**
- * Captures the tab's viewport as an ordinary screenshot and fingerprints the
- * decoded image, so the caller can tell whether a later capture shows the same
+ * Captures the tab's viewport as an ordinary screenshot and fingerprints its
+ * pixels, so the caller can tell whether a later capture shows the same
  * pixels. The page's geometry is read in the tracked screenshot's own isolated
  * world before and after the capture, each read bounded in time; nothing on
  * the page is changed. A page that does not answer still gets its screenshot,
  * which then cannot be compared.
  */
-export async function trackedViewportScreenshot<Tab extends TrackedScreenshotTab>(access: TrackedScreenshotAccess<Tab>, options: TrackedScreenshotOptions): Promise<TrackedScreenshot> {
-  const tab = access.getTab(options.tabId)
-  const context = access.snapshotDeltaContext(tab)
-  const preview = JSON.stringify(access.cssStatePreview(tab) ?? null)
+export async function trackedViewportScreenshot(browser: Browser, options: TrackedScreenshotOptions): Promise<TrackedScreenshot> {
+  const tab = getTab(browser, options.tabId)
+  const context = browser.snapshotDeltaContext(tab)
+  const preview = JSON.stringify(forcedCssState(browser, tab) ?? null)
   const before = await viewportGeometry(tab.webContents)
   const captureOptions = comparableCaptureOptions(options)
-  const image = await access.captureViewport({ ...captureOptions, tabId: tab.id })
+  const image = await screenshot(browser, { ...captureOptions, tabId: tab.id })
   // A page that did not answer before the capture is not asked again.
   const after = before === undefined ? undefined : await viewportGeometry(tab.webContents)
-  const decoded = nativeImage.createFromBuffer(image.data)
-  const empty = decoded.isEmpty()
-  const { width, height } = empty ? { width: 0, height: 0 } : decoded.getSize()
-  const digest = empty ? '' : createHash('sha256').update(`${width}x${height}:`).update(decoded.toBitmap()).digest('hex')
-  const capture = { tabId: tab.id, data: image.data, mimeType: image.mimeType, pixels: { digest, width, height } }
+  const pixels = image.pixels ?? decodedPixels(image.data)
+  const empty = pixels.width === 0
+  const capture = { tabId: tab.id, data: image.data, mimeType: image.mimeType, pixels }
   if (empty) return { ...capture, untracked: 'empty-capture' }
   if (before === undefined || after === undefined) return { ...capture, untracked: 'geometry-unavailable' }
-  const stable = access.findTab(tab.id) === tab && !tab.webContents.isDestroyed()
-    && !snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))
-    && JSON.stringify(access.cssStatePreview(tab) ?? null) === preview
+  const stable = findTab(browser, tab.id) === tab && !tab.webContents.isDestroyed()
+    && !snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))
+    && JSON.stringify(forcedCssState(browser, tab) ?? null) === preview
     && before === after
   if (!stable) return { ...capture, untracked: 'changed-during-capture' }
   return { ...capture, comparable: JSON.stringify({ context, preview, geometry: after, options: captureOptions }) }
@@ -116,4 +104,12 @@ async function viewportGeometry(webContents: WebContents): Promise<string | unde
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** The fingerprint of an image's decoded pixels and its size, for a capture that came without one, as a JPEG. */
+function decodedPixels(data: Buffer): TrackedScreenshot['pixels'] {
+  const decoded = nativeImage.createFromBuffer(data)
+  if (decoded.isEmpty()) return { digest: '', width: 0, height: 0 }
+  const { width, height } = decoded.getSize()
+  return { digest: createHash('sha256').update(`${width}x${height}:`).update(decoded.toBitmap()).digest('hex'), width, height }
 }

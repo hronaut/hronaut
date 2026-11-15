@@ -3,9 +3,9 @@ import { EventEmitter } from 'node:events'
 import { access, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import type { DownloadItem, Session } from 'electron'
+import type { DownloadItem, NativeImage, Session, WebContents } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
-import { BrowserDownloadsController } from '../src/main/browser/downloads-controller.js'
+import { BrowserDownloadsController } from '../src/main/browser/downloads/downloads-controller.js'
 import { LocalizedError } from '../src/main/localized-error.js'
 import { translate } from '../src/shared/i18n.js'
 import type { BrowserDownloadState } from '../src/shared/types.js'
@@ -20,7 +20,11 @@ vi.mock('node:fs/promises', async importOriginal => {
   return { ...actual, access: vi.fn(actual.access) }
 })
 
-vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() } }))
+vi.mock('electron', () => ({
+  shell: { showItemInFolder: vi.fn() },
+  app: { getFileIcon: vi.fn(async () => ({ icon: 'file', isEmpty: () => false })) },
+  nativeImage: { createFromBitmap: vi.fn(() => ({ icon: 'page', isEmpty: () => false })) }
+}))
 
 const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => {
@@ -30,19 +34,32 @@ afterEach(async () => {
 async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platform) {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-download-controller-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
-  const session = new EventEmitter()
+  const downloadURL = vi.fn()
+  const session = Object.assign(new EventEmitter(), { downloadURL })
   const generations = new Map([['first', 0], ['second', 0]])
+  const openWorkspaces = new Set(['first', 'second'])
+  /** Addresses the workspaces' Site access does not allow. */
+  const deniedAddresses = new Set<string>()
   const published: BrowserDownloadState[][] = []
+  const ready: (number | undefined)[] = []
+  /** The file each ready download was saved as in the save dialog, if it was asked for. */
+  const savedFromDialog: (string | undefined)[] = []
   const controller = new BrowserDownloadsController({
     getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads }),
-    getSource: id => ({ tabId: String(id), workspaceId: id === 1 ? 'first' : 'second', observationGeneration: 0 }),
+    // Tab 3's page is in no workspace.
+    getSource: id => ({ tabId: String(id), workspaceId: id === 1 ? 'first' : id === 3 ? undefined : 'second', observationGeneration: 0 }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
+    isWorkspaceOpen: id => openWorkspaces.has(id),
+    retrySession: id => (openWorkspaces.has(id) ? session as unknown as Session : undefined),
+    allowsAddress: (_id, url) => !deniedAddresses.has(url),
+    downloadReady: (id, saved) => { ready.push(id); savedFromDialog.push(saved) },
     isAvailable: () => true,
     publish: downloads => { published.push(downloads) }
   }, platform)
   cleanups.push(() => controller.destroy())
-  controller.attachSession(session as Session)
-  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt', contentDisposition = '', urlChain = [url]) {
+  controller.attachSession(session as unknown as Session)
+  /** A download from the page of tab `tabId`, or from no page with `null`, as a retry starts. */
+  function download(tabId: number | null = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt', contentDisposition = '', urlChain = [url]) {
     const item = new EventEmitter()
     let state: 'progressing' | 'interrupted' | 'completed' | 'cancelled' = 'progressing'
     let savePath = ''
@@ -78,14 +95,14 @@ async function fixture(askWhereToSaveDownloads = false, platform?: NodeJS.Platfo
       cancel
     })
     const event = { preventDefault: vi.fn() }
-    session.emit('will-download', event, item as DownloadItem, { id: tabId })
+    session.emit('will-download', event, item as DownloadItem, tabId === null ? null : { id: tabId })
     return {
       event, cancel, pause, resume, item,
       interrupt: () => { state = 'interrupted'; item.emit('updated', {}, state) },
       complete: () => { state = 'completed'; item.emit('done', {}, state) }
     }
   }
-  return { controller, session, generations, download, published }
+  return { controller, session, downloadURL, generations, openWorkspaces, deniedAddresses, download, published, ready, savedFromDialog }
 }
 
 it('redacts URL credentials and token parameters before exposing download history', async () => {
@@ -121,7 +138,7 @@ it('cuts a very long download address at 4,096 characters', async () => {
 
 it('preserves workspace ownership and excludes a live download from a new observation generation', async () => {
   const { controller, session, generations, download } = await fixture()
-  controller.attachSession(session as Session)
+  controller.attachSession(session as unknown as Session)
   const first = download()
   const second = download(2)
   const [entry] = controller.manageWorkspaceDownloads('first', 'list')
@@ -210,7 +227,7 @@ it('releases only its own session and transfer listeners when destroyed', async 
   expect(transfer.item.listenerCount('done')).toBe(0)
   transfer.complete()
   expect(controller.listDownloads()).toEqual(before)
-  controller.attachSession(session as Session)
+  controller.attachSession(session as unknown as Session)
   download()
   expect(controller.listDownloads()).toEqual(before)
   expect(otherSessionListener).toHaveBeenCalledOnce()
@@ -271,8 +288,9 @@ it.each([false, true])('records native download setup failure without throwing o
   ])
   expect(controller.manageWorkspaceDownloads('second', 'list')).toEqual([])
   controller.manageDownloads('clear')
-  download()
-  expect(controller.listDownloads()[0]?.filename).toBe('file.txt')
+  const next = download().item as DownloadItem
+  // The save dialog proposes the freed name, and the download is listed once it is chosen.
+  expect(basename((dialog ? next.getSaveDialogOptions().defaultPath : next.getSavePath()) ?? '')).toBe('file.txt')
 })
 
 it('frees the name of a download whose setup failed in any spelling on macOS', async () => {
@@ -489,12 +507,94 @@ it('keeps the address\'s name when a saved link redirects to another site', asyn
   expect(savedAs(download(1, false, 'https://download.example/files/5', '5.csv', '', ['https://download.example/export?id=5', 'https://download.example/files/5']))).toBe('report.csv')
 })
 
+it('names a file Hronaut makes itself, such as a QR code image, though its address has no origin', async () => {
+  // A QR code's image downloads from a data: address, whose origin Save Link As's check refuses, so it was download.png.
+  const { controller, download } = await fixture()
+  const savedAs = (transfer: { item: unknown }) => basename((transfer.item as DownloadItem).getSavePath())
+  const image = 'data:image/png;base64,iVBORw0KGgo='
+  controller.expectGeneratedFile(1, image, 'qrcode_hronaut.dev.png')
+  expect(savedAs(download(2, false, image, 'download.png'))).toBe('download.png')
+  expect(savedAs(download(1, false, image, 'download.png'))).toBe('qrcode_hronaut.dev.png')
+  // The name is used once, by the download it was given for.
+  expect(savedAs(download(1, false, image, 'download.png'))).toBe('download (1).png')
+})
+
+it('saves the file of a document Save Page As downloads to the file the person chose there, without asking again', async () => {
+  for (const asking of [false, true]) {
+    const { controller, download, ready } = await fixture(asking)
+    const url = 'https://cdn.example/photos/sunset.png'
+    const chosen = join(tmpdir(), 'chosen', 'Sunset at the lake.png')
+    controller.expectSavedFile(1, `${url}#view`, chosen)
+    // Another page's download of that address is its own.
+    expect((download(2, false, url, 'sunset.png').item as DownloadItem).getSavePath()).not.toBe(chosen)
+    const saved = download(1, false, url, 'sunset.png')
+    expect((saved.item as DownloadItem).getSavePath()).toBe(chosen)
+    expect((saved.item as DownloadItem).getSaveDialogOptions()).toEqual({})
+    expect(ready.at(-1)).toBe(1)
+    expect(controller.listDownloads().filter(({ savePath }) => savePath === chosen).map(({ filename }) => filename)).toEqual(['Sunset at the lake.png'])
+    saved.complete()
+    // It is used once, by the download it was chosen for.
+    expect((download(1, false, url, 'sunset.png').item as DownloadItem).getSavePath()).not.toBe(chosen)
+  }
+})
+
 it('proposes a saved link\'s name when Hronaut asks where to save it', async () => {
   const { controller, download } = await fixture(true)
   controller.expectSavedLinkName(1, 'https://download.example/export?id=5', 'report.csv')
   const transfer = download(1, false, 'https://download.example/export?id=5', 'export.csv')
-  expect(basename((transfer.item as DownloadItem).getSaveDialogOptions().defaultPath ?? '')).toBe('report.csv')
+  const proposed = (transfer.item as DownloadItem).getSaveDialogOptions().defaultPath ?? ''
+  expect(basename(proposed)).toBe('report.csv')
+  ;(transfer.item as DownloadItem).setSavePath(proposed)
+  transfer.item.emit('updated', {}, 'progressing')
   expect(controller.listDownloads()[0]?.filename).toBe('report.csv')
+})
+
+it('lists a download once the person chose where to save it, and none they cancelled in the save dialog, as Chrome', async () => {
+  // The Downloads panel opened behind the save dialog, and cancelling the dialog left a Cancelled row with no file.
+  const { controller, download, published } = await fixture(true)
+  const cancelled = download(1, false, 'https://download.example/cancelled.txt', 'cancelled.txt')
+  const chosen = download(1, false, 'https://download.example/chosen.txt', 'chosen.txt')
+  expect(controller.listDownloads()).toEqual([])
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([])
+  expect(published.at(-1)).toEqual([])
+
+  cancelled.cancel()
+  chosen.item.emit('updated', {}, 'progressing')
+  expect(controller.listDownloads()).toEqual([])
+  ;(chosen.item as DownloadItem).setSavePath(join(tmpdir(), 'chosen.txt'))
+  chosen.item.emit('updated', {}, 'progressing')
+  // Published at once, so the panel opens as the dialog closes.
+  expect(published.at(-1)?.map(({ filename, state }) => ({ filename, state }))).toEqual([{ filename: 'chosen.txt', state: 'progressing' }])
+  chosen.complete()
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ filename, state }) => ({ filename, state })))
+    .toEqual([{ filename: 'chosen.txt', state: 'completed' }])
+})
+
+it('says which file the person chose in the save dialog, so the next dialog starts in its folder, as in Chrome', async () => {
+  const asking = await fixture(true)
+  const chosen = asking.download(1, false, 'https://download.example/chosen.txt', 'chosen.txt')
+  ;(chosen.item as DownloadItem).setSavePath(join(tmpdir(), 'picked', 'chosen.txt'))
+  chosen.item.emit('updated', {}, 'progressing')
+  asking.download(1, false, 'https://download.example/cancelled.txt', 'cancelled.txt').cancel()
+  // A small file can finish before Electron says it is under way.
+  const quick = asking.download(1, false, 'https://download.example/quick.txt', 'quick.txt')
+  ;(quick.item as DownloadItem).setSavePath(join(tmpdir(), 'other', 'quick.txt'))
+  quick.complete()
+  expect(asking.savedFromDialog).toEqual([join(tmpdir(), 'picked', 'chosen.txt'), undefined, join(tmpdir(), 'other', 'quick.txt')])
+
+  // A download saved without asking leaves the save dialog's folder alone.
+  const saving = await fixture()
+  saving.download(1).complete()
+  expect(saving.savedFromDialog).toEqual([undefined])
+})
+
+it('keeps a download that has its file when it is cancelled, as Chrome lists it as Cancelled', async () => {
+  const { controller, download } = await fixture(true)
+  const transfer = download(1, false, 'https://download.example/kept.txt', 'kept.txt')
+  ;(transfer.item as DownloadItem).setSavePath(join(tmpdir(), 'kept.txt'))
+  transfer.item.emit('updated', {}, 'progressing')
+  controller.manageDownloads('cancel', controller.listDownloads()[0]!.id)
+  expect(controller.listDownloads().map(({ filename, state }) => ({ filename, state }))).toEqual([{ filename: 'kept.txt', state: 'cancelled' }])
 })
 
 it('uses up a saved link\'s name when a full history refuses its download', async () => {
@@ -640,6 +740,79 @@ it('checks finished files when a new download opens the panel', async () => {
   await vi.waitFor(() => expect(controller.listDownloads().find(item => item.filename === 'a.txt')?.fileRemoved).toBe(true))
 })
 
+it('drags a finished file out from the window it is dragged in, with its icon, and says when the file is gone', async () => {
+  const { app } = await import('electron')
+  const { controller, download, published } = await fixture()
+  const sender = { isDestroyed: () => false, startDrag: vi.fn() }
+  const drag = (id: string) => controller.startDownloadDrag(id, sender as unknown as WebContents)
+  download().complete()
+  const [entry] = controller.listDownloads()
+  const iconReads = () => vi.mocked(app.getFileIcon).mock.calls.filter(([path]) => path === entry!.savePath)
+  // The icon is read when the file finishes, so a drag does not wait for it while the person holds the pointer.
+  expect(iconReads()).toEqual([[entry!.savePath, { size: 'normal' }]])
+  await writeFile(entry!.savePath!, 'saved')
+  await drag(entry!.id)
+  expect(sender.startDrag).toHaveBeenCalledExactlyOnceWith({ file: entry!.savePath, icon: expect.objectContaining({ icon: 'file' }) })
+  await drag(entry!.id)
+  expect(sender.startDrag).toHaveBeenCalledTimes(2)
+  expect(iconReads()).toHaveLength(1)
+  await rm(entry!.savePath!)
+  const failure = await drag(entry!.id).catch((error: unknown) => error)
+  expect(failure).toBeInstanceOf(LocalizedError)
+  expect((failure as LocalizedError).key).toBe('appErrors.downloads.dragFileRemoved')
+  expect((failure as Error).message).toBe('This file was moved or deleted, so it cannot be dragged.')
+  expect(published.at(-1)?.[0]?.fileRemoved).toBe(true)
+  expect(sender.startDrag).toHaveBeenCalledTimes(2)
+  await expect(drag('gone')).rejects.toThrow('This download is no longer in the list.')
+})
+
+it('drags only a completed download, and not into a window that closed meanwhile', async () => {
+  const { controller, download } = await fixture()
+  const sender = { isDestroyed: vi.fn(() => false), startDrag: vi.fn() }
+  const drag = (id: string) => controller.startDownloadDrag(id, sender as unknown as WebContents)
+  const transfer = download()
+  const [entry] = controller.listDownloads()
+  const refusal = await drag(entry!.id).catch((error: unknown) => error)
+  expect((refusal as LocalizedError).key).toBe('appErrors.downloads.dragNotCompleted')
+  expect((refusal as Error).message).toBe('Only a completed download can be dragged.')
+  transfer.complete()
+  const [done] = controller.listDownloads()
+  await writeFile(done!.savePath!, 'saved')
+  sender.isDestroyed.mockReturnValue(true)
+  await drag(done!.id)
+  expect(sender.startDrag).not.toHaveBeenCalled()
+})
+
+it('drags nothing out of a download removed while its file is checked or its icon read', async () => {
+  const { app } = await import('electron')
+  const { controller, download } = await fixture()
+  const sender = { isDestroyed: () => false, startDrag: vi.fn() }
+  const drag = (id: string) => controller.startDownloadDrag(id, sender as unknown as WebContents)
+  // Removed while the file is checked.
+  download().complete()
+  const [checked] = controller.listDownloads()
+  await writeFile(checked!.savePath!, 'saved')
+  let finishCheck!: () => void
+  vi.mocked(access).mockImplementationOnce(() => new Promise<void>(resolve => { finishCheck = resolve }))
+  const whileChecked = drag(checked!.id).catch((error: unknown) => error)
+  await vi.waitFor(() => expect(access).toHaveBeenLastCalledWith(checked!.savePath))
+  controller.removeFinishedDownload(checked!.id)
+  finishCheck()
+  expect(((await whileChecked) as LocalizedError).key).toBe('appErrors.downloads.unavailable')
+  // Removed while its icon is still being read.
+  let finishIcon!: (icon: NativeImage) => void
+  vi.mocked(app.getFileIcon).mockImplementationOnce(() => new Promise(resolve => { finishIcon = resolve }))
+  download(1, false, 'https://download.example/b.txt', 'b.txt').complete()
+  const read = controller.listDownloads().find(item => item.filename === 'b.txt')
+  await writeFile(read!.savePath!, 'saved')
+  const whileRead = drag(read!.id).catch((error: unknown) => error)
+  await vi.waitFor(() => expect(access).toHaveBeenLastCalledWith(read!.savePath))
+  controller.removeFinishedDownload(read!.id)
+  finishIcon({ isEmpty: () => false } as NativeImage)
+  expect(((await whileRead) as LocalizedError).key).toBe('appErrors.downloads.unavailable')
+  expect(sender.startDrag).not.toHaveBeenCalled()
+})
+
 it('opens the folder of a finished file and says when the file was moved or deleted', async () => {
   const { shell } = await import('electron')
   const { controller, download, published } = await fixture()
@@ -679,10 +852,10 @@ it('settles when the downloads of a session that have not ended do, for a closed
   const { controller, session, download } = await fixture()
   const otherSession = new EventEmitter()
   controller.attachSession(otherSession as Session)
-  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+  expect(controller.downloadsEnd(session as unknown as Session)).toBeUndefined()
 
   download().complete()
-  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+  expect(controller.downloadsEnd(session as unknown as Session)).toBeUndefined()
   const receiving = download()
   const paused = download(2)
   paused.pause()
@@ -692,7 +865,7 @@ it('settles when the downloads of a session that have not ended do, for a closed
   // session's are not.
   expect(controller.downloadsEnd(otherSession as Session)).toBeUndefined()
   let ended = false
-  const end = controller.downloadsEnd(session as Session)!.then(() => { ended = true })
+  const end = controller.downloadsEnd(session as unknown as Session)!.then(() => { ended = true })
   const turn = () => new Promise<void>((resolve) => { setImmediate(resolve) })
   receiving.complete()
   paused.cancel()
@@ -701,5 +874,180 @@ it('settles when the downloads of a session that have not ended do, for a closed
   interrupted.cancel()
   await end
   expect(ended).toBe(true)
-  expect(controller.downloadsEnd(session as Session)).toBeUndefined()
+  expect(controller.downloadsEnd(session as unknown as Session)).toBeUndefined()
+})
+
+it('tells the tab manager once that a download has its file, at once or after the save dialog, and when it ends first', async () => {
+  // The tab manager closes a tab a download left empty then, as Chrome does once the file is chosen.
+  const saving = await fixture()
+  const transfer = saving.download(1)
+  expect(saving.ready).toEqual([1])
+  transfer.interrupt()
+  transfer.complete()
+  saving.download(2, true)
+  expect(saving.ready).toEqual([1, 2])
+
+  const asking = await fixture(true)
+  const chosen = asking.download(1)
+  chosen.item.emit('updated', {}, 'progressing')
+  expect(asking.ready).toEqual([])
+  ;(chosen.item as DownloadItem).setSavePath(join(tmpdir(), 'chosen.txt'))
+  chosen.item.emit('updated', {}, 'progressing')
+  chosen.item.emit('updated', {}, 'progressing')
+  expect(asking.ready).toEqual([1])
+  asking.download(2).cancel()
+  expect(asking.ready).toEqual([1, 2])
+
+  // A download a full history refuses leaves its tab as empty as one the person cancels.
+  const full = await fixture()
+  for (let index = 0; index < 200; index += 1) full.download(1, false, `https://download.example/${index}.txt`, `${index}.txt`)
+  expect(full.download(2).event.preventDefault).toHaveBeenCalled()
+  expect(full.ready.at(-1)).toBe(2)
+})
+
+it('offers Retry for a cancelled download and downloads its full address again in its workspace, as Chrome', async () => {
+  const { controller, downloadURL, download } = await fixture()
+  const url = 'https://download.example/file.txt?token=secret'
+  const cancelled = download(1, false, url)
+  const [listedWhileRunning] = controller.listDownloads()
+  expect(listedWhileRunning?.canRetry).toBeUndefined()
+  cancelled.cancel()
+  const [record] = controller.listDownloads()
+  expect(record).toMatchObject({ state: 'cancelled', canRetry: true })
+  // The record keeps its address redacted; only the retry uses it in full.
+  expect(record?.url).not.toContain('secret')
+  const listed = controller.manageDownloads('retry', record!.id)
+  expect(downloadURL).toHaveBeenCalledExactlyOnceWith(url)
+  expect(listed.map(({ id }) => id)).toEqual([record!.id])
+
+  // Started from no page, the retry is the workspace's download, beside the old row.
+  download(null, false, url).complete()
+  const downloads = controller.listDownloads()
+  const again = downloads.find(({ id }) => id !== record!.id)
+  expect(downloads).toHaveLength(2)
+  expect(downloads.find(({ id }) => id === record!.id)).toMatchObject({ state: 'cancelled', canRetry: true })
+  expect(again).toMatchObject({ state: 'completed', filename: 'file.txt' })
+  expect(again?.canRetry).toBeUndefined()
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ id }) => id).sort()).toEqual([again!.id, record!.id].sort())
+  expect(controller.manageWorkspaceDownloads('second', 'list')).toEqual([])
+})
+
+it('offers Retry for a failed download and for one whose folder could not be written', async () => {
+  const { controller, download } = await fixture()
+  const failed = download(1, false, 'https://download.example/failed.txt', 'failed.txt')
+  failed.interrupt()
+  // Chromium can still resume this one, so it offers Resume instead.
+  expect(controller.listDownloads()[0]?.canRetry).toBeUndefined()
+  failed.item.emit('done', {}, 'interrupted')
+  expect(controller.listDownloads()[0]).toMatchObject({ state: 'interrupted', canRetry: true })
+  download(1, true, 'https://download.example/unwritable.txt', 'unwritable.txt')
+  expect(controller.listDownloads().find(({ filename }) => filename === 'unwritable.txt'))
+    .toMatchObject({ state: 'interrupted', failureReason: 'destination-unavailable', canRetry: true })
+})
+
+it('does not offer Retry for a completed download, a blob: or data: address, a page with no workspace, or a closed workspace', async () => {
+  const { controller, downloadURL, openWorkspaces, download } = await fixture()
+  download(1, false, 'https://download.example/done.txt', 'done.txt').complete()
+  download(1, false, 'blob:https://download.example/1b6f5a4e-2c1d-4e3f-9a8b-7c6d5e4f3a2b', 'blob.txt').cancel()
+  download(1, false, 'data:text/plain,hello', 'data.txt').cancel()
+  download(2, false, 'https://download.example/closed.txt', 'closed.txt').cancel()
+  download(3, false, 'https://download.example/nowhere.txt', 'nowhere.txt').cancel()
+  openWorkspaces.delete('second')
+  expect(controller.listDownloads().filter(({ canRetry }) => canRetry)).toEqual([])
+  for (const { id } of controller.listDownloads()) {
+    expect(() => controller.manageDownloads('retry', id)).toThrow(LocalizedError)
+  }
+  expect(() => controller.manageDownloads('retry', 'missing')).toThrow('Download cannot be retried: missing')
+  expect(downloadURL).not.toHaveBeenCalled()
+})
+
+it('lets an agent retry only its own workspace\'s downloads, and forgets the address of a removed record', async () => {
+  const { controller, downloadURL, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
+  const [record] = controller.listDownloads()
+  expect(() => controller.manageWorkspaceDownloads('second', 'retry', record!.id)).toThrow('Download cannot be retried')
+  expect(() => controller.manageWorkspaceDownloads('first', 'retry')).toThrow('downloadId is required to retry a download')
+  expect(controller.manageWorkspaceDownloads('first', 'retry', record!.id)[0]?.canRetry).toBe(true)
+  expect(downloadURL).toHaveBeenCalledOnce()
+  controller.removeFinishedDownload(record!.id)
+  expect(() => controller.manageDownloads('retry', record!.id)).toThrow('Download cannot be retried')
+})
+
+it('gives a retry\'s workspace only to a download of its own address that no page started', async () => {
+  const { controller, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
+  controller.manageDownloads('retry', controller.listDownloads()[0]!.id)
+  // Another download from no page, which the fixture's pages would put in the second workspace.
+  download(null, false, 'https://download.example/other.txt', 'other.txt')
+  // A page's own download of the same address is the page's.
+  download(2, false, 'https://download.example/file.txt')
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toHaveLength(1)
+  expect(controller.manageWorkspaceDownloads('second', 'list')).toHaveLength(2)
+  download(null, false, 'https://download.example/file.txt')
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ state }) => state).sort()).toEqual(['cancelled', 'progressing'])
+  // The retry was taken, so the next such download is no longer the first workspace's.
+  download(null, false, 'https://download.example/file.txt')
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toHaveLength(2)
+  expect(controller.manageWorkspaceDownloads('second', 'list')).toHaveLength(3)
+})
+
+it('keeps a retried transfer in the observation it was asked for in, as a page\'s download', async () => {
+  // A transfer an agent started leaves the agent's list when control of the workspace changes, also while the server
+  // takes its time to answer the retry.
+  const { controller, generations, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
+  controller.manageWorkspaceDownloads('first', 'retry', controller.listDownloads()[0]!.id)
+  generations.set('first', 2)
+  download(null, false, 'https://download.example/file.txt')
+  expect(controller.listDownloads().find(({ state }) => state === 'progressing')?.observationGeneration).toBe(0)
+  expect(controller.manageWorkspaceDownloads('first', 'list').some(({ state }) => state === 'progressing')).toBe(false)
+})
+
+it('stops a retry waiting for its download after five minutes', async () => {
+  const { controller, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
+  vi.useFakeTimers()
+  try {
+    controller.manageDownloads('retry', controller.listDownloads()[0]!.id)
+    vi.advanceTimersByTime(5 * 60_000 + 1)
+    // Too late to be the retry, so no page and no retry names its workspace (the fixture then gives the second).
+    download(null, false, 'https://download.example/file.txt')
+  } finally {
+    vi.useRealTimers()
+  }
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ state }) => state)).toEqual(['cancelled'])
+  expect(controller.manageWorkspaceDownloads('second', 'list').map(({ state }) => state)).toEqual(['progressing'])
+})
+
+it('goes by the workspace\'s Site access, for the address and for every redirect of the retried download', async () => {
+  const { controller, downloadURL, deniedAddresses, download } = await fixture()
+  const url = 'https://download.example/file.txt'
+  download(1, false, url).cancel()
+  const [record] = controller.listDownloads()
+  deniedAddresses.add(url)
+  expect(() => controller.manageDownloads('retry', record!.id)).toThrow('Download cannot be retried')
+  expect(downloadURL).not.toHaveBeenCalled()
+  deniedAddresses.clear()
+  controller.manageDownloads('retry', record!.id)
+  // Electron checks no redirect of a download without a page, so it is refused once it went outside.
+  deniedAddresses.add('https://elsewhere.example/file.txt')
+  const redirected = download(null, false, 'https://elsewhere.example/file.txt', 'file.txt', '', [url, 'https://elsewhere.example/file.txt'])
+  expect(redirected.event.preventDefault).toHaveBeenCalled()
+  expect(controller.listDownloads().map(({ id }) => id)).toEqual([record!.id])
+})
+
+it('drops the retries of a workspace deleted with its data, and republishes when its downloads change hands', async () => {
+  // So Retry shows for what it can retry now, also with the panel open while a workspace is archived or restored.
+  const { controller, published, download } = await fixture()
+  download(1, false, 'https://download.example/file.txt').cancel()
+  controller.manageDownloads('retry', controller.listDownloads()[0]!.id)
+  await vi.waitFor(() => expect(published.length).toBeGreaterThan(0))
+  let count = published.length
+  controller.remapDownloadWorkspaceOwnership('first', 'first')
+  await vi.waitFor(() => expect(published.length).toBeGreaterThan(count))
+  count = published.length
+  controller.forgetWorkspace('first')
+  await vi.waitFor(() => expect(published.length).toBeGreaterThan(count))
+  download(null, false, 'https://download.example/file.txt')
+  expect(controller.manageWorkspaceDownloads('first', 'list').map(({ state }) => state)).toEqual(['cancelled'])
 })

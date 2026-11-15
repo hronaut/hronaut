@@ -38,7 +38,7 @@ function renderPanel(initial = license()) {
   }
   const controller = useCommercialLicenseController({
     api,
-    confirmDeactivate: () => true,
+    confirmDeactivate: async () => true,
     emptyKeyMessage: () => 'Enter a license key.',
     formatError: (error) => error instanceof Error ? error.message : String(error)
   })

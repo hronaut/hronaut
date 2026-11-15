@@ -29,10 +29,14 @@ const APP = `<!doctype html><title>App</title>
 const SIGN_IN = `<!doctype html><title>Sign in</title>
 <button id="continue" style="${BUTTON}" onclick="window.opener.postMessage('ada', location.origin); window.close()">Continue</button>`
 
+// The page a desktop app's sign-in ends on, in a tab of its own.
+const DONE = `<!doctype html><title>Signed in</title>
+<button id="close" style="${BUTTON}" onclick="window.close()">Close this tab</button>`
+
 test('a sign-in popup answers the page that opened it and closes its tab', async ({ mcpPort, mcpToken }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(request.url === '/sign-in' ? SIGN_IN : APP)
+    response.end(request.url === '/sign-in' ? SIGN_IN : request.url === '/done' ? DONE : APP)
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -90,6 +94,15 @@ test('a sign-in popup answers the page that opened it and closes its tab', async
     await expect.poll(async () => (await call<Array<{ id: string }>>('browser_tabs', { workspaceId })).map(tab => tab.id))
       .toEqual([appTabId])
     expect(await evaluate(appTabId, 'window.signInPopup.closed')).toBe(true)
+
+    // A tab opened on its own, as from the address bar, closes when its page closes itself too, rather than saying its
+    // page is no longer available.
+    const doneTabId = (await call<{ activeTabId: string }>('browser_new_tab', { workspaceId, url: `http://127.0.0.1:${address.port}/done` })).activeTabId
+    await text('browser_wait', { workspaceId, tabId: doneTabId, selector: '#close', state: 'visible' })
+    const closed = await client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId: doneTabId, selector: '#close' } }) as CallToolResult
+    if (closed.isError) expect(JSON.stringify(closed.content)).toContain('OUTCOME_UNKNOWN')
+    await expect.poll(async () => (await call<Array<{ id: string }>>('browser_tabs', { workspaceId })).map(tab => tab.id))
+      .toEqual([appTabId])
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)

@@ -14,7 +14,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, mcpGroupId?: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 const PAGE = 'https://user:secret@gallery.example/album/7?sort=new#photo-3'
 
@@ -26,15 +26,15 @@ function openFromMenu(itemId: 'open-link-new-tab' | 'open-image-new-tab', params
     navigationHistory: { canGoBack: () => false, canGoForward: () => false }
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url: PAGE, mcpGroupId: 'client', webContents }
-  const access = {
-    findTab: () => tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: {},
+    options: { copyText: async () => undefined, copyImageAt: async () => undefined },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
     createTab
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams)

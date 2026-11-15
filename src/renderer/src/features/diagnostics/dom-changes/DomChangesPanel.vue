@@ -17,7 +17,7 @@ import type {
   SupportedLocale
 } from '../../../../../shared/types'
 import type { DiagnosticsController } from '../useDiagnosticsController'
-import PanelDockPicker from '../../../components/PanelDockPicker.vue'
+import PanelDockPicker from '../../panels/PanelDockPicker.vue'
 
 const props = defineProps<{
   locale: SupportedLocale

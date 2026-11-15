@@ -1,9 +1,9 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import PrivacySettingsPanel from '../../src/renderer/src/components/PrivacySettingsPanel.vue'
-import { usePrivacySettingsController } from '../../src/renderer/src/composables/usePrivacySettingsController.js'
+import PrivacySettingsPanel from '../../src/renderer/src/features/settings/PrivacySettingsPanel.vue'
+import { usePrivacySettingsController } from '../../src/renderer/src/features/settings/usePrivacySettingsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowsingDataSummary, BrowsingDataWebsiteSummary } from '../../src/shared/types.js'
 
@@ -41,7 +41,7 @@ function renderPanel(entries = [website('example.test')], workspaces = WORKSPACE
     websites: vi.fn(async () => [website('refreshed.test')]),
     clear: vi.fn(async () => EMPTY_SUMMARY)
   }
-  const confirm = vi.fn(() => true)
+  const confirm = vi.fn(async () => true)
   const controller = usePrivacySettingsController({
     api,
     confirm,
@@ -127,8 +127,31 @@ describe('PrivacySettingsPanel', () => {
     controller.summary.value = { ...EMPTY_SUMMARY, historyEntries: 3 }
     await nextTick()
     expect(screen.queryByRole('group', { name: 'What to clear' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    // History has no choices; the panel's one switch is Secure DNS's.
+    expect(within(screen.getByRole('region', { name: 'Global history' })).queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Clear history…' })).toBeEnabled()
+    controller.dispose()
+  })
+
+  // As Chrome's Delete browsing data: All time, as before, unless a shorter range is chosen.
+  it('clears the history of the time range chosen, All time unless another is', async () => {
+    const { api, controller } = renderPanel()
+    controller.summary.value = { ...EMPTY_SUMMARY, historyEntries: 3 }
+    await nextTick()
+    const range = within(screen.getByRole('region', { name: 'Global history' })).getByRole('combobox', { name: 'Time range' })
+    expect(range).toHaveValue('allTime')
+    // Clearing one website below takes all its history, whatever the range.
+    expect(range).toHaveAccessibleDescription('Applies to all websites. Clearing one website below removes all of its history.')
+    expect([...range.querySelectorAll('option')].map((option) => option.textContent?.trim()))
+      .toEqual(['Last hour', 'Last 24 hours', 'Last 7 days', 'Last 4 weeks', 'All time'])
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Clear history…' }))
+    expect(api.clear).toHaveBeenLastCalledWith({ history: true, timeRange: 'allTime' })
+    await vi.waitFor(() => expect(controller.summaryState.value).not.toBe('clearing'))
+    controller.summary.value = { ...EMPTY_SUMMARY, historyEntries: 3 }
+    await user.selectOptions(range, 'Last hour')
+    await user.click(screen.getByRole('button', { name: 'Clear history…' }))
+    expect(api.clear).toHaveBeenLastCalledWith({ history: true, timeRange: 'lastHour' })
     controller.dispose()
   })
 
@@ -140,6 +163,7 @@ describe('PrivacySettingsPanel', () => {
 
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clearing all…' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Time range' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clear history for https://example.test' })).toHaveAttribute('aria-disabled', 'true')
     controller.dispose()
   })

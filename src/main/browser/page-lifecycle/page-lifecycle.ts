@@ -1,29 +1,25 @@
 import type { BrowserPageLifecycleResult, BrowserPageLifecycleState, BrowserState } from '../../../shared/types.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { LocalizedError } from '../../localized-error.js'
 import { isHronautHomeUrl } from '../url.js'
-import type { PageLifecycleAccess, PageLifecycleTab } from './page-lifecycle-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { showResumedPresentedView, reconcileTabPresentation } from '../presented-view-visibility.js'
+import { browserState, publishChange } from '../browser-state/browser-state.js'
+import { holdPageAnimationsInPage, restorePageAnimationsInPage } from './page-lifecycle.page.js'
 
 const PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS = 5_000
 
-const HOLD_PAGE_ANIMATIONS_SCRIPT = `(() => {
-  try {
-    return Array.from(document.getAnimations()).slice(0, 10000).map(animation => {
-      const record = {
-        currentTime: animation.currentTime,
-        playbackRate: animation.playbackRate
-      };
-      animation.playbackRate = 0;
-      return record;
-    });
-  } catch { return []; }
-})()`
+// At most this many of a page's animations are held while it is frozen.
+const MAX_HELD_ANIMATIONS = 10_000
 
 /**
  * Reports the tab's page lifecycle state without changing it, with the next
  * step to take when an earlier command's outcome is unknown.
  */
-export function pageLifecycle<Tab extends PageLifecycleTab>(access: PageLifecycleAccess<Tab>, tabId: string): BrowserPageLifecycleResult {
-  const tab = access.getTab(tabId)
+export function pageLifecycle(browser: Browser, tabId: string): BrowserPageLifecycleResult {
+  const tab = getTab(browser, tabId)
   return {
     tabId: tab.id,
     state: tab.pageLifecycleState,
@@ -37,13 +33,13 @@ export function pageLifecycle<Tab extends PageLifecycleTab>(access: PageLifecycl
 }
 
 /** Freezes or resumes the tab's page for the person, then returns the browser state. */
-export async function setTabPageLifecycle<Tab extends PageLifecycleTab>(
-  access: PageLifecycleAccess<Tab>,
+export async function setTabPageLifecycle(
+  browser: Browser,
   tabId: string,
   state: Exclude<BrowserPageLifecycleState, 'unknown'>
 ): Promise<BrowserState> {
-  await controlPageLifecycle(access, tabId, state)
-  return access.getState()
+  await controlPageLifecycle(browser, tabId, state)
+  return browserState(browser)
 }
 
 /**
@@ -52,12 +48,12 @@ export async function setTabPageLifecycle<Tab extends PageLifecycleTab>(
  * command whose outcome Chromium did not confirm leaves the state unknown
  * rather than retrying.
  */
-export async function controlPageLifecycle<Tab extends PageLifecycleTab>(
-  access: PageLifecycleAccess<Tab>,
+export async function controlPageLifecycle(
+  browser: Browser,
   tabId: string,
   requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
 ): Promise<BrowserPageLifecycleResult> {
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
   tab.nativeInputEnvironmentGeneration += 1
   if (isHronautHomeUrl(tab.url)) throw new LocalizedError('appErrors.lifecycle.homeTab')
   if (tab.sleeping || tab.wakePromise) throw new LocalizedError('appErrors.lifecycle.sleeping')
@@ -66,8 +62,8 @@ export async function controlPageLifecycle<Tab extends PageLifecycleTab>(
   if (pending) {
     if (pending.requestedState === requestedState) return pending.promise
     await pending.promise
-    if (access.findTab(tab.id) !== tab || tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.lifecycle.closedWhileChanging')
-    return controlPageLifecycle(access, tab.id, requestedState)
+    if (findTab(browser, tab.id) !== tab || tab.webContents.isDestroyed()) throw new LocalizedError('appErrors.lifecycle.closedWhileChanging')
+    return controlPageLifecycle(browser, tab.id, requestedState)
   }
   if (tab.pageLifecycleState === requestedState) {
     return {
@@ -90,7 +86,7 @@ export async function controlPageLifecycle<Tab extends PageLifecycleTab>(
       nextAction: 'Do not repeat the ambiguous command. Explicitly request the opposite lifecycle state, or navigate/reload to establish a fresh active document.'
     }
   }
-  const operation = controlPageLifecycleInternal(access, tab, requestedState)
+  const operation = controlPageLifecycleInternal(browser, tab, requestedState)
   tab.pageLifecycleOperation = { requestedState, promise: operation }
   try {
     return await operation
@@ -101,30 +97,35 @@ export async function controlPageLifecycle<Tab extends PageLifecycleTab>(
 
 /**
  * Sends one lifecycle command through the tab's debugger queue. A freeze holds
- * the page's animations first and a resume restores them. A command that timed
- * out or failed after dispatch, or whose document changed, leaves the state
- * unknown.
+ * the page's animations first and a resume restores them. The command waits
+ * its turn behind the page's earlier debugger work however long that takes,
+ * and its deadline starts with that turn. A command that timed out or failed
+ * after dispatch, or whose document changed, leaves the state unknown.
  */
-async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
-  access: PageLifecycleAccess<Tab>,
-  tab: Tab,
+async function controlPageLifecycleInternal(
+  browser: Browser,
+  tab: BrowserTab,
   requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
 ): Promise<BrowserPageLifecycleResult> {
   const navigationGeneration = tab.navigationGeneration
   const webContents = tab.webContents
+  const wasFrozen = tab.pageLifecycleState === 'frozen'
   let dispatched = false
+  let startTurn!: () => void
+  const turnStarted = new Promise<void>(resolve => { startTurn = resolve })
   const assertCurrentDocument = (): void => {
-    if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
+    if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
       throw new LocalizedError('appErrors.lifecycle.closedBeforeDispatch')
     }
     if (tab.navigationGeneration !== navigationGeneration) {
       throw new LocalizedError('appErrors.lifecycle.documentChanged')
     }
   }
-  const command = access.inDebuggerQueue(webContents.id, async () => {
+  const command = browser.debuggerQueue.run(webContents.id, async () => {
+    startTurn()
     assertCurrentDocument()
-    await access.dialogMonitorAttach(webContents.id)
-    if (access.isDevToolsOpening(webContents.id) || webContents.isDevToolsOpened()) {
+    await browser.dialogMonitorAttachPromises.get(webContents.id)
+    if (browser.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
       throw new LocalizedError('appErrors.lifecycle.devTools')
     }
     if (!webContents.debugger.isAttached()) {
@@ -136,8 +137,8 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
     if (requestedState === 'frozen') {
       dispatched = true
       let records: unknown = []
-      try { records = await webContents.executeJavaScript(HOLD_PAGE_ANIMATIONS_SCRIPT, false) } catch { /* best effort */ }
-      const validRecords = Array.isArray(records) && records.length <= 10_000 && !records.some(record => {
+      try { records = await webContents.executeJavaScript(pageScript(holdPageAnimationsInPage, MAX_HELD_ANIMATIONS), false) } catch { /* best effort */ }
+      const validRecords = Array.isArray(records) && records.length <= MAX_HELD_ANIMATIONS && !records.some(record => {
         if (!record || typeof record !== 'object') return true
         const candidate = record as { currentTime?: unknown; playbackRate?: unknown }
         return (candidate.currentTime !== null && (
@@ -158,18 +159,7 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
       if (backgroundThrottling) webContents.setBackgroundThrottling(false)
       try {
         await new Promise(resolve => setTimeout(resolve, 34))
-        await webContents.executeJavaScript(`(() => {
-            try {
-              const records = ${JSON.stringify(records)};
-              const animations = Array.from(document.getAnimations());
-              for (let index = 0; index < records.length; index += 1) {
-                const animation = animations[index];
-                if (!animation) continue;
-                animation.playbackRate = records[index].playbackRate;
-                animation.currentTime = records[index].currentTime;
-              }
-            } catch { /* Animation restoration is best effort for adversarial pages. */ }
-          })()`, false)
+        await webContents.executeJavaScript(pageScript(restorePageAnimationsInPage, records), false)
       } finally {
         if (backgroundThrottling) webContents.setBackgroundThrottling(true)
       }
@@ -178,21 +168,25 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
   })
   const deadline = Symbol('page-lifecycle-command-timeout')
   let timer: NodeJS.Timeout | undefined
-  const timeout = new Promise<typeof deadline>((resolve) => {
+  let finished = false
+  // Counted from the command's turn, not from its request: the wait behind an agent's long command is no failure.
+  const timeout = turnStarted.then(() => new Promise<typeof deadline>((resolve) => {
+    if (finished) return
     timer = setTimeout(() => resolve(deadline), PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS)
     timer.unref()
-  })
+  }))
   const settled = command.then(
     () => ({ kind: 'completed' as const }),
     (error: unknown) => ({ kind: 'failed' as const, error })
   )
   const outcome = await Promise.race([settled, timeout])
+  finished = true
   if (timer) clearTimeout(timer)
   if (outcome === deadline || (outcome.kind === 'failed' && dispatched)) {
-    if (access.findTab(tab.id) === tab) {
+    if (findTab(browser, tab.id) === tab) {
       tab.pageLifecycleState = 'unknown'
       tab.pageLifecycleUnknownRequest = requestedState
-      access.changed(false)
+      publishChange(browser, false)
     }
     return {
       tabId: tab.id,
@@ -206,14 +200,14 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
   }
   if (outcome.kind === 'failed') throw outcome.error
   if (
-    access.findTab(tab.id) !== tab
+    findTab(browser, tab.id) !== tab
     || webContents.isDestroyed()
     || tab.navigationGeneration !== navigationGeneration
   ) {
-    if (access.findTab(tab.id) === tab) {
+    if (findTab(browser, tab.id) === tab) {
       tab.pageLifecycleState = 'unknown'
       tab.pageLifecycleUnknownRequest = requestedState
-      access.changed(false)
+      publishChange(browser, false)
     }
     return {
       tabId: tab.id,
@@ -227,8 +221,14 @@ async function controlPageLifecycleInternal<Tab extends PageLifecycleTab>(
   }
   tab.pageLifecycleState = requestedState
   tab.pageLifecycleUnknownRequest = undefined
-  access.changed(false)
-  if (requestedState === 'active') access.reconcileTabPresentation(tab)
+  publishChange(browser, false)
+  // Chromium hides a page it freezes (Page.setWebLifecycleState calls WasHidden) and does not show it when it resumes,
+  // and a hidden page's timers and frames stay throttled. So the page on screen is shown before the resume reports
+  // done. A page whose freeze may not have reached Chromium is shown only if it says it is hidden.
+  if (requestedState === 'active') {
+    if (wasFrozen) showResumedPresentedView(browser.window, tab.view)
+    else reconcileTabPresentation(browser, tab)
+  }
   return {
     tabId: tab.id,
     requestedState,

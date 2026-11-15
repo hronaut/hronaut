@@ -1,13 +1,17 @@
-import { javascriptLiteral } from '../../../shared/javascript-literal.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../../shared/page-url-wait.js'
 import { LocalizedError } from '../../localized-error.js'
+import { pageLoadTimedOut } from '../http-auth/http-auth.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { validateTarget } from '../input-targets/input-targets.js'
 import { targetStateScript } from '../page-scripts.js'
-import type { PageWaitsAccess } from './page-waits-access.js'
+import { pageTextMatchInPage } from './page-waits.page.js'
 
 /** Waits until the tab stops loading, rejecting if it closes, loses its renderer or times out. */
-export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeoutMs = 30_000): Promise<void> {
-  const tab = access.getTab(tabId)
+export async function waitForPage(browser: Browser, tabId?: string, timeoutMs = 30_000): Promise<void> {
+  const tab = getTab(browser, tabId)
   const webContents = tab.webContents
   const rendererUnavailable = (): boolean => tab.pageProblem?.kind === 'renderer-gone'
   const rendererUnavailableError = (): Error => new LocalizedError('appErrors.page.rendererLostWhileWaiting')
@@ -41,7 +45,7 @@ export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeo
       stopSettlement = setImmediate(() => {
         stopSettlement = undefined
         if (rendererUnavailable() || (
-          webContents.isCrashed() && !access.rendererExpectsExit(webContents)
+          webContents.isCrashed() && !browser.rendererRecovery.expectsExit(webContents)
         )) {
           rejectForRendererUnavailable()
           return
@@ -84,7 +88,7 @@ export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeo
     }
     const onTimeout = (): void => {
       cleanup()
-      reject(new LocalizedError('appErrors.page.loadTimedOut'))
+      reject(pageLoadTimedOut(webContents))
     }
     const timer = setTimeout(onTimeout, Math.min(Math.max(timeoutMs, 1), 60_000))
     webContents.on('did-stop-loading', onDidStopLoading)
@@ -110,20 +114,20 @@ export async function waitForPage(access: PageWaitsAccess, tabId?: string, timeo
 
 /** Polls the page text until a candidate appears (or, for hidden, none does), returning null on timeout. */
 export async function waitForText(
-  access: PageWaitsAccess,
+  browser: Browser,
   text: string | readonly string[],
   tabId?: string,
   timeoutMs = 30_000,
   state: 'visible' | 'hidden' = 'visible'
 ): Promise<string | null> {
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
   const webContents = tab.webContents
   const candidates = typeof text === 'string' ? [text] : [...text]
   if (!candidates.length) throw new TypeError('At least one text candidate is required.')
-  const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
+  const deadline = performance.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
   const evaluationDeadline = Symbol('text-wait-deadline')
-  while (Date.now() < deadline) {
-    if (!access.hasTab(tab.id) || webContents.isDestroyed()) {
+  while (performance.now() < deadline) {
+    if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
       throw new Error('The tab closed while waiting for page text.')
     }
     let match: string | null
@@ -132,7 +136,7 @@ export async function waitForText(
     try {
       // Without a user gesture, so that waiting never gives the page a person's activation.
       const evaluation = webContents.executeJavaScript(
-        `(() => { const pageText = document.body?.innerText ?? ''; return ${javascriptLiteral(candidates)}.find((candidate) => pageText.includes(candidate)) ?? null })()`,
+        pageScript(pageTextMatchInPage, candidates),
         false
       )
       const closed = new Promise<never>((_resolve, reject) => {
@@ -140,19 +144,19 @@ export async function waitForText(
         webContents.once('destroyed', onDestroyed)
       })
       const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
-        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
+        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - performance.now()))
       })
       // Register the close race before checking state again so no teardown
       // gap can strand executeJavaScript while an unfinished page is loading.
       const pending = Promise.race([evaluation, closed, timedOut])
-      if (!access.hasTab(tab.id) || webContents.isDestroyed()) {
+      if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
         throw new Error('The tab closed while waiting for page text.')
       }
       const result = await pending
       if (result === evaluationDeadline) return null
       match = typeof result === 'string' ? result : null
     } catch (error) {
-      if (!access.hasTab(tab.id) || webContents.isDestroyed()) {
+      if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
         throw new Error('The tab closed while waiting for page text.')
       }
       throw error
@@ -163,7 +167,7 @@ export async function waitForText(
     if (state === 'visible' ? match !== null : match === null) {
       return state === 'visible' ? match : (candidates[0] ?? null)
     }
-    if (Date.now() >= deadline) return null
+    if (performance.now() >= deadline) return null
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   return null
@@ -171,20 +175,20 @@ export async function waitForText(
 
 /** Polls a ref or selector until it reaches the requested state, returning false on timeout. */
 export async function waitForElement(
-  access: PageWaitsAccess,
+  browser: Browser,
   target: { ref?: string; selector?: string },
   tabId?: string,
   timeoutMs = 30_000,
   state: 'attached' | 'detached' | 'visible' | 'hidden' = 'visible'
 ): Promise<boolean> {
-  access.validateTarget(target)
-  const tab = access.getTab(tabId)
+  validateTarget(target)
+  const tab = getTab(browser, tabId)
   const webContents = tab.webContents
-  const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
+  const deadline = performance.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
   const evaluationDeadline = Symbol('element-wait-deadline')
   const expression = targetStateScript(target, state)
-  while (Date.now() < deadline) {
-    if (!access.hasTab(tab.id) || webContents.isDestroyed()) {
+  while (performance.now() < deadline) {
+    if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
       throw new Error('The tab closed while waiting for the page element.')
     }
     let onDestroyed: () => void = () => undefined
@@ -197,17 +201,17 @@ export async function waitForElement(
         webContents.once('destroyed', onDestroyed)
       })
       const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
-        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
+        evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - performance.now()))
       })
       const pending = Promise.race([evaluation, closed, timedOut])
-      if (!access.hasTab(tab.id) || webContents.isDestroyed()) {
+      if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
         throw new Error('The tab closed while waiting for the page element.')
       }
       const result = await pending
       if (result === evaluationDeadline) return false
       if (result?.matches === true) return true
     } catch (error) {
-      if (!access.hasTab(tab.id) || webContents.isDestroyed()) {
+      if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) {
         throw new Error('The tab closed while waiting for the page element.')
       }
       throw error
@@ -215,7 +219,7 @@ export async function waitForElement(
       if (evaluationTimer) clearTimeout(evaluationTimer)
       webContents.removeListener('destroyed', onDestroyed)
     }
-    if (Date.now() >= deadline) return false
+    if (performance.now() >= deadline) return false
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   return false
@@ -223,13 +227,13 @@ export async function waitForElement(
 
 /** Waits for a main-frame navigation whose URL matches the pattern, returning the redacted URL or null on timeout. */
 export async function waitForUrlPattern(
-  access: PageWaitsAccess,
+  browser: Browser,
   urlPattern: string,
   tabId?: string,
   timeoutMs = 30_000
 ): Promise<string | null> {
   const pattern = normalizePageUrlWaitPattern(urlPattern)
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
   const webContents = tab.webContents
   const timeout = Math.min(Math.max(timeoutMs, 1), 60_000)
   const rendererUnavailable = (): boolean => tab.pageProblem?.kind === 'renderer-gone'
@@ -279,7 +283,7 @@ export async function waitForUrlPattern(
     webContents.once('destroyed', onDestroyed)
     // Register every listener before checking the current URL so a route
     // change or teardown cannot land in the setup gap.
-    if (!access.hasTab(tab.id) || webContents.isDestroyed()) onDestroyed()
+    if (!browser.tabs.has(tab.id) || webContents.isDestroyed()) onDestroyed()
     else if (rendererUnavailable()) onRenderProcessGone()
     else match(webContents.getURL() || tab.url)
   })

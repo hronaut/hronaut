@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { reproCheckpointSchema } from '../src/shared/repro-checkpoint.js'
-import { reproCheckpointScript } from '../src/main/browser/repro-checkpoint-script.js'
+import { reproCheckpointScript } from '../src/main/browser/repro-recorder/repro-checkpoint-script.js'
 import { formatReproAsPlaywright } from '../src/shared/repro-export.js'
 import type { BrowserReproRecording } from '../src/shared/types.js'
 

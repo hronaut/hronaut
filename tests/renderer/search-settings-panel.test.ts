@@ -2,8 +2,8 @@ import { ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import SearchSettingsPanel from '../../src/renderer/src/components/SearchSettingsPanel.vue'
-import { useSearchSettingsController } from '../../src/renderer/src/composables/useSearchSettingsController.js'
+import SearchSettingsPanel from '../../src/renderer/src/features/settings/SearchSettingsPanel.vue'
+import { useSearchSettingsController } from '../../src/renderer/src/features/settings/useSearchSettingsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings } from '../../src/shared/types.js'
@@ -20,7 +20,7 @@ function renderPanel() {
     settings.value = { ...settings.value, searchEngine }
     return settings.value
   })
-  const controller = useSearchSettingsController({ settings, setSearchEngine, onError: vi.fn() })
+  const controller = useSearchSettingsController({ settings, setSearchEngine, addSiteSearch: vi.fn(), updateSiteSearch: vi.fn(), removeSiteSearch: vi.fn(), onError: vi.fn() })
   render(SearchSettingsPanel, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: { controller }
@@ -66,6 +66,17 @@ describe('SearchSettingsPanel', () => {
     await userEvent.setup().keyboard('{Home}')
     expect(google).toHaveFocus()
     expect(google).toHaveAttribute('aria-checked', 'true')
+    // With Alt, Ctrl or Cmd these keys are the browser's: Alt+Home chose the first search engine instead of opening Home.
+    const chosen = setSearchEngine.mock.calls.length
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      for (const key of ['End', 'ArrowRight']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
+        google.dispatchEvent(event)
+        expect(event.defaultPrevented, key).toBe(false)
+      }
+    }
+    expect(google).toHaveFocus()
+    expect(setSearchEngine).toHaveBeenCalledTimes(chosen)
     controller.dispose()
   })
 

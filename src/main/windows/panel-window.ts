@@ -3,12 +3,13 @@ import { join } from 'node:path'
 import { loadNativeWindowWithRollback } from '../native-window-load.js'
 import { LocalizedError } from '../localized-error.js'
 import { restoreWindowBounds, type SavedWindowState, type WindowStateStore } from '../window-state.js'
-import { attachShellEditContextMenu } from './shell-edit-context-menu.js'
-import type { BookmarkStore } from '../bookmark-store.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
-import type { CredentialStore } from '../credential-store.js'
-import type { HistoryStore } from '../history-store.js'
-import type { SitePermissionStore } from '../site-permission-store.js'
+import { takeStateUntilShown } from './show-saved-window.js'
+import { attachShellEditContextMenu, type ShellSpelling } from './shell-edit-context-menu.js'
+import type { BookmarkStore } from '../bookmarks-history/bookmark-store.js'
+import type { CredentialStore } from '../credentials/credential-store.js'
+import type { HistoryStore } from '../bookmarks-history/history-store.js'
+import type { SitePermissionStore } from '../site-data/site-permission-store.js'
+import type { TabRuntimeState } from '../tab-runtime-startup.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { ResolvedThemeName } from '../../shared/theme.js'
 import type {
@@ -19,6 +20,19 @@ import type {
   RendererSettingsState,
   ThemeName
 } from '../../shared/types.js'
+import { browserState } from '../browser/browser-state/browser-state.js'
+import { BOOKMARKS_IPC } from '../../shared/ipc/bookmarks.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
+import { CREDENTIALS_IPC } from '../../shared/ipc/credentials.js'
+import { DOWNLOADS_IPC } from '../../shared/ipc/downloads.js'
+import { HISTORY_IPC } from '../../shared/ipc/history.js'
+import { MCP_IPC } from '../../shared/ipc/mcp.js'
+import { PERMISSIONS_IPC } from '../../shared/ipc/permissions.js'
+import { UPDATES_IPC } from '../../shared/ipc/updates.js'
+import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
+import { PANEL_WINDOW_IPC } from '../../shared/ipc/panel-window.js'
+import { TABS_IPC } from '../../shared/ipc/tabs.js'
+import { sendTo } from '../typed-ipc.js'
 
 /**
  * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
@@ -37,11 +51,18 @@ export interface PanelWindowRefs {
   stateStore: WindowStateStore | null
   /** The bounds the panel window last had, which before-quit records too. */
   lastState: SavedWindowState | null
+  /**
+   * The maximized and full screen state the panel window opens with, saved in place of the window's own until it is
+   * first shown, whichever path shows it first.
+   */
+  stateUntilShown?: Pick<SavedWindowState, 'maximized' | 'fullScreen'> | null
 }
 
 interface PanelWindowHost {
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
+  /** The spell checking the panel's fields follow, as the main window's do. */
+  spelling: ShellSpelling
   /** The trusted shell document; the panel window loads it with the panel in its query. */
   trustedShellUrl(): string
   /** The main window the panel window opens beside; read on every use because it can close meanwhile. */
@@ -52,13 +73,14 @@ interface PanelWindowHost {
    * window from the panel, and before-quit records the last bounds.
    */
   refs: PanelWindowRefs
-  sendToPanelWindow(channel: string, ...args: unknown[]): void
+  sendToPanelWindow: EventSender
   /** The current settings; read on every use because each committed update replaces the object. */
   settings(): AppSettings
   resolvedTheme(theme: ThemeName): ResolvedThemeName
   /** Each theme's window background. */
   themeBackground: Record<ResolvedThemeName, string>
-  tabs(): Pick<BrowserTabsManager, 'getState' | 'listDownloads'> | null
+  /** The tab runtime and its saved workspaces' restore; read on every use because both change. */
+  tabRuntime: Pick<TabRuntimeState, 'tabs' | 'initialization'>
   currentRendererSettingsState(): RendererSettingsState
   /** The update state; read on every use because each update replaces the object. */
   updateState(): AppUpdateState
@@ -123,16 +145,19 @@ export function createPanelWindow(host: PanelWindowHost): {
 
   function sendPanelWindowSnapshot(target: BrowserWindow): void {
     if (target.isDestroyed() || target.webContents.isDestroyed()) return
-    target.webContents.send('browser:state-changed', host.tabs()?.getState())
-    target.webContents.send('browser:downloads-changed', host.tabs()?.listDownloads() ?? [])
-    target.webContents.send('settings:changed', host.settings())
-    target.webContents.send('settings:renderer-state-changed', host.currentRendererSettingsState())
-    target.webContents.send('updates:changed', host.updateState())
-    target.webContents.send('mcp:changed', host.currentMcpControlState())
-    target.webContents.send('credentials:changed', host.credentialStore()?.list() ?? [])
-    target.webContents.send('permissions:changed', host.sitePermissionStore()?.list() ?? [])
-    target.webContents.send('bookmarks:changed', host.bookmarkStore()?.list() ?? [])
-    target.webContents.send('visit-history:changed', host.historyStore()?.list() ?? [])
+    const browser = host.tabRuntime.tabs
+    // As to the main window, the state goes only once saved workspaces are restored: a partial one would take the
+    // place of the full state the panel's shell reads, which waits for the restore. Before the tabs exist there is none.
+    if (browser && !host.tabRuntime.initialization) sendTo(target.webContents, TABS_IPC.stateChanged, browserState(browser))
+    sendTo(target.webContents, DOWNLOADS_IPC.changed, browser?.downloadController.listDownloads() ?? [])
+    sendTo(target.webContents, SETTINGS_IPC.changed, host.settings())
+    sendTo(target.webContents, SETTINGS_IPC.rendererStateChanged, host.currentRendererSettingsState())
+    sendTo(target.webContents, UPDATES_IPC.changed, host.updateState())
+    sendTo(target.webContents, MCP_IPC.changed, host.currentMcpControlState())
+    sendTo(target.webContents, CREDENTIALS_IPC.changed, host.credentialStore()?.list() ?? [])
+    sendTo(target.webContents, PERMISSIONS_IPC.changed, host.sitePermissionStore()?.list() ?? [])
+    sendTo(target.webContents, BOOKMARKS_IPC.changed, host.bookmarkStore()?.list() ?? [])
+    sendTo(target.webContents, HISTORY_IPC.changed, host.historyStore()?.list() ?? [])
   }
 
   async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
@@ -145,8 +170,9 @@ export function createPanelWindow(host: PanelWindowHost): {
       const requestedPanel = host.refs.panel
       if (requestedPanel && host.refs.window && !host.refs.window!.isDestroyed()) {
         host.refs.window!.setTitle(detachedPanelTitle(requestedPanel))
-        host.sendToPanelWindow('panel-window:show-panel', requestedPanel)
+        host.sendToPanelWindow(PANEL_WINDOW_IPC.showPanel, requestedPanel)
         if (host.refs.window!.isMinimized()) host.refs.window!.restore()
+        takeStateUntilShown(host.refs)
         host.refs.window!.show()
         host.refs.window!.focus()
       }
@@ -154,8 +180,9 @@ export function createPanelWindow(host: PanelWindowHost): {
     }
     if (host.refs.window && !host.refs.window!.isDestroyed()) {
       host.refs.window!.setTitle(detachedPanelTitle(panel))
-      host.sendToPanelWindow('panel-window:show-panel', panel)
+      host.sendToPanelWindow(PANEL_WINDOW_IPC.showPanel, panel)
       if (host.refs.window!.isMinimized()) host.refs.window!.restore()
+      takeStateUntilShown(host.refs)
       host.refs.window!.show()
       host.refs.window!.focus()
       return
@@ -204,9 +231,12 @@ export function createPanelWindow(host: PanelWindowHost): {
       host.refs.window = created
       host.refs.url = expectedUrl
       host.refs.redocking = false
+      host.refs.stateUntilShown = savedPanelState?.maximized || savedPanelState?.fullScreen
+        ? { maximized: savedPanelState.maximized, fullScreen: savedPanelState.fullScreen }
+        : null
       created.setMenuBarVisibility(false)
       created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-      attachShellEditContextMenu(created, host.text)
+      attachShellEditContextMenu(created, host.text, { spelling: host.spelling })
       created.webContents.on('will-navigate', (event, url) => {
         if (url !== expectedUrl) event.preventDefault()
       })
@@ -215,10 +245,17 @@ export function createPanelWindow(host: PanelWindowHost): {
         created.webContents.setZoomFactor(host.settings().interfaceScale)
         created.setTitle(detachedPanelTitle(requestedPanel))
         sendPanelWindowSnapshot(created)
-        created.webContents.send('panel-window:show-panel', requestedPanel)
+        sendTo(created.webContents, PANEL_WINDOW_IPC.showPanel, requestedPanel)
       })
+      // It opens maximized or in full screen as it was saved, as the main window does, here or on whichever show comes
+      // first; Electron shows a hidden window to take either, so it opens that way at once. A window shown before it
+      // painted, such as without focus for an agent, is not shown again, which would take the focus; nor is one the
+      // person minimized since, which Windows and macOS do not count as visible.
       created.once('ready-to-show', () => {
-        if (!created.isDestroyed()) created.show()
+        if (created.isDestroyed() || host.refs.window !== created) return
+        const shownBefore = created.isVisible() || created.isMinimized()
+        takeStateUntilShown(host.refs)
+        if (!shownBefore) created.show()
       })
       created.on('resize', host.schedulePanelWindowStateSave)
       created.on('move', host.schedulePanelWindowStateSave)
@@ -238,9 +275,10 @@ export function createPanelWindow(host: PanelWindowHost): {
         host.refs.url = null
         host.refs.panel = null
         host.refs.redocking = false
+        host.refs.stateUntilShown = null
         void host.flushPanelWindowState().catch((error) => console.error('[panel-window] Failed to flush state:', error))
         if (!redocking && host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
-          host.mainWindow()!.webContents.send('panel-window:closed')
+          sendTo(host.mainWindow()!.webContents, PANEL_WINDOW_IPC.closed)
         }
       })
 
@@ -253,6 +291,7 @@ export function createPanelWindow(host: PanelWindowHost): {
           host.refs.url = null
           host.refs.panel = null
           host.refs.redocking = false
+          host.refs.stateUntilShown = null
         })
       } catch (error) {
         if (!closing) throw error

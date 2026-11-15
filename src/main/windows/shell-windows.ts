@@ -1,15 +1,22 @@
 import { dialog, type MessageBoxOptions, type MessageBoxReturnValue } from 'electron'
 import type { MainWindowRefs } from './main-window.js'
 import type { PanelWindowRefs } from './panel-window.js'
+import { takeStateUntilShown } from './show-saved-window.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import { personErrorMessage } from '../localized-error.js'
 import type { BrowserActionFailure } from '../../shared/types.js'
+import { SHELL_IPC } from '../../shared/ipc/shell.js'
+import type { EventSender } from '../../shared/ipc/channel.js'
+import { sendTo } from '../typed-ipc.js'
 
 interface ShellWindowsHost {
-  /** The main window; index.ts creates the record, and every helper reads the window when it runs. */
-  mainWindowRefs: Pick<MainWindowRefs, 'window'>
+  /**
+   * The main window; index.ts creates the record, and every helper reads the window when it runs. A show asked for
+   * before it opens is recorded there for startup, and so is the state a window that starts hidden keeps.
+   */
+  mainWindowRefs: Pick<MainWindowRefs, 'window' | 'showRequested' | 'stateUntilShown'>
   /** The detached panel window, shown and told alongside the main window while it is open. */
-  panelWindowRefs: Pick<PanelWindowRefs, 'window'>
+  panelWindowRefs: Pick<PanelWindowRefs, 'window' | 'stateUntilShown'>
   /** Why saved workspaces could not start, if they could not; the main window then stays hidden. */
   workspaceStartupFailure(): Error | undefined
   /** Translates into the current interface language; read on every use because the language can change. */
@@ -25,9 +32,9 @@ export function createShellWindows(host: ShellWindowsHost): {
   reportBrowserActionFailure(action: string, error: unknown): void
   showWindow(): void
   showWindowInactive(): void
-  sendToShellWindows(channel: string, ...args: unknown[]): void
-  sendToMainWindow(channel: string, ...args: unknown[]): void
-  sendToPanelWindow(channel: string, ...args: unknown[]): void
+  sendToShellWindows: EventSender
+  sendToMainWindow: EventSender
+  sendToPanelWindow: EventSender
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
 } {
   function reportBrowserActionFailure(action: string, error: unknown): void {
@@ -39,27 +46,50 @@ export function createShellWindows(host: ShellWindowsHost): {
         : rawMessage || host.text('native.errors.actionFailed')
     }
     if (host.mainWindowRefs.window && !host.mainWindowRefs.window.isDestroyed() && !host.mainWindowRefs.window.webContents.isDestroyed()) {
-      host.mainWindowRefs.window.webContents.send('browser:action-failed', failure)
+      sendTo(host.mainWindowRefs.window.webContents, SHELL_IPC.actionFailed, failure)
     }
   }
 
-  /** Shows and focuses the main window, and shows the panel window if it is hidden; not after saved workspaces failed. */
+  /**
+   * Shows and focuses the main window, maximized or in full screen as saved when it started hidden, and shows the
+   * panel window if it is hidden; not after saved workspaces failed.
+   */
   function showWindow(): void {
     if (host.workspaceStartupFailure()) return
-    if (!host.mainWindowRefs.window) return
+    // Startup shows it once it opens, as the person asked while it started, even if it starts hidden in the tray.
+    if (!host.mainWindowRefs.window) {
+      host.mainWindowRefs.showRequested = true
+      return
+    }
     if (host.mainWindowRefs.window.isMinimized()) host.mainWindowRefs.window.restore()
+    takeStateUntilShown(host.mainWindowRefs)
     host.mainWindowRefs.window.show()
     host.mainWindowRefs.window.focus()
-    if (host.panelWindowRefs.window && !host.panelWindowRefs.window.isDestroyed() && !host.panelWindowRefs.window.isVisible()) host.panelWindowRefs.window.show()
+    const panel = host.panelWindowRefs.window
+    if (panel && !panel.isDestroyed() && !panel.isVisible()) {
+      takeStateUntilShown(host.panelWindowRefs)
+      panel.show()
+    }
   }
 
-  /** Shows both windows without focusing them, for agents' requests. */
+  /**
+   * Shows both windows without focusing them, for agents' requests. A window that started hidden opens at its normal
+   * size for them and drops the maximized or full screen state it kept, since taking that state can take focus, and on
+   * macOS full screen moves the person to another Space.
+   */
   function showWindowInactive(): void {
     if (!host.mainWindowRefs.window) return
     // showInactive can raise an already visible window above another app.
     // Agent requests ensure visibility without changing the current stacking.
-    if (!host.mainWindowRefs.window.isVisible() || host.mainWindowRefs.window.isMinimized()) host.mainWindowRefs.window.showInactive()
-    if (host.panelWindowRefs.window && !host.panelWindowRefs.window.isDestroyed() && !host.panelWindowRefs.window.isVisible()) host.panelWindowRefs.window.showInactive()
+    if (!host.mainWindowRefs.window.isVisible() || host.mainWindowRefs.window.isMinimized()) {
+      host.mainWindowRefs.stateUntilShown = null
+      host.mainWindowRefs.window.showInactive()
+    }
+    const panel = host.panelWindowRefs.window
+    if (panel && !panel.isDestroyed() && !panel.isVisible()) {
+      host.panelWindowRefs.stateUntilShown = null
+      panel.showInactive()
+    }
   }
 
   function sendToShellWindows(channel: string, ...args: unknown[]): void {

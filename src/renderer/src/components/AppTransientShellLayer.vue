@@ -9,34 +9,32 @@ import type {
   BrowserTabState,
   CredentialSummary,
   HronautApi,
-  McpTabActivity,
   PanelDock,
   UserAttentionRequest
 } from '../../../shared/types.js'
 import type { AppBrowserCollectionsFeatureController } from '../composables/useAppBrowserCollectionsFeatureController.js'
-import type { CommandPaletteView } from '../composables/useCommandPaletteShellController.js'
-import type { AgentStepHistoryTarget } from '../composables/useAgentStepHistory.js'
-import { useAgentPresence } from '../composables/useAgentPresence.js'
-import { useCommandPaletteSearch } from '../composables/useCommandPaletteSearch.js'
+import type { CommandPaletteView } from '../features/command-palette/useCommandPaletteShellController.js'
+import type { AgentStepHistoryTarget } from '../features/agents/useAgentStepHistory.js'
+import { useAgentPresence } from '../features/agents/useAgentPresence.js'
+import { useCommandPaletteSearch } from '../features/command-palette/useCommandPaletteSearch.js'
 import { friendlyUiError } from '../composables/useAppToastController.js'
-import type { SettingsSection } from '../composables/useSettingsDialogController.js'
-import AgentStepsDialog from './AgentStepsDialog.vue'
+import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
+import AgentStepsDialog from '../features/agents/AgentStepsDialog.vue'
 import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
-import CommandPalette from './CommandPalette.vue'
-import CredentialPicker from './CredentialPicker.vue'
-import FindInPageBar from './FindInPageBar.vue'
-import TabSearchPanel from './TabSearchPanel.vue'
-import WorkspaceEditor from './WorkspaceEditor.vue'
-import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
-import ZoomBar from './ZoomBar.vue'
+import CommandPalette from '../features/command-palette/CommandPalette.vue'
+import CredentialPicker from '../features/credentials/CredentialPicker.vue'
+import FindInPageBar from '../features/find/FindInPageBar.vue'
+import WorkspaceEditor from '../features/workspaces/WorkspaceEditor.vue'
+import WorkspaceSwitcher from '../features/workspaces/WorkspaceSwitcher.vue'
+import ZoomBar from '../features/zoom/ZoomBar.vue'
 
 type ZoomAction = 'in' | 'out' | 'reset'
 
 const props = defineProps<{
-  state: BrowserState
+  /** The latest browser state, which the dialogs here read only while they show it. */
+  readState: () => BrowserState
   activeTab?: BrowserTabState
   userAttention?: UserAttentionRequest | null
-  mcpActivityByTab: Record<string, McpTabActivity>
   credentials: CredentialSummary[]
   collectionsController: AppBrowserCollectionsFeatureController
   activeUrl: string | null
@@ -45,12 +43,13 @@ const props = defineProps<{
   activeOrigin: string | null
   helpDialogOpen: boolean
   settingsOpen: boolean
+  /** Whether another surface is open, which a tab's Find coming back would close. */
+  findWaits?: boolean
   websiteAvailable: boolean
   browser: HronautApi
   syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
   selectTab: (tabId: string) => Promise<unknown>
   expandTabGroup: (tab: BrowserTabState) => void
-  describeEmulation: (tab: BrowserTabState) => string
   formatNumber: (value: number) => string
   formatBytes: (value: number) => string
   formatDateTime: (value: Date | number | string) => string
@@ -68,9 +67,9 @@ const props = defineProps<{
   agentStepsTarget?: AgentStepHistoryTarget | null
 }>()
 
-const emit = defineEmits<{ newTab: []; searchTabs: []; createWorkspace: [] }>()
-const tabSearchOpen = defineModel<boolean>('tabSearchOpen', { required: true })
+const emit = defineEmits<{ searchTabs: []; createWorkspace: [] }>()
 const findOpen = defineModel<boolean>('findOpen', { required: true })
+const findFocused = defineModel<boolean>('findFocused', { default: false })
 const zoomOpen = defineModel<boolean>('zoomOpen', { required: true })
 const workspaceEditorOpen = defineModel<boolean>('workspaceEditorOpen', { required: true })
 const credentialPickerOpen = defineModel<boolean>('credentialPickerOpen', { required: true })
@@ -97,7 +96,7 @@ const { t } = useI18n({ useScope: 'global' })
 const presenceApi = (window as { hronautAgentPresence?: HronautAgentPresenceApi }).hronautAgentPresence
 const paletteSearchPresence = presenceApi ? useAgentPresence(presenceApi) : undefined
 const paletteSearch = useCommandPaletteSearch({
-  state: toRef(props, 'state'),
+  state: computed(() => props.readState()),
   history: props.collectionsController.visitHistory,
   userAttention: toRef(props, 'userAttention'),
   ...(paletteSearchPresence ? { presence: paletteSearchPresence.snapshot } : {}),
@@ -113,16 +112,14 @@ const paletteSearch = useCommandPaletteSearch({
   openSettingsSection: props.openSettingsSection
 })
 const workspaceSwitcherOpen = paletteList('workspaces')
+const readTabs = () => props.readState().tabs
+const agentControlLocked = computed(() => props.readState().agentControlLocked === true)
 const dock = defineModel<PanelDock>('dock', { required: true })
-
-interface TabSearchSurface {
-  openPanel: () => Promise<void>
-  close: () => void
-}
 
 interface FindSurface {
   openForTab: (tab: BrowserTabState, again?: 'next' | 'previous') => Promise<void>
-  close: () => Promise<void>
+  close: (options?: { keepMatch?: boolean }) => Promise<void>
+  returnFocus: (tabId: string) => boolean
 }
 
 interface ZoomSurface {
@@ -146,7 +143,6 @@ interface PickerSurface {
   close: () => void
 }
 
-const tabSearchPanel = ref<TabSearchSurface | null>(null)
 const findBar = ref<FindSurface | null>(null)
 const zoomBar = ref<ZoomSurface | null>(null)
 const workspaceEditor = ref<WorkspaceEditorSurface | null>(null)
@@ -174,30 +170,25 @@ onBeforeUnmount(() => {
 
 // A step's tab may sit in a folded workspace; its group opens around it, as from the switcher.
 async function showStepTab(tabId: string): Promise<unknown> {
-  const tab = props.state.tabs.find((candidate) => candidate.id === tabId)
+  const tab = props.readState().tabs.find((candidate) => candidate.id === tabId)
   if (tab) props.expandTabGroup(tab)
   return props.selectTab(tabId)
 }
 
-async function openTabSearch(): Promise<void> {
-  await tabSearchPanel.value?.openPanel()
-}
-
 async function openWorkspaceTransfer(sourceWorkspaceId?: string): Promise<void> {
-  closeTabSearch()
   await workspaceEditor.value?.openTransfer(sourceWorkspaceId)
-}
-
-function closeTabSearch(): void {
-  tabSearchPanel.value?.close()
 }
 
 async function openFindForTab(tab: BrowserTabState, again?: 'next' | 'previous'): Promise<void> {
   await findBar.value?.openForTab(tab, again)
 }
 
-async function closeFind(): Promise<void> {
-  await findBar.value?.close()
+async function closeFind(options: { keepMatch?: boolean } = {}): Promise<void> {
+  await findBar.value?.close(options)
+}
+
+function returnFindFocus(tabId: string): boolean {
+  return findBar.value?.returnFocus(tabId) ?? false
 }
 
 async function openZoomForTab(tab: BrowserTabState): Promise<void> {
@@ -246,10 +237,9 @@ function closeCommandPalette(): void {
 }
 
 defineExpose({
-  openTabSearch,
-  closeTabSearch,
   openFindForTab,
   closeFind,
+  returnFindFocus,
   openZoomForTab,
   closeZoom,
   setZoom,
@@ -266,23 +256,15 @@ defineExpose({
 </script>
 
 <template>
-  <TabSearchPanel
-    ref="tabSearchPanel"
-    v-model:open="tabSearchOpen"
-    :state="state"
-    :mcp-activity-by-tab="mcpActivityByTab"
-    :sync-state="syncState"
-    :select-tab="selectTab"
-    :expand-tab-group="expandTabGroup"
-    :describe-emulation="describeEmulation"
-    :format-number="formatNumber"
-    :format-time="formatTime"
-    :format-error="formatError"
-    :show-error="showError"
-    @new-tab="emit('newTab')"
-    @transfer-workspace-data="openWorkspaceTransfer"
+  <FindInPageBar
+    ref="findBar"
+    v-model:open="findOpen"
+    v-model:focused="findFocused"
+    :active-tab="activeTab"
+    :read-tabs="readTabs"
+    :return-held="findWaits"
+    :browser="browser"
   />
-  <FindInPageBar ref="findBar" v-model:open="findOpen" :active-tab="activeTab" :browser="browser" />
   <ZoomBar
     ref="zoomBar"
     v-model:open="zoomOpen"
@@ -306,7 +288,7 @@ defineExpose({
   <WorkspaceEditor
     ref="workspaceEditor"
     v-model:open="workspaceEditorOpen"
-    :state="state"
+    :read-state="readState"
     :sync-state="syncState"
     :format-number="formatNumber"
     :can-present="!commandPaletteOpen && !credentialPickerOpen && !helpDialogOpen && !settingsOpen"
@@ -323,7 +305,7 @@ defineExpose({
     v-model:open="commandsOpen"
     :website-available="websiteAvailable"
     :active-tab="activeTab"
-    :agent-control-locked="state.agentControlLocked === true"
+    :agent-control-locked="agentControlLocked"
     :format-number="formatNumber"
     :run-command="runCommand"
     :report-command-error="reportCommandError"
@@ -334,7 +316,7 @@ defineExpose({
   <WorkspaceSwitcher
     ref="workspaceSwitcher"
     v-model:open="workspaceSwitcherOpen"
-    :state="state"
+    :read-state="readState"
     :user-attention="userAttention"
     :browser="browser"
     :sync-state="syncState"
@@ -349,7 +331,7 @@ defineExpose({
   <AgentStepsDialog
     v-model:open="agentStepsOpen"
     :target="agentStepsTarget ?? null"
-    :state="state"
+    :read-state="readState"
     :select-tab="showStepTab"
     :format-time="formatTime"
     :format-number="formatNumber"

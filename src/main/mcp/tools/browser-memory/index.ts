@@ -36,6 +36,6 @@ export function registerBrowserMemory(context: McpToolContext): void {
         | 'stop-allocation-sampling'
         | 'clear-allocation-sampling'
       collectGarbage: boolean
-    }) => textResult(await manager.memoryReport({ tabId, action, collectGarbage })))
+    }) => textResult(await manager.profiling.memoryReport({ tabId, action, collectGarbage })))
   )
 }

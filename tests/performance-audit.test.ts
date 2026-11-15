@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import {
@@ -7,6 +10,7 @@ import {
   performanceAuditPageScript,
   sanitizePerformanceReport
 } from '../src/shared/performance-audit.js'
+import { performanceAuditInPage } from '../src/shared/performance-audit.page.js'
 import type { BrowserPerformanceReport } from '../src/shared/types.js'
 
 function sampleReport(values: {
@@ -190,18 +194,23 @@ describe('performance audit', () => {
       normalizePerformanceOptions(),
       '6.1.0'
     )
+    expect(script).toContain(performanceAuditInPage.toString())
     expect(script).toContain('__hronautPerformanceCollector')
-    expect(script).toContain("scope: 'current-visit'")
-    expect(script).toContain("getEntriesByType('resource')")
-    expect(script).toContain("includes('long-animation-frame')")
-    expect(script).toContain("includes('layout-shift')")
     expect(script).toContain('entry.hadRecentInput')
-    expect(script).toContain("getEntriesByType('mark')")
-    expect(script).toContain("getEntriesByType('measure')")
     expect(script).toContain('slice(-config.maxUserTimings)')
     expect(script).toContain('forcedStyleAndLayoutDurationMs')
     expect(script).not.toContain('outerHTML')
     expect(script).not.toContain('entry.detail')
+    // The test transform rewrites quotes in the script, so text with quotes is checked in the page function's source.
+    const pageFunction = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/shared/performance-audit.page.ts'), 'utf8')
+    expect(pageFunction).toContain("scope: 'current-visit'")
+    expect(pageFunction).toContain("getEntriesByType('resource')")
+    expect(pageFunction).toContain("includes('long-animation-frame')")
+    expect(pageFunction).toContain("includes('layout-shift')")
+    expect(pageFunction).toContain("getEntriesByType('mark')")
+    expect(pageFunction).toContain("getEntriesByType('measure')")
+    expect(pageFunction).not.toContain('outerHTML')
+    expect(pageFunction).not.toContain('.detail')
   })
 
   it.each([

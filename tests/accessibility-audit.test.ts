@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   ACCESSIBILITY_AUDIT_LIMITS,
   accessibilityAuditPageScript,
   normalizeAccessibilityAuditOptions
 } from '../src/shared/accessibility-audit.js'
+import { accessibilityAuditInPage } from '../src/shared/accessibility-audit.page.js'
 
 describe('accessibility audit', () => {
   it('defaults to a bounded WCAG A and AA audit', () => {
@@ -16,8 +20,12 @@ describe('accessibility audit', () => {
     const script = accessibilityAuditPageScript('globalThis.axe = { run() {} };', normalizeAccessibilityAuditOptions())
     expect(script).toContain('wcag2a')
     expect(script).toContain('wcag22aa')
-    expect(script).toContain("resultTypes: ['violations', 'incomplete']")
+    expect(script).toContain(accessibilityAuditInPage.toString())
     expect(script).not.toContain('outerHTML')
+    // The test transform rewrites quotes in the script, so text with quotes is checked in the page function's source.
+    const pageSource = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/shared/accessibility-audit.page.ts'), 'utf8')
+    expect(pageSource).toContain("resultTypes: ['violations', 'incomplete']")
+    expect(pageSource).not.toContain('outerHTML')
   })
 
   it('bounds selectors and response detail controls', () => {

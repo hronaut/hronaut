@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type VirtualPasskeySettlement, virtualPasskeySettlement } from './virtual-passkey-settlement.js'
+import { virtualPasskey } from '../../../browser/virtual-passkey/browser-virtual-passkeys.js'
 
 export function registerBrowserVirtualPasskey(context: McpToolContext): void {
   const { capability, manager, registerWorkspaceTool, tabTool } = context
@@ -24,7 +25,7 @@ export function registerBrowserVirtualPasskey(context: McpToolContext): void {
     },
     tabTool('browser_virtual_passkey', async ({ tabId, action, origin, userVerified, durationMs }: {
       tabId: string; action: VirtualPasskeyAction; origin: string; userVerified?: boolean; durationMs?: number
-    }, call: WorkspaceToolCall<VirtualPasskeySettlement>) => textResult(await manager.virtualPasskey(tabId, action, { origin, userVerified, durationMs }, {
+    }, call: WorkspaceToolCall<VirtualPasskeySettlement>) => textResult(await virtualPasskey(manager, tabId, action, { origin, userVerified, durationMs }, {
       // Checked on every navigation in the page and four times a second, without renewing write ownership.
       assertCurrent: () => call.validateLifecycle(origin)
     }))),

@@ -27,21 +27,23 @@ test('releases cookie authority listeners after destroyed tabs close and reinsta
     const listenerCount = () => electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __cookieCleanupSession?: Electron.Session }
     ).__cookieCleanupSession!.cookies.listenerCount('changed'))
-    expect(await listenerCount()).toBe(1)
+    // Besides the tabs' one, the workspace keeps a listener for the session cookies it saves for the next start.
+    const withTabs = await listenerCount()
+    expect(withTabs).toBe(2)
     const afterFirstClose = await appWindow.evaluate(id => (
       window as typeof window & { hronaut: HronautApi }
     ).hronaut.closeTab(id), firstId)
     expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & {
       __cookieCleanupContents?: Electron.WebContents
     }).__cookieCleanupContents!.isDestroyed())).toBe(true)
-    expect(await listenerCount()).toBe(1)
+    expect(await listenerCount()).toBe(withTabs)
     const remainingId = afterFirstClose.tabs.find(tab => tab.mcpGroupId === workspaceId)!.id
     await appWindow.evaluate(id => (window as typeof window & { hronaut: HronautApi }).hronaut.closeTab(id), remainingId)
-    expect(await listenerCount()).toBe(0)
+    expect(await listenerCount()).toBe(withTabs - 1)
     await appWindow.evaluate(id => (window as typeof window & { hronaut: HronautApi }).hronaut.newTab({
       mcpGroupId: id, url: 'about:blank', active: true
     }), workspaceId)
-    expect(await listenerCount()).toBe(1)
+    expect(await listenerCount()).toBe(withTabs)
   } finally {
     await electronApp.evaluate(() => {
       Reflect.deleteProperty(globalThis, '__cookieCleanupSession')

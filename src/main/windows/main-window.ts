@@ -15,6 +15,9 @@ import {
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../../shared/window-material.js'
 import type { ResolvedThemeName } from '../../shared/theme.js'
 import type { AppSettings, ThemeName } from '../../shared/types.js'
+import { attachShellKeyHandoff } from './shell-key-handoff.js'
+import { holdMainWindowMinimumSize, mainWindowMinimumSize } from './main-window-minimum-size.js'
+import { reloadShellAfterRendererExit } from './shell-crash-recovery.js'
 
 /**
  * The main window and what it was opened with, created once by index.ts. The window opens after startup and closes
@@ -33,6 +36,16 @@ export interface MainWindowRefs {
   stateStore: WindowStateStore | null
   /** The bounds the main window last had, which before-quit records too. */
   lastState: SavedWindowState | null
+  /**
+   * Whether the person asked to see the window before it opened, as by opening Hronaut again while it starts: startup
+   * then shows it even when it starts hidden in the tray.
+   */
+  showRequested: boolean
+  /**
+   * The maximized and full screen state a window that starts hidden in the tray takes when the person first shows it,
+   * saved in place of the window's own while it stays hidden.
+   */
+  stateUntilShown?: Pick<SavedWindowState, 'maximized' | 'fullScreen'> | null
 }
 
 interface MainWindowHost {
@@ -45,6 +58,8 @@ interface MainWindowHost {
   themeBackground: Record<ResolvedThemeName, string>
   /** Quiets an open request for the person's attention once they press a key or click in the shell. */
   acknowledgeUserAttention(): void
+  /** Whether Hronaut is quitting, when its window's page is not loaded again. */
+  quitting(): boolean
 }
 
 /**
@@ -117,11 +132,12 @@ export function createMainWindow(host: MainWindowHost): {
       interfaceScale: host.settings().interfaceScale
     })
     host.refs.material = currentWindowMaterial()
-    return new BrowserWindow({
+    const minimumSize = mainWindowMinimumSize(host.settings().interfaceScale)
+    const window = new BrowserWindow({
       ...bounds,
       ...windowChromeOptions,
-      minWidth: 760,
-      minHeight: 520,
+      minWidth: minimumSize.width,
+      minHeight: minimumSize.height,
       show: false,
       title: 'Hronaut',
       backgroundColor: host.themeBackground[host.resolvedTheme(host.settings().theme)],
@@ -137,6 +153,12 @@ export function createMainWindow(host: MainWindowHost): {
         sandbox: true
       }
     })
+    attachShellKeyHandoff(window.webContents)
+    // Once the window has its own size again, it keeps its minimum: one a scale chosen meanwhile set, and once
+    // restored, one the system did not hold it to.
+    holdMainWindowMinimumSize(window, () => host.settings().interfaceScale)
+    reloadShellAfterRendererExit(window, host.quitting)
+    return window
   }
 
   /** Shows the menu bar, or pops the menu up under an overlaid title bar, when Alt is pressed and released alone. */

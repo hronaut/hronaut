@@ -1,22 +1,27 @@
-import type { BrowserWindow, IpcMain, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import { sendTo, type TypedIpcMain } from './typed-ipc.js'
 import type { AppQuitState } from './app-lifecycle.js'
-import type { FollowSuspensionState } from './agent-card-overlay.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { ToastOverlay } from './toast-overlay.js'
-import type { SidebarOverlay } from './sidebar-overlay.js'
+import type { FollowSuspensionState } from './overlays/agent-card-overlay.js'
+import type { Browser } from './browser/browser.js'
+import type { ToastOverlay } from './overlays/toast-overlay.js'
+import type { SidebarOverlay } from './overlays/sidebar-overlay.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { parseScrimColor, type ScrimColor } from '../shared/title-bar.js'
-
-type ShellIpcTabs = Pick<BrowserTabsManager,
-  | 'setToolbarHeight' | 'setContentInsets' | 'setBrowserContentOccluded' | 'presentOcclusionSnapshot'
-  | 'setFollowAgentActivitySuspended'>
+import { setContentInsets, setToolbarHeight } from './browser/window-layout/content-area.js'
+import { setFollowAgentActivitySuspended, setBrowserContentOccluded } from './browser/trusted-chrome-occlusion/trusted-chrome-occlusion.js'
+import { SHELL_IPC } from '../shared/ipc/shell.js'
+import { TABS_IPC } from '../shared/ipc/tabs.js'
+import { isShellTabField } from '../shared/tab-field.js'
+import { shellRanShortcut } from './windows/shell-key-handoff.js'
 
 interface ShellIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   /** Admits only the main window's shell document, not a detached panel window. */
   assertMainShellSender(event: IpcMainInvokeEvent | IpcMainEvent): void
+  /** Whether a message came from the main window's shell document, not a detached panel window. */
+  isMainShellSender(event: IpcMainEvent): boolean
   /** Registers a handler that is refused while saved workspaces are still initializing or failed to start. */
-  handleBrowserIpc(channel: string, listener: Parameters<IpcMain['handle']>[1]): void
+  handleBrowserIpc: TypedIpcMain['handle']
   /** Why saved workspaces could not start, if they could not; read on every check. */
   workspaceStartupFailure(): Error | undefined
   /** Writes text to the system clipboard after earlier clipboard writes, verifying it arrived. */
@@ -28,7 +33,7 @@ interface ShellIpcHost {
   quitApp(): void
   /** Electron's `BrowserWindow.fromWebContents`. */
   windowFromWebContents(webContents: WebContents): Pick<BrowserWindow, 'isFocused'> | null
-  tabs(): ShellIpcTabs | null
+  tabs(): Browser | null
   toastOverlay(): Pick<ToastOverlay, 'relayout'>
   /** The tab rail opened over the page, which a dialog over the page closes. */
   sidebarOverlay(): Pick<SidebarOverlay, 'occlusionChanged'>
@@ -44,29 +49,31 @@ interface ShellIpcHost {
  * The shell's window, layout and clipboard requests. Dependencies stay lazy because handlers are
  * registered before the window loads.
  */
-export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: ShellIpcHost): void {
-  host.handleBrowserIpc('browser:copy-text', async (event, value: unknown) => {
+export function registerShellIpc(ipcMain: Pick<TypedIpcMain, 'handle' | 'on'>, host: ShellIpcHost): void {
+  host.handleBrowserIpc(SHELL_IPC.copyText, async (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     await host.copyTextToClipboard(value)
   })
-  host.handleBrowserIpc('browser:show', (event) => { host.assertTrustedSender(event); host.showWindow() })
-  host.handleBrowserIpc('browser:quit', (event) => {
+  host.handleBrowserIpc(SHELL_IPC.show, (event) => { host.assertTrustedSender(event); host.showWindow() })
+  host.handleBrowserIpc(SHELL_IPC.quit, (event) => {
     host.assertTrustedSender(event)
     host.quit.quitting = true
     host.quitApp()
   })
-  ipcMain.handle('shell:is-window-focused', (event) => {
+  ipcMain.handle(SHELL_IPC.isWindowFocused, (event) => {
     host.assertTrustedSender(event)
     return host.windowFromWebContents(event.sender)?.isFocused() ?? false
   })
-  ipcMain.on('browser:toolbar-height', (event, height: number) => {
+  ipcMain.on(SHELL_IPC.toolbarHeight, (event, height: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
-    host.tabs()?.setToolbarHeight(scaleShellMetric(height, event.sender.getZoomFactor()))
+    if (typeof height !== 'number' || !Number.isFinite(height)) throw new TypeError('Invalid toolbar height')
+    const browser = host.tabs()
+    if (browser) setToolbarHeight(browser, scaleShellMetric(height, event.sender.getZoomFactor()))
     host.toastOverlay().relayout()
   })
-  ipcMain.on('browser:content-insets', (event, value: unknown) => {
+  ipcMain.on(SHELL_IPC.contentInsets, (event, value: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid browser content insets')
@@ -74,33 +81,41 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     if (![top, right, bottom, left].every((inset) => typeof inset === 'number' && Number.isFinite(inset))) {
       throw new TypeError('Invalid browser content insets')
     }
-    host.tabs()?.setContentInsets({
-      top: scaleShellMetric(top as number, event.sender.getZoomFactor()),
-      right: scaleShellMetric(right as number, event.sender.getZoomFactor()),
-      bottom: scaleShellMetric(bottom as number, event.sender.getZoomFactor()),
-      left: scaleShellMetric(left as number, event.sender.getZoomFactor())
-    })
+    const browser = host.tabs()
+    if (browser) {
+      setContentInsets(browser, {
+        top: scaleShellMetric(top as number, event.sender.getZoomFactor()),
+        right: scaleShellMetric(right as number, event.sender.getZoomFactor()),
+        bottom: scaleShellMetric(bottom as number, event.sender.getZoomFactor()),
+        left: scaleShellMetric(left as number, event.sender.getZoomFactor())
+      })
+    }
     host.toastOverlay().relayout()
   })
-  ipcMain.on('browser:content-occluded', (event, occluded: unknown, request: unknown) => {
+  ipcMain.on(SHELL_IPC.contentOccluded, (event, occluded: unknown, request: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
     // The report that the pages left the screen names this request, so the shell can tell it from one for an earlier request.
     if (typeof request !== 'number' || !Number.isSafeInteger(request) || request < 0) throw new TypeError('Invalid browser content occlusion request')
     const tabs = host.tabs()
-    if (tabs) tabs.setBrowserContentOccluded(occluded, request)
+    if (tabs) setBrowserContentOccluded(tabs, occluded, request)
     // Without the tab runtime no page is on screen, and the shell waits for this report before a question takes answers.
-    else if (occluded && !event.sender.isDestroyed()) event.sender.send('browser:occlusion-pages-hidden', request)
+    else if (occluded && !event.sender.isDestroyed()) sendTo(event.sender, SHELL_IPC.occlusionPagesHidden, request)
     host.sidebarOverlay().occlusionChanged(occluded)
   })
-  ipcMain.on('browser:occlusion-snapshot-presented', (event, id: unknown) => {
+  ipcMain.on(SHELL_IPC.occlusionSnapshotPresented, (event, id: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (!Number.isSafeInteger(id) || (id as number) < 1) throw new TypeError('Invalid occlusion snapshot')
-    host.tabs()?.presentOcclusionSnapshot(id as number)
+    host.tabs()?.occlusionSnapshot.present(id as number)
   })
-  ipcMain.on('shell:window-controls-scrim', (event, color: unknown) => {
+  // Detached panel windows draw the same states, but only the main window's shell paces them.
+  ipcMain.on(TABS_IPC.stateDrawn, (event) => {
+    if (!host.isMainShellSender(event)) return
+    host.tabs()?.statePublication.drawn()
+  })
+  ipcMain.on(SHELL_IPC.windowControlsScrim, (event, color: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     const scrim = color === null ? null : parseScrimColor(color)
@@ -108,11 +123,30 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     host.setWindowControlsScrim(scrim)
     host.applyMainWindowTitleBarOverlay()
   })
-  ipcMain.on('browser:follow-agent-activity-suspended', (event, suspended: unknown) => {
+  ipcMain.on(SHELL_IPC.followAgentActivitySuspended, (event, suspended: unknown) => {
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')
     host.followSuspension.shellSuspended = suspended
-    host.tabs()?.setFollowAgentActivitySuspended(host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
+    const browser = host.tabs()
+    if (browser) setFollowAgentActivitySuspended(browser, host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
+  })
+  ipcMain.on(SHELL_IPC.shortcutRan, (event, hold: unknown) => {
+    host.assertMainShellSender(event)
+    if (typeof hold === 'number') shellRanShortcut(event.sender, hold)
+  })
+  ipcMain.on(SHELL_IPC.tabFieldFocused, (event, field: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    if (field !== null && !isShellTabField(field)) throw new TypeError('Invalid tab field')
+    const browser = host.tabs()
+    if (browser) browser.shellTabField = field
+  })
+  ipcMain.on(SHELL_IPC.historyShown, (event, shown: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    if (typeof shown !== 'boolean') throw new TypeError('Invalid History state')
+    const browser = host.tabs()
+    if (browser) browser.shellHistoryShown = shown
   })
 }

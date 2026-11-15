@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserTabState } from '../../src/shared/types.js'
-import { useFindShellController } from '../../src/renderer/src/composables/useFindShellController.js'
+import { useFindShellController } from '../../src/renderer/src/features/find/useFindShellController.js'
 
 const tab = { id: 'tab-1', url: 'https://example.com/' } as BrowserTabState
 

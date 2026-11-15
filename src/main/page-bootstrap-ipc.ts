@@ -1,0 +1,29 @@
+import type { TypedIpcMain } from './typed-ipc.js'
+import type { PageBootstrap } from '../shared/page-bootstrap.js'
+import type { Browser } from './browser/browser.js'
+import { reactInspectionBootstrap } from './browser/react-inspection/browser-react-inspection.js'
+import { PAGE_IPC } from '../shared/ipc/page.js'
+
+interface PageBootstrapIpcHost {
+  ipcMain: Pick<TypedIpcMain, 'on'>
+  tabs(): Browser | null
+}
+
+/**
+ * Answers the page preload of each new top-level HTTP(S) document, before its
+ * scripts run, with what Hronaut installs in it: React inspection when it is on
+ * for the tab, and the fixed Date staged for its tab and origin. One answer
+ * holds both, since the page waits for it while the main process may be busy
+ * with many pages loading. Embedded frames are never answered with either.
+ */
+export function registerPageBootstrapIpc(host: PageBootstrapIpcHost): void {
+  host.ipcMain.on(PAGE_IPC.bootstrap, event => {
+    const tabs = host.tabs()
+    event.returnValue = (tabs && event.senderFrame && event.senderFrame === event.sender.mainFrame
+      ? {
+          reactInspection: reactInspectionBootstrap(tabs, event.sender),
+          fixedDate: tabs.fixedDateController.bootstrap(event.sender, event.senderFrame.origin)
+        }
+      : { reactInspection: { enabled: false }, fixedDate: { enabled: false } }) satisfies PageBootstrap
+  })
+}

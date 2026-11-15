@@ -36,6 +36,10 @@ test('closing a tab opened from a page shows that page\'s next tab, then the pag
     const select = async (path: string) => appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(await tabId(path))})`)
     const close = async (path: string) => appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(await tabId(path))})`)
     await expect.poll(order).toEqual(['/app*', '/mail'])
+    // A new tab is listed at its address before its page starts loading, which waits for the session's cookies and
+    // its turn, so the links are pressed only once the page has loaded.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some(contents => contents.getURL() === url && !contents.isLoadingMainFrame()), `${origin}/app`)).toBe(true)
 
     const press = (selector: string, input: Press) => electronApp.evaluate(async ({ webContents }, { url, selector, input }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)

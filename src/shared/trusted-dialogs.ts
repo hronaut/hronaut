@@ -17,11 +17,11 @@ export interface SitePermissionDialogVariant {
   embeddedIn?: string
   /** Chromium's name for the permission, such as "geolocation" or "media". */
   permission: string
-  /** For "media": the devices asked for. */
+  /** For "media": the devices asked for, without one the person already allowed. */
   mediaTypes?: Array<'audio' | 'video'>
   /** The workspace the choice belongs to, as the prompt names it, when Hronaut knows it. */
   workspaceName?: string
-  /** True for a permission Hronaut never remembers, such as the camera: it asks every time. */
+  /** True for a permission Hronaut never remembers, such as file access: it asks every time. */
   freshConsent: boolean
   /** For "fileSystem": the file or folder and the access asked for. */
   file?: { path: string, access: 'readable' | 'writable' | 'unspecified' }
@@ -41,10 +41,15 @@ export interface SavePasswordDialogVariant {
   kind: 'save-password'
   /** The website the password is for, as an origin. */
   origin: string
-  /** The username the page submitted with it; empty when it sent none. */
+  /**
+   * The username the page submitted with it, or for a password change that named none, the saved account Hronaut found
+   * it changes; empty when there is neither.
+   */
   username: string
   /** True when Hronaut has a password for this username and website already. */
   updating: boolean
+  /** True when Hronaut suggested the password, which nothing shows again, so the dialog says what not saving it means. */
+  suggested: boolean
 }
 
 /**
@@ -57,6 +62,49 @@ export interface WalletRecoveryDialogVariant {
   walletName: string
   /** The recovery phrase, word by word in order. */
   words: string[]
+}
+
+/**
+ * Hronaut's change to Claude Code's settings file, which Home showed and the person chose to apply: the file, the entry
+ * Hronaut writes and the one it replaces. Any token in them is already shown as •••.
+ */
+export interface ClaudeSetupDialogVariant {
+  kind: 'claude-setup'
+  /** The settings file Hronaut changes. */
+  path: string
+  /** The "hronaut" entry Hronaut writes, as JSON. */
+  after: string
+  /** The "hronaut" entry it replaces, as JSON, or null when the file has none. */
+  before: string | null
+  /** True when Hronaut writes the actual MCP token where the entry shows •••. */
+  tokenHidden: boolean
+  /** The name of the copy of the file Hronaut saves first. */
+  backupName: string
+}
+
+/**
+ * A website asks for a username and password before it shows a page, as HTTP authentication does. The person signs in
+ * here, in Hronaut's own dialog, never in anything the website draws; only main and this dialog see what they type.
+ */
+export interface HttpAuthDialogVariant {
+  kind: 'http-auth'
+  /** The website that asks, as an origin such as https://example.com. */
+  origin: string
+  /** False when the connection is not encrypted, so the password can be read on the way. */
+  secure: boolean
+  /** The workspace whose tab asks, as the prompt names it, when Hronaut knows it. */
+  workspaceName?: string
+}
+
+/** Whether to open a page whose website presented a certificate the tab refused, as Chrome's "Proceed (unsafe)". */
+export interface CertificateDialogVariant {
+  kind: 'certificate'
+  /** The website's host, which the choice holds for. */
+  host: string
+  /** Chromium's error for the certificate, such as ERR_CERT_AUTHORITY_INVALID. */
+  error: string
+  /** The workspace of the tab, as the prompt names it, when Hronaut knows it. */
+  workspaceName?: string
 }
 
 /** What one of Hronaut's own questions is about, for the mark its dialog shows. */
@@ -74,6 +122,9 @@ export type TrustedDialogVariant =
   | ProtectedFileAccessDialogVariant
   | SavePasswordDialogVariant
   | WalletRecoveryDialogVariant
+  | ClaudeSetupDialogVariant
+  | HttpAuthDialogVariant
+  | CertificateDialogVariant
   | MessageDialogVariant
 
 /** The one dialog main shows a shell window, as that window draws it. */
@@ -95,18 +146,29 @@ export interface TrustedDialogRequest {
   variant: TrustedDialogVariant
 }
 
-export const TRUSTED_DIALOG_CHANNELS = {
-  /** Shell → main: the shell can draw dialogs now, and wants the current one. */
-  ready: 'trusted-dialogs:ready',
-  /** Shell → main: the person chose a button of a request. */
-  respond: 'trusted-dialogs:respond',
-  /** Main → shell: the dialog to show, or null for none. */
-  changed: 'trusted-dialogs:changed'
-} as const
+/** What the person typed to sign in to a website, sent with the answer that signs in and only for that dialog. */
+export interface TrustedDialogCredentials {
+  username: string
+  password: string
+}
+
+/** The most characters of a username or of a password a sign-in answer carries. */
+export const MAX_CREDENTIAL_LENGTH = 4_096
+
+/** What main tells a shell window with each dialog it shows there, or with none. */
+export interface TrustedDialogShellState {
+  /**
+   * True for a moment after a website's sign-in closed before the person answered it, as when the page that asked loads
+   * another: they may still be typing their password, which must land in no field, the next sign-in's included.
+   */
+  afterInterruptedSignIn: boolean
+}
 
 /** The bridge the trusted shell uses; websites never get it. */
 export interface HronautTrustedDialogsApi {
   ready(): void
-  respond(id: string, response: number): void
-  onChanged(listener: (request: TrustedDialogRequest | null) => void): () => void
+  respond(id: string, response: number, credentials?: TrustedDialogCredentials): void
+  /** Closes the request without a choice, as Escape or its close button does; main gives it its cancel answer. */
+  dismiss(id: string): void
+  onChanged(listener: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void): () => void
 }

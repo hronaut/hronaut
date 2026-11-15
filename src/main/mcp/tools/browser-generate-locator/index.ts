@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { generatePlaywrightLocator } from '../../../browser/element-inspection/playwright-locator.js'
 
 export function registerBrowserGenerateLocator(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -19,6 +20,6 @@ export function registerBrowserGenerateLocator(context: McpToolContext): void {
       tabId?: string
       ref?: string
       selector?: string
-    }) => textResult(await manager.generatePlaywrightLocator(options)))
+    }) => textResult(await generatePlaywrightLocator(manager, options)))
   )
 }

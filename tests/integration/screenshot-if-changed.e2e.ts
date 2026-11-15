@@ -1,4 +1,5 @@
 import type { ElectronApplication } from '@playwright/test'
+import { inflateSync } from 'node:zlib'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test } from './capability-fixtures.js'
 
@@ -28,6 +29,25 @@ function observation(result: CallToolResult): { observation: Observation; width:
 
 const images = (result: CallToolResult): number => result.content.filter(item => item.type === 'image').length
 
+/** The PNG's colour type and the filters its rows use: the app's worker writes RGBA with Sub on every row, Chromium RGB with mixed filters. */
+function pngEncoding(result: CallToolResult): { colorType: number; filters: number[] } {
+  const block = result.content.find(item => item.type === 'image')
+  if (!block || block.type !== 'image') throw new Error('No image in the screenshot')
+  const png = Buffer.from(block.data, 'base64')
+  const idat: Buffer[] = []
+  let header = Buffer.alloc(13)
+  for (let at = 8; at < png.length; at += 12 + png.readUInt32BE(at)) {
+    const type = png.toString('latin1', at + 4, at + 8)
+    const data = png.subarray(at + 8, at + 8 + png.readUInt32BE(at))
+    if (type === 'IHDR') header = data
+    if (type === 'IDAT') idat.push(data)
+  }
+  const colorType = header[9]!
+  const stride = header.readUInt32BE(0) * (colorType === 6 ? 4 : 3) + 1
+  const rows = inflateSync(Buffer.concat(idat))
+  return { colorType, filters: [...new Set(Array.from({ length: header.readUInt32BE(4) }, (_, y) => rows[y * stride]!))] }
+}
+
 test('returns no image when the viewport pixels match an earlier tracked screenshot, and a new one when they changed or cannot be compared', async ({ capabilities, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   const screenshot = (args: Record<string, unknown>) => client.callTool({ name: 'browser_screenshot', arguments: { tabId, ...args } }) as Promise<CallToolResult>
@@ -36,6 +56,8 @@ test('returns no image when the viewport pixels match an earlier tracked screens
   // An ordinary screenshot is unchanged: one image and nothing else.
   const plain = await screenshot({})
   expect(plain.content.map(item => item.type)).toEqual(['image'])
+  // Encoded in the app's PNG worker, not by main.
+  expect(pngEncoding(plain)).toEqual({ colorType: 6, filters: [1] })
 
   const first = await screenshot({ trackChanges: true })
   expect(first.isError).not.toBe(true)

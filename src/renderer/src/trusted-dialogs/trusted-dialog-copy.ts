@@ -6,19 +6,19 @@ import IconLocationOnOutlineRounded from '~icons/material-symbols/location-on-ou
 import IconNotificationsOutlineRounded from '~icons/material-symbols/notifications-outline-rounded'
 import IconContentPasteRounded from '~icons/material-symbols/content-paste-rounded'
 import IconPianoOutlineRounded from '~icons/material-symbols/piano-outline-rounded'
+import IconFontDownloadOutlineRounded from '~icons/material-symbols/font-download-outline-rounded'
+import IconRouterOutlineRounded from '~icons/material-symbols/router-outline-rounded'
+import IconComputerOutlineRounded from '~icons/material-symbols/computer-outline-rounded'
 import IconFolderOpenOutlineRounded from '~icons/material-symbols/folder-open-outline-rounded'
 import IconOpenInNewRounded from '~icons/material-symbols/open-in-new-rounded'
-import IconFullscreenRounded from '~icons/material-symbols/fullscreen-rounded'
 import IconDirectionsWalkRounded from '~icons/material-symbols/directions-walk-rounded'
 import IconKeyboardOutlineRounded from '~icons/material-symbols/keyboard-outline-rounded'
 import IconMouseOutlineRounded from '~icons/material-symbols/mouse-outline-rounded'
-import IconDatabaseOutline from '~icons/material-symbols/database-outline'
-import IconLightModeOutlineRounded from '~icons/material-symbols/light-mode-outline-rounded'
-import IconCookieOutlineRounded from '~icons/material-symbols/cookie-outline-rounded'
 import IconSelectWindowRounded from '~icons/material-symbols/select-window-rounded'
 import IconScreenShareOutlineRounded from '~icons/material-symbols/screen-share-outline-rounded'
 import IconShieldQuestionOutlineRounded from '~icons/material-symbols/shield-question-outline-rounded'
 import IconGppMaybeOutlineRounded from '~icons/material-symbols/gpp-maybe-outline-rounded'
+import IconGppBadOutlineRounded from '~icons/material-symbols/gpp-bad-outline-rounded'
 import IconInfoOutlineRounded from '~icons/material-symbols/info-outline-rounded'
 import IconWarningOutlineRounded from '~icons/material-symbols/warning-outline-rounded'
 import IconErrorOutlineRounded from '~icons/material-symbols/error-outline-rounded'
@@ -29,9 +29,14 @@ import IconDownloadRounded from '~icons/material-symbols/download-rounded'
 import IconMoveToInboxOutlineRounded from '~icons/material-symbols/move-to-inbox-outline-rounded'
 import IconLanOutlineRounded from '~icons/material-symbols/lan-outline-rounded'
 import IconAccountBalanceWalletOutlineRounded from '~icons/material-symbols/account-balance-wallet-outline-rounded'
+import IconTerminalRounded from '~icons/material-symbols/terminal-rounded'
+import IconLoginRounded from '~icons/material-symbols/login-rounded'
 import { sitePermissionName } from '../../../shared/site-permission-names.js'
-import type { MessageKey, MessageParameters } from '../../../shared/i18n.js'
+import type { MessageKey, MessageParameters } from '../../../shared/translate.js'
 import type {
+  ClaudeSetupDialogVariant,
+  HttpAuthDialogVariant,
+  CertificateDialogVariant,
   SavePasswordDialogVariant,
   SitePermissionDialogVariant,
   TrustedDialogRequest,
@@ -57,10 +62,19 @@ export interface TrustedDialogCopy {
   quotedLabel?: string
   /** A new wallet's recovery phrase, word by word, with the name its numbered list reads as. */
   phrase?: { label: string, words: string[] }
+  /** A change to a file outside Hronaut, read as a diff: the file, the entry written and the one it replaces. */
+  change?: {
+    fileLabel: string
+    path: string
+    /** `note` explains the entry, shown under it. */
+    entries: Array<{ kind: 'added' | 'removed', label: string, text: string, note?: string }>
+  }
   /** Hronaut's own explanation, one paragraph each. */
   lines: string[]
   /** The line naming the workspace a choice is remembered in, shown with its own mark. */
   workspaceLine?: string
+  /** The fields a website's sign-in asks the person to fill, by their labels. */
+  signIn?: { username: string, password: string }
 }
 
 /** The headline message of each permission, by Chromium's name; any other permission uses `other`. */
@@ -68,18 +82,17 @@ const SITE_PERMISSION_ASKS: Readonly<Record<string, { key: MessageKey, icon: Com
   geolocation: { key: 'trustedDialogs.sitePermission.wants.geolocation', icon: IconLocationOnOutlineRounded },
   notifications: { key: 'trustedDialogs.sitePermission.wants.notifications', icon: IconNotificationsOutlineRounded },
   'clipboard-read': { key: 'trustedDialogs.sitePermission.wants.clipboardRead', icon: IconContentPasteRounded },
-  'clipboard-sanitized-write': { key: 'trustedDialogs.sitePermission.wants.clipboardWrite', icon: IconContentPasteRounded },
+  midi: { key: 'trustedDialogs.sitePermission.wants.midi', icon: IconPianoOutlineRounded },
   midiSysex: { key: 'trustedDialogs.sitePermission.wants.midiSysex', icon: IconPianoOutlineRounded },
+  'local-fonts': { key: 'trustedDialogs.sitePermission.wants.localFonts', icon: IconFontDownloadOutlineRounded },
+  'local-network': { key: 'trustedDialogs.sitePermission.wants.localNetwork', icon: IconRouterOutlineRounded },
+  'local-network-access': { key: 'trustedDialogs.sitePermission.wants.localNetwork', icon: IconRouterOutlineRounded },
+  'loopback-network': { key: 'trustedDialogs.sitePermission.wants.loopbackNetwork', icon: IconComputerOutlineRounded },
   fileSystem: { key: 'trustedDialogs.sitePermission.wants.fileSystem', icon: IconFolderOpenOutlineRounded },
   openExternal: { key: 'trustedDialogs.sitePermission.wants.openExternal', icon: IconOpenInNewRounded },
-  fullscreen: { key: 'trustedDialogs.sitePermission.wants.fullscreen', icon: IconFullscreenRounded },
   'idle-detection': { key: 'trustedDialogs.sitePermission.wants.idleDetection', icon: IconDirectionsWalkRounded },
   keyboardLock: { key: 'trustedDialogs.sitePermission.wants.keyboardLock', icon: IconKeyboardOutlineRounded },
   pointerLock: { key: 'trustedDialogs.sitePermission.wants.pointerLock', icon: IconMouseOutlineRounded },
-  'persistent-storage': { key: 'trustedDialogs.sitePermission.wants.persistentStorage', icon: IconDatabaseOutline },
-  'screen-wake-lock': { key: 'trustedDialogs.sitePermission.wants.screenWakeLock', icon: IconLightModeOutlineRounded },
-  'storage-access': { key: 'trustedDialogs.sitePermission.wants.storageAccess', icon: IconCookieOutlineRounded },
-  'top-level-storage-access': { key: 'trustedDialogs.sitePermission.wants.topLevelStorageAccess', icon: IconCookieOutlineRounded },
   'window-management': { key: 'trustedDialogs.sitePermission.wants.windowManagement', icon: IconSelectWindowRounded },
   'display-capture': { key: 'trustedDialogs.sitePermission.wants.displayCapture', icon: IconScreenShareOutlineRounded }
 }
@@ -181,7 +194,8 @@ function savePasswordCopy(variant: SavePasswordDialogVariant, t: Translate): Tru
     ...(variant.username ? { quoted: variant.username, quotedLabel: t('trustedDialogs.savePassword.username') } : {}),
     lines: [
       ...(variant.username ? [] : [t('trustedDialogs.savePassword.noUsername')]),
-      t('trustedDialogs.savePassword.stored')
+      t('trustedDialogs.savePassword.stored'),
+      ...(variant.suggested ? [t('native.dialog.suggestedPasswordWarning')] : [])
     ]
   }
 }
@@ -202,12 +216,81 @@ function walletRecoveryCopy(variant: WalletRecoveryDialogVariant, t: Translate):
   }
 }
 
+/** Shows the exact change to Claude Code's settings that Home showed, before Hronaut writes it. */
+function claudeSetupCopy(variant: ClaudeSetupDialogVariant, t: Translate): TrustedDialogCopy {
+  return {
+    icon: IconTerminalRounded,
+    tone: 'question',
+    eyebrow: t('native.dialog.claudeSetupTitle'),
+    headline: { before: t('native.dialog.claudeSetupMessage'), emphasis: '', after: '' },
+    change: {
+      fileLabel: t('trustedDialogs.claudeSetup.file'),
+      path: variant.path,
+      entries: [
+        {
+          kind: 'added',
+          label: t('trustedDialogs.claudeSetup.added'),
+          text: `"hronaut": ${variant.after}`,
+          // Under the entry it is about, not the replaced one, whose ••• hide its own old values.
+          ...(variant.tokenHidden ? { note: t('home.connect.claudeSetup.previewToken') } : {})
+        },
+        ...(variant.before === null ? [] : [{ kind: 'removed' as const, label: t('trustedDialogs.claudeSetup.replaces'), text: `"hronaut": ${variant.before}` }])
+      ]
+    },
+    lines: [
+      t('home.connect.claudeSetup.previewBackup', { name: variant.backupName }),
+      t('home.connect.claudeSetup.previewQuit')
+    ]
+  }
+}
+
+/**
+ * Asks the person to sign in to a website: the website stands out, an unencrypted connection is called out, and the
+ * workspace the sign-in holds for is named.
+ */
+function httpAuthCopy(variant: HttpAuthDialogVariant, t: Translate): TrustedDialogCopy {
+  return {
+    icon: IconLoginRounded,
+    tone: variant.secure ? 'question' : 'warning',
+    eyebrow: t('trustedDialogs.httpAuth.eyebrow'),
+    headline: emphasized(t, 'trustedDialogs.httpAuth.headline', variant.origin),
+    lines: [
+      ...(variant.secure ? [] : [t('trustedDialogs.httpAuth.notPrivate')]),
+      t('trustedDialogs.httpAuth.sent')
+    ],
+    ...(variant.workspaceName ? { workspaceLine: t('trustedDialogs.httpAuth.workspace', { workspace: variant.workspaceName }) } : {}),
+    signIn: { username: t('trustedDialogs.httpAuth.username'), password: t('trustedDialogs.httpAuth.password') }
+  }
+}
+
+/** Why the certificate is not trusted, for each of Chromium's common errors, as Chrome's privacy error says it. */
+const CERTIFICATE_REASONS: Record<string, MessageKey> = {
+  ERR_CERT_AUTHORITY_INVALID: 'trustedDialogs.certificate.authority',
+  ERR_CERT_COMMON_NAME_INVALID: 'trustedDialogs.certificate.name',
+  ERR_CERT_DATE_INVALID: 'trustedDialogs.certificate.date'
+}
+
+function certificateCopy(variant: CertificateDialogVariant, t: Translate): TrustedDialogCopy {
+  const reason = Object.hasOwn(CERTIFICATE_REASONS, variant.error) ? CERTIFICATE_REASONS[variant.error]! : 'trustedDialogs.certificate.other'
+  return {
+    icon: IconGppBadOutlineRounded,
+    tone: 'warning',
+    eyebrow: t('trustedDialogs.certificate.eyebrow'),
+    headline: emphasized(t, 'trustedDialogs.certificate.headline', variant.host, {}, 'host'),
+    lines: [t(reason), t('trustedDialogs.certificate.risk'), ...(variant.workspaceName ? [] : [t('trustedDialogs.certificate.session')])],
+    ...(variant.workspaceName ? { workspaceLine: t('trustedDialogs.certificate.workspace', { workspace: variant.workspaceName }) } : {})
+  }
+}
+
 /** The words and mark of a dialog: its own design for a known variant, or its message and detail as given. */
 export function trustedDialogCopy(request: TrustedDialogRequest, t: Translate): TrustedDialogCopy {
   const { variant } = request
   if (variant.kind === 'site-permission') return sitePermissionCopy(variant, t)
   if (variant.kind === 'save-password') return savePasswordCopy(variant, t)
   if (variant.kind === 'wallet-recovery') return walletRecoveryCopy(variant, t)
+  if (variant.kind === 'claude-setup') return claudeSetupCopy(variant, t)
+  if (variant.kind === 'http-auth') return httpAuthCopy(variant, t)
+  if (variant.kind === 'certificate') return certificateCopy(variant, t)
   if (variant.kind === 'protected-file-access') {
     const folder = variant.target === 'folder'
     return {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { inspectPwa } from '../../../browser/pwa-inspection/pwa-inspection.js'
 
 export function registerBrowserPwa(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -28,6 +29,6 @@ export function registerBrowserPwa(context: McpToolContext): void {
       offset: number
       limit: number
       includeHeaders: boolean
-    }) => textResult(await manager.inspectPwa({ tabId, cacheName, query, offset, limit, includeHeaders })))
+    }) => textResult(await inspectPwa(manager, { tabId, cacheName, query, offset, limit, includeHeaders })))
   )
 }

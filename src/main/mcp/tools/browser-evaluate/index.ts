@@ -1,8 +1,10 @@
 import { z } from 'zod'
-import { EvaluationStoppedError } from '../../../browser/page-evaluation/evaluate.js'
+import { EvaluationStoppedError } from '../../../browser/page-evaluation/evaluation-stopped-error.js'
 import { safeValue, textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, ToolActivityClassification, WorkspaceToolCall } from '../tool-context.js'
+import { evaluate } from '../../../browser/page-evaluation/evaluate.js'
+import { WebsiteDialogOpenError } from '../../../browser/website-dialog-guard.js'
 
 /**
  * How the call stopped waiting for its script, if it did: one still running
@@ -38,8 +40,20 @@ export function registerBrowserEvaluate(context: McpToolContext): void {
       timeoutMs: number
     }, call: WorkspaceToolCall<ReturnType<typeof evaluationSettlement>>) => {
       try {
-        return textResult(safeValue(await manager.evaluate(script, tabId, { dialogAction }, { timeoutMs, signal: call.signal })))
+        return textResult(safeValue(await evaluate(manager, script, tabId, { dialogAction }, { timeoutMs, signal: call.signal })))
       } catch (error) {
+        if (error instanceof WebsiteDialogOpenError) {
+          call.settlement.stopped(error.sent)
+          // The script goes on once the dialog is answered, as one that ran past its deadline does.
+          const outcome = error.sent
+            ? { status: 'OUTCOME_UNKNOWN', reason: 'WEBSITE_DIALOG_OPENED', dispatch: 'dispatched', effects: 'possible', retrySafe: false,
+                detail: error.message,
+                nextAction: 'Answer the dialog with browser_dialog; the script then goes on, and dialogs it opens later show instead of being answered. '
+                  + 'Inspect fresh page state before continuing; do not repeat the script blindly.' }
+            : { status: 'NOT_DISPATCHED', reason: 'WEBSITE_DIALOG_SHOWN', dispatch: 'not-dispatched', effects: 'none', retrySafe: true, detail: error.message,
+                nextAction: 'Nothing ran. Answer the dialog with browser_dialog, then retry.' }
+          return { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
         if (!(error instanceof EvaluationStoppedError)) throw error
         call.settlement.stopped(error.sent)
         const outcome = error.sent

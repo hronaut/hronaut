@@ -3,7 +3,7 @@ import {
   COMMERCIAL_LICENSE_API_BASE_URL,
   COMMERCIAL_LICENSE_PURCHASE_URL,
   commercialLicensePurchaseHandler
-} from '../src/main/commercial-license-links.js'
+} from '../src/main/license/commercial-license-links.js'
 
 describe('commercial license purchase links', () => {
   it('uses canonical production URLs without redirecting license POST requests', () => {

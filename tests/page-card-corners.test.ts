@@ -1,18 +1,36 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+// The prototype-built browser below stubs scheduleTabOverviewPreview and publishPageGeometry, with which laying out
+// the pages asks for their overview previews and sends their cards to the shell.
+vi.mock('../src/main/browser/tab-overview-previews/tab-overview-previews.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-overview-previews/tab-overview-previews.js')>(),
+  scheduleTabOverviewPreview: (browser: { scheduleTabOverviewPreview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.scheduleTabOverviewPreview(...args)
+}))
+vi.mock('../src/main/browser/page-geometry/page-geometry.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-geometry/page-geometry.js')>(),
+  publishPageGeometry: (browser: { publishPageGeometry: () => unknown }) => browser.publishPageGeometry()
+}))
+import { Browser } from '../src/main/browser/browser.js'
 import { PAGE_CARD_GUTTER, PAGE_CARD_RADIUS, pageCardInsets } from '../src/shared/page-card.js'
+import { getPageCards } from '../src/main/browser/page-geometry/page-geometry.js'
+
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/presented-view-visibility.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/presented-view-visibility.js')>(),
+  reconcileTabPresentation: (browser: { reconcileTabPresentation: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reconcileTabPresentation(...args)
+}))
 
 function pageView() {
   return { setBounds: vi.fn(), setVisible: vi.fn(), setBorderRadius: vi.fn(), getVisible: () => true }
 }
 
 function fixture(zoom: number, split = false) {
-  const first = { id: 'first', view: pageView() }
-  const second = { id: 'second', view: pageView() }
-  const shell = { getZoomFactor: () => zoom, isDestroyed: () => false }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const first = { id: 'first', view: pageView(), webContents: { isDestroyed: () => false } }
+  const second = { id: 'second', view: pageView(), webContents: { isDestroyed: () => false } }
+  const shell = { getZoomFactor: () => zoom, isDestroyed: () => false, send: vi.fn() }
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false,
+    options: {},
     window: {
       isDestroyed: () => false,
       getContentBounds: () => ({ x: 0, y: 0, width: 1440, height: 900 }),
@@ -22,6 +40,8 @@ function fixture(zoom: number, split = false) {
     tabs: new Map([[first.id, first], [second.id, second]]),
     activeTabId: first.id,
     splitView: split ? { firstTabId: first.id, secondTabId: second.id, orientation: 'vertical', ratio: 0.5 } : null,
+    splitViewGeneration: 0,
+    lastSplitDividerGeometry: '',
     browserContentOccluded: false,
     toolbarHeight: 60,
     contentInsets: { top: 0, right: 10, bottom: 10, left: 280 },
@@ -31,9 +51,8 @@ function fixture(zoom: number, split = false) {
     splitDivider: { reconcile: vi.fn() },
     reconcileTabPresentation: vi.fn(),
     scheduleTabOverviewPreview: vi.fn(),
-    publishSplitDivider: vi.fn(),
     publishPageGeometry: vi.fn()
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, first, second, shell }
 }
 
@@ -61,10 +80,10 @@ it('rounds both pages of a split view and repeats no native call while the radiu
 it('places a card under each pane in shell pixels, keeps it under a dialog only while the page picture shows, and drops it without a page', () => {
   const single = fixture(1.25)
   // 1440 x 900 window pixels at 1.25: the space below a 60 px toolbar, inside the rail and the gutters.
-  expect(single.manager.getPageCards()).toEqual([{ x: 224, y: 48, width: 920, height: 664, tabId: 'first' }])
+  expect(getPageCards(single.manager)).toEqual([{ x: 224, y: 48, width: 920, height: 664, tabId: 'first' }])
 
   const split = fixture(1, true).manager
-  const [left, right] = split.getPageCards()
+  const [left, right] = getPageCards(split)
   // Each card names the tab whose page it holds, so the shell can light the one that needs you.
   expect(left).toMatchObject({ x: 280, y: 60, height: 830, tabId: 'first' })
   expect(right).toMatchObject({ tabId: 'second' })
@@ -77,21 +96,21 @@ it('places a card under each pane in shell pixels, keeps it under a dialog only 
   }
   // A page out of the window, such as one closing behind its beforeunload check, leaves its card without a tab.
   internals.window.contentView.children = [internals.tabs.get('first')!.view]
-  expect(split.getPageCards().map((card) => card.tabId)).toEqual(['first', undefined])
+  expect(getPageCards(split).map((card) => card.tabId)).toEqual(['first', undefined])
   internals.window.contentView.children = [internals.tabs.get('first')!.view, internals.tabs.get('second')!.view]
   internals.browserContentOccluded = true
   internals.occludedPageCards = [left]
-  expect(split.getPageCards()).toEqual([])
+  expect(getPageCards(split)).toEqual([])
   // Under a dialog's picture of the page the card stays, naming no tab, so the edge light waits for the live page.
   internals.occlusionSnapshot.active = true
-  expect(split.getPageCards()).toEqual([{ x: left!.x, y: left!.y, width: left!.width, height: left!.height }])
+  expect(getPageCards(split)).toEqual([{ x: left!.x, y: left!.y, width: left!.width, height: left!.height }])
 
   internals.browserContentOccluded = false
   internals.toolbarHeight = 899
-  expect(split.getPageCards()).toEqual([])
+  expect(getPageCards(split)).toEqual([])
   internals.toolbarHeight = 60
   internals.activeTabId = undefined
-  expect(split.getPageCards()).toEqual([])
+  expect(getPageCards(split)).toEqual([])
 })
 
 it('leaves the gutter at the window edges and beside panels, and none beside the rail or under the toolbar', () => {

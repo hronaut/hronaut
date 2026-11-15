@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createMcpRuntime } from '../src/main/mcp-runtime.js'
+import { createMcpRuntime } from '../src/main/mcp-runtime/mcp-runtime.js'
 import { DEFAULT_MCP_PORT } from '../src/shared/mcp-port.js'
 import { DEFAULT_MCP_TOOL_SET } from '../src/shared/mcp-tool-sets.js'
 import type { AppSettings } from '../src/shared/types.js'

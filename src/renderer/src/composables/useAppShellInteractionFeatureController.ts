@@ -17,28 +17,32 @@ import { useAppShellKeyboardFeatureController } from './useAppShellKeyboardFeatu
 import type { AppSiteManagementFeatureController } from './useAppSiteManagementFeatureController.js'
 import type { AppTransientShellLayerController } from './useAppTransientShellLayerController.js'
 import { useBrowserShortcutController } from './useBrowserShortcutController.js'
-import { useFindShellController } from './useFindShellController.js'
-import { useFindTransitionController } from './useFindTransitionController.js'
-import type { HelpDialogName } from './useHelpDialogController.js'
-import { useHelpShellController } from './useHelpShellController.js'
+import { useFindShellController } from '../features/find/useFindShellController.js'
+import { useFindTransitionController } from '../features/find/useFindTransitionController.js'
+import type { HelpDialogName } from '../features/help/useHelpDialogController.js'
+import { useHelpShellController } from '../features/help/useHelpShellController.js'
 import { useHomeNavigationController } from './useHomeNavigationController.js'
-import type { SettingsSection } from './useSettingsDialogController.js'
-import { useSplitViewShellController } from './useSplitViewShellController.js'
-import { useTabNavigationController } from './useTabNavigationController.js'
-import { useTabSearchShellController } from './useTabSearchShellController.js'
+import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
+import { useSplitViewShellController } from '../features/split-view/useSplitViewShellController.js'
+import { useTabNavigationController } from '../features/tabs/useTabNavigationController.js'
 import type { TransientPanelsCloseOptions } from './useTransientPanelsController.js'
 import { useUiActionController } from './useUiActionController.js'
-import { useZoomShellController } from './useZoomShellController.js'
+import { useZoomShellController } from '../features/zoom/useZoomShellController.js'
+import type { BrowserStateGuess } from '../stores/browser-state-guesses.js'
 
 type InteractionBrowserApi = Pick<
   HronautApi,
   | 'openHome'
+  | 'openHomeTabs'
   | 'newTab'
   | 'closeTab'
+  | 'closeTabs'
   | 'reopenClosedTab'
   | 'selectTab'
   | 'reload'
   | 'reloadIgnoringCache'
+  | 'reorderTab'
+  | 'focusActivePage'
 >
 
 type TransientShell = Pick<
@@ -47,12 +51,12 @@ type TransientShell = Pick<
   | 'workspaceEditorOpen'
   | 'findOpen'
   | 'zoomOpen'
-  | 'tabSearchOpen'
   | 'commandPaletteOpen'
   | 'commandPaletteView'
-  | 'tabSearchPanel'
   | 'zoomBar'
   | 'commandPalettePanel'
+  | 'agentStepsOpen'
+  | 'closeAgentSteps'
   | 'openFindForTab'
   | 'closeFind'
   | 'closeWorkspace'
@@ -65,7 +69,9 @@ type CollectionsFeature = Pick<
   | 'bookmarksOpen'
   | 'bookmarksPanel'
   | 'historyOpen'
+  | 'historyPanel'
   | 'toggleCurrentBookmark'
+  | 'bookmarkAllTabs'
   | 'toggleVisitHistory'
   | 'toggleDownloads'
   | 'toggleBookmarks'
@@ -73,7 +79,11 @@ type CollectionsFeature = Pick<
 
 type EmulationFeature = Pick<
   AppEmulationFeatureController,
-  'toggleResponsivePreview' | 'toggleEnvironment'
+  | 'responsivePanelOpen'
+  | 'environmentPanelOpen'
+  | 'closeResponsivePreview'
+  | 'toggleResponsivePreview'
+  | 'toggleEnvironment'
 >
 
 type PageToolsFeature = Pick<
@@ -133,7 +143,7 @@ interface ToggleSurface {
 interface SettingsSurface extends ToggleSurface {
   tabOpen?: Ref<boolean>
   closeTab?: () => void
-  activate?: () => void
+  toggle?: () => void
   openSection: (section: SettingsSection) => unknown
 }
 
@@ -143,31 +153,37 @@ interface HelpSurface {
   openDialog: (dialog: HelpDialogName) => void
 }
 
+interface TaskManagerSurface {
+  open: Readonly<Ref<boolean>>
+  close: () => void
+  openDialog: () => void
+  toggle: () => void
+}
+
 export interface AppShellInteractionFeatureControllerOptions {
   state: Readonly<Ref<BrowserState>>
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: InteractionBrowserApi
-  syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
-  isHome: () => boolean
+  syncState: (operation: Promise<BrowserState> | BrowserState, guess?: BrowserStateGuess) => Promise<void>
   transient: TransientShell
   surfaces: {
     settings: SettingsSurface
     updateNotice: Ref<boolean>
     help: HelpSurface
     releaseHistory: ToggleSurface
+    /** The Task manager, as Chrome's. */
+    taskManager: TaskManagerSurface
+    /** The Create QR Code dialog, as Chrome's. */
+    qrCode: ToggleSurface
     walletApproval: Readonly<Ref<boolean>>
     /** Main's own question, such as a website's permission request; Escape answers it as Cancel does. */
-    trustedDialog: { open: Readonly<Ref<boolean>>, close: () => void }
-    /** An agent's "All steps". */
-    agentSteps: ToggleSurface
+    trustedDialog: { open: Readonly<Ref<boolean>>, cancel: () => void }
     siteStorage: Ref<boolean>
     siteControls: Ref<boolean>
     addressSuggestions: Ref<boolean>
     pageTools: Ref<boolean>
     console: Ref<boolean>
     network: Ref<boolean>
-    responsive: ToggleSurface
-    environment: Ref<boolean>
     /** True while the panels that can move to their own window, such as Site storage, are shown there. */
     panelsInOwnWindow: () => boolean
   }
@@ -184,12 +200,15 @@ export interface AppShellInteractionFeatureControllerOptions {
     expandTabGroup: (groupId: string) => void
     togglePageTools: () => unknown
     toggleDeveloperTools: () => void | Promise<void>
+    showDeveloperToolsConsole: () => void | Promise<void>
     /** Opens the agent card for the workspace in view; nothing happens when it has no agents. */
     openAgentCard?: () => unknown
     /** Hides or shows the tabs, rail and toolbar over a website. */
     toggleFullPageView?: () => unknown
     /** Takes over from the agent working on the page you just touched; nothing happens without an offer. */
     takeOverFromAgent?: () => unknown
+    /** The tab strip: the tabs selected together in it while there are several, and the workspaces folded in it. */
+    tabStrip?: () => { selectedTabs: () => readonly string[]; foldedWorkspaceIds: () => ReadonlySet<string> | undefined } | undefined
   }
   actions: {
     closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
@@ -206,6 +225,10 @@ export function useAppShellInteractionFeatureController(
   options: AppShellInteractionFeatureControllerOptions
 ) {
   const { transient, surfaces, features, navigation, actions } = options
+  const isHome = (): boolean => !options.state.value.activeTabId || isHronautHomeUrl(options.activeTab.value?.url) === true
+  const trustedDialog = { open: surfaces.trustedDialog.open, close: surfaces.trustedDialog.cancel }
+  /** An agent's "All steps". */
+  const agentSteps = { open: transient.agentStepsOpen, close: transient.closeAgentSteps }
   const { run: runFindTransition } = useFindTransitionController({
     findOpen: transient.findOpen,
     closeFind: transient.closeFind
@@ -222,14 +245,6 @@ export function useAppShellInteractionFeatureController(
     splitMenuOpen: splitView.open,
     closeTransientPanels: actions.closeTransientPanels,
     openForTab: transient.openFindForTab
-  })
-  const tabSearch = useTabSearchShellController({
-    open: transient.tabSearchOpen,
-    panel: transient.tabSearchPanel,
-    settingsOpen: surfaces.settings.open,
-    bookmarksOpen: features.collections.bookmarksOpen,
-    splitMenuOpen: splitView.open,
-    closeTransientPanels: actions.closeTransientPanels
   })
   const zoom = useZoomShellController({
     activeTab: options.activeTab,
@@ -248,6 +263,7 @@ export function useAppShellInteractionFeatureController(
     closeHelpDialog: surfaces.help.close,
     showHelpDialog: surfaces.help.openDialog,
     showSupportSettings: () => surfaces.settings.openSection('support'),
+    showSettings: () => surfaces.settings.openSection('general'),
     navigate: (url) => options.syncState(options.browser.newTab({ url, active: true })),
     openPurchase: actions.openPurchase,
     runAction: uiActions.run
@@ -260,14 +276,13 @@ export function useAppShellInteractionFeatureController(
     downloadsOpen: features.collections.downloadsOpen,
     bookmarksOpen: features.collections.bookmarksOpen,
     historyOpen: features.collections.historyOpen,
-    tabSearchOpen: transient.tabSearchOpen,
     zoomOpen: transient.zoomOpen,
-    runFindTransition,
-    navigateHome: () => options.syncState(options.browser.openHome())
+    navigateHome: () => options.syncState(options.browser.openHome()),
+    navigateHomeTabs: () => options.syncState(options.browser.openHomeTabs())
   })
   const tabNavigation = useTabNavigationController({
     state: options.state,
-    isHome: options.isHome,
+    isHome,
     preferredWebTab: home.preferredWebsiteTab,
     selectBrowserTab: navigation.selectBrowserTab,
     browser: options.browser,
@@ -275,7 +290,6 @@ export function useAppShellInteractionFeatureController(
     settingsOpen: surfaces.settings.open,
     updateNoticeOpen: surfaces.updateNotice,
     zoomOpen: transient.zoomOpen,
-    tabSearchOpen: transient.tabSearchOpen,
     otherSurfacesOpen: [
       transient.findOpen,
       transient.commandPaletteOpen,
@@ -283,13 +297,16 @@ export function useAppShellInteractionFeatureController(
       transient.credentialPickerOpen,
       surfaces.help.open,
       surfaces.releaseHistory.open,
-      surfaces.agentSteps.open,
+      surfaces.taskManager.open,
+      surfaces.qrCode.open,
+      agentSteps.open,
       surfaces.walletApproval,
       surfaces.trustedDialog.open,
       features.collections.downloadsOpen,
       features.collections.historyOpen,
       features.collections.bookmarksOpen
     ],
+    surfacesShownWithTab: [transient.findOpen],
     runFindTransition,
     focusInput: navigation.focusAddressInput,
     expandTabGroup: navigation.expandTabGroup,
@@ -310,7 +327,7 @@ export function useAppShellInteractionFeatureController(
     browser: {
       openHome: home.openHome,
       runShortcut: (action) => runShortcutFromPalette(action),
-      toggleTabSearch: tabSearch.toggle,
+      openHomeTabs: home.openHomeTabs,
       openFind: find.open,
       togglePageTools: navigation.togglePageTools,
       toggleDeveloperTools: navigation.toggleDeveloperTools
@@ -323,35 +340,54 @@ export function useAppShellInteractionFeatureController(
     settings: {
       openSection: surfaces.settings.openSection,
       openHelp: help.openDialog,
+      openTaskManager: surfaces.taskManager.openDialog,
       toggleMcpPaused: actions.toggleMcpPaused
     }
   })
   const browserShortcuts = useBrowserShortcutController({
     state: options.state,
     activeTab: options.activeTab,
+    selectedTabIds: () => navigation.tabStrip?.()?.selectedTabs() ?? [],
+    foldedWorkspaceIds: () => navigation.tabStrip?.()?.foldedWorkspaceIds(),
     browser: options.browser,
     syncState: options.syncState,
     settingsOpen: surfaces.settings.open,
     settingsTabOpen: surfaces.settings.tabOpen,
-    openSettings: () => { surfaces.settings.activate?.() },
+    openSettings: () => { surfaces.settings.toggle?.() },
     closeSettingsTab: surfaces.settings.closeTab,
     canRunAction: (action) => {
       // Find Next and Find Previous do nothing over a dialog, as Ctrl/Cmd+F does: Find would search the page the dialog
-      // covers and fight it for focus. Their keys reach the menu from a dialog, which leaves them alone.
-      // The View menu's Downloads key reaches the menu from a dialog too: the panel would open behind the dialog, or
-      // close Tab search, where Ctrl/Cmd+H does nothing. Over Settings it opens and closes Settings, as Ctrl/Cmd+H does.
+      // covers and fight it for focus. Hronaut's window keeps their keys from the menu there, but the menu's items can
+      // still be chosen with the pointer. So can the View menu's Downloads: the panel would open behind the dialog, where
+      // Ctrl/Cmd+H does nothing. Over Settings it opens and closes Settings, as Ctrl/Cmd+H does.
       if (action === 'find-next' || action === 'find-previous' || action === 'downloads') {
         return !(
           transient.commandPaletteOpen.value
           || transient.workspaceEditorOpen.value
           || transient.credentialPickerOpen.value
-          || transient.tabSearchOpen.value
           || surfaces.help.open.value
           || surfaces.releaseHistory.open.value
-          || surfaces.agentSteps.open.value
+          || surfaces.taskManager.open.value
+          || surfaces.qrCode.open.value
+          || agentSteps.open.value
           || surfaces.walletApproval.value
           || surfaces.trustedDialog.open.value
           || (action !== 'downloads' && surfaces.settings.open.value)
+        )
+      }
+      // The View menu's Task manager, chosen with the pointer over another dialog or the palette, would open over it
+      // and fight it for focus; over its own dialog it closes it, as its key does, unless a site's request, a wallet
+      // approval or the sign-in picker came up over it meanwhile.
+      if (action === 'task-manager') {
+        if (surfaces.trustedDialog.open.value || surfaces.walletApproval.value || transient.credentialPickerOpen.value) return false
+        return surfaces.taskManager.open.value || !(
+          transient.commandPaletteOpen.value
+          || transient.workspaceEditorOpen.value
+          || surfaces.help.open.value
+          || surfaces.releaseHistory.open.value
+          || agentSteps.open.value
+          || surfaces.qrCode.open.value
+          || surfaces.settings.open.value
         )
       }
       // A card or a picker over an open dialog would fight it for focus.
@@ -360,24 +396,30 @@ export function useAppShellInteractionFeatureController(
         || transient.workspaceEditorOpen.value
         || transient.credentialPickerOpen.value
         || surfaces.help.open.value
+        || surfaces.taskManager.open.value
+        || surfaces.qrCode.open.value
         || surfaces.settings.open.value
         || surfaces.trustedDialog.open.value
       )
     },
     openNewTab: async () => { await tabNavigation.openNewTab() },
     focusAddress: async () => { await tabNavigation.focusAddress() },
+    openHome: home.openHome,
     openFind: find.open,
     findAgain: find.findAgain,
     setZoom: transient.setZoom,
     toggleCurrentBookmark: features.collections.toggleCurrentBookmark,
+    bookmarkAllTabs: () => features.collections.bookmarkAllTabs(),
     toggleVisitHistory: features.collections.toggleVisitHistory,
     toggleDownloads: features.collections.toggleDownloads,
-    toggleTabSearch: tabSearch.toggle,
+    toggleTaskManager: surfaces.taskManager.toggle,
+    openHomeTabs: home.openHomeTabs,
     openPrivacySettings: features.site.openPrivacySettings,
     toggleCommandPalette: () => commandPalette.toggle('commands'),
     toggleWorkspaceSwitcher: () => commandPalette.toggle('workspaces'),
     toggleElementPicker: () => features.pageTools.toggleElementPicker('context'),
     toggleDeveloperTools: navigation.toggleDeveloperTools,
+    showDeveloperToolsConsole: navigation.showDeveloperToolsConsole,
     ...(navigation.openAgentCard ? { openAgentCard: async () => { await navigation.openAgentCard?.() } } : {}),
     ...(navigation.toggleFullPageView ? { toggleFullPageView: () => { navigation.toggleFullPageView?.() } } : {}),
     ...(navigation.takeOverFromAgent ? { takeOverFromAgent: () => { navigation.takeOverFromAgent?.() } } : {}),
@@ -389,20 +431,22 @@ export function useAppShellInteractionFeatureController(
     commandPalette: transient.commandPaletteOpen,
     modals: {
       walletApproval: { open: surfaces.walletApproval, close: () => undefined },
-      trustedDialog: surfaces.trustedDialog,
-      agentSteps: surfaces.agentSteps,
+      trustedDialog,
+      agentSteps,
       workspaceEditor: { open: transient.workspaceEditorOpen, close: transient.closeWorkspace },
       credentialPicker: transient.credentialPickerOpen,
       releaseHistory: surfaces.releaseHistory,
       helpDialog: surfaces.help,
+      taskManager: surfaces.taskManager,
+      qrCode: surfaces.qrCode,
       settings: surfaces.settings
     },
     overlays: {
       siteStorage: surfaces.siteStorage,
       siteControls: surfaces.siteControls,
       addressSuggestions: surfaces.addressSuggestions,
-      find: { open: transient.findOpen, close: () => { void transient.closeFind() } },
-      tabSearch: transient.tabSearchOpen,
+      // The person's Escape closing Find from elsewhere in Hronaut's window keeps its match, as Escape in the bar does.
+      find: { open: transient.findOpen, close: () => { void transient.closeFind({ keepMatch: true }) } },
       splitMenu: splitView.open,
       zoom: transient.zoomOpen,
       updateNotice: surfaces.updateNotice
@@ -410,8 +454,8 @@ export function useAppShellInteractionFeatureController(
     collections: features.collections,
     pageTools: { panelOpen: surfaces.pageTools, ...features.pageTools },
     developerPanels: { console: surfaces.console, network: surfaces.network },
-    responsivePreview: surfaces.responsive,
-    environmentPanel: surfaces.environment,
+    responsivePreview: { open: features.emulation.responsivePanelOpen, close: features.emulation.closeResponsivePreview },
+    environmentPanel: features.emulation.environmentPanelOpen,
     panelsInOwnWindow: surfaces.panelsInOwnWindow,
     runShortcut: (shortcut) => { void browserShortcuts.run(shortcut) }
   })
@@ -429,7 +473,7 @@ export function useAppShellInteractionFeatureController(
     prepareSplitViewMenu: splitView.prepareOpen,
     handleSplitViewError: splitView.handleError,
     openFind: find.open,
-    toggleTabSearch: tabSearch.toggle,
+    openHomeTabs: home.openHomeTabs,
     toggleZoom: zoom.toggle,
     runShellAction: uiActions.run,
     openSupportSettings: help.openSupportSettings,

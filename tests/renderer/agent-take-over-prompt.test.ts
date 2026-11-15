@@ -2,7 +2,7 @@ import { fireEvent, screen } from '@testing-library/vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
-import AgentTakeOverPrompt from '../../src/renderer/src/components/AgentTakeOverPrompt.vue'
+import AgentTakeOverPrompt from '../../src/renderer/src/features/agents/AgentTakeOverPrompt.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentPresence, AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 

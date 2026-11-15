@@ -1,0 +1,184 @@
+<script setup lang="ts">
+import { onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import type { HronautApi } from '../../../../shared/types.js'
+import {
+  HUMAN_WAITING_NOTE_LIMIT,
+  normalizeHumanWaitingNote,
+  requiresHumanWaitingAccountAndTargetConfirmation,
+  type HumanWaitingRecord
+} from '../../../../shared/human-waiting.js'
+import UiButton from '../../ui/UiButton.vue'
+
+const props = defineProps<{
+  workspaceId: string
+  disabled?: boolean
+  browser: Pick<HronautApi, 'listHumanWaiting' | 'changeHumanWaiting'>
+}>()
+const { t, locale } = useI18n({ useScope: 'global' })
+const records = ref<HumanWaitingRecord[]>([])
+const reviewed = ref<Record<string, boolean>>({})
+const accountAndTargetReviewed = ref<Record<string, boolean>>({})
+// What the person writes to the agent, by decision. A failed answer keeps it, so nothing typed is lost.
+const notes = ref<Record<string, string>>({})
+const busy = ref(false)
+const error = ref(false)
+let generation = 0
+const active = (record: HumanWaitingRecord) => record.state === 'WAITING_FOR_HUMAN' || record.state === 'ACKNOWLEDGED'
+const isGroup = (record: HumanWaitingRecord) => (record.review?.steps?.length ?? 0) > 1
+const deadline = (value: number): string => {
+  try { return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(value) } catch { return t('humanWaiting.unavailable') }
+}
+
+async function refresh(): Promise<void> {
+  if (busy.value || props.disabled) return
+  const current = ++generation
+  busy.value = true; error.value = false
+  try {
+    const next = await props.browser.listHumanWaiting(props.workspaceId)
+    if (current === generation) { records.value = next; reviewed.value = {}; accountAndTargetReviewed.value = {} }
+  } catch {
+    if (current === generation) { error.value = true; records.value = []; reviewed.value = {}; accountAndTargetReviewed.value = {} }
+  } finally { if (current === generation) busy.value = false }
+}
+
+async function change(record: HumanWaitingRecord, action: 'acknowledge' | 'cancel' | 'reject' | 'resolve'): Promise<void> {
+  if (busy.value || props.disabled || !active(record)
+    || (action === 'resolve' && (!reviewed.value[record.id]
+      || (requiresHumanWaitingAccountAndTargetConfirmation(record) && !accountAndTargetReviewed.value[record.id])))) return
+  const workspaceId = props.workspaceId
+  const current = ++generation
+  busy.value = true; error.value = false
+  const confirmation = action === 'resolve' && requiresHumanWaitingAccountAndTargetConfirmation(record)
+    ? { accountAndTargetVerified: true as const }
+    : undefined
+  const note = action === 'acknowledge' ? undefined : normalizeHumanWaitingNote(notes.value[record.id] ?? '')
+  // A note main would refuse is not dropped from the answer: the person sees the error and keeps the text.
+  if (note === null) { error.value = true; busy.value = false; return }
+  try {
+    const next = note !== undefined
+      ? await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action, confirmation, note)
+      : confirmation
+        ? await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action, confirmation)
+        : await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action)
+    if (current === generation) {
+      records.value = records.value.map(candidate => candidate.id === next.id ? next : candidate)
+      reviewed.value = {}; accountAndTargetReviewed.value = {}
+      if (action !== 'acknowledge') notes.value = Object.fromEntries(Object.entries(notes.value).filter(([id]) => id !== record.id))
+    }
+  } catch {
+    if (current === generation) { error.value = true; reviewed.value = {}; accountAndTargetReviewed.value = {} }
+  } finally { if (current === generation) busy.value = false }
+}
+
+watch(() => [props.workspaceId, props.disabled] as const, ([workspaceId], previous) => {
+  // Notes belong to their workspace; the editor turning its controls off and on again keeps them.
+  if (workspaceId !== previous?.[0]) notes.value = {}
+  generation += 1; records.value = []; reviewed.value = {}; accountAndTargetReviewed.value = {}; busy.value = false
+  void refresh()
+}, { immediate: true })
+onBeforeUnmount(() => { generation += 1 })
+</script>
+
+<template>
+  <section class="human-waiting" :aria-label="t('humanWaiting.title')" :aria-busy="busy">
+    <h3>{{ t('humanWaiting.title') }}</h3>
+    <p>{{ t('humanWaiting.help') }}</p>
+    <UiButton appearance="standard" type="button" :disabled="busy || disabled" @click="refresh">{{ t('humanWaiting.refresh') }}</UiButton>
+    <p v-if="error" role="alert">{{ t('humanWaiting.error') }}</p>
+    <p v-else-if="!busy && !records.length">{{ t('humanWaiting.empty') }}</p>
+    <div class="waiting-records">
+      <article v-for="record in records" :key="record.id" class="waiting-record">
+        <h4>{{ t(`humanWaiting.decisions.${record.decision}`) }}</h4>
+        <p>{{ t(`humanWaiting.states.${record.state}`) }}</p>
+        <div v-if="record.review" class="waiting-artifact">
+          <p><strong>{{ t('humanWaiting.review.heading') }}</strong> · {{ t(`humanWaiting.review.statuses.${record.review.status}`) }}</p>
+          <ol v-if="record.review.steps" class="waiting-steps">
+            <li v-for="(step, index) in record.review.steps" :key="step.artifactHash" :class="{ current: index === record.review.currentStep }">
+              <p><strong>{{ t('humanWaiting.review.step', { current: index + 1, total: record.review.steps.length }) }} · {{ step.toolName }}</strong></p>
+              <p v-if="step.representation === 'visible-browser-only'">{{ t('humanWaiting.review.visibleOnly') }}</p>
+              <p v-else-if="step.description">{{ step.description }}</p>
+              <p v-if="step.expectedPostcondition"><strong>{{ t('humanWaiting.review.expected') }}:</strong> {{ step.expectedPostcondition }}</p>
+              <dl>
+                <dt>{{ t('humanWaiting.review.actionClass') }}</dt><dd>{{ step.actionClass }}</dd>
+                <dt>{{ t('humanWaiting.review.reversibility') }}</dt><dd>{{ t(`humanWaiting.review.reversibilities.${step.reversibility}`) }}</dd>
+                <template v-if="step.origin"><dt>{{ t('humanWaiting.review.origin') }}</dt><dd>{{ step.origin }}</dd></template>
+                <template v-if="step.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ step.tabId }}</dd></template>
+                <template v-if="step.browserSessionGeneration !== undefined"><dt>{{ t('humanWaiting.review.browserSession') }}</dt><dd>{{ step.browserSessionGeneration }}</dd></template>
+                <dt>{{ t('humanWaiting.review.artifact') }}</dt><dd>{{ step.artifactHash }}</dd>
+              </dl>
+            </li>
+          </ol>
+          <template v-else>
+            <p v-if="record.review.representation === 'visible-browser-only'">{{ t('humanWaiting.review.visibleOnly') }}</p>
+            <p v-else-if="record.review.description">{{ record.review.description }}</p>
+            <p v-if="record.review.expectedPostcondition"><strong>{{ t('humanWaiting.review.expected') }}:</strong> {{ record.review.expectedPostcondition }}</p>
+          </template>
+          <dl>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.tool') }}</dt><dd>{{ record.review.toolName }}</dd></template>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.actionClass') }}</dt><dd>{{ record.review.actionClass }}</dd></template>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.reversibility') }}</dt><dd>{{ t(`humanWaiting.review.reversibilities.${record.review.reversibility}`) }}</dd></template>
+            <dt>{{ t('humanWaiting.review.workspace') }}</dt><dd>{{ record.review.workspaceName }}</dd>
+            <dt>{{ t('humanWaiting.review.profile') }}</dt><dd>{{ record.review.profileName }}</dd>
+            <dt>{{ t('humanWaiting.review.authority') }}</dt><dd><code>{{ record.review.sessionBinding.slice(0, 12) }}</code></dd>
+            <template v-if="!record.review.steps && record.review.origin"><dt>{{ t('humanWaiting.review.origin') }}</dt><dd>{{ record.review.origin }}</dd></template>
+            <template v-if="!record.review.steps && record.review.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ record.review.tabId }}</dd></template>
+            <template v-if="record.review.navigationGeneration !== undefined"><dt>{{ t('humanWaiting.review.navigation') }}</dt><dd>{{ record.review.navigationGeneration }}</dd></template>
+            <template v-if="record.review.humanInputGeneration !== undefined"><dt>{{ t('humanWaiting.review.humanInput') }}</dt><dd>{{ record.review.humanInputGeneration }}</dd></template>
+            <template v-if="!record.review.steps && record.review.browserSessionGeneration !== undefined"><dt>{{ t('humanWaiting.review.browserSession') }}</dt><dd>{{ record.review.browserSessionGeneration }}</dd></template>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.artifact') }}</dt><dd>{{ record.review.artifactHash }}</dd></template>
+          </dl>
+          <ol class="waiting-receipts" :aria-label="t('humanWaiting.review.timeline')">
+            <li v-for="(receipt, index) in record.review.receipts" :key="`${receipt.status}-${index}`">
+              {{ t(`humanWaiting.review.statuses.${receipt.status}`) }} · {{ deadline(receipt.at) }}
+            </li>
+          </ol>
+        </div>
+        <dl>
+          <dt>{{ t('humanWaiting.owner') }}</dt><dd>{{ record.owner }}</dd>
+          <dt>{{ t('humanWaiting.fallback') }}</dt><dd>{{ record.fallbackOwner }}</dd>
+          <dt>{{ t('humanWaiting.deadline') }}</dt><dd>{{ deadline(record.deadlineAt) }}</dd>
+          <dt>{{ t('humanWaiting.notification') }}</dt><dd>{{ t(`humanWaiting.notifications.${record.notificationStatus}`) }} · {{ t('humanWaiting.attempts') }}: {{ record.notificationAttempts }}</dd>
+          <dt>{{ t('humanWaiting.handle') }}</dt><dd>{{ record.id }}</dd>
+        </dl>
+        <p v-if="record.priorOutcome === 'OUTCOME_UNKNOWN'">{{ t('humanWaiting.unknown') }}</p>
+        <p v-if="record.answeredAt !== undefined" data-testid="human-waiting-answered">{{ t('humanWaiting.answered', { time: deadline(record.answeredAt) }) }}</p>
+        <p v-if="record.note" class="waiting-sent-note" data-testid="human-waiting-note"><strong>{{ t('humanWaiting.yourNote') }}</strong> {{ record.note }}</p>
+        <template v-if="active(record)">
+          <label class="waiting-note">
+            <span>{{ t(record.decision === 'provide-input' ? 'humanWaiting.answerLabel' : 'humanWaiting.noteLabel') }}</span>
+            <textarea v-model="notes[record.id]" rows="3" :maxlength="HUMAN_WAITING_NOTE_LIMIT" spellcheck="true" :disabled="busy || disabled" data-testid="human-waiting-note-field" />
+          </label>
+          <label class="waiting-review"><input v-model="reviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t(isGroup(record) ? 'humanWaiting.reviewedGroup' : record.review ? 'humanWaiting.reviewedExact' : 'humanWaiting.reviewed') }}</label>
+          <label v-if="requiresHumanWaitingAccountAndTargetConfirmation(record)" class="waiting-review"><input v-model="accountAndTargetReviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t('humanWaiting.reviewedAccountAndTarget') }}</label>
+          <div class="waiting-actions">
+            <UiButton appearance="standard" type="button" :disabled="busy || disabled || record.state === 'ACKNOWLEDGED'" @click="change(record, 'acknowledge')">{{ t('humanWaiting.acknowledge') }}</UiButton>
+            <UiButton appearance="standard" type="button" :disabled="busy || disabled || !reviewed[record.id] || (requiresHumanWaitingAccountAndTargetConfirmation(record) && !accountAndTargetReviewed[record.id])" @click="change(record, 'resolve')">{{ t(isGroup(record) ? 'humanWaiting.approveGroup' : record.review ? 'humanWaiting.approve' : 'humanWaiting.resolve') }}</UiButton>
+            <UiButton v-if="record.review" appearance="standard" type="button" :disabled="busy || disabled" @click="change(record, 'reject')">{{ t('humanWaiting.reject') }}</UiButton>
+            <UiButton appearance="standard" type="button" :disabled="busy || disabled" @click="change(record, 'cancel')">{{ t('humanWaiting.cancel') }}</UiButton>
+          </div>
+        </template>
+      </article>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.human-waiting { display: grid; gap: 0.65rem; margin-top: 18px; padding: 14px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--corner-3); }
+.human-waiting h3, .human-waiting h4, .human-waiting p { margin: 0; }
+.waiting-records { display: grid; gap: 12px; max-height: 380px; overflow: auto; }
+.waiting-record { display: grid; gap: 0.6rem; padding: 10px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
+.waiting-artifact { display: grid; gap: 0.55rem; padding: 10px; background: var(--surface-raised, var(--surface)); border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
+.waiting-record dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.35rem 0.7rem; margin: 0; }
+.waiting-record dd { margin: 0; overflow-wrap: anywhere; }
+.waiting-receipts { margin: 0; padding-inline-start: 1.4rem; }
+.waiting-steps { display: grid; gap: 0.55rem; margin: 0; padding-inline-start: 1.6rem; }
+.waiting-steps > li { padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--corner-1); }
+.waiting-steps > li.current { border-color: var(--accent); }
+.waiting-review { display: flex; align-items: flex-start; gap: 0.6rem; }
+.waiting-note { display: grid; gap: 0.4rem; }
+.waiting-note textarea { box-sizing: border-box; width: 100%; padding: 8px 10px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--corner-2); resize: vertical; }
+.waiting-note textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.waiting-sent-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.waiting-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+</style>

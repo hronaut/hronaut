@@ -1,6 +1,6 @@
 import { connect, createServer, type Server } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { McpPortRecovery, mcpListenErrorCode, mcpPortAvailable, mcpSystemPort, suggestMcpPort, type McpPortProbes } from '../src/main/mcp-port-suggestion.js'
+import { McpPortRecovery, mcpListenErrorCode, mcpPortAvailable, mcpSystemPort, suggestMcpPort, type McpPortProbes } from '../src/main/mcp-runtime/mcp-port-suggestion.js'
 
 const servers: Server[] = []
 afterEach(async () => { await Promise.all(servers.splice(0).map(server => new Promise(resolve => server.close(resolve)))) })

@@ -4,6 +4,11 @@ import { registerNavigationIpc } from '../src/main/navigation-ipc.js'
 
 const electron = vi.hoisted(() => ({ exposeInMainWorld: vi.fn(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() }))
 vi.mock('electron', () => ({ contextBridge: { exposeInMainWorld: electron.exposeInMainWorld }, ipcRenderer: electron }))
+// The handler opens the new tab with the browser; that runs on the fake browser's stub.
+vi.mock('../src/main/browser/navigation-new-tab/navigation-new-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/navigation-new-tab/navigation-new-tab.js')>(),
+  openNavigationInNewTab: (browser: { openNavigationInNewTab: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.openNavigationInNewTab(...args)
+}))
 afterEach(() => { vi.resetModules(); vi.clearAllMocks() })
 
 function newTabHandler() {

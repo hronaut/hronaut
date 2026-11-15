@@ -3,6 +3,7 @@ import { LOGPOINT_ACTIONS, LOGPOINT_LIMITS, type LogpointAction, type LogpointRe
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { logpoint } from '../../../browser/logpoints/browser-logpoints.js'
 
 const probeSchema = z.object({
   url: z.string().min(1).max(LOGPOINT_LIMITS.maxUrlChars).optional()
@@ -45,7 +46,7 @@ export function registerBrowserLogpoint(context: McpToolContext): void {
       if (action === 'add' && probes === undefined) throw new Error('add needs probes')
       // Checked at every hit and while armed, without renewing the agent's write ownership.
       const authority = { assertCurrent: (origin: string) => call.validateLifecycle(origin) }
-      return textResult(await manager.logpoint(tabId, action, { probes, maxHits, durationMs, authority }))
+      return textResult(await logpoint(manager, tabId, action, { probes, maxHits, durationMs, authority }))
     }),
     { readOnly: input => input.action === 'scripts' }
   )

@@ -42,11 +42,30 @@ export interface BrowserFindOptions {
   forward?: boolean
   findNext?: boolean
   caseSensitive?: boolean
+  /**
+   * Collapses the page's selection to its start first. A new Chromium search passes over a match that is the selection it
+   * starts from, so this finds a selected match itself instead of the one after it.
+   */
+  fromSelectionStart?: boolean
 }
 
 export interface BrowserFindResult {
   activeMatchOrdinal: number
   matches: number
+}
+
+/** The keys Chrome's find bar sends on from its field to the page, which scroll it; Home and End only with Ctrl. */
+export const FIND_PAGE_KEYS = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'] as const
+
+/** A key the person pressed or released in the Find field, for the page. */
+export interface BrowserFindPageKey {
+  type: 'keyDown' | 'keyUp'
+  key: (typeof FIND_PAGE_KEYS)[number]
+  shift: boolean
+  control: boolean
+  alt: boolean
+  meta: boolean
+  repeat: boolean
 }
 
 export type BrowserScreenshotFormat = 'png' | 'jpeg'

@@ -43,11 +43,11 @@ also matches buttons inside unrelated open shadow roots.
 
 ## Integration boundaries
 
-- `src/main/browser/repro-recorder.ts` owns assertion insertion and recording
+- `src/main/browser/repro-recorder/repro-recorder.ts` owns assertion insertion and recording
   identity, limits, and ordering. Keep the pending selection tied to the original
   recording object, tab identity, WebContents, navigation generation, and
   workspace observation generation. Recheck all of them before inserting a step.
-- `BrowserTabsManager` owns native selection and workspace access. Reuse selection
+- `Browser` owns native selection and workspace access. Reuse selection
   lifecycle and cancellation machinery with a recorder-specific result mode.
   The existing `browser:pick-element` IPC handler copies rich inspection data to
   the clipboard; invoking that command would give assertion selection unwanted

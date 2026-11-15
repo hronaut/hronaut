@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePanelWindowEventsController } from '../../src/renderer/src/composables/usePanelWindowEventsController.js'
+import { usePanelWindowEventsController } from '../../src/renderer/src/features/panels/usePanelWindowEventsController.js'
 import type {
   HronautPanelWindowApi,
   DetachablePanelId,

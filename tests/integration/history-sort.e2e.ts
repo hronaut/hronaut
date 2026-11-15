@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { HronautApi, HronautHistoryApi } from '../../src/shared/types.js'
-import { closeFixtureServer, closeHronaut, expect, launchHronaut, test, waitForSavedWorkspaces } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('sorts retained visits within History filters and preserves focus through a real background revisit', async ({ profileDirectory, mcpPort }, testInfo) => {
   const server = createServer((_request, response) => {
@@ -18,13 +18,13 @@ test('sorts retained visits within History filters and preserves focus through a
       ['alpha', 'Reference alpha', `${origin}/alpha`, 2, 120_000],
       ['old', 'Reference old', `${origin}/old`, 20, 10 * 86_400_000]
     ] as const).map(([id, title, url, visitCount, age]) => ({ id, title, url, visitCount, visitedAt: new Date(Date.now() - age).toISOString() }))
+    // The history saves the visit times it keeps for a page; with one, its last visit, the file stays as written.
+    const saved = entries.map(entry => ({ ...entry, earlierVisitAt: Date.parse(entry.visitedAt) }))
     const path = join(profileDirectory, 'history.json')
-    await writeFile(path, JSON.stringify({ version: 1, entries }))
+    await writeFile(path, JSON.stringify({ version: 1, entries: saved }))
     let instance = await launchHronaut(profileDirectory, mcpPort)
     try {
       const page = instance.window
-      // Opening a tab before saved workspaces load fails with "still initializing" on slow runners.
-      await waitForSavedWorkspaces(page)
       await page.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url: 'about:blank', active: true }))
       const before = await page.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
       await page.getByRole('button', { name: 'Browsing history', exact: true }).click()
@@ -56,7 +56,7 @@ test('sorts retained visits within History filters and preserves focus through a
       await expect(sort).toBeEnabled()
       await panel.getByRole('searchbox').fill('127.0.0.1 Reference')
       expect(await page.evaluate(() => (window as unknown as { hronautHistory: HronautHistoryApi }).hronautHistory.list())).toEqual(entries)
-      expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual(entries)
+      expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual(saved)
       const background = panel.getByRole('button', { name: 'Open Reference beta in background tab' })
       await background.focus()
       await background.press('Enter')

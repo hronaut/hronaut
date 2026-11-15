@@ -7,7 +7,9 @@ export type CommandPaletteCommandId =
   | 'switch-workspace'
   | 'downloads'
   | 'bookmarks'
+  | 'bookmark-all-tabs'
   | 'history'
+  | 'task-manager'
   | 'find'
   | 'reload'
   | 'reload-ignoring-cache'
@@ -57,6 +59,8 @@ export interface CommandPaletteCommand {
   category: CommandPaletteCategory
   keywords?: readonly string[]
   shortcut?: string
+  /** The shortcut is one elsewhere than macOS, where the command has none, as Chrome gives its Task manager none there. */
+  noMacShortcut?: true
   websiteOnly?: boolean
   /** Offered only while an agent works in the workspace in view. */
   agentOnly?: boolean
@@ -71,7 +75,9 @@ export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
   { id: 'switch-workspace', label: 'Switch workspace', description: 'Go to a workspace by its name, agents, or sites', category: 'Navigation', keywords: ['workspace', 'project', 'client', 'jump', 'go to', 'agent', 'archived'], shortcut: 'Ctrl/Cmd+K' },
   { id: 'downloads', label: 'Show downloads', description: 'Review current and completed downloads', category: 'Navigation', keywords: ['files'], shortcut: 'Ctrl+J / Cmd+Option+L' },
   { id: 'bookmarks', label: 'Show bookmarks', description: 'Open locally saved pages', category: 'Navigation', keywords: ['favorites', 'star'] },
+  { id: 'bookmark-all-tabs', label: 'Bookmark all tabs', description: 'Save the open tabs of the workspace in view as a bookmark collection', category: 'Navigation', keywords: ['favorites', 'star', 'save tabs', 'session', 'collection'], shortcut: 'Ctrl/Cmd+Shift+D', websiteOnly: true },
   { id: 'history', label: 'Show browsing history', description: 'Search locally visited pages', category: 'Navigation', keywords: ['visits'], shortcut: 'Ctrl+H / Cmd+Y' },
+  { id: 'task-manager', label: 'Open Task manager', description: 'See the memory and CPU each tab and process uses', category: 'Application', keywords: ['processes', 'memory', 'cpu', 'end process', 'kill', 'slow'], shortcut: 'Shift+Esc', noMacShortcut: true },
   { id: 'find', label: 'Find in page', description: 'Search text in the current website', category: 'Current website', keywords: ['search'], shortcut: 'Ctrl/Cmd+F', websiteOnly: true },
   { id: 'reload', label: 'Reload page', description: 'Reload the current website', category: 'Current website', shortcut: 'Ctrl/Cmd+R', websiteOnly: true },
   { id: 'reload-ignoring-cache', label: 'Reload without cache', description: 'Fetch the current website again from the network', category: 'Current website', keywords: ['hard refresh'], shortcut: 'Ctrl/Cmd+Shift+R', websiteOnly: true },

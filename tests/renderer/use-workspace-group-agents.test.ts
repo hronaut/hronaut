@@ -1,7 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import { useWorkspaceGroupAgents } from '../../src/renderer/src/composables/useWorkspaceGroupAgents.js'
+import { useWorkspaceGroupAgents } from '../../src/renderer/src/features/workspaces/useWorkspaceGroupAgents.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 
 function agent(name: string, state: AgentPresence['state']): AgentPresence {
@@ -119,6 +119,24 @@ describe('useWorkspaceGroupAgents', () => {
     attention.value = 'shop'
     await publish({ shop: [agent('Claude Code', 'needs-you'), agent('Cursor', 'working')] })
     expect(open).not.toHaveBeenCalled()
+    stop()
+  })
+
+  // Presence changes with every call an agent makes, for the step it shows elsewhere; the rail draws a group's agents
+  // from this list, so it stays the same list while the agents only take steps.
+  it('keeps a group\'s list of agents while they only take steps, and makes a new one when what it shows changes', async () => {
+    const { groups, publish, stop } = setup({ shop: [agent('Claude Code', 'working')], blog: [agent('Cursor', 'idle')] })
+    await flushPromises()
+    const shop = groups.agents('shop')
+    const blog = groups.agents('blog')
+    expect(shop).toEqual([{ clientKey: 'key-Claude Code', name: 'Claude Code', initial: 'C', colorIndex: 2, state: 'working' }])
+    await publish({ shop: [{ ...agent('Claude Code', 'working'), step: 'navigate', target: 'example.com' }], blog: [agent('Cursor', 'idle')] })
+    expect(groups.agents('shop')).toBe(shop)
+    expect(groups.agents('blog')).toBe(blog)
+    await publish({ shop: [agent('Claude Code', 'needs-you')], blog: [agent('Cursor', 'idle')] })
+    expect(groups.agents('shop')).not.toBe(shop)
+    expect(groups.agents('shop').map((entry) => entry.state)).toEqual(['needs-you'])
+    expect(groups.agents('blog')).toBe(blog)
     stop()
   })
 

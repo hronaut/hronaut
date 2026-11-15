@@ -9,7 +9,7 @@ import {
 describe('focused static project selection', () => {
   it('checks only the owning renderer, main, and website projects', () => {
     expect(typecheckScriptsForFiles(['src/renderer/src/App.vue'])).toEqual(['typecheck:web'])
-    expect(typecheckScriptsForFiles(['src/main/browser/tabs-manager.ts'])).toEqual(['typecheck:node'])
+    expect(typecheckScriptsForFiles(['src/main/browser/browser.ts'])).toEqual(['typecheck:node'])
     expect(typecheckScriptsForFiles(['website/index.ts'])).toEqual(['typecheck:website'])
   })
 

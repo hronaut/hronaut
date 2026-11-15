@@ -18,9 +18,9 @@ export interface BrowserTabState {
   url: string
   loading: boolean
   navigationGeneration: number
-  /** Opaque marker advanced when the tab starts loading another document, such as another page or a reload, and when
-   * that document or an error page replaces the page; a change within the page, such as a fragment or
-   * `history.pushState`, leaves it. */
+  /** Opaque marker advanced when another document, such as another page, a reload or an error page, replaces the page;
+   * a navigation that never commits, such as a download, and a change within the page, such as a fragment or
+   * `history.pushState`, leave it. */
   documentGeneration?: number
   /** Opaque boundary advanced when agent control is handed off or re-established. */
   observationGeneration?: number
@@ -50,6 +50,8 @@ export interface BrowserTabState {
   audible: boolean
   tabMuted?: boolean
   muted: boolean
+  /** A permission of the page's website changed since it loaded, which applies once it loads again. */
+  permissionReloadOffered?: true
   devToolsOpen: boolean
   emulation?: BrowserEmulationState
   emulationState?: BrowserUnconfirmedEmulation
@@ -84,6 +86,11 @@ export interface BrowserTabState {
     startedAt: string
   }
   pageProblem?: BrowserPageProblem
+  /**
+   * Runtime only: the page's connection is not private because of a certificate that is not trusted: the tab refused
+   * it, the person chose to open the website anyway, or the page shows a frame they chose to open that way.
+   */
+  untrustedCertificate?: true
   dialog?: BrowserJavaScriptDialog
   mcpGroupId?: string
   mcpGroupName?: string
@@ -255,6 +262,8 @@ export interface BrowserTabOverviewPreview {
   height: number
   /** The page as it was before the tab went to sleep. */
   sleeping?: true
+  /** Which of the tab's stored frames this is; a newer one has a higher number. */
+  revision?: number
 }
 
 export function validateTabOverviewPreviewIds(value: unknown): string[] {
@@ -284,6 +293,8 @@ export interface BrowserState {
   closedTabs: BrowserClosedTabState[]
   activeTabId: string | null
   splitView?: import('../split-view.js').BrowserSplitViewState
+  /** Split views not in view, whose tabs stay paired: selecting either tab shows both again, as in Chrome. */
+  restingSplitViews?: import('../split-view.js').BrowserSplitViewState[]
   agentControlLocked?: boolean
   allTabsMuted?: boolean
   allHumanInteractionLocked: boolean
@@ -299,15 +310,31 @@ export interface NewTabOptions {
   url?: string
   active?: boolean
   mcpGroupId?: string
+  /** Open the tab right after this tab of its workspace, or after its pinned tabs for a pinned one, as Chrome's New tab to the right. */
+  besideTabId?: string
   /** Select the new tab without claiming keyboard or native window focus. */
   focus?: boolean
   /** Give this tab its own page zoom instead of sharing the origin's zoom level. */
   zoomIsolated?: boolean
   /** Browser default (standard) font size in CSS px for this tab; 16 is the browser default. */
   defaultFontSize?: number
+  /**
+   * For a tab opened behind the one shown: it starts asleep and loads in its turn among such tabs, a few at a time, so
+   * opening many at once, as Open all does, does not load them all together.
+   */
+  loadsInTurn?: boolean
 }
 
 export interface NavigateOptions {
   tabId?: string
   url: string
 }
+
+/**
+ * Where a link dropped on the tab strip or rail opens: in the tab it was dropped on, in a new tab before or after that
+ * tab, or in a new tab at the end of a workspace, as when it was dropped on the workspace's New tab button; the person's
+ * own workspace when none is named.
+ */
+export type DroppedLinkTarget =
+  | { tabId: string; placement: 'onto' | 'before' | 'after' }
+  | { workspaceId?: string }

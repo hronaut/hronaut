@@ -45,7 +45,7 @@ const SOURCE_MAP_CALL_MS = 10_000
 
 /** A new call's source map budget. */
 export function sourceMapBudget(): SourceMapBudget {
-  return { remainingBytes: LOGPOINT_LIMITS.maxSourceMapTotalBytes, deadline: Date.now() + SOURCE_MAP_CALL_MS }
+  return { remainingBytes: LOGPOINT_LIMITS.maxSourceMapTotalBytes, deadline: performance.now() + SOURCE_MAP_CALL_MS }
 }
 
 interface ScriptParsedEvent {
@@ -150,7 +150,7 @@ function dataUrlText(url: string, budget: SourceMapBudget): string | LogpointSou
 }
 
 async function withinDeadline<R>(pending: Promise<R>, deadline: number): Promise<R | 'timeout'> {
-  const remaining = deadline - Date.now()
+  const remaining = deadline - performance.now()
   if (remaining <= 0) {
     pending.catch(() => undefined)
     return 'timeout'
@@ -168,7 +168,7 @@ async function withinDeadline<R>(pending: Promise<R>, deadline: number): Promise
  * page's choice and a redirect could take it to another origin, so a map that needs a sign-in is unavailable.
  */
 async function fetchText(send: CdpSend, frameId: string, url: string, budget: SourceMapBudget): Promise<string | LogpointSourceMapProblem> {
-  const deadline = Math.min(budget.deadline, Date.now() + LOGPOINT_LIMITS.sourceMapTimeoutMs)
+  const deadline = Math.min(budget.deadline, performance.now() + LOGPOINT_LIMITS.sourceMapTimeoutMs)
   const loading = send<{ resource?: { success?: boolean; stream?: string } }>('Network.loadNetworkResource', {
     frameId, url, options: { disableCache: false, includeCredentials: false }
   })
@@ -228,7 +228,7 @@ export async function loadSourceMap(send: CdpSend, frameId: string, script: Logp
   if (script.sourceMapTooLarge) return { problem: 'too-large' }
   if (!script.sourceMapUrl) return { problem: 'fetch-failed' }
   if (budget.remainingBytes <= 0) return { problem: 'too-large' }
-  if (Date.now() >= budget.deadline) return { problem: 'timeout' }
+  if (performance.now() >= budget.deadline) return { problem: 'timeout' }
   let text: string | LogpointSourceMapProblem
   if (script.sourceMapUrl.startsWith('data:')) {
     text = dataUrlText(script.sourceMapUrl, budget)

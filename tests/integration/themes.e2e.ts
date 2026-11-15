@@ -208,7 +208,7 @@ test('persists the selected theme across application restarts', async ({
   await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).theme).toBe('matrix')
   await closeHronaut(electronApp)
 
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect(restarted.window.locator('html')).toHaveAttribute('data-theme', 'matrix')
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
@@ -267,7 +267,7 @@ test('scales Hronaut without zooming the active website and persists the choice'
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).interfaceScale).toBe(1.25)
   await closeHronaut(electronApp)
 
-  const restarted = await launchHronaut(profileDirectory, mcpPort + 1)
+  const restarted = await launchHronaut(profileDirectory, mcpPort)
   try {
     await expect.poll(() => restarted.app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor()
@@ -293,19 +293,53 @@ test('resets every Appearance preference including interface size, and only thos
   await appWindow.getByTestId('theme-matrix').click()
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('top')
-  // The last change's own update reaches the window first, so the probe below counts only the reset's.
-  await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.tabPosition)')).toBe('top')
-  await appWindow.evaluate(() => {
+  // The profile starts with the tabs on top, so the interface size is the last setting these steps change. Once main
+  // has it, the updates that change a setting have been sent, and the probe below counts only the reset's; the tab
+  // position's own update repeats the settings, which the probe leaves out. Waiting for the tab position instead let
+  // the probe start while the interface size was still being saved (shard 7 on main, 2026-10-30).
+  await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => [settings.theme, settings.interfaceScale, settings.tabPosition])'))
+    .toEqual(['matrix', 1.25, 'top'])
+  await appWindow.evaluate(async () => {
+    type Settings = Record<string, unknown>
     const page = window as typeof window & {
       hronautSettings: {
-        onChanged: (listener: () => void) => () => void
+        get: () => Promise<Settings>
+        onChanged: (listener: (settings: Settings) => void) => () => void
       }
-      __appearanceResetProbe?: { count: () => number, dispose: () => void }
+      __appearanceResetProbe?: { changes: () => string[][], dispose: () => void }
     }
-    let count = 0
-    const dispose = page.hronautSettings.onChanged(() => { count += 1 })
-    page.__appearanceResetProbe = { count: () => count, dispose }
+    const changedKeys = (from: Settings, to: Settings) => [...new Set([...Object.keys(from), ...Object.keys(to)])]
+      .filter((key) => JSON.stringify(from[key]) !== JSON.stringify(to[key]))
+      .sort()
+    const current = await page.hronautSettings.get()
+    const received: Settings[] = []
+    const dispose = page.hronautSettings.onChanged((settings) => { received.push(settings) })
+    page.__appearanceResetProbe = {
+      // The keys each update changed after the last one that still had these settings: updates main sent earlier can
+      // reach a busy window after get() answers, as the earlier changes' own did, so the probe counted them too
+      // (3 instead of 1 in the v3.12.0 release run). Startup finishing, such as the MCP listener coming up, sends the
+      // same settings again; only a change counts.
+      changes: () => {
+        let start = 0
+        received.forEach((settings, index) => { if (changedKeys(current, settings).length === 0) start = index + 1 })
+        let previous = current
+        const changes: string[][] = []
+        for (const settings of received.slice(start)) {
+          const keys = changedKeys(previous, settings)
+          if (keys.length > 0) changes.push(keys)
+          previous = settings
+        }
+        return changes
+      },
+      dispose
+    }
   })
+  // As a busy window can, it takes the interface size's and tab position's own updates only now, and then, as startup
+  // finishing does whenever it gets there on a slow machine, main sends the same settings again.
+  const unchanged = await appWindow.evaluate('window.hronautSettings.get()') as Record<string, unknown>
+  await electronApp.evaluate(({ BrowserWindow }, updates) => {
+    for (const settings of updates) BrowserWindow.getAllWindows()[0]!.webContents.send('settings:changed', settings)
+  }, [{ ...unchanged, tabPosition: 'left' }, unchanged, unchanged])
 
   await appWindow.locator('.settings-header .secondary-button').click()
 
@@ -325,12 +359,13 @@ test('resets every Appearance preference including interface size, and only thos
   })
   await sections.nth(0).click()
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).not.toBeChecked()
+  // The reset reaches the window as one update, with only Appearance's settings changed.
   await expect.poll(() => appWindow.evaluate(() => {
     const page = window as typeof window & {
-      __appearanceResetProbe?: { count: () => number }
+      __appearanceResetProbe?: { changes: () => string[][] }
     }
-    return page.__appearanceResetProbe?.count()
-  })).toBe(1)
+    return page.__appearanceResetProbe?.changes()
+  })).toEqual([['interfaceScale', 'tabPosition', 'theme']])
   await appWindow.evaluate(() => {
     const page = window as typeof window & {
       __appearanceResetProbe?: { dispose: () => void }
@@ -349,6 +384,7 @@ test('resets every General preference including the language, and only those', a
   await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
   await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
   await appWindow.getByRole('checkbox', { name: /^Show agent cursors/ }).uncheck()
+  await appWindow.getByRole('checkbox', { name: /^Spell check/ }).uncheck()
   await appWindow.locator('#setting-language').selectOption('uk-UA')
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
 
@@ -359,6 +395,7 @@ test('resets every General preference including the language, and only those', a
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
   await expect(appWindow.getByRole('checkbox', { name: 'Play attention sound' })).toBeChecked()
   await expect(appWindow.getByRole('checkbox', { name: /^Show agent cursors/ })).toBeChecked()
+  await expect(appWindow.getByRole('checkbox', { name: /^Spell check/ })).toBeChecked()
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
     theme: 'matrix',
     hideInTray: true,
@@ -368,7 +405,9 @@ test('resets every General preference including the language, and only those', a
     attentionSoundCue: 'warning',
     showAgentCursor: true,
     pinAgentLiveStatus: false,
-    languagePreference: 'system'
+    languagePreference: 'system',
+    spellCheck: true,
+    spellCheckLanguages: []
   })
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'matrix')
 })

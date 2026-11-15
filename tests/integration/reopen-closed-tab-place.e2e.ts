@@ -28,7 +28,7 @@ test('reopens a closed tab in its place among the tabs, with Ctrl/Cmd+Shift+T an
   await appWindow.keyboard.press('ControlOrMeta+Shift+T')
   await expect.poll(order).toEqual(pages)
 
-  // Reopening by its entry, as Search tabs does, put a middle tab after the last one too.
+  // Reopening by its entry, as Home's Tabs view does, put a middle tab after the last one too.
   await close(pages[2]!)
   const middle = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.closedTabs.find((tab) => tab.url === ${JSON.stringify(pages[2])}).id)`)
   await appWindow.evaluate(`window.hronaut.reopenClosedTab(${JSON.stringify(middle)})`)

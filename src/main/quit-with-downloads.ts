@@ -16,14 +16,19 @@ export interface QuitWithDownloadsHost {
   text(key: MessageKey, parameters?: MessageParameters): string
 }
 
+/** What cancels the downloads: Quit, or Restart in Settings, which quits first. */
+export type QuitPurpose = 'quit' | 'restart'
+
 /**
  * Asks before Hronaut's own Quit, in its menu or tray, or closing its window, cancels downloads in progress, as
- * Chrome does. Quitting deletes their unfinished files, and nothing can resume them once Hronaut starts again. Keep
- * downloading is the default answer. A second request while the question is open waits for the same answer.
- * Resolves whether to quit.
+ * Chrome does, and so does Restart, in its own words. Quitting deletes their unfinished files, and nothing can resume
+ * them once Hronaut starts again. Keep downloading is the default answer. A second request while the question is open
+ * waits for the same answer; one for the other purpose, such as Quit while Restart asks, gets no, since the question
+ * the person answers is not about it. Resolves whether to go on.
  */
-export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost): () => Promise<boolean> {
+export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost): (purpose?: QuitPurpose) => Promise<boolean> {
   let pending: Promise<boolean> | undefined
+  let pendingPurpose: QuitPurpose = 'quit'
   /** Whether the open question is in the main window rather than in a system dialog of its own. */
   let askedInWindow = false
   // A question that cannot be shown must not leave Hronaut impossible to quit.
@@ -31,7 +36,7 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
     console.error('[quit] Could not ask about downloads in progress:', error)
     return true
   }
-  return () => {
+  return (purpose = 'quit') => {
     if (pending) {
       // The window may have been hidden or minimized since it asked; bring the question back where it waits.
       if (askedInWindow) {
@@ -41,7 +46,7 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
           console.error('[quit] Could not show the question about downloads in progress:', error)
         }
       }
-      return pending
+      return purpose === pendingPurpose ? pending : Promise.resolve(false)
     }
     let count: number
     let options: TrustedDialogOptions<BrowserWindow>
@@ -55,13 +60,19 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
       const open = window && !window.isDestroyed() ? window : null
       if (open) host.showWindow()
       askedInWindow = open !== null
+      const restart = purpose === 'restart'
       options = {
         type: 'warning',
-        title: host.text('native.dialog.quitDownloadsTitle'),
+        title: host.text(restart ? 'native.dialog.restartDownloadsTitle' : 'native.dialog.quitDownloadsTitle'),
         message: host.text('native.dialog.quitDownloadsMessage', { count }),
         // Chosen by the count itself: languages such as Russian count 21 like 1 but cannot say "its file" for it.
-        detail: host.text(count === 1 ? 'native.dialog.quitDownloadDetail' : 'native.dialog.quitDownloadsDetail'),
-        buttons: [host.text('native.dialog.quitDownloadsKeep'), host.text('native.dialog.quitDownloadsQuit')],
+        detail: host.text(restart
+          ? count === 1 ? 'native.dialog.restartDownloadDetail' : 'native.dialog.restartDownloadsDetail'
+          : count === 1 ? 'native.dialog.quitDownloadDetail' : 'native.dialog.quitDownloadsDetail'),
+        buttons: [
+          host.text('native.dialog.quitDownloadsKeep'),
+          host.text(restart ? 'native.dialog.restartDownloadsRestart' : 'native.dialog.quitDownloadsQuit')
+        ],
         defaultId: 0,
         cancelId: 0,
         noLink: true,
@@ -72,6 +83,7 @@ export function createQuitWithDownloadsConfirmation(host: QuitWithDownloadsHost)
       return Promise.resolve(quitAnyway(error))
     }
     try {
+      pendingPurpose = purpose
       pending = host.showDialog(options)
         .then(({ response }) => response === 1, quitAnyway)
         .finally(() => { pending = undefined })

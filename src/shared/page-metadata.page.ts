@@ -1,0 +1,204 @@
+import type { BrowserPageMetadataIssueSeverity, BrowserPageMetadataReport, BrowserPageMetadataSocialImage } from './types.js'
+import type { PageMetadataLimits } from './page-metadata.js'
+
+type SocialImageDetail = 'alt' | 'width' | 'height'
+
+/**
+ * Runs in the page: reads the allowlisted metadata of the rendered document, each text and address cut to the limits,
+ * and lists what is missing or wrong. An address longer than maxUrlChars becomes omittedUrl, never a cut address.
+ */
+export function pageMetadataInPage(limits: PageMetadataLimits, omittedUrl: string): Omit<BrowserPageMetadataReport, 'tabId'> {
+  const bounded = (value: unknown, max: number = limits.maxTextChars): string => String(value || '').trim().slice(0, max)
+  const boundedUrl = (value: unknown): string => {
+    const text = String(value || '').trim()
+    return text.length > limits.maxUrlChars ? omittedUrl : text
+  }
+  const contents = (selector: string, maxItems = 10, normalize: (value: unknown) => string = bounded): string[] => Array.from(document.querySelectorAll(selector))
+    .slice(0, maxItems)
+    .map((element) => normalize(element.getAttribute('content')))
+    .filter(Boolean)
+  const links = (selector: string, maxItems: number): string[] => Array.from(document.querySelectorAll<HTMLLinkElement>(selector))
+    .slice(0, maxItems)
+    .map((element) => boundedUrl(element.href || element.getAttribute('href')))
+    .filter(Boolean)
+  const first = (selector: string): string | null => contents(selector, 1)[0] || null
+  const metaName = (name: string): string | null => first('meta[name="' + name + '" i]')
+  const metaProperty = (property: string): string | null => first('meta[property="' + property + '" i]')
+  const issue = (severity: BrowserPageMetadataIssueSeverity, code: string, message: string) => ({ severity, code, message })
+  const issues: ReturnType<typeof issue>[] = []
+
+  const titleElements = document.querySelectorAll('title')
+  const title = bounded(document.title, 512)
+  const descriptions = contents('meta[name="description" i]', 5)
+  const canonicalUrls = links('link[rel~="canonical" i]', limits.maxCanonicalUrls)
+  const robots = metaName('robots')
+  const language = bounded(document.documentElement.lang, 64) || null
+  const viewport = metaName('viewport')
+
+  if (!title) issues.push(issue('error', 'missing-title', 'Add a concise, descriptive title element.'))
+  if (titleElements.length > 1) issues.push(issue('warning', 'multiple-titles', 'The document contains more than one title element.'))
+  if (!descriptions.length) issues.push(issue('warning', 'missing-description', 'No meta description is declared; search engines may generate a snippet from page content.'))
+  if (descriptions.length > 1) issues.push(issue('warning', 'multiple-descriptions', 'The document contains more than one meta description.'))
+  if (!canonicalUrls.length) issues.push(issue('info', 'missing-canonical', 'No explicit canonical link is declared.'))
+  if (canonicalUrls.length > 1) issues.push(issue('warning', 'multiple-canonicals', 'The document contains more than one canonical link.'))
+  if (!language) issues.push(issue('warning', 'missing-language', 'The root html element does not declare a language.'))
+  if (!viewport) issues.push(issue('warning', 'missing-viewport', 'No viewport metadata is declared for responsive rendering.'))
+  if (robots && /(?:^|[,\s])noindex(?:$|[,\s])/i.test(robots)) issues.push(issue('info', 'robots-noindex', 'The page asks compliant search engines not to index it.'))
+
+  const headingCounts: Record<string, number> = {}
+  for (let level = 1; level <= 6; level += 1) headingCounts['h' + level] = document.querySelectorAll('h' + level).length
+  if (!headingCounts.h1) issues.push(issue('warning', 'missing-h1', 'No level-one heading is present in the rendered document.'))
+  if (headingCounts.h1! > 1) issues.push(issue('info', 'multiple-h1', 'Multiple level-one headings are present; make the primary page title visually unambiguous.'))
+
+  const og = {
+    title: metaProperty('og:title'),
+    type: metaProperty('og:type'),
+    url: contents('meta[property="og:url" i]', 1, boundedUrl)[0] || null,
+    description: metaProperty('og:description'),
+    siteName: metaProperty('og:site_name'),
+    locale: metaProperty('og:locale'),
+    images: [] as BrowserPageMetadataSocialImage[]
+  }
+  let currentOgImage: BrowserPageMetadataSocialImage | null = null
+  for (const element of document.querySelectorAll('meta[property^="og:" i]')) {
+    const property = element.getAttribute('property')!.toLowerCase()
+    if (property === 'og:image' || property === 'og:image:url') {
+      currentOgImage = null
+      if (og.images.length >= limits.maxSocialImages) break
+      const url = boundedUrl(element.getAttribute('content'))
+      if (!url) continue
+      currentOgImage = { url, alt: null, width: null, height: null }
+      og.images.push(currentOgImage)
+    } else if (property.split(':').length === 2) {
+      currentOgImage = null
+    } else if (currentOgImage) {
+      const field = property.slice('og:image:'.length) as SocialImageDetail
+      if (property.startsWith('og:image:') && ['alt', 'width', 'height'].includes(field)
+        && currentOgImage[field] === null) {
+        currentOgImage[field] = bounded(element.getAttribute('content')) || null
+      }
+    }
+  }
+  const openGraphProperties = Array.from(document.querySelectorAll('meta[property^="og:" i]')).length
+  if (openGraphProperties) {
+    for (const [field, present] of [['og:title', og.title], ['og:type', og.type], ['og:image', og.images.length], ['og:url', og.url]] as const) {
+      if (!present) issues.push(issue('warning', 'incomplete-open-graph', 'Open Graph metadata is missing ' + field + '.'))
+    }
+    if (og.images.some((image) => !image.alt)) issues.push(issue('warning', 'missing-og-image-alt', 'At least one Open Graph image has no og:image:alt description.'))
+  }
+
+  const twitter = {
+    card: metaName('twitter:card'),
+    title: metaName('twitter:title'),
+    description: metaName('twitter:description'),
+    site: metaName('twitter:site'),
+    creator: metaName('twitter:creator'),
+    images: [] as BrowserPageMetadataSocialImage[]
+  }
+  const twitterImageUrls = contents('meta[name="twitter:image" i], meta[name="twitter:image:src" i]', limits.maxSocialImages, boundedUrl)
+  const twitterImageAlts = contents('meta[name="twitter:image:alt" i]', limits.maxSocialImages)
+  for (let index = 0; index < twitterImageUrls.length; index += 1) {
+    twitter.images.push({ url: twitterImageUrls[index]!, alt: twitterImageAlts[index] || null })
+  }
+  const twitterProperties = Array.from(document.querySelectorAll('meta[name^="twitter:" i]')).length
+  if (twitterProperties && !twitter.card) issues.push(issue('warning', 'missing-twitter-card', 'Twitter card metadata is present without twitter:card.'))
+
+  const alternateLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="alternate" i][hreflang]'))
+    .slice(0, limits.maxAlternateLinks)
+    .map((element) => ({
+      language: bounded(element.getAttribute('hreflang'), 64),
+      url: boundedUrl(element.href || element.getAttribute('href'))
+    }))
+    .filter((entry) => entry.language && entry.url)
+  const icons = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="icon" i]'))
+    .slice(0, limits.maxIcons)
+    .map((element) => ({
+      rel: bounded(element.getAttribute('rel'), 64),
+      type: bounded(element.getAttribute('type'), 128) || null,
+      sizes: bounded(element.getAttribute('sizes'), 128) || null,
+      url: boundedUrl(element.href || element.getAttribute('href'))
+    }))
+    .filter((entry) => entry.url)
+
+  const structuredDataBlocks: BrowserPageMetadataReport['structuredData']['blocks'] = []
+  const structuredDataTypes = new Set<string>()
+  let structuredNodesVisited = 0
+  const collectTypes = (value: unknown, blockTypes: Set<string>): void => {
+    if (structuredNodesVisited >= limits.maxStructuredDataNodes || value == null) return
+    structuredNodesVisited += 1
+    if (Array.isArray(value)) {
+      for (const item of value) collectTypes(item, blockTypes)
+      return
+    }
+    if (typeof value !== 'object') return
+    const declared = (value as Record<string, unknown>)['@type']
+    for (const type of Array.isArray(declared) ? declared : declared == null ? [] : [declared]) {
+      if (blockTypes.size >= limits.maxStructuredDataTypes) break
+      const normalized = bounded(type, 128)
+      if (normalized) {
+        blockTypes.add(normalized)
+        if (structuredDataTypes.size < limits.maxStructuredDataTypes) structuredDataTypes.add(normalized)
+      }
+    }
+    for (const child of Object.values(value)) collectTypes(child, blockTypes)
+  }
+  const jsonLdScripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json" i]'))
+  for (const [index, script] of jsonLdScripts.slice(0, limits.maxStructuredDataBlocks).entries()) {
+    try {
+      const parsed: unknown = JSON.parse(script.text || '')
+      const blockTypes = new Set<string>()
+      collectTypes(parsed, blockTypes)
+      structuredDataBlocks.push({
+        index,
+        valid: true,
+        types: Array.from(blockTypes)
+      })
+    } catch {
+      structuredDataBlocks.push({
+        index,
+        valid: false,
+        types: [],
+        error: 'Invalid JSON-LD syntax'
+      })
+    }
+  }
+  const invalidStructuredDataCount = structuredDataBlocks.filter((block) => !block.valid).length
+  if (invalidStructuredDataCount) issues.push(issue('error', 'invalid-json-ld', invalidStructuredDataCount + ' JSON-LD block(s) could not be parsed.'))
+
+  return {
+    url: boundedUrl(location.href),
+    title,
+    capturedAt: new Date().toISOString(),
+    document: {
+      language,
+      charset: bounded(document.characterSet, 64) || null,
+      viewport,
+      description: descriptions[0] || null,
+      robots,
+      themeColor: metaName('theme-color'),
+      manifestUrl: links('link[rel~="manifest" i]', 1)[0] || null,
+      titleElementCount: titleElements.length,
+      descriptionCount: descriptions.length,
+      canonicalUrls,
+      headingCounts: headingCounts as BrowserPageMetadataReport['document']['headingCounts']
+    },
+    openGraph: { ...og, propertyCount: openGraphProperties },
+    twitter: { ...twitter, propertyCount: twitterProperties },
+    alternateLinks,
+    icons,
+    structuredData: {
+      blockCount: jsonLdScripts.length,
+      validBlockCount: structuredDataBlocks.filter((block) => block.valid).length,
+      invalidBlockCount: invalidStructuredDataCount,
+      types: Array.from(structuredDataTypes),
+      blocks: structuredDataBlocks,
+      truncated: jsonLdScripts.length > limits.maxStructuredDataBlocks || structuredNodesVisited >= limits.maxStructuredDataNodes
+    },
+    issues,
+    caveats: [
+      'This report describes metadata in the currently rendered DOM; crawlers may receive or process a different response.',
+      'Metadata can influence search and social presentation but does not guarantee indexing, ranking, snippets, or rich results.',
+      'Only an allowlist of page metadata is returned. Arbitrary meta tags, body text, form values, and complete JSON-LD objects are excluded.'
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+export const enUSPwaLifecycle = {
+  title: 'Service-worker history',
+  note: 'Observed changes only; earlier or fast transitions may be missing.',
+  start: 'Observe for 2 minutes',
+  stop: 'Stop observing workers',
+  refresh: 'Refresh',
+  clear: 'Clear history',
+  active: 'Observing workers',
+  stopped: 'Capture stopped',
+  waiting: 'Waiting',
+  coverage: 'Coverage and privacy',
+  caveats: {
+    observedTimes: 'Times show when a change was observed, not when it happened, and a capture never has the complete history.',
+    polling: 'Registrations are checked once per second, so early transitions and short-lived registrations can be missed.',
+    scope: 'Registrations belong to this top-level origin and workspace, not only to this tab.',
+    identities: 'Worker identities are local to this capture and tell apart versions of the same script.',
+    interruption: 'Navigating, reloading or closing the page, or losing the debugger or access, interrupts capture. Stopping or an interruption can drop events not yet read.',
+    limits: 'A capture keeps at most 100 events, 20 registrations and 100 workers for up to two minutes; five captures stay in memory, and starting another removes the oldest stopped one.',
+    longUrls: 'Addresses longer than 2,048 characters are left out rather than partly showing one that may carry a credential.',
+    metadataOnly: 'Only metadata is observed. Hronaut never updates, messages, activates or runs workers, clears caches or changes permissions.',
+    sleeping: 'Sleeping or frozen tabs are not woken. Sleep or freezing interrupts capture instead of keeping the page active.',
+    snapshot: "Reads show the last snapshot taken. A complete history, or every worker's full lifetime, is not guaranteed."
+  },
+  kinds: {
+    initial: 'capture started',
+    'registration-initial': 'registration present',
+    'registration-discovered': 'registration found',
+    'registration-removed': 'registration removed',
+    updatefound: 'update found',
+    statechange: 'state changed',
+    controllerchange: 'controller changed'
+  },
+  workerStates: {
+    parsed: 'parsed',
+    installing: 'installing',
+    installed: 'installed',
+    activating: 'activating',
+    activated: 'activated',
+    redundant: 'redundant'
+  },
+  reasons: {
+    stopped: 'stopped on request',
+    replaced: 'replaced by a new capture',
+    shutdown: 'Hronaut closed',
+    navigation: 'page navigated',
+    'renderer-unavailable': 'page process ended',
+    'debugger-detached': 'debugger detached',
+    'duration-limit': 'two-minute limit reached',
+    'initial-read-unavailable': 'first read failed',
+    'page-observer-unavailable': 'page observer stopped',
+    'context-or-authority-lost': 'page context or access lost',
+    'worker-limit': 'worker limit reached',
+    'event-limit': 'event limit reached',
+    'registration-limit': 'registration limit reached',
+    'discovery-unavailable': 'registration discovery failed',
+    unsupported: 'service workers are not supported',
+    'workspace-control-changed': 'workspace control changed',
+    'ownership-released': 'workspace released'
+  }
+}

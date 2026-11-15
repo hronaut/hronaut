@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useSettingsSectionResetController } from '../../src/renderer/src/composables/useSettingsSectionResetController.js'
+import { useSettingsSectionResetController } from '../../src/renderer/src/features/settings/useSettingsSectionResetController.js'
 
 function createHarness() {
   const callbacks = {
@@ -8,7 +8,7 @@ function createHarness() {
     resetSearch: vi.fn(() => true),
     resetDownloads: vi.fn(async () => true),
     resetPerformance: vi.fn(async () => true),
-    resetPrivacySelection: vi.fn(),
+    resetPrivacy: vi.fn(),
     clearSitePermissions: vi.fn(async () => true),
     resetMcp: vi.fn(async () => true),
     resetUpdates: vi.fn(async () => true)
@@ -43,7 +43,7 @@ describe('settings section reset controller', () => {
     ['search', 'resetSearch'],
     ['downloads', 'resetDownloads'],
     ['performance', 'resetPerformance'],
-    ['privacy', 'resetPrivacySelection'],
+    ['privacy', 'resetPrivacy'],
     ['permissions', 'clearSitePermissions'],
     ['mcp', 'resetMcp'],
     ['updates', 'resetUpdates']

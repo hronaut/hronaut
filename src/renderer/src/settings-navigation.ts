@@ -11,7 +11,7 @@ import IconGeneral from '~icons/material-symbols/settings-applications-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconShieldLock from '~icons/material-symbols/shield-lock-rounded'
 import IconSystemUpdate from '~icons/material-symbols/system-update-alt-rounded'
-import type { SettingsSection } from './composables/useSettingsDialogController.js'
+import type { SettingsSection } from './features/settings/useSettingsDialogController.js'
 
 export interface SettingsNavigationItem {
   section: SettingsSection

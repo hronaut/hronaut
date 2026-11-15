@@ -5,6 +5,56 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
+// The fake browser below stubs the functions its tool calls go through; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  beginWorkspaceContinuityAction: (browser: { beginWorkspaceContinuityAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.beginWorkspaceContinuityAction(...args),
+  requireWorkspaceContinuityDispatch: (browser: { requireWorkspaceContinuityDispatch: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityDispatch(...args),
+  requireWorkspaceContinuityReview: (browser: { requireWorkspaceContinuityReview: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireWorkspaceContinuityReview(...args),
+  inspectWorkspaceContinuity: (browser: { inspectWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.inspectWorkspaceContinuity(...args),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args)
+}))
+vi.mock('../src/main/browser/agent-page-actions/click.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-page-actions/click.js')>(),
+  click: (browser: { click: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.click(...args)
+}))
+vi.mock('../src/main/browser/page-snapshots/page-snapshots.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/page-snapshots/page-snapshots.js')>(),
+  findSnapshot: (browser: { findSnapshot: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.findSnapshot(...args),
+  setSnapshotBaseline: (browser: { setSnapshotBaseline: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.setSnapshotBaseline(...args),
+  snapshotDelta: (browser: { snapshotDelta: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDelta(...args),
+  snapshotDetails: (browser: { snapshotDetails: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.snapshotDetails(...args)
+}))
+vi.mock('../src/main/browser/workspace-scope/workspace-scope.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-scope/workspace-scope.js')>(),
+  requireTabInMcpGroup: (browser: { requireTabInMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireTabInMcpGroup(...args),
+  getMcpGroupState: (browser: { getMcpGroupState: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.getMcpGroupState(...args),
+  tabBelongsToMcpGroup: (browser: { tabBelongsToMcpGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.tabBelongsToMcpGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/create-mcp-tab-group.js')>(),
+  createMcpTabGroup: (browser: { createMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.createMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')>(),
+  listMcpTabGroups: (browser: { listMcpTabGroups: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.listMcpTabGroups(...args),
+  renameMcpTabGroup: (browser: { renameMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.renameMcpTabGroup(...args),
+  requireMcpTabGroup: (browser: { requireMcpTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.requireMcpTabGroup(...args)
+}))
+vi.mock('../src/main/browser/workspace-archive/workspace-archive.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-archive/workspace-archive.js')>(),
+  saveAndCloseTabGroup: (browser: { saveAndCloseTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.saveAndCloseTabGroup(...args),
+  deleteSavedTabGroup: (browser: { deleteSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.deleteSavedTabGroup(...args),
+  restoreSavedTabGroup: (browser: { restoreSavedTabGroup: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.restoreSavedTabGroup(...args)
+}))
+// A fake browser that stubs no pause answers has no paused or taken-over tab.
+vi.mock('../src/main/browser/agent-pause/agent-pause.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/agent-pause/agent-pause.js')>(),
+  isTabAgentPaused: (browser: { isTabAgentPaused?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabAgentPaused?.(...args) ?? false,
+  hasPausedAgentTab: (browser: { hasPausedAgentTab?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.hasPausedAgentTab?.(...args) ?? false,
+  isTabTakenOver: (browser: { isTabTakenOver?: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.isTabTakenOver?.(...args) ?? false
+}))
+
 const ownId = '01912345-6789-7abc-8def-0123456789ab'
 const targetId = '01912345-6790-7abc-8def-0123456789ab'
 const sourceId = '01912345-6789-7abc-8def-0123456789ac'
@@ -63,7 +113,7 @@ describe('MCP workspace fork sources and direct access', () => {
       requireTabInMcpGroup: vi.fn(() => targetId),
       tabBelongsToMcpGroup: vi.fn(() => true),
       wakeTab: vi.fn(async () => undefined),
-      reactInspection: vi.fn(async () => ({ status: 'disabled' })),
+      reactInspectionController: { run: vi.fn(async () => ({ status: 'disabled' })) },
       click: vi.fn(async () => 'Clicked'),
       closeTab: vi.fn(async () => 'Closed'),
       findSnapshot: vi.fn(async () => ({ matches: [], sourceSnapshot: { scope: { kind: 'component', outsideScopeOmitted: true } } })),
@@ -78,7 +128,7 @@ describe('MCP workspace fork sources and direct access', () => {
         mcpTabGroups: [{ id: ownId, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
       })),
       deleteSavedTabGroup: vi.fn(),
-      restoreSavedTabGroupForAgent: vi.fn(async () => workspace),
+      restoreSavedTabGroup: vi.fn(async () => workspace),
       transferWorkspaceStorage: vi.fn(async () => ({ copied: true })),
       saveAndCloseTabGroup: vi.fn(async () => workspace)
     }
@@ -115,7 +165,7 @@ describe('MCP workspace fork sources and direct access', () => {
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     const result = await call('browser_react', { workspaceId: ownId, tabId: targetId, action })
     expect(result.isError).not.toBe(true)
-    expect(manager.reactInspection).toHaveBeenCalledWith(targetId, { action, subtreeId: undefined }, expect.objectContaining({ assertCurrent: expect.any(Function) }))
+    expect(manager.reactInspectionController.run).toHaveBeenCalledWith(targetId, { action, subtreeId: undefined }, expect.objectContaining({ assertCurrent: expect.any(Function) }))
     expect(manager.wakeTab).not.toHaveBeenCalled()
   })
 
@@ -220,7 +270,7 @@ describe('MCP workspace fork sources and direct access', () => {
     })
     const result = await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, ...(action === 'resume' ? { resumeKey: key } : {}) })
     expect(manager.inspectWorkspaceContinuity).toHaveBeenCalledWith(ownId)
-    if (action === 'open') expect(manager.restoreSavedTabGroupForAgent).toHaveBeenCalledWith(ownId)
+    if (action === 'open') expect(manager.restoreSavedTabGroup).toHaveBeenCalledWith(ownId, { show: false })
     expect(result.isError).toBe(true)
     expect(JSON.stringify(result)).not.toContain(key)
     expect(JSON.stringify(result)).not.toContain('continuity')
@@ -251,7 +301,7 @@ describe('MCP workspace fork sources and direct access', () => {
     for (const action of ['open', 'delete', 'resume']) {
       expect((await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, resumeKey: key })).isError).toBe(true)
     }
-    expect(manager.restoreSavedTabGroupForAgent).not.toHaveBeenCalled()
+    expect(manager.restoreSavedTabGroup).not.toHaveBeenCalled()
     expect(manager.deleteSavedTabGroup).not.toHaveBeenCalled()
   })
 

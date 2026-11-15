@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { useCredentialPickerController } from '../../src/renderer/src/composables/useCredentialPickerController.js'
+import { useCredentialPickerController } from '../../src/renderer/src/features/credentials/useCredentialPickerController.js'
 import type { CredentialSummary } from '../../src/shared/types.js'
 
 function credential(id: string, username: string, origin = 'https://example.test'): CredentialSummary {

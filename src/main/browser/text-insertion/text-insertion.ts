@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import { ISOLATED_WORLDS } from '../isolated-worlds.js'
-import type { TextInsertionAccess, TextInsertionTab } from './text-insertion-access.js'
+import { agentInputDebugger } from '../agent-input-authorization/agent-input-authorization.js'
+import { withAgentInput } from '../agent-input-scope/agent-input-scope.js'
+import type { Browser } from '../browser.js'
+import { getTab } from '../browser-core.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
+import { validateTarget } from '../input-targets/input-targets.js'
+import { nativeInputAuthority } from '../native-input-authority/native-input-authority.js'
+import { insertableTextProblem } from './inserted-text.js'
 import {
   textInsertionDisposeScript,
   textInsertionLocateScript,
@@ -13,9 +20,6 @@ import {
 } from './text-insertion-scripts.js'
 
 const TEXT_INSERTION_WORLD_ID = ISOLATED_WORLDS.textInsertion
-
-/** The longest text one insertion takes, in UTF-16 code units. */
-export const MAX_INSERTED_TEXT_LENGTH = 4096
 
 /** How long one page script or the text's delivery may take before Hronaut gives up on an unresponsive page. */
 const PAGE_RESPONSE_TIMEOUT_MS = 5_000
@@ -54,15 +58,6 @@ const TARGET_PROBLEMS: Record<TextInsertionTargetProblem, string> = {
   replaced: 'The editor changed before the text was sent, so nothing was inserted. Take a fresh browser_snapshot and try again.'
 }
 
-/** Why the text cannot be inserted, or undefined when it can. Messages never repeat the text. */
-export function insertableTextProblem(text: string): string | undefined {
-  if (text.length === 0 || text.length > MAX_INSERTED_TEXT_LENGTH) return `Provide 1 to ${MAX_INSERTED_TEXT_LENGTH} characters of text (counted in UTF-16 code units).`
-  // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/u.test(text)) return 'The text may contain line breaks (\\n) and tabs, but no other control characters.'
-  if (/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(text)) return 'The text contains an unpaired surrogate, which is not a character.'
-  return undefined
-}
-
 /**
  * Inserts text into the editor a ref or selector names, at its caret or in
  * place of its selection, through Chromium's native text input
@@ -80,19 +75,19 @@ export function insertableTextProblem(text: string): string | undefined {
  * authority is not as required, and afterwards only when the call's authority
  * changed; nothing is retried.
  */
-export async function insertText<Tab extends TextInsertionTab>(
-  access: TextInsertionAccess<Tab>,
+export async function insertText(
+  browser: Browser,
   target: { tabId?: string; ref?: string; selector?: string },
   text: string,
   validateInsertion?: (validateContext: () => void) => void,
   progress: TextInsertionProgress = { sent: false }
 ): Promise<TextInsertionResult> {
-  access.validateTarget(target)
+  validateTarget(target)
   const problem = insertableTextProblem(text)
   if (problem) throw new Error(problem)
-  const tab = access.getTab(target.tabId)
+  const tab = getTab(browser, target.tabId)
   const webContents = tab.webContents
-  const authority = access.nativeInputAuthority(tab, validateInsertion)
+  const authority = nativeInputAuthority(browser, tab, validateInsertion)
   const token = randomUUID()
   const shape = { length: text.length, lineBreaks: text.includes('\n') }
   let navigated = false
@@ -104,7 +99,7 @@ export async function insertText<Tab extends TextInsertionTab>(
   try {
     authority.validate()
     editorOf(await runPageScript<TextInsertionLocation>(webContents, textInsertionLocateScript(target, token, 'check', shape)))
-    return await access.withAgentInput(webContents, () => access.withDebugger(webContents, async (): Promise<TextInsertionResult> => {
+    return await withAgentInput(browser, webContents, () => withDebugger(browser, webContents, async (): Promise<TextInsertionResult> => {
       const validate = (): void => {
         if (navigated) throw new Error('The page navigated before the text was sent, so nothing was inserted. Inspect it again before inserting.')
         authority.validate()
@@ -112,7 +107,7 @@ export async function insertText<Tab extends TextInsertionTab>(
       validate()
       // Check again inside the debugger turn, and arm the guard: the page may have moved focus or replaced the editor meanwhile.
       const editor = editorOf(await runPageScript<TextInsertionLocation>(webContents, textInsertionLocateScript(target, token, 'arm', shape)))
-      const input = access.agentInputDebugger(webContents, () => {
+      const input = agentInputDebugger(browser, webContents, () => {
         // Only the last check before the command decides whether the text was sent.
         progress.sent = false
         validate()

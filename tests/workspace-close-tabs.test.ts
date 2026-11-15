@@ -7,9 +7,61 @@ vi.mock('../src/main/browser/workspace-storage.js', async (original) => ({
   ...await original<typeof import('../src/main/browser/workspace-storage.js')>(),
   destroyWorkspaceStorage: vi.fn(async () => undefined)
 }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
-import { MAX_TABS, TabStateStore, type PersistedBrowserState } from '../src/main/browser/tab-store.js'
+// The prototype-built browser below stubs getState, changed and focusTabOrTrustedChrome, which closing tabs for the
+// person returns, publishes and focuses through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/trusted-chrome-focus/trusted-chrome-focus.js')>(),
+  focusTabOrTrustedChrome: (browser: { focusTabOrTrustedChrome: (tab: unknown) => void }, tab: unknown) => browser.focusTabOrTrustedChrome(tab)
+}))
+// It also stubs cancelNativeSelectionSessions, detachDialogMonitoring and removeTabRecord, through which closing a tab
+// ends its selections, stops watching its dialogs and forgets it.
+vi.mock('../src/main/browser/native-selections/native-selections.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/native-selections/native-selections.js')>(),
+  cancelNativeSelectionSessions: (browser: { cancelNativeSelectionSessions: (tab: unknown) => void }, tab: unknown) => browser.cancelNativeSelectionSessions(tab)
+}))
+vi.mock('../src/main/browser/website-dialogs/website-dialogs.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/website-dialogs/website-dialogs.js')>(),
+  detachDialogMonitoring: (browser: { detachDialogMonitoring: (page: unknown) => void }, page: unknown) => browser.detachDialogMonitoring(page)
+}))
+vi.mock('../src/main/browser/tab-close/remove-tab-record.js', () => ({
+  removeTabRecord: (browser: { removeTabRecord: (tab: unknown) => void }, tab: unknown) => browser.removeTabRecord(tab)
+}))
+// A test below has closing the workspace's tabs leave one behind.
+vi.mock('../src/main/browser/tab-close/close-tab.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/main/browser/tab-close/close-tab.js')>()
+  return { ...original, closeTabs: vi.fn(original.closeTabs) }
+})
+import { Browser } from '../src/main/browser/browser.js'
+import { persistedState } from '../src/main/browser/browser-state/persisted-state.js'
+import { closeTabs } from '../src/main/browser/tab-close/close-tab.js'
+import { MAX_TABS, TabStateStore } from '../src/main/browser/tab-store.js'
 import { destroyWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
+import { closeMcpTabGroup } from '../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js'
+import { closeTabsForPerson } from '../src/main/browser/tab-close/close-tabs-for-person.js'
+import { deleteSavedTabGroup } from '../src/main/browser/workspace-archive/workspace-archive.js'
+import { forgetHistoryPages } from '../src/main/browser/tab-history-pages/forget-history-pages.js'
+
+// The fake browser below stubs the functions the code under test calls; these reach its stubs.
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  suspendWorkspaceContinuity: (browser: { suspendWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.suspendWorkspaceContinuity(...args),
+  retireWorkspaceContinuity: (browser: { retireWorkspaceContinuity: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.retireWorkspaceContinuity(...args)
+}))
+// Checking who owns a workspace's storage is a function now; it reaches the fake's stub.
+vi.mock('../src/main/browser/workspace-storage-deletion.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-storage-deletion.js')>(),
+  assertStorageDeletionOwnership: (browser: { assertStorageDeletionOwnership: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertStorageDeletionOwnership(...args)
+}))
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/background-action.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/background-action.js')>(),
+  runWalletLifecycleAction: (browser: { runWalletLifecycleAction: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.runWalletLifecycleAction(...args)
+}))
 
 const CLOSING = '01912345-6789-7abc-8def-0123456789ab'
 const OTHER = '01912345-678a-7abc-8def-0123456789ab'
@@ -37,7 +89,6 @@ interface Internals {
   wakeTab: ReturnType<typeof vi.fn>
   createTab: ReturnType<typeof vi.fn>
   assertStorageDeletionOwnership: ReturnType<typeof vi.fn>
-  persistedState(): PersistedBrowserState
 }
 
 function page(id: string, mcpGroupId: string, sleeping = false) {
@@ -45,7 +96,11 @@ function page(id: string, mcpGroupId: string, sleeping = false) {
     id, mcpGroupId, url: `https://example.test/${id.slice(-2)}`, title: id.slice(-2), pinned: false, sleeping, tabMuted: false,
     humanInteractionLocked: false, tabAgentPaused: false, lastActiveAt: 0, navigationGeneration: 0,
     walletNavigationGeneration: 0, view: { id: `view-${id}` },
-    webContents: { id: Number.parseInt(id.slice(-2), 16), isDestroyed: () => false, close: vi.fn() }
+    webContents: {
+      id: Number.parseInt(id.slice(-2), 16), isDestroyed: () => false, close: vi.fn(),
+      getURL: () => `https://example.test/${id.slice(-2)}`, isLoadingMainFrame: () => false,
+      navigationHistory: { length: () => 1, getActiveIndex: () => 0, getEntryAtIndex: () => null, removeEntryAtIndex: () => false }
+    }
   }
 }
 
@@ -73,7 +128,7 @@ async function browser() {
     [SHOWN, page(SHOWN, CLOSING)], [ASLEEP, page(ASLEEP, CLOSING, true)],
     [OTHER_ASLEEP, page(OTHER_ASLEEP, OTHER, true)], [OTHER_AWAKE, page(OTHER_AWAKE, OTHER)]
   ])
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, store,
     window: { isDestroyed: () => false, isFocused: () => false, contentView: { addChildView: vi.fn(), removeChildView: vi.fn() } },
     tabs,
@@ -88,7 +143,7 @@ async function browser() {
     deletedWorkspaceStorageIds: new Set(), workspacesBeingDeleted: new Map(), workspaceStorageCleanupBlocked: false,
     workspaceContinuity: { guardedWorkspaceIds: () => [] },
     allTabsMuted: false, allHumanInteractionLocked: false,
-    activeTabId: SHOWN, splitView: null, tabSelectionGeneration: 0, options: {},
+    activeTabId: SHOWN, splitView: null, restingSplitViews: [], tabSelectionGeneration: 0, options: {},
     reactInspectionController: { invalidateWorkspace: vi.fn() },
     networkWaitController: { reject: vi.fn() }, reproRecorder: { clearReproRecording: vi.fn() }, videoRecorder: { clear: vi.fn() },
     wakeTab: vi.fn(async (tabId: string) => {
@@ -108,7 +163,7 @@ async function browser() {
     removeTabRecord: (tab: Tab) => { tabs.delete(tab.id) },
     suspendWorkspaceContinuity: vi.fn(), retireWorkspaceContinuity: vi.fn(), runWalletLifecycleAction: vi.fn(),
     layout: vi.fn(), focusTabOrTrustedChrome: vi.fn(), changed: vi.fn(), getState: () => ({})
-  }) as BrowserTabsManager
+  }) as Browser
   const workspaceTabs = (groupId: string) => [...tabs.values()].filter((tab) => tab.mcpGroupId === groupId).map((tab) => tab.id)
   return { manager, internals: manager as unknown as Internals, store, directory, release, workspaceTabs }
 }
@@ -117,7 +172,7 @@ describe('closing a whole workspace', () => {
   it('closes every one of its tabs when the person selects another tab while the shown one hands over', async () => {
     const { manager, internals, store, directory, release, workspaceTabs } = await browser()
     // The person archives the workspace they are looking at; the tab that follows it sleeps and takes a moment to restore.
-    const archiving = manager.closeMcpTabGroup(CLOSING, true)
+    const archiving = closeMcpTabGroup(manager, CLOSING, true)
     await vi.waitFor(() => expect(internals.wakeTab).toHaveBeenCalled())
     // Meanwhile they, or Follow agents, show a tab of another workspace.
     manager.selectTab(OTHER_AWAKE)
@@ -128,14 +183,14 @@ describe('closing a whole workspace', () => {
     expect(internals.mcpTabGroups.has(CLOSING)).toBe(false)
     expect(workspaceTabs(CLOSING)).toEqual([])
     expect(internals.activeTabId).toBe(OTHER_AWAKE)
-    await store.save(internals.persistedState())
+    await store.save(persistedState(internals as never))
     await expect(new TabStateStore(join(directory, 'tabs.json')).load()).resolves.toMatchObject({ activeTabId: OTHER_AWAKE })
   })
 
   it('does not wake its sleeping tabs only to close them', async () => {
     const { manager, internals, release, workspaceTabs } = await browser()
     release()
-    await manager.closeMcpTabGroup(CLOSING, true)
+    await closeMcpTabGroup(manager, CLOSING, true)
     expect(workspaceTabs(CLOSING)).toEqual([])
     // Its sleeping tab used to wake, loading its site, because it followed the shown tab; now the tab that stays shows.
     expect(internals.wakeTab).not.toHaveBeenCalledWith(ASLEEP)
@@ -147,8 +202,8 @@ describe('closing a whole workspace', () => {
     const { manager, internals, release, workspaceTabs } = await browser()
     release()
     // A close that leaves the shown tab behind, which the workspace must not be forgotten or deleted under.
-    Object.assign(manager, { closeTabs: vi.fn(async () => { internals.tabs.delete(ASLEEP); return {} }) })
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('still has an open tab')
+    vi.mocked(closeTabs).mockImplementationOnce(async () => { internals.tabs.delete(ASLEEP); return {} as never })
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow('still has an open tab')
     // It stopped before touching the workspace's storage.
     expect(internals.assertStorageDeletionOwnership).not.toHaveBeenCalled()
     expect(destroyWorkspaceStorage).not.toHaveBeenCalled()
@@ -165,7 +220,7 @@ describe('closing a whole workspace', () => {
     const { manager, internals, release, workspaceTabs } = await browser()
     release()
     internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow('ambiguous ownership')
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
     // The close showed the next tab itself, so the person is taken back to the tab they were looking at.
     expect(internals.activeTabId).toBe(SHOWN)
@@ -176,7 +231,7 @@ describe('closing a whole workspace', () => {
     release()
     ;(internals.tabs.get(SHOWN) as unknown as { tabMuted: boolean }).tabMuted = true
     internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow('ambiguous ownership')
     // Reopened as they were, the tab's own mute included; it came back with sound.
     expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: SHOWN, muted: true }))
     expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: ASLEEP, muted: false }))
@@ -191,7 +246,7 @@ describe('closing a whole workspace', () => {
     const onWalletTabRestored = vi.fn()
     Object.assign(manager, { options: { onWalletTabRestored } })
     internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow('ambiguous ownership')
     expect(onWalletTabRestored).toHaveBeenCalledWith(SHOWN, 6)
     expect(internals.createTab).toHaveBeenCalledWith(expect.objectContaining({ id: SHOWN, navigationGeneration: 6 }))
     expect(onWalletTabRestored).toHaveBeenCalledWith(ASLEEP, 1)
@@ -202,7 +257,7 @@ describe('closing a whole workspace', () => {
     release()
     let refuse!: (error: Error) => void
     internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise((_resolve, reject) => { refuse = reject }))
-    const deleting = manager.closeMcpTabGroup(CLOSING)
+    const deleting = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
     // The close showed the next tab; the person then chose another one.
     expect(internals.activeTabId).toBe(OTHER_ASLEEP)
@@ -220,10 +275,10 @@ describe('closing a whole workspace', () => {
     Object.assign(internals, { options: { partition: 'persist:hronaut' } })
     let finish!: () => void
     vi.mocked(destroyWorkspaceStorage).mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
-    const deleting = manager.closeMcpTabGroup(CLOSING)
+    const deleting = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
     // A save while the storage is deleted, which is what the next start finds when Hronaut stops here, as in a crash.
-    await store.save(internals.persistedState())
+    await store.save(persistedState(internals as never))
     const interrupted = await new TabStateStore(join(directory, 'tabs.json')).load()
     // It used to come back empty, its tabs gone and its storage kept.
     expect(interrupted?.tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([SHOWN, ASLEEP])
@@ -235,6 +290,24 @@ describe('closing a whole workspace', () => {
     expect(deleted?.tabs.some((tab) => tab.mcpGroupId === CLOSING)).toBe(false)
   })
 
+  it('keeps a tab whose page could not load saved by its page\'s title until deleting its storage is done', async () => {
+    const { manager, internals, release } = await browser()
+    release()
+    Object.assign(internals, { options: { partition: 'persist:hronaut' } })
+    const shown = internals.tabs.get(SHOWN)!
+    const pageProblem = { kind: 'load-error', title: 'Site unavailable', message: 'The site could not be reached.', url: '' }
+    Object.assign(shown, { title: 'Site unavailable', pageProblem })
+    Object.assign(manager, { navigationHistorySnapshot: () => ({ entries: [{ url: shown.url, title: 'Inbox (3)' }], index: 0 }) })
+    let finish!: () => void
+    vi.mocked(destroyWorkspaceStorage).mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    const deleting = closeMcpTabGroup(manager, CLOSING)
+    await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
+    // Chrome brings a tab whose page could not load back by its page's title, not as Site unavailable.
+    expect(persistedState(internals as never).tabs.find((tab) => tab.id === SHOWN)?.title).toBe('Inbox (3)')
+    finish()
+    await deleting
+  })
+
   it('is saved whole, each tab once, while a failed deletion reopens its tabs', async () => {
     const { manager, internals, release } = await browser()
     release()
@@ -243,15 +316,15 @@ describe('closing a whole workspace', () => {
     const savedWhileReopening: string[][] = []
     internals.createTab.mockImplementation(async (options: { id: string; mcpGroupId: string }) => {
       const tab = await reopen(options)
-      savedWhileReopening.push(internals.persistedState().tabs.map((saved) => saved.id))
+      savedWhileReopening.push(persistedState(internals as never).tabs.map((saved) => saved.id))
       return tab
     })
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow('ambiguous ownership')
     expect(savedWhileReopening).toHaveLength(2)
     for (const saved of savedWhileReopening) expect(saved.toSorted()).toEqual([SHOWN, ASLEEP, OTHER_ASLEEP, OTHER_AWAKE].toSorted())
     // Once they are back, a tab the person then closes is not saved from before.
     internals.tabs.delete(ASLEEP)
-    expect(internals.persistedState().tabs.map((saved) => saved.id)).not.toContain(ASLEEP)
+    expect(persistedState(internals as never).tabs.map((saved) => saved.id)).not.toContain(ASLEEP)
   })
 
   it('stays saved with its tabs in their order while they close', async () => {
@@ -261,12 +334,12 @@ describe('closing a whole workspace', () => {
     const shown = internals.tabs.get(SHOWN)!
     internals.tabs.delete(SHOWN)
     internals.tabs.set(SHOWN, shown)
-    const deleting = manager.closeMcpTabGroup(CLOSING)
+    const deleting = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(internals.wakeTab).toHaveBeenCalled())
     expect([...internals.tabs.keys()]).toContain(SHOWN)
     expect([...internals.tabs.keys()]).not.toContain(ASLEEP)
     // The tab closed first used to be saved after the one still closing.
-    expect(internals.persistedState().tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([ASLEEP, SHOWN])
+    expect(persistedState(internals as never).tabs.filter((tab) => tab.mcpGroupId === CLOSING).map((tab) => tab.id)).toEqual([ASLEEP, SHOWN])
     release()
     await deleting
   })
@@ -277,10 +350,10 @@ describe('closing a whole workspace', () => {
     Object.assign(internals, { options: { partition: 'persist:hronaut' } })
     let finish!: () => void
     vi.mocked(destroyWorkspaceStorage).mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
-    const deleting = manager.closeMcpTabGroup(CLOSING)
+    const deleting = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(destroyWorkspaceStorage).toHaveBeenCalled())
     const load = async () => {
-      await store.save(internals.persistedState())
+      await store.save(persistedState(internals as never))
       return new TabStateStore(join(directory, 'tabs.json')).load()
     }
     // Room for one of its two tabs beside the open ones: the first, which it showed.
@@ -308,10 +381,47 @@ describe('closing a whole workspace', () => {
     release()
     internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
     internals.createTab.mockRejectedValueOnce(new Error('Could not open the tab.'))
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow()
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow()
     // The workspace stays, with the tabs that are open, and nothing saved names a tab that is not.
-    const saved = internals.persistedState().tabs.map((tab) => tab.id)
+    const saved = persistedState(internals as never).tabs.map((tab) => tab.id)
     expect(saved.toSorted()).toEqual([...internals.tabs.keys()].toSorted())
+  })
+
+  it('ends the split views put aside of its tabs, and the tab that follows shows with its own pair', async () => {
+    const { manager, release } = await browser()
+    release()
+    const theirs = { firstTabId: SHOWN, secondTabId: ASLEEP, orientation: 'vertical' as const, ratio: 0.5 }
+    const kept = { firstTabId: OTHER_ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'horizontal' as const, ratio: 0.3 }
+    manager.restingSplitViews = [theirs, kept]
+
+    await closeMcpTabGroup(manager, CLOSING, true)
+    expect(manager.activeTabId).toBe(OTHER_ASLEEP)
+    expect(manager.splitView).toEqual(kept)
+    expect(manager.restingSplitViews).toEqual([])
+  })
+
+  it('ends a pair of one of its tabs and a tab of another workspace, whose tab then shows alone', async () => {
+    const { manager, release } = await browser()
+    release()
+    manager.restingSplitViews = [{ firstTabId: ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'vertical', ratio: 0.5 }]
+
+    await closeMcpTabGroup(manager, CLOSING, true)
+    expect(manager.restingSplitViews).toEqual([])
+    manager.selectTab(OTHER_AWAKE)
+    expect(manager.splitView).toBeNull()
+    expect(manager.activeTabId).toBe(OTHER_AWAKE)
+  })
+
+  it('saves the split views put aside whose two tabs it saves, which come back paired', async () => {
+    const { manager, internals, store, directory } = await browser()
+    const kept = { firstTabId: OTHER_ASLEEP, secondTabId: OTHER_AWAKE, orientation: 'horizontal' as const, ratio: 0.3 }
+    // A pair holding a tab that is no longer open is not saved.
+    manager.restingSplitViews = [kept, { firstTabId: SHOWN, secondTabId: CLOSING, orientation: 'vertical', ratio: 0.5 }]
+
+    const saved = persistedState(internals as never)
+    expect(saved.restingSplitViews).toEqual([kept])
+    await store.save(saved)
+    await expect(new TabStateStore(join(directory, 'tabs.json')).load()).resolves.toMatchObject({ restingSplitViews: [kept] })
   })
 })
 
@@ -359,7 +469,7 @@ describe('closing the shown tab while the sleeping tab that follows it wakes', (
 
   it('lets the person\'s own close give way to a tab they select meanwhile', async () => {
     const { manager, internals, release } = await browser()
-    const closing = manager.closeTabsForPerson([SHOWN])
+    const closing = closeTabsForPerson(manager, [SHOWN])
     await vi.waitFor(() => expect(internals.wakeTab).toHaveBeenCalledWith(ASLEEP))
     manager.selectTab(OTHER_AWAKE)
     release()
@@ -376,16 +486,16 @@ describe('a workspace that is gone for good', () => {
     release()
     const forgotten = vi.fn()
     Object.assign(internals, { options: { partition: 'persist:hronaut', onWorkspaceForgotten: forgotten } })
-    await manager.closeMcpTabGroup(CLOSING, true)
+    await closeMcpTabGroup(manager, CLOSING, true)
     expect(forgotten).not.toHaveBeenCalled()
 
-    await manager.closeMcpTabGroup(OTHER)
+    await closeMcpTabGroup(manager, OTHER)
     expect(forgotten).toHaveBeenCalledExactlyOnceWith(OTHER)
 
     const archived = { ...workspace(CLOSING, '8e3da8ea-cba4-41c2-9619-a6e04a493a44', SHOWN), savedAt: '2026-10-19T11:00:00.000Z', tabs: [] }
     ;(internals as unknown as { savedTabGroups: Map<string, unknown> }).savedTabGroups.set(CLOSING, archived)
     Object.assign(internals, { workspaceRegistry: { listArchived: () => [] } })
-    await expect(manager.deleteSavedTabGroup(CLOSING)).resolves.toEqual([])
+    await expect(deleteSavedTabGroup(manager, CLOSING)).resolves.toEqual([])
     expect(forgotten).toHaveBeenLastCalledWith(CLOSING)
     expect(forgotten).toHaveBeenCalledTimes(2)
   })
@@ -396,7 +506,7 @@ describe('a workspace that is gone for good', () => {
     const forgotten = vi.fn()
     Object.assign(internals, { options: { partition: 'persist:hronaut', onWorkspaceForgotten: forgotten } })
     internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow('ambiguous ownership')
     expect(forgotten).not.toHaveBeenCalled()
   })
 })
@@ -415,7 +525,7 @@ describe('recently closed tabs of other workspaces', () => {
     release()
     const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
     closedTabs.push(...closedElsewhere())
-    await manager.closeMcpTabGroup(CLOSING, true)
+    await closeMcpTabGroup(manager, CLOSING, true)
     // Closing the archived workspace's two tabs pushed the two oldest tabs closed in the other workspace out of the
     // bounded list, although the archived workspace's own entries are removed again straight after.
     expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
@@ -427,7 +537,7 @@ describe('recently closed tabs of other workspaces', () => {
     Object.assign(internals, { options: { partition: 'persist:hronaut' } })
     const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
     closedTabs.push(...closedElsewhere())
-    await manager.closeMcpTabGroup(CLOSING)
+    await closeMcpTabGroup(manager, CLOSING)
     expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
   })
 
@@ -442,7 +552,7 @@ describe('recently closed tabs of other workspaces', () => {
     entries[0]!.mcpGroupId = CLOSING
     entries[1]!.mcpGroupId = CLOSING
     closedTabs.push(...entries)
-    await manager.closeMcpTabGroup(CLOSING)
+    await closeMcpTabGroup(manager, CLOSING)
     expect(closedTabs.map((entry) => entry.id)).toEqual(entries.slice(2).map((entry) => entry.id))
   })
 
@@ -460,9 +570,9 @@ describe('recently closed tabs of other workspaces', () => {
     // Deleting each workspace's storage waits until the test lets it go on.
     const deletions = new Map<string, () => void>()
     internals.assertStorageDeletionOwnership.mockImplementation((groupId: string) => new Promise<void>((resolve) => { deletions.set(groupId, resolve) }))
-    const closing = manager.closeMcpTabGroup(CLOSING)
+    const closing = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(deletions.has(CLOSING)).toBe(true))
-    const closingOther = manager.closeMcpTabGroup(OTHER)
+    const closingOther = closeMcpTabGroup(manager, OTHER)
     await vi.waitFor(() => expect(deletions.has(OTHER)).toBe(true))
     // The workspace that closed first finishes first.
     deletions.get(CLOSING)!()
@@ -482,7 +592,7 @@ describe('recently closed tabs of other workspaces', () => {
     internals.tabs.get(ASLEEP)!.url = 'hronaut://home/'
     internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
     internals.createTab.mockRejectedValue(new Error('The tab could not be opened again.'))
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow()
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow()
     expect(workspaceTabs(CLOSING)).toEqual([])
     // The tab that could not come back stays recoverable, and only the oldest entry makes room for it.
     expect(closedTabs.map((entry) => entry.id)).toEqual([...closedElsewhere().slice(1).map((entry) => entry.id), expect.any(String)])
@@ -495,7 +605,7 @@ describe('recently closed tabs of other workspaces', () => {
     const closedTabs = (internals as unknown as { closedTabs: Array<{ id: string; mcpGroupId?: string }> }).closedTabs
     closedTabs.push(...closedElsewhere())
     internals.assertStorageDeletionOwnership.mockRejectedValueOnce(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
-    await expect(manager.closeMcpTabGroup(CLOSING)).rejects.toThrow('ambiguous ownership')
+    await expect(closeMcpTabGroup(manager, CLOSING)).rejects.toThrow('ambiguous ownership')
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])
     expect(closedTabs.map((entry) => entry.id)).toEqual(closedElsewhere().map((entry) => entry.id))
   })
@@ -508,11 +618,11 @@ describe('recently closed tabs of other workspaces', () => {
     closedTabs.push(...closedElsewhere())
     let deleteStorage!: () => void
     internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise<void>((resolve) => { deleteStorage = resolve }))
-    const closing = manager.closeMcpTabGroup(CLOSING)
+    const closing = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
     // The two oldest are held aside while the workspace's storage is deleted, and the person removes the page of the
     // oldest from the history meanwhile.
-    manager.forgetClosedTabs((url) => url === 'https://other.test/0')
+    forgetHistoryPages(manager, (url) => url === 'https://other.test/0')
     deleteStorage()
     await closing
     // Closing the workspace used to put the held-aside tab back, its address with it.
@@ -526,9 +636,9 @@ describe('recently closed tabs of other workspaces', () => {
     closedTabs.push(...closedElsewhere())
     let refuse!: (error: Error) => void
     internals.assertStorageDeletionOwnership.mockReturnValueOnce(new Promise<void>((_resolve, reject) => { refuse = reject }))
-    const closing = manager.closeMcpTabGroup(CLOSING)
+    const closing = closeMcpTabGroup(manager, CLOSING)
     await vi.waitFor(() => expect(internals.assertStorageDeletionOwnership).toHaveBeenCalled())
-    manager.forgetClosedTabs(() => true)
+    forgetHistoryPages(manager, () => true)
     refuse(new Error('Workspace storage has ambiguous ownership; deletion was stopped.'))
     await expect(closing).rejects.toThrow('ambiguous ownership')
     expect(workspaceTabs(CLOSING)).toEqual([SHOWN, ASLEEP])

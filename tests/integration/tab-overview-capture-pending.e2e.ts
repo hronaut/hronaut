@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures.js'
+import { storedPreviews } from './home-tabs-view.js'
 
 interface CaptureProbe {
   calls: number
@@ -12,7 +13,7 @@ for (const outcome of ['resolved', 'rejected'] as const) {
   test(`resumes thumbnail capture after a timed-out native request ${outcome} without overlapping captures`, async ({ appWindow, electronApp }) => {
     const url = 'data:text/html,<title>Pending thumbnail</title><h1>Pending thumbnail</h1>'
     const tabId = await appWindow.evaluate<string>(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true }).then(state => state.activeTabId)`)
-    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(items => items.length)`)).toBe(1)
+    await expect.poll(() => storedPreviews(electronApp, [tabId])).toBe(1)
     await electronApp.evaluate(async ({ webContents }, { url, outcome }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
       const descriptor = Object.getOwnPropertyDescriptor(page, 'capturePage')
@@ -48,14 +49,12 @@ for (const outcome of ['resolved', 'rejected'] as const) {
     }, { url, outcome })
     try {
       await expect.poll(() => electronApp.evaluate(() => (globalThis as ProbeGlobal).__previewCaptureProbe!.timedOut)).toBe(true)
-      await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-      const overview = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-      await expect(overview).toBeVisible()
-      await appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}])`)
-      const calls = await electronApp.evaluate(async () => {
-        await new Promise<void>(resolve => setImmediate(resolve))
+      // Another reason to picture the page while that capture is still pending waits for it instead of overlapping it.
+      const calls = await electronApp.evaluate(async ({ webContents }, url) => {
+        webContents.getAllWebContents().find(contents => contents.getURL() === url)!.emit('did-stop-loading')
+        await new Promise<void>(resolve => setTimeout(resolve, 750))
         return (globalThis as ProbeGlobal).__previewCaptureProbe!.calls
-      })
+      }, url)
       expect(calls).toBe(1)
       await electronApp.evaluate(() => (globalThis as ProbeGlobal).__previewCaptureProbe!.release())
       await expect.poll(() => electronApp.evaluate(() => (globalThis as ProbeGlobal).__previewCaptureProbe!.calls)).toBeGreaterThan(1)

@@ -1,13 +1,20 @@
 import { app } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { AgentCardOverlay, AgentCardSurface } from '../agent-card-overlay.js'
-import type { ShellOverlayView } from '../shell-overlay-view.js'
-import type { ShellTooltipSurface } from '../shell-tooltip-overlay.js'
-import type { ToastOverlay, ToastOverlaySurface } from '../toast-overlay.js'
-import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../sidebar-overlay.js'
-import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../sidebar-overlay-keyboard.js'
-import type { ShellTooltipOverlay } from '../shell-tooltip-overlay.js'
+import type { AgentCardOverlay, AgentCardSurface } from '../overlays/agent-card-overlay.js'
+import type { ShellOverlayView } from '../overlays/shell-overlay-view.js'
+import type { ShellTooltipSurface } from '../overlays/shell-tooltip-overlay.js'
+import type { StatusBubbleOverlay, StatusBubbleSurface } from '../overlays/status-bubble-overlay.js'
+import type { ToastOverlay, ToastOverlaySurface } from '../overlays/toast-overlay.js'
+import { SIDEBAR_OVERLAY_TOOLTIP_ID_OFFSET, type SidebarOverlay, type SidebarOverlaySurface } from '../overlays/sidebar-overlay.js'
+import { attachSidebarOverlayKeyboard, type SidebarOverlayKeyboardHost } from '../overlays/sidebar-overlay-keyboard.js'
+import type { ShellTooltipOverlay } from '../overlays/shell-tooltip-overlay.js'
+import { AGENT_CARD_VIEW_IPC } from '../../shared/ipc/agent-card.js'
+import { TOOLTIP_OVERLAY_VIEW_IPC } from '../../shared/ipc/shell-tooltip.js'
+import { SIDEBAR_OVERLAY_VIEW_IPC } from '../../shared/ipc/sidebar-overlay.js'
+import { STATUS_BUBBLE_VIEW_IPC } from '../../shared/ipc/status-bubble.js'
+import { TOAST_OVERLAY_VIEW_IPC } from '../../shared/ipc/toast-overlay.js'
+import { sendTo } from '../typed-ipc.js'
 
 interface OverlaySurfacesHost {
   /** The trusted shell document; the overlay documents are its siblings. */
@@ -26,10 +33,13 @@ interface OverlaySurfacesHost {
   /** The keys pressed in that view, which work as in the shell. */
   sidebarOverlayKeyboard: SidebarOverlayKeyboardHost
   shellTooltips: Pick<ShellTooltipOverlay, 'shownId' | 'hide'>
+  /** The transparent view that draws the status bubble at a page's bottom corner. */
+  statusBubbleView: Pick<ShellOverlayView, 'ensure' | 'present' | 'withdraw'>
+  statusBubble: Pick<StatusBubbleOverlay, 'pointerOnBubble' | 'viewFocused'>
 }
 
 /**
- * The trusted documents of the agent card, toast, tooltip and open rail overlay views, and the surfaces their
+ * The trusted documents of the agent card, toast, tooltip, open rail and status bubble overlay views, and the surfaces their
  * controllers draw through once a view has loaded. `__dirname` is the bundled main entry's directory, as for the other main modules.
  */
 export function createOverlaySurfaces(host: OverlaySurfacesHost): {
@@ -41,6 +51,8 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
   ensureTooltipSurface(): Promise<ShellTooltipSurface>
   trustedSidebarOverlayUrl(): string
   ensureSidebarOverlaySurface(): Promise<SidebarOverlaySurface>
+  trustedStatusBubbleUrl(): string
+  ensureStatusBubbleSurface(): Promise<StatusBubbleSurface>
 } {
   function trustedAgentCardUrl(): string {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -59,7 +71,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
       webContents.on('blur', () => host.agentCards.blurred())
     }
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('agent-card-view:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) sendTo(webContents, AGENT_CARD_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.agentCardView.present(),
@@ -89,7 +101,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
       webContents.on('focus', () => host.toastOverlay.viewFocused())
     }
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('toast-overlay-view:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) sendTo(webContents, TOAST_OVERLAY_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.toastOverlayView.present(),
@@ -112,7 +124,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
   async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
     const { view, webContents } = await host.tooltipView.ensure()
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) sendTo(webContents, TOOLTIP_OVERLAY_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.tooltipView.present(),
@@ -140,7 +152,7 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
       attachSidebarOverlayKeyboard(webContents, host.sidebarOverlayKeyboard)
     }
     return {
-      send: (state) => { if (!webContents.isDestroyed()) webContents.send('sidebar-overlay-view:state', state) },
+      send: (state) => { if (!webContents.isDestroyed()) sendTo(webContents, SIDEBAR_OVERLAY_VIEW_IPC.state, state) },
       setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
       setBounds: (bounds) => view.setBounds(bounds),
       present: () => host.sidebarOverlayView.present(),
@@ -155,6 +167,37 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
     }
   }
 
+  function trustedStatusBubbleUrl(): string {
+    if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+      return new URL('status-bubble.html', host.trustedShellUrl()).href
+    }
+    return pathToFileURL(join(__dirname, '../renderer/status-bubble.html')).href
+  }
+
+  /** One transparent view, created on the first link pointed at, draws the status bubble. */
+  const statusBubbleWatched = new WeakSet<Electron.WebContents>()
+
+  async function ensureStatusBubbleSurface(): Promise<StatusBubbleSurface> {
+    const { view, webContents } = await host.statusBubbleView.ensure()
+    if (!statusBubbleWatched.has(webContents)) {
+      statusBubbleWatched.add(webContents)
+      // The bubble has nothing to click; it moves out of the pointer's way as soon as the pointer comes onto it.
+      webContents.on('before-mouse-event', (event, mouse) => {
+        event.preventDefault()
+        if (mouse.type !== 'mouseLeave') host.statusBubble.pointerOnBubble(mouse.x, mouse.y)
+      })
+      webContents.on('focus', () => host.statusBubble.viewFocused())
+    }
+    return {
+      send: (state) => { if (!webContents.isDestroyed()) sendTo(webContents, STATUS_BUBBLE_VIEW_IPC.state, state) },
+      setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
+      setBounds: (bounds) => view.setBounds(bounds),
+      present: () => host.statusBubbleView.present(),
+      withdraw: () => host.statusBubbleView.withdraw(),
+      isDestroyed: () => webContents.isDestroyed()
+    }
+  }
+
   return {
     trustedAgentCardUrl,
     ensureAgentCardSurface,
@@ -163,6 +206,8 @@ export function createOverlaySurfaces(host: OverlaySurfacesHost): {
     trustedTooltipOverlayUrl,
     ensureTooltipSurface,
     trustedSidebarOverlayUrl,
-    ensureSidebarOverlaySurface
+    ensureSidebarOverlaySurface,
+    trustedStatusBubbleUrl,
+    ensureStatusBubbleSurface
   }
 }

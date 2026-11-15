@@ -25,15 +25,18 @@ executing test suites. Add regression coverage and review the diff, and record
 unexecuted checks as untested. Required reviews, branch protections, and CodeQL
 checks still apply.
 
-Test execution is deferred to release preparation. A version bump on main, which
-also sets the version in `plugins/hronaut/.claude-plugin/plugin.json` and
-`extensions/vscode/package.json`, uses
-the existing auto-tag pipeline; the immutable-tag release workflow runs the
-complete static, unit/component, Docker/Electron, native-dialog, and packaging
-gates before publication. A failed gate prevents publication. Do not overwrite
+Test execution is deferred to release preparation. A version bump on main uses
+the existing auto-tag pipeline; the immutable tag must pass the complete static,
+unit/component, Docker/Electron, native-dialog, and packaging gates before
+publication. A failed gate prevents publication. Do not overwrite
 published tags. The CI workflow remains available by manual dispatch for an
 explicit investigation or rehearsal; dispatching it on a `release/` branch also
-checks platform packaging.
+checks platform packaging. When that rehearsal passed `npm run validate` (lint,
+unit/component tests, typecheck and the application build) and every Electron
+shard (including native dialogs and the responsiveness gate) on the tag's own tree, the release workflow takes
+those results from it instead of running them again. It still audits production
+dependencies, runs the MCPB tests, and builds every platform package. Dispatch
+the release with `full_tests` to run every gate again.
 
 For release validation or an explicitly requested investigation:
 
@@ -47,6 +50,25 @@ The isolated Docker/Xvfb integration suite is available for browser, Electron li
 
 ```bash
 npm run test:integration:docker
+```
+
+The Docker suite ends with the responsiveness gate,
+`tests/integration/responsiveness.perf.ts`, which runs alone once every other
+test is done; hosted CI and the release run it after shard 2. Four agents open
+pages, read them and take screenshots in their own workspaces while the person
+clicks tabs. The gate fails when a measurement passes its limit: the shell's
+heap, how long a click takes to show its tab, main's thread
+time per agent call, how late main's event loop runs its timers, how busy the
+shell is, the agents' screenshot and snapshot times, and the bytes their work
+sends Hronaut's windows per call. The test prints each measurement with its
+limit, and the shell's first paint, which depends too much on the machine to
+have one. A missed limit is a regression to find before releasing, even when a
+re-run passes; change a limit only with measurements that show why. To run it
+alone after `npm run build`, or in the pinned Docker image:
+
+```bash
+npm run test:performance:headless
+npm run test:integration:docker:focused -- --config playwright.performance.config.ts
 ```
 
 When investigating a release regression, run a single Electron Playwright file or
@@ -122,9 +144,29 @@ memory-constrained machine, reduce concurrency without changing the suite:
 HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
-Manually dispatched CI and release validation assign eight shards to separate runners, each
-with one Electron worker. This shortens each batch while keeping native focus and
-capture checks away from per-runner Electron contention. The selected-shard
+Manually dispatched CI and release validation assign twelve shards to separate
+runners, each with two Electron workers on separate Xvfb displays, which keeps
+native focus and capture checks of one worker away from the other's. Each
+shard lists the suite and runs its part of a split by the durations in
+`tests/integration/durations.json`, so the shards finish at about the same time.
+A shard that cannot list or plan the suite fails, since the others already split
+it by durations. Every CI shard uploads how long its tests took as a
+`durations-electron-*` artifact; after tests were added or got slower, refresh
+the file from a full run, with all twelve artifacts downloaded (`--replace` keeps
+only the tests they record):
+
+```bash
+durations="$(mktemp -d)"
+gh run download <run-id> --pattern 'durations-electron-*' --dir "$durations"
+node scripts/update-integration-durations.ts --replace tests/integration/durations.json \
+  $(find "$durations" -name 'shard-*.json')
+```
+
+A shard that fails because of at most three tests, with every other test run and
+no error outside a test, reruns each of them three times without retries. When
+every rerun passes, the shard passes with a "Flaky Electron tests" warning and
+keeps the first failures' traces as an artifact; each flake it names still needs
+a fix. The selected-shard
 worker count can be tuned through `HRONAUT_INTEGRATION_SHARD_WORKERS` when
 benchmarking a dedicated machine.
 An explicit
@@ -152,5 +194,5 @@ For focused static feedback, run content-cached ESLint and only the TypeScript
 projects that own the edited files:
 
 ```bash
-npm run validate:focused -- src/main/home-page.ts tests/home-page.test.ts
+npm run validate:focused -- src/main/home/home-page.ts tests/home-page.test.ts
 ```

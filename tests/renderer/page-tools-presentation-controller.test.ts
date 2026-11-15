@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   usePageToolsPresentationController,
   type PageToolsPresentationControllerOptions
-} from '../../src/renderer/src/composables/usePageToolsPresentationController.js'
+} from '../../src/renderer/src/features/page-tools/usePageToolsPresentationController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserTabState, SupportedLocale } from '../../src/shared/types.js'
 

@@ -1,7 +1,8 @@
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
+import { openTabsView } from './home-tabs-view.js'
 
-test('refreshes recently closed labels in an idle overview without moving focus', async ({ appWindow, electronApp }) => {
+test('refreshes recently closed labels in an idle Tabs view without moving focus', async ({ appWindow, electronApp }) => {
   const url = 'data:text/html,<title>Recency fixture</title><main>Recency fixture</main>'
   const opened = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
   const tabId = opened.activeTabId!
@@ -16,11 +17,9 @@ test('refreshes recently closed labels in an idle overview without moving focus'
   await appWindow.clock.install({ time: new Date(start.getTime() - 60_000) })
   await appWindow.clock.pauseAt(start)
   try {
-    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
-    const panel = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
-    await panel.getByRole('combobox', { name: 'Result type' }).selectOption('closed')
-    const row = panel.locator('.tab-search-item.closed').filter({ hasText: 'Recency fixture' })
-    const search = panel.getByRole('searchbox')
+    const { view, search } = await openTabsView(appWindow, electronApp)
+    await view.getByRole('tab', { name: 'Recently closed', exact: true }).click()
+    const row = view.locator('.tab-row.closed').filter({ hasText: 'Recency fixture' })
     await search.focus()
     await expect(row).toContainText('Closed just now')
     await appWindow.clock.fastForward(60_000)
@@ -31,7 +30,7 @@ test('refreshes recently closed labels in an idle overview without moving focus'
     await expect(search).toBeFocused()
     const after = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
     expect(after.closedTabs).toEqual(before.closedTabs)
-    expect(after.activeTabId).toBe(before.activeTabId)
+    expect(after.tabs.find(tab => tab.id === after.activeTabId)?.url).toMatch(/^hronaut:\/\/home/u)
     expect(after.tabs.map(tab => tab.id)).toEqual(before.tabs.map(tab => tab.id))
   } finally { await appWindow.clock.resume() }
 })

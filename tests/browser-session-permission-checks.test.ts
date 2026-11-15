@@ -9,6 +9,7 @@ import { translate } from '../src/shared/i18n.js'
 vi.mock('electron', () => ({ app: { getPath: () => '' }, session: { fromPartition: vi.fn() } }))
 
 const { createBrowserSession } = await import('../src/main/browser-session.js')
+const { SitePermissionStore } = await import('../src/main/site-data/site-permission-store.js')
 
 type RequestHandler = Parameters<Session['setPermissionRequestHandler']>[0] & {}
 type CheckHandler = Parameters<Session['setPermissionCheckHandler']>[0] & {}
@@ -18,12 +19,33 @@ type CheckHandler = Parameters<Session['setPermissionCheckHandler']>[0] & {}
 // not be read ("NotAllowedError" from getFile()), an allowed write failed, and a page in a call it was allowed read its
 // devices as "denied", with no names.
 
+const storeFolders: string[] = []
+const stores: Array<{ flush(): Promise<void> }> = []
+afterEach(async () => {
+  await Promise.all(stores.splice(0).map((store) => store.flush()))
+  await Promise.all(storeFolders.splice(0).map((folder) => rm(folder, { recursive: true, force: true })))
+})
+
+/** A site permission store in a folder of its own, removed after the test. */
+async function createStore(blockedByDefault: () => readonly string[] = () => []) {
+  const folder = await mkdtemp(join(tmpdir(), 'hronaut-permission-checks-'))
+  storeFolders.push(folder)
+  const store = new SitePermissionStore(join(folder, 'site-permissions.json'), blockedByDefault)
+  await store.load()
+  stores.push(store)
+  return store
+}
+
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 const site = { url: 'https://editor.example/notes', origin: 'https://editor.example' }
 const fromSite = { requestingUrl: site.url, isMainFrame: true }
 
 /** One workspace session's handlers, answering each prompt with the next answer in `answers`. */
-function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => boolean = () => false) {
+function createHarness(
+  answers: Array<'allow' | 'deny'> = [],
+  saveFiles: () => boolean = () => false,
+  store: Pick<InstanceType<typeof SitePermissionStore>, 'effectiveDecisionFor'> | null = null
+) {
   const shown: MessageBoxOptions[] = []
   const handlers = { request: undefined as RequestHandler | undefined, check: undefined as CheckHandler | undefined }
   const browserSession = createBrowserSession({
@@ -34,10 +56,11 @@ function createHarness(answers: Array<'allow' | 'deny'> = [], saveFiles: () => b
       return { response: answers.shift() === 'allow' ? 1 : 0, checkboxChecked: false }
     },
     workspaces: () => [],
-    state: { persistentSession: null, sitePermissionStore: null },
+    state: { persistentSession: null, sitePermissionStore: store as never },
     sendToShellWindows: () => undefined,
     partition: 'persist:test',
-    websitesMaySaveFiles: saveFiles
+    settings: () => ({ allowWebsiteFileSaving: saveFiles(), sitePermissionsBlockedByDefault: [] }),
+    trackSpellCheck: () => undefined
   })
   const workspaceSession = {
     setDownloadPath: () => undefined,
@@ -77,29 +100,60 @@ function ask(handlers: { request?: RequestHandler }, page: { contents: unknown }
   })
 }
 
-describe('camera and microphone the person allowed', () => {
+describe('camera and microphone a website was allowed', () => {
   // What Chromium checks to name a page's devices: the page, its website and one device type.
-  const device = (handlers: { check?: CheckHandler }, page: { contents: unknown } | null, mediaType: string, origin = site.origin) =>
-    handlers.check!((page?.contents ?? null) as never, 'media', origin, { securityOrigin: `${origin}/`, requestingUrl: site.url, isMainFrame: true, mediaType } as never)
+  const device = (handlers: { check?: CheckHandler }, page: { contents: unknown } | null, mediaType: string, origin = site.origin) => {
+    const requestingUrl = origin === site.origin ? site.url : `${origin}/`
+    return handlers.check!((page?.contents ?? null) as never, 'media', origin, { securityOrigin: `${origin}/`, requestingUrl, isMainFrame: true, mediaType } as never)
+  }
 
-  it('reads as allowed for the devices the person allowed, while the page keeps its document', async () => {
-    const { handlers, workspaceSession } = createHarness(['allow'])
+  it('read as allowed for each device the person allowed the website, on all its pages, until they change it', async () => {
+    const store = await createStore()
+    const { handlers, workspaceSession, shown } = createHarness(['allow'], () => false, store)
     const page = createPage(workspaceSession)
     expect(device(handlers, page, 'video')).toBe(false)
     expect(await ask(handlers, page, 'media', { mediaTypes: ['video'] })).toBe(true)
     expect(device(handlers, page, 'video')).toBe(true)
-    // Only the camera was allowed, only for this website, only on this page.
+    // Only the camera was allowed, and only for this website.
     expect(device(handlers, page, 'audio')).toBe(false)
     expect(device(handlers, page, 'unknown')).toBe(false)
     expect(device(handlers, page, 'video', 'https://ads.example')).toBe(false)
-    expect(device(handlers, createPage(workspaceSession), 'video')).toBe(false)
-    expect(device(handlers, null, 'video')).toBe(false)
+    // As in Chrome, the website keeps it on its other pages and after a reload, without asking again.
+    expect(device(handlers, createPage(workspaceSession), 'video')).toBe(true)
+    expect(device(handlers, null, 'video')).toBe(true)
     page.reload()
+    expect(device(handlers, page, 'video')).toBe(true)
+    expect(await ask(handlers, page, 'media', { mediaTypes: ['video'] })).toBe(true)
+    expect(shown).toHaveLength(1)
+    // A Block saved in Site controls or Settings ends it.
+    await store.set(site.origin, 'camera', 'deny', { workspaceId: WORKSPACE })
     expect(device(handlers, page, 'video')).toBe(false)
   })
 
-  it('reads as allowed for a website embedded in the page, and not for the page around it', async () => {
-    const { handlers, workspaceSession } = createHarness(['allow'])
+  it('read as refused when the person blocked the device for every website, unless the website was allowed', async () => {
+    let blocked = ['camera', 'sensors']
+    const store = await createStore(() => blocked)
+    const { handlers, workspaceSession } = createHarness([], () => false, store)
+    const page = createPage(workspaceSession)
+    const sensors = () => handlers.check!(page.contents as never, 'sensors' as never, site.origin, fromSite as never)
+    expect(device(handlers, page, 'video')).toBe(false)
+    // Motion sensors are given without asking, so only the Block for every website refuses them.
+    expect(sensors()).toBe(false)
+    await store.set(site.origin, 'camera', 'allow', { workspaceId: WORKSPACE })
+    await store.set(site.origin, 'sensors', 'allow', { workspaceId: WORKSPACE })
+    expect(device(handlers, page, 'video')).toBe(true)
+    expect(sensors()).toBe(true)
+    await store.remove(site.origin, 'camera', { workspaceId: WORKSPACE })
+    await store.remove(site.origin, 'sensors', { workspaceId: WORKSPACE })
+    expect(device(handlers, page, 'video')).toBe(false)
+    expect(sensors()).toBe(false)
+    blocked = []
+    expect(device(handlers, page, 'video')).toBe(false)
+    expect(sensors()).toBe(true)
+  })
+
+  it('read as allowed for a website embedded in the page, and not for the page around it', async () => {
+    const { handlers, workspaceSession } = createHarness(['allow'], () => false, await createStore())
     const page = createPage(workspaceSession)
     const ads = { frameTreeNodeId: 2, processId: 8, routingId: 200, url: 'https://ads.example/call', origin: 'https://ads.example', detached: false }
     page.contents.mainFrame.framesInSubtree.push(ads)
@@ -112,15 +166,17 @@ describe('camera and microphone the person allowed', () => {
     expect(device(handlers, page, 'video')).toBe(false)
   })
 
-  it('reads as blocked again once the person denies the same device on that page, and asks for every request', async () => {
-    const { handlers, workspaceSession, shown } = createHarness(['allow', 'deny'])
+  it('read as blocked once the person denies a device, which then refuses a request for both without asking', async () => {
+    const { handlers, workspaceSession, shown } = createHarness(['allow', 'deny'], () => false, await createStore())
     const page = createPage(workspaceSession)
-    expect(await ask(handlers, page, 'media', { mediaTypes: ['audio', 'video'] })).toBe(true)
-    expect(device(handlers, page, 'audio')).toBe(true)
+    expect(await ask(handlers, page, 'media', { mediaTypes: ['audio'] })).toBe(true)
     expect(await ask(handlers, page, 'media', { mediaTypes: ['video'] })).toBe(false)
     expect(shown).toHaveLength(2)
-    expect(device(handlers, page, 'video')).toBe(false)
     expect(device(handlers, page, 'audio')).toBe(true)
+    expect(device(handlers, page, 'video')).toBe(false)
+    expect(await ask(handlers, page, 'media', { mediaTypes: ['audio', 'video'] })).toBe(false)
+    expect(await ask(handlers, page, 'media', { mediaTypes: ['audio'] })).toBe(true)
+    expect(shown).toHaveLength(2)
   })
 })
 
@@ -307,6 +363,14 @@ describe('a single file a website holds', () => {
     switchOn = false
     expect(file(handlers, notes)).toBe(false)
   })
+})
+
+it('never admits screen capture or storage access for a whole page from a check, even with an allowing decision saved', () => {
+  const { handlers, workspaceSession } = createHarness([], () => false, { effectiveDecisionFor: () => 'allow' })
+  const page = createPage(workspaceSession)
+  expect(handlers.check!(page.contents as never, 'geolocation' as never, site.origin, fromSite as never)).toBe(true)
+  expect(handlers.check!(page.contents as never, 'display-capture' as never, site.origin, fromSite as never)).toBe(false)
+  expect(handlers.check!(page.contents as never, 'top-level-storage-access' as never, site.origin, fromSite as never)).toBe(false)
 })
 
 it('never admits a link to another app from a check, even after the person allowed one', async () => {

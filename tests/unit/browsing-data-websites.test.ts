@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from '../../src/main/browsing-data-websites.js'
+import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from '../../src/main/site-data/browsing-data-websites.js'
 
 describe('buildBrowsingDataWebsiteInventory', () => {
   it('merges global profile sources into independently sorted website rows', () => {

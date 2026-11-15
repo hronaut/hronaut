@@ -1,26 +1,29 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
 import { registerCollectionIpc } from '../src/main/collection-ipc.js'
+import type { SiteIcons } from '../src/shared/site-icons.js'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
-  'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder',
+  'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:retry', 'downloads:remove-finished', 'downloads:clear-finished', 'downloads:show-in-folder', 'downloads:start-drag',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
-  'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign',
-  'visit-history:list', 'visit-history:remove', 'visit-history:clear'
+  'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign', 'bookmark-collections:bookmark-tabs',
+  'visit-history:list', 'visit-history:site-icons', 'visit-history:remove', 'visit-history:clear'
 ]
 
 function fixture() {
   const listeners = new Map<string, Listener>()
-  const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn() }
+  const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), removeRestorably: vi.fn(), bookmarkTabs: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
-  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
+  const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), listDownloadsCheckingFiles: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn(), startDownloadDrag: vi.fn() }
   const host = {
     assertTrustedSender: vi.fn(),
     async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
     bookmarks: vi.fn(() => bookmarks),
     history: vi.fn(() => history),
-    downloads: vi.fn(() => downloads),
+    siteIcons: vi.fn((): SiteIcons => ({ pages: {}, icons: {} })),
+    downloads: vi.fn(() => ({ downloadController: downloads })),
+    tabs: vi.fn(() => [] as { url: string; title: string; mcpGroupId?: string }[]),
     publishBookmarks: vi.fn(() => []),
     publishVisitHistory: vi.fn(() => [])
   }
@@ -40,6 +43,7 @@ it.each(channels)('rejects untrusted %s calls before looking up services', async
   expect(host.downloads).not.toHaveBeenCalled()
   expect(host.publishBookmarks).not.toHaveBeenCalled()
   expect(host.publishVisitHistory).not.toHaveBeenCalled()
+  expect(host.tabs).not.toHaveBeenCalled()
 })
 
 it.each([
@@ -47,15 +51,20 @@ it.each([
   ['bookmark-collections:rename', ['id', 7]],
   ['bookmark-collections:assign', ['id', undefined]],
   ['bookmark-collections:remove', [{}]],
+  ['bookmark-collections:bookmark-tabs', [undefined, 'Tabs']],
+  ['bookmark-collections:bookmark-tabs', [7, 'Tabs']],
+  ['bookmark-collections:bookmark-tabs', ['workspace-1', null]],
   ['downloads:remove-finished', [null]],
   ['downloads:remove-finished', ['']],
   ['downloads:cancel', [null]],
   ['downloads:pause', [null]],
   ['downloads:resume', [null]],
+  ['downloads:retry', [null]],
   ['downloads:show-in-folder', [7]],
   ['bookmarks:add-if-missing', [null, 'Title']],
   ['bookmarks:add-if-missing', ['https://example.test/', {}]],
   ['bookmarks:add', ['https://example.com/', {}]],
+  ['bookmarks:add', ['https://example.com/', 'Title', 7]],
   ['bookmarks:rename', ['bookmark', null]],
   ['bookmarks:remove', [{}]],
   ['bookmarks:update-destination', ['bookmark', null]],
@@ -67,6 +76,56 @@ it.each([
   expect(host.bookmarks).not.toHaveBeenCalled()
   expect(host.history).not.toHaveBeenCalled()
   expect(host.downloads).not.toHaveBeenCalled()
+  expect(host.tabs).not.toHaveBeenCalled()
+})
+
+it('offers to undo a removed collection once the removal is saved and published', async () => {
+  const { host, bookmarks, invoke } = fixture()
+  const removed = { collection: { id: 'reading', name: 'Reading', bookmarkIds: ['a'] }, index: 0 }
+  bookmarks.removeCollection.mockResolvedValue(removed)
+  const collectionRemoved = vi.fn(() => expect(host.publishBookmarks).toHaveBeenCalledOnce())
+  Object.assign(host, { collectionRemoved })
+  await invoke('bookmark-collections:remove', 'reading')
+  expect(bookmarks.removeCollection).toHaveBeenCalledExactlyOnceWith('reading')
+  expect(collectionRemoved).toHaveBeenCalledExactlyOnceWith(removed)
+
+  // A removal that fails offers nothing.
+  bookmarks.removeCollection.mockRejectedValueOnce(new Error('Disk full'))
+  await expect(invoke('bookmark-collections:remove', 'reading')).rejects.toThrow('Disk full')
+  expect(collectionRemoved).toHaveBeenCalledOnce()
+  // Nor does any other change to the collections.
+  await invoke('bookmark-collections:rename', 'reading', 'Later')
+  expect(collectionRemoved).toHaveBeenCalledOnce()
+})
+
+it('bookmarks the tabs main reads for the workspace named, and publishes only after they are saved', async () => {
+  const { host, bookmarks, invoke } = fixture()
+  host.tabs.mockReturnValue([
+    { url: 'hronaut://home/', title: 'Home', mcpGroupId: 'workspace-1' },
+    { url: 'https://one.test/', title: 'One', mcpGroupId: 'workspace-1' },
+    { url: 'https://other.test/', title: 'Other', mcpGroupId: 'workspace-2' },
+    { url: 'https://loose.test/', title: 'Loose' },
+    { url: 'about:blank', title: '', mcpGroupId: 'workspace-1' }
+  ])
+  // In the tab strip's order, without Home or another workspace's tabs; main leaves out what shows no web page.
+  const tabs = [{ url: 'https://one.test/', title: 'One' }, { url: 'about:blank', title: '' }]
+  const result = { collectionId: 'new', saved: 1, inOtherCollections: 0, notWebPages: 0, overLimit: 0, limit: 500 }
+  const snapshot = { revision: 3, collections: [{ id: 'new', name: 'Client A', bookmarkIds: ['b1'] }] }
+  bookmarks.collectionSnapshot.mockReturnValue(snapshot as never)
+  let resolve: ((value: typeof result) => void) | undefined
+  bookmarks.bookmarkTabs.mockImplementation(() => new Promise(done => { resolve = done }))
+  const pending = invoke('bookmark-collections:bookmark-tabs', 'workspace-1', 'Client A')
+  await vi.waitFor(() => expect(bookmarks.bookmarkTabs).toHaveBeenCalledWith('Client A', tabs))
+  expect(host.publishBookmarks).not.toHaveBeenCalled()
+  resolve!(result)
+  await expect(pending).resolves.toEqual({ snapshot, result })
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
+
+  // The tabs in no workspace are named by null; a failure publishes nothing.
+  bookmarks.bookmarkTabs.mockRejectedValueOnce(new Error('Nothing to save'))
+  await expect(invoke('bookmark-collections:bookmark-tabs', null, 'Open tabs')).rejects.toThrow('Nothing to save')
+  expect(bookmarks.bookmarkTabs).toHaveBeenLastCalledWith('Open tabs', [{ url: 'https://loose.test/', title: 'Loose' }])
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
 })
 
 it('registers lazily and publishes a bookmark mutation only after persistence succeeds', async () => {
@@ -88,16 +147,23 @@ it('registers lazily and publishes a bookmark mutation only after persistence su
 
 it('routes download actions and publishes completed history mutations', async () => {
   const { invoke, downloads, history, host } = fixture()
+  // The shell's list at startup checks no files; the Downloads panel opening does, as Chrome's downloads page.
   await invoke('downloads:list')
+  expect(downloads.listDownloads).toHaveBeenCalledOnce()
+  expect(downloads.listDownloadsCheckingFiles).not.toHaveBeenCalled()
+  await invoke('downloads:list', 'yes')
+  expect(downloads.listDownloadsCheckingFiles).not.toHaveBeenCalled()
+  await invoke('downloads:list', true)
   await invoke('downloads:pause', 'transfer')
   await invoke('downloads:resume', 'transfer')
   await invoke('downloads:cancel', 'transfer')
+  await invoke('downloads:retry', 'cancelled')
   await invoke('downloads:remove-finished', 'finished')
   expect(downloads.removeFinishedDownload).toHaveBeenCalledExactlyOnceWith('finished')
   await invoke('downloads:clear-finished')
   await invoke('downloads:show-in-folder', 'transfer')
   expect(downloads.listDownloadsCheckingFiles).toHaveBeenCalledOnce()
-  expect(downloads.manageDownloads.mock.calls).toEqual([['pause', 'transfer'], ['resume', 'transfer'], ['cancel', 'transfer'], ['clear']])
+  expect(downloads.manageDownloads.mock.calls).toEqual([['pause', 'transfer'], ['resume', 'transfer'], ['cancel', 'transfer'], ['retry', 'cancelled'], ['clear']])
   expect(downloads.showDownloadInFolder).toHaveBeenCalledWith('transfer')
   await invoke('visit-history:remove', 'visit')
   expect(history.remove).toHaveBeenCalledWith('visit')
@@ -121,6 +187,17 @@ it('publishes destination changes only after persistence and keeps failures unpu
   expect(host.publishBookmarks).toHaveBeenCalledOnce()
 })
 
+// The panel names the collection it shows, which a new bookmark goes into in the same write.
+it('passes the collection a page is saved into to the store, and names none when the window gives none', async () => {
+  const { bookmarks, invoke } = fixture()
+  await invoke('bookmarks:add', 'https://example.test/', 'Title', 'reading')
+  await invoke('bookmarks:add', 'https://example.test/other', 'Other')
+  expect(bookmarks.add.mock.calls).toEqual([
+    [{ url: 'https://example.test/', title: 'Title', collectionId: 'reading' }],
+    [{ url: 'https://example.test/other', title: 'Other' }]
+  ])
+})
+
 it('publishes a history bookmark only after persistence succeeds', async () => {
   const { bookmarks, host, invoke } = fixture()
   let finish!: () => void
@@ -134,4 +211,21 @@ it('publishes a history bookmark only after persistence succeeds', async () => {
   bookmarks.addIfMissing.mockRejectedValueOnce(new Error('Persistence failed'))
   await expect(invoke('bookmarks:add-if-missing', 'https://example.test/', 'History title')).rejects.toThrow('Persistence failed')
   expect(host.publishBookmarks).toHaveBeenCalledOnce()
+})
+
+it('starts dragging a download out of the window it is dragged in, by its ID only', async () => {
+  const { invoke, downloads, event } = fixture()
+  await invoke('downloads:start-drag', 'finished')
+  // The window the person drags in, never one the renderer names.
+  expect(downloads.startDownloadDrag).toHaveBeenCalledExactlyOnceWith('finished', event.sender)
+  await expect(invoke('downloads:start-drag', { id: 'finished' })).rejects.toThrow('Invalid download ID')
+  expect(downloads.startDownloadDrag).toHaveBeenCalledOnce()
+})
+
+it('gives a trusted window the pages\' icons main keeps', async () => {
+  const { host, invoke, event } = fixture()
+  const icons = { pages: { 'https://docs.example/guide': 'a' }, icons: { a: 'data:image/png;base64,AAAA' } }
+  host.siteIcons.mockReturnValue(icons)
+  await expect(invoke('visit-history:site-icons')).resolves.toEqual(icons)
+  expect(host.assertTrustedSender).toHaveBeenCalledWith(event)
 })

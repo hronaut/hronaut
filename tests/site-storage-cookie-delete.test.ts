@@ -1,7 +1,13 @@
 import type { Cookie, CookiesSetDetails, WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { manageCookies } from '../src/main/browser/site-storage/cookies.js'
-import type { SiteStorageAccess, SiteStorageTab } from '../src/main/browser/site-storage/site-storage-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
+
+// The debugger lease goes to the fake browser's, so a call to it is seen.
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', () => ({
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
 
 interface StoredCookie { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure?: true; partitioned?: true }
 
@@ -38,21 +44,20 @@ function cookieTab(stored: StoredCookie[]) {
   })
   const session = { cookies: { get: vi.fn(async ({ url }: { url: string }) => listing(new URL(url))), remove, set } }
   const webContents = { session, isDestroyed: () => false } as unknown as WebContents
-  const tab: SiteStorageTab = { id: 'tab-1', url: PAGE.href, webContents, storageComparisonGeneration: 0 }
+  const tab = { id: 'tab-1', url: PAGE.href, webContents, storageComparisonGeneration: 0 } as unknown as BrowserTab
   const context = { tabId: 'tab-1', workspaceId: null, navigationGeneration: 0, observationGeneration: 0, humanInteractionGeneration: 0, snapshotFormatVersion: 1 }
   // Developer Tools is open for the tab: nothing here may need the debugging connection.
   const withDebugger = vi.fn(async () => { throw new Error('Close Developer Tools for this tab, then try again.') })
-  const access: SiteStorageAccess<SiteStorageTab> = {
-    getTab: () => tab,
-    findTab: (id) => id === tab.id ? tab : undefined,
-    findWorkspace: () => undefined,
-    inspectionPermission: () => undefined,
-    isDestroyed: () => false,
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    mcpTabGroups: new Map(),
+    inspectionPermissions: new WeakMap(),
+    destroyed: false,
     snapshotDeltaContext: () => context,
     withDebugger
-  }
+  } as unknown as Browser
   const remaining = (): string[] => stored.map((cookie) => `${cookie.name}=${cookie.value}@${cookie.domain}${cookie.path}`).sort()
-  return { access, tab, remove, set, withDebugger, remaining }
+  return { browser, tab, remove, set, withDebugger, remaining }
 }
 
 function storedCookies(): StoredCookie[] {
@@ -68,8 +73,8 @@ function storedCookies(): StoredCookie[] {
 
 describe('site storage cookie deletion', () => {
   it('deletes only the non-HttpOnly cookies of a name that the page receives, with Developer Tools open', async () => {
-    const { access, tab, remove, withDebugger, remaining } = cookieTab(storedCookies())
-    const result = await manageCookies(access, tab, PAGE, 'delete', 'token', undefined, false)
+    const { browser, tab, remove, withDebugger, remaining } = cookieTab(storedCookies())
+    const result = await manageCookies(browser, tab, PAGE, 'delete', 'token', undefined, false)
     expect(result.changed).toBe(true)
     expect(remove).not.toHaveBeenCalled()
     expect(withDebugger).not.toHaveBeenCalled()
@@ -79,8 +84,8 @@ describe('site storage cookie deletion', () => {
   })
 
   it('leaves the parent domain’s own cookie and partitioned cookies when deleting a parent-domain cookie', async () => {
-    const { access, tab, set, remaining } = cookieTab(storedCookies())
-    const result = await manageCookies(access, tab, PAGE, 'delete', 'pref', undefined, false)
+    const { browser, tab, set, remaining } = cookieTab(storedCookies())
+    const result = await manageCookies(browser, tab, PAGE, 'delete', 'pref', undefined, false)
     expect(result.changed).toBe(true)
     // The listing holds the shared cookie and its partitioned twin; their one identity is expired once.
     expect(set).toHaveBeenCalledOnce()
@@ -90,8 +95,8 @@ describe('site storage cookie deletion', () => {
   })
 
   it('clears every non-HttpOnly cookie the page receives and nothing else', async () => {
-    const { access, tab, remove, withDebugger, remaining } = cookieTab(storedCookies())
-    const result = await manageCookies(access, tab, PAGE, 'clear', undefined, undefined, false)
+    const { browser, tab, remove, withDebugger, remaining } = cookieTab(storedCookies())
+    const result = await manageCookies(browser, tab, PAGE, 'clear', undefined, undefined, false)
     expect(result.changed).toBe(true)
     expect(remove).not.toHaveBeenCalled()
     expect(withDebugger).not.toHaveBeenCalled()
@@ -104,28 +109,28 @@ describe('site storage cookie deletion', () => {
       { name: 'token', value: 'session-secret', domain: 'app.example.test', path: '/checkout', httpOnly: true, partitioned: true }
     ]
     const cleared = cookieTab(stored())
-    expect((await manageCookies(cleared.access, cleared.tab, PAGE, 'clear', undefined, undefined, false)).changed).toBe(false)
+    expect((await manageCookies(cleared.browser, cleared.tab, PAGE, 'clear', undefined, undefined, false)).changed).toBe(false)
     expect(cleared.set).not.toHaveBeenCalled()
     expect(cleared.remaining()).toEqual(['token=guest@app.example.test/checkout', 'token=session-secret@app.example.test/checkout'])
     const deleted = cookieTab(stored())
-    await expect(manageCookies(deleted.access, deleted.tab, PAGE, 'delete', 'token', undefined, false)).rejects.toThrow('HttpOnly cookies are protected')
+    await expect(manageCookies(deleted.browser, deleted.tab, PAGE, 'delete', 'token', undefined, false)).rejects.toThrow('HttpOnly cookies are protected')
     expect(deleted.set).not.toHaveBeenCalled()
   })
 
   it('clears a cookie without a name, and one whose name a Secure cookie on another path also has', async () => {
-    const { access, tab, remaining } = cookieTab([
+    const { browser, tab, remaining } = cookieTab([
       { name: '', value: 'nameless', domain: 'app.example.test', path: '/', httpOnly: false },
       { name: 'tok', value: 'plain', domain: 'app.example.test', path: '/checkout', httpOnly: false },
       { name: 'tok', value: 'secure', domain: 'app.example.test', path: '/', httpOnly: false, secure: true }
     ])
-    const result = await manageCookies(access, tab, PAGE, 'clear', undefined, undefined, false)
+    const result = await manageCookies(browser, tab, PAGE, 'clear', undefined, undefined, false)
     expect(result.changed).toBe(true)
     expect(remaining()).toEqual([])
   })
 
   it('deletes one exact cookie with Developer Tools open', async () => {
-    const { access, tab, withDebugger, remaining } = cookieTab(storedCookies())
-    const result = await manageCookies(access, tab, PAGE, 'delete', 'token', undefined, false, undefined, { domain: 'app.example.test', path: '/checkout' })
+    const { browser, tab, withDebugger, remaining } = cookieTab(storedCookies())
+    const result = await manageCookies(browser, tab, PAGE, 'delete', 'token', undefined, false, undefined, { domain: 'app.example.test', path: '/checkout' })
     expect(result.changed).toBe(true)
     expect(withDebugger).not.toHaveBeenCalled()
     expect(remaining()).not.toContain('token=guest@app.example.test/checkout')
@@ -134,11 +139,11 @@ describe('site storage cookie deletion', () => {
 
   it('reports an exact partitioned cookie as still present, and rejects one with a partitioned twin before writing', async () => {
     const partitionedOnly = cookieTab([{ name: 'pref', value: 'partitioned', domain: '.example.test', path: '/', httpOnly: false, partitioned: true }])
-    await expect(manageCookies(partitionedOnly.access, partitionedOnly.tab, PAGE, 'delete', 'pref', undefined, false, undefined, { domain: '.example.test', path: '/' }))
+    await expect(manageCookies(partitionedOnly.browser, partitionedOnly.tab, PAGE, 'delete', 'pref', undefined, false, undefined, { domain: '.example.test', path: '/' }))
       .rejects.toThrow('The selected cookie is still present')
     expect(partitionedOnly.remaining()).toEqual(['pref=partitioned@.example.test/'])
     const twin = cookieTab(storedCookies())
-    await expect(manageCookies(twin.access, twin.tab, PAGE, 'delete', 'pref', undefined, false, undefined, { domain: '.example.test', path: '/' }))
+    await expect(manageCookies(twin.browser, twin.tab, PAGE, 'delete', 'pref', undefined, false, undefined, { domain: '.example.test', path: '/' }))
       .rejects.toThrow('More than one cookie')
     expect(twin.set).not.toHaveBeenCalled()
   })

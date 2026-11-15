@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
-import { agentCardModel, fitAgentCardText, useAgentCard, type AgentCardContext } from '../../src/renderer/src/composables/useAgentCard.js'
+import { agentCardModel, fitAgentCardText, useAgentCard, type AgentCardContext } from '../../src/renderer/src/features/agents/useAgentCard.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentCardEvent, AgentCardModel, AgentCardShowRequest, HronautAgentCardApi } from '../../src/shared/agent-card.js'
 import { parseAgentCardModel } from '../../src/shared/agent-card.js'
@@ -67,7 +67,11 @@ describe('agent card content', () => {
     expect(plain.reason).toEqual({
       heading: 'Why it needs you',
       text: 'Log in, then hand back.',
-      answers: [{ action: 'hand-back', label: 'Done, hand back', key: 'attention-1' }, { action: 'dismiss', label: 'Dismiss', key: 'attention-1' }]
+      answers: [
+        { action: 'hand-back', label: 'Done, hand back', key: 'attention-1' },
+        { action: 'skip', label: 'Skip, go on without me', key: 'attention-1' },
+        { action: 'dismiss', label: 'Dismiss', key: 'attention-1' }
+      ]
     })
     expect(parseAgentCardModel(plain)).toEqual(plain)
     const decision = agentCardModel(asking, context({ attentionReason: 'Human decision required: review-page', attentionId: 'attention-2', attentionDecision: true }), t)
@@ -232,7 +236,7 @@ describe('agent card content', () => {
   it('has every card phrase in every language', () => {
     const keys = [
       'label', 'connected', 'states.idle', 'states.working', 'states.needsYou', 'states.gone', 'reason', 'now', 'nowIdle', 'gone',
-      'recent', 'noSteps', 'allSteps', 'stepFailed', 'follow', 'cursor', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
+      'recent', 'noSteps', 'allSteps', 'stepFailed', 'follow', 'cursor', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'skip', 'dismiss', 'reviewDecision', 'close',
       'openDecision', 'looksGood', 'somethingWrong', 'whatToFix', 'sendBack', 'send', 'reviewAndApprove', 'whatItWillDo', 'stepDetail', 'rejectToggle',
       'rejectReason', 'reject', 'checked', 'checkedPage', 'confirmPage', 'checking', 'checkUnavailable', 'answerSending', 'answerSent', 'answerFailed', 'answerChanged', 'moreSteps',
       'decisionReasons.review-page', 'decisionReasons.provide-input', 'decisionReasons.approve-action', 'decisionReasons.resolve-unknown',

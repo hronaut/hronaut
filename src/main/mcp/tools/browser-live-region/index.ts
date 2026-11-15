@@ -3,6 +3,7 @@ import { LIVE_REGION_LIMITS } from '../../../../shared/live-region.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { liveRegion } from '../../../browser/live-region-recorder/browser-live-region-recorder.js'
 
 export function registerBrowserLiveRegion(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -25,6 +26,6 @@ export function registerBrowserLiveRegion(context: McpToolContext): void {
       tabId?: string
       action: 'start' | 'get' | 'stop' | 'clear'
       selector?: string
-    }) => textResult(await manager.liveRegion(action, tabId, selector)))
+    }) => textResult(await liveRegion(manager, action, tabId, selector)))
   )
 }

@@ -1,84 +1,79 @@
 import { WorkspaceStartupReads } from './workspace-startup-reads.js'
-import { UserAttentionLifecycle } from './user-attention-lifecycle.js'
-import { registerAttentionIpc } from './attention-ipc.js'
-import { registerIncidentPackageIpc } from './incident-package-ipc.js'
+import { DownloadsUnderWayIcons } from './download-progress/download-progress-icon.js'
+import { UserAttentionLifecycle } from './attention/user-attention-lifecycle.js'
+import { registerAttentionIpc } from './attention/attention-ipc.js'
+import { registerIncidentPackageIpc } from './incident/incident-package-ipc.js'
 import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
-import { registerFixedDateIpc } from './fixed-date-ipc.js'
+import { registerTaskManagerIpc } from './task-manager-ipc.js'
+import { registerPageBootstrapIpc } from './page-bootstrap-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
-import type { FollowSuspensionState } from './agent-card-overlay.js'
+import type { FollowSuspensionState } from './overlays/agent-card-overlay.js'
 import { createShellOverlays } from './windows/shell-overlays.js'
-import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
+import { registerOverlayViewsIpc } from './overlays/overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
-import { createAgentPresence } from './agent-presence.js'
-import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
-import { TakeOverOffers } from './take-over-offers.js'
-import { homeWorkspaceState } from './home-workspace-actions.js'
-import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
+import { registerBookmarksFileIpc } from './bookmarks-history/bookmarks-file-ipc.js'
+import { createAgentPresence } from './agents/agent-presence.js'
+import { registerAgentPresenceIpc } from './agents/agent-presence-ipc.js'
+import { TakeOverOffers } from './agents/take-over-offers.js'
+import { homeWorkspaceState } from './home/home-workspace-actions.js'
+import { createTrayAttention, type UserAttentionState } from './attention/tray-attention.js'
 import { join } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import { LocalizedError, withTranslatedIpcErrors } from './localized-error.js'
-import {
-  app,
-  autoUpdater as nativeAutoUpdater,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  nativeImage,
-  nativeTheme,
-  protocol,
-  session,
-  shell
-} from 'electron'
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell } from 'electron'
 import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
-import { createAppUpdates, type AppUpdatesState } from './app-updates.js'
+import { createAppUpdates, type AppUpdatesState } from './updates/app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
-import { BrowserTabsManager } from './browser/tabs-manager.js'
+import { registerQrCodeIpc } from './qr-code-ipc.js'
+import { DownloadHistoryStore } from './browser/download-history/download-history.js'
+import { Browser } from './browser/browser.js'
 import { TabStateStore, WorkspaceMetadataError } from './browser/tab-store.js'
 import { createTabRuntimeStartup, type TabRuntimeState } from './tab-runtime-startup.js'
 import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
-import { walletStartupFailureStatus } from './wallet/startup-status.js'
+import { walletStartingStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { workspacePartition } from './browser/workspace-storage.js'
-import { createBookmarksAndHistory, type BookmarksAndHistoryState } from './bookmarks-and-history.js'
+import { createBookmarksAndHistory, type BookmarksAndHistoryState } from './bookmarks-history/bookmarks-and-history.js'
 import { UndoOffers } from './undo-offers.js'
 import { registerUndoIpc } from './undo-ipc.js'
-import { createCredentialRuntime, type CredentialRuntimeState } from './credential-runtime.js'
-import { registerCredentialsIpc } from './credentials-ipc.js'
-import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
-import { createCommercialLicenseRuntime, type CommercialLicenseRuntimeState } from './commercial-license-runtime.js'
-import { registerLicenseIpc } from './license-ipc.js'
-import { registerUpdatesIpc } from './updates-ipc.js'
-import { createSiteData } from './site-data.js'
-import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
+import { createCredentialRuntime, type CredentialRuntimeState } from './credentials/credential-runtime.js'
+import { registerCredentialsIpc } from './credentials/credentials-ipc.js'
+import { fillCredentialWhileMcpPaused } from './credentials/credential-fill-pause.js'
+import { createCommercialLicenseRuntime, type CommercialLicenseRuntimeState } from './license/commercial-license-runtime.js'
+import { registerLicenseIpc } from './license/license-ipc.js'
+import { registerUpdatesIpc } from './updates/updates-ipc.js'
+import { createSiteData } from './site-data/site-data.js'
+import { registerBrowsingDataIpc } from './site-data/browsing-data-ipc.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
-import { registerHomeIpc } from './home-ipc.js'
-import { McpPortRecovery } from './mcp-port-suggestion.js'
-import { registerMcpControlIpc } from './mcp-control-ipc.js'
-import {
-  shouldStartMinimized
-} from './startup-launch.js'
-import {
-  McpHttpServer
-} from './mcp/server.js'
-import { createHomeDashboard } from './home-dashboard.js'
+import { registerHomeIpc } from './home/home-ipc.js'
+import { McpPortRecovery } from './mcp-runtime/mcp-port-suggestion.js'
+import { registerMcpControlIpc } from './mcp-runtime/mcp-control-ipc.js'
+import { shouldStartMinimized } from './startup-launch.js'
+import { McpHttpServer } from './mcp/server.js'
+import { createHomeDashboard } from './home/home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { createBrowserShortcutRouting } from './browser-shortcut-routing.js'
-import { loadMcpToken } from './mcp-token-store.js'
+import { loadMcpToken } from './mcp-runtime/mcp-token-store.js'
 import { createAgentServices, type AgentServicesState } from './agent-services.js'
-import { McpPauseState } from './mcp-pause-state.js'
+import { McpPauseState } from './mcp-runtime/mcp-pause-state.js'
 import { McpActionTracker } from './mcp/action-tracker.js'
-import { createMcpRuntime, type McpRuntimeState } from './mcp-runtime.js'
-import { DEFAULT_SETTINGS } from './settings-store.js'
-import { createSettingsRuntime, type SettingsState } from './settings-runtime.js'
+import { createMcpRuntime, type McpRuntimeState } from './mcp-runtime/mcp-runtime.js'
+import { DEFAULT_SETTINGS } from './settings/settings-store.js'
+import { createSettingsRuntime, type SettingsState } from './settings/settings-runtime.js'
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
-import { registerSettingsIpc } from './settings-ipc.js'
-import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
-import { registerPermissionsIpc } from './permissions-ipc.js'
+import { registerSettingsIpc } from './settings/settings-ipc.js'
+import { registerSiteSearchIpc } from './site-search-ipc.js'
+import { applySavedSecureDns, registerSecureDnsIpc } from './settings/secure-dns.js'
+import { createSpellCheck, registerSpellCheckIpc } from './settings/spell-check.js'
+import { applySavedGraphicsAcceleration, registerGraphicsAccelerationIpc } from './graphics-acceleration.js'
+import { registerAppRestartIpc } from './app-restart.js'
+import { createBrowserSession, promptWorkspaceName, type BrowserSessionState } from './browser-session.js'
+import { registerPermissionsIpc } from './site-data/permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import { attachShellEditContextMenu } from './windows/shell-edit-context-menu.js'
@@ -87,26 +82,48 @@ import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
 import { regionalPdfPageSize } from './browser/pdf-export/pdf-paper-size.js'
 import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
-import { createInterfaceLanguage } from './interface-language.js'
+import { showStartupNoticeWindow } from './windows/startup-notice-window.js'
+import { createInterfaceLanguage } from './settings/interface-language.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerVirtualPasskeyIpc } from './virtual-passkey-ipc.js'
 import { registerLogpointIpc } from './logpoint-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
+import { AGENT_PRESENCE_IPC } from '../shared/ipc/agent-presence.js'
+import { DOWNLOADS_IPC } from '../shared/ipc/downloads.js'
+import { MCP_IPC } from '../shared/ipc/mcp.js'
+import { TABS_IPC } from '../shared/ipc/tabs.js'
+import { UNDO_IPC } from '../shared/ipc/undo.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { registerConfirmDialogIpc } from './confirm-dialog-ipc.js'
 import { createTrustedDialogs } from './trusted-dialogs/trusted-dialogs.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
+import { createMainWindowSnapshot } from './windows/main-window-snapshot.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { attachHistoryMouseButtons } from './windows/history-mouse-buttons.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
+import { showSavedWindow } from './windows/show-saved-window.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
-import { createMcpControlState } from './mcp-control-state.js'
-import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
+import { createMcpControlState } from './mcp-runtime/mcp-control-state.js'
+import { registerAddressOverlayIpc } from './overlays/address-overlay-ipc.js'
 import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
 import { createQuitRequest, createQuitWithDownloadsConfirmation } from './quit-with-downloads.js'
 import { createRuntimeShutdown } from './runtime-shutdown.js'
+import { logMainProcessErrors } from './uncaught-exceptions.js'
+import { isTabAgentPaused } from './browser/agent-pause/agent-pause.js'
+import { listMcpTabGroups } from './browser/mcp-tab-groups/mcp-tab-groups.js'
+import { captureAgentStepThumbnail } from './browser/agent-step-thumbnail/agent-step-thumbnail.js'
+import { initializeBrowser } from './browser/browser-lifecycle/initialize-browser.js'
+import { browserState } from './browser/browser-state/browser-state.js'
+import { browserImportDestination, importBrowserCookies } from './browser/workspace-data/browser-cookie-import.js'
+import { withholdFocusAfterTrustedChrome, keyboardPage, focusPageAfterQuestion } from './browser/trusted-chrome-focus/trusted-chrome-focus.js'
+import { windowFullScreenToSave } from './browser/page-fullscreen/page-fullscreen.js'
+import { applySitePermissionChanges } from './browser/site-permission-changes/site-permission-changes.js'
+import { handleMcpTabActivity } from './browser/agent-follow/agent-follow.js'
+import { noteShellKey } from './browser/tab-events/shell-held-keys.js'
+
+logMainProcessErrors()
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
@@ -136,6 +153,8 @@ if (process.env.HRONAUT_USER_DATA_DIR) {
 } else if (!app.isPackaged) {
   app.setPath('userData', join(app.getPath('appData'), 'hronaut-dev'))
 }
+// Chromium takes this choice only before Electron is ready.
+const graphicsAccelerationInUse = applySavedGraphicsAcceleration(app, join(app.getPath('userData'), 'settings.json'))
 
 const mainWindowRefs: MainWindowRefs = {
   window: null,
@@ -143,7 +162,8 @@ const mainWindowRefs: MainWindowRefs = {
   controlsScrim: null,
   material: null,
   stateStore: null,
-  lastState: null
+  lastState: null,
+  showRequested: false
 }
 const panelWindowRefs: PanelWindowRefs = {
   window: null,
@@ -153,6 +173,7 @@ const panelWindowRefs: PanelWindowRefs = {
   stateStore: null,
   lastState: null
 }
+const downloadsUnderWayIcons = new DownloadsUnderWayIcons(() => [mainWindowRefs.window, panelWindowRefs.window])
 const {
   reportBrowserActionFailure,
   showWindow,
@@ -171,7 +192,11 @@ const {
 const trustedDialogs = createTrustedDialogs({
   mainWindow: () => mainWindowRefs.window,
   quitting: () => appQuitState.quitting,
-  showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options)
+  showNativeMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
+  keyboardPage: () => tabRuntime.tabs ? keyboardPage(tabRuntime.tabs) : null,
+  // Only a page in view gets it back; the shell keeps its own focus on the control it restores.
+  returnKeyboard: (page) => tabRuntime.tabs ? focusPageAfterQuestion(tabRuntime.tabs, page) : undefined,
+  withholdKeyboard: () => tabRuntime.tabs ? withholdFocusAfterTrustedChrome(tabRuntime.tabs) : undefined
 })
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
@@ -195,7 +220,9 @@ const {
   toastOverlay,
   shellTooltips,
   sidebarOverlayView,
-  sidebarOverlay
+  sidebarOverlay,
+  statusBubbleView,
+  statusBubble
 } = createShellOverlays({
   trustedUrlMatches,
   mainWindowRefs,
@@ -209,13 +236,21 @@ const {
   trustedTooltipOverlayUrl: () => trustedTooltipOverlayUrl(),
   ensureTooltipSurface: () => ensureTooltipSurface(),
   trustedSidebarOverlayUrl: () => trustedSidebarOverlayUrl(),
-  ensureSidebarOverlaySurface: () => ensureSidebarOverlaySurface()
+  ensureSidebarOverlaySurface: () => ensureSidebarOverlaySurface(),
+  trustedStatusBubbleUrl: () => trustedStatusBubbleUrl(),
+  ensureStatusBubbleSurface: () => ensureStatusBubbleSurface(),
+  theme: () => resolvedTheme(settingsState.current.theme),
+  text: (key, parameters) => text(key, parameters), spelling: () => spellCheck
 })
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
-const { runNativeBrowserAction, showWorkspaceRecoveryNotice } = createTabRuntimeStartup({
+const { runNativeBrowserAction, showWorkspaceRecoveryNotice, showStartupFailureNotice } = createTabRuntimeStartup({
   state: tabRuntime,
   text: (key, parameters) => text(key, parameters),
+  showStartupNotice: (notice) => {
+    const theme = resolvedTheme(settingsState.current.theme)
+    return showStartupNoticeWindow(notice, { theme, background: THEME_BACKGROUND[theme], locale: settingsState.resolvedLocale })
+  },
   showMessageBox,
   reportBrowserActionFailure
 })
@@ -228,7 +263,7 @@ const agentServices: AgentServicesState = {
 const walletRuntime: WalletRuntimeState = {
   service: null,
   broker: null,
-  unavailableStatus: walletStartupFailureStatus(undefined)
+  unavailableStatus: walletStartingStatus()
 }
 const {
   startWallets,
@@ -249,7 +284,7 @@ const {
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
   // Command progress updates the shell without reloading a visible Home tab.
-  sendToShellWindows('mcp:changed', currentMcpControlState())
+  sendToShellWindows(MCP_IPC.changed, currentMcpControlState())
 })
 /** Why the listener could not start on its port, and the free port to offer instead; cleared once it listens. */
 const mcpPortRecovery = new McpPortRecovery({
@@ -260,7 +295,7 @@ const mcpPortRecovery = new McpPortRecovery({
 })
 const appQuitState: AppQuitState = { quitting: false }
 const confirmQuitWithDownloads = createQuitWithDownloadsConfirmation({
-  downloads: () => tabRuntime.tabs?.listDownloads() ?? [],
+  downloads: () => tabRuntime.tabs?.downloadController.listDownloads() ?? [],
   window: () => mainWindowRefs.window ?? undefined,
   showWindow: () => showWindow(),
   showDialog: (options) => trustedDialogs.show(options),
@@ -278,7 +313,8 @@ const {
 } = createWindowStatePersistence({
   window: () => mainWindowRefs.window,
   // A page's full screen, such as a video's, ends with the page, so the next start opens the window as the person had it.
-  fullScreen: () => tabRuntime.tabs?.windowFullScreenToSave() ?? Boolean(mainWindowRefs.window?.isFullScreen()),
+  fullScreen: () => tabRuntime.tabs ? windowFullScreenToSave(tabRuntime.tabs) : Boolean(mainWindowRefs.window?.isFullScreen()),
+  stateUntilShown: () => mainWindowRefs.stateUntilShown,
   store: () => mainWindowRefs.stateStore,
   lastState: () => mainWindowRefs.lastState,
   setLastState: (state) => { mainWindowRefs.lastState = state },
@@ -290,7 +326,7 @@ const {
   flush: flushPanelWindowState
 } = createWindowStatePersistence({
   window: () => panelWindowRefs.window,
-  store: () => panelWindowRefs.stateStore,
+  store: () => panelWindowRefs.stateStore, stateUntilShown: () => panelWindowRefs.stateUntilShown,
   lastState: () => panelWindowRefs.lastState,
   setLastState: (state) => { panelWindowRefs.lastState = state },
   logPrefix: '[panel-window]'
@@ -315,6 +351,7 @@ const {
   updateSettings,
   currentRendererSettingsState,
   applyDownloadSettings,
+  browserDownloadOptions,
   publishSettings,
   createStartupLaunchManager,
   loadAuthoritativeSettings,
@@ -328,6 +365,14 @@ const {
   persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabRuntime.tabs
 })
+const spellCheck = createSpellCheck({
+  settings: () => settingsState.current,
+  updateSettings,
+  publishSettings,
+  // On macOS the system's spell checker picks the language, so Chromium's dictionaries are not used there.
+  availableLanguages: () => process.platform === 'darwin' ? [] : session.defaultSession.availableSpellCheckerLanguages,
+  locale: () => app.getLocale()
+})
 const {
   configureBrowserSession,
   configurePersistentSession,
@@ -339,11 +384,12 @@ const {
   text,
   effectiveDownloadDirectory,
   showDialog: (options) => trustedDialogs.show(options),
-  workspaces: () => tabRuntime.tabs ? [...tabRuntime.tabs.listMcpTabGroups(), ...tabRuntime.tabs.listSavedTabGroups()] : [],
+  workspaces: () => tabRuntime.tabs ? [...listMcpTabGroups(tabRuntime.tabs), ...tabRuntime.tabs.listSavedTabGroups()] : [],
   state: browserSessionState,
   sendToShellWindows,
   partition: PARTITION,
-  websitesMaySaveFiles: () => settingsState.current.allowWebsiteFileSaving
+  settings: () => settingsState.current,
+  trackSpellCheck: (browserSession) => spellCheck.track(browserSession)
 })
 const credentialRuntime: CredentialRuntimeState = {
   storageStatus: { available: false, reason: 'Secure storage is initializing.' },
@@ -361,7 +407,8 @@ const {
   deactivateCommercialLicense,
   authorizeAutomation,
   assertAutomationAccess,
-  startBackgroundLicenseRefresh
+  startBackgroundLicenseRefresh,
+  publishCommercialLicenseState
 } = createCommercialLicenseRuntime({
   text,
   credentialStorageStatus: () => credentialRuntime.storageStatus,
@@ -369,18 +416,14 @@ const {
   sendToShellWindows,
   state: commercialLicenseRuntime
 })
-const bookmarksAndHistory: BookmarksAndHistoryState = {
-  bookmarks: null,
-  history: null
-}
+const bookmarksAndHistory: BookmarksAndHistoryState = { bookmarks: null, history: null, siteIcons: null }
 const {
   publishBookmarks,
   publishVisitHistory,
   openBookmarks,
   openVisitHistory,
-  recordPageVisit,
-  updatePageTitle,
-  offerBookmarkRestore,
+  pageHistoryCallbacks,
+  undoHooks,
   historyCleared,
   historyEntryRemoved,
   agentBookmarks,
@@ -393,14 +436,14 @@ const {
   offerUndo: (action) => undoOffers.offer(action)
 })
 // The person's latest reversible action, until its Undo toast closes.
-const undoOffers = new UndoOffers((offer) => {
-  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:offered', offer)
-}, (token) => {
-  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:ended', token)
-}, (action, error) => {
-  console.error(`[undo] Could not ${action}:`, error)
-  reportBrowserActionFailure(action, error)
-})
+const undoOffers = new UndoOffers(
+  (offer) => sendToMainWindow(UNDO_IPC.offered, offer),
+  (token) => sendToMainWindow(UNDO_IPC.ended, token),
+  (action, error) => {
+    console.error(`[undo] Could not ${action}:`, error)
+    reportBrowserActionFailure(action, error)
+  }
+)
 const appUpdates: AppUpdatesState = { current: { status: 'idle', currentVersion: app.getVersion() } }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -459,7 +502,8 @@ const {
   copyTextToClipboard,
   reportClipboardFailure,
   copyPngToClipboard,
-  copyPageImageToClipboard
+  copyPageImageToClipboard,
+  copyVideoFrameToClipboard
 } = createClipboardOperations({
   text,
   mainWindow: () => mainWindowRefs.window
@@ -486,17 +530,17 @@ const { agentPresenceSnapshot, scheduleAgentPresencePublish, connectedAgents } =
 /** Offers a take over when the person touches a page an agent is working on, and takes it from the page's key. */
 const takeOvers = new TakeOverOffers({
   agents: (workspaceId) => mcpRuntime.server?.getAgentPresence()[workspaceId],
-  isTabAgentPaused: (tabId) => !tabRuntime.tabs || tabRuntime.tabs.isTabAgentPaused(tabId),
+  isTabAgentPaused: (tabId) => !tabRuntime.tabs || isTabAgentPaused(tabRuntime.tabs, tabId),
   isTabTakenOver: (tabId) => tabRuntime.tabs?.isTabTakenOver(tabId) === true,
   setTabAgentPaused: (tabId, paused, options) => {
     if (!mcpRuntime.server) throw new Error('Agent service is unavailable')
     mcpRuntime.server.setTabAgentPaused(tabId, paused, options)
   },
-  sendOffer: (offer) => sendToMainWindow('agent-presence:take-over-offer', offer),
+  sendOffer: (offer) => sendToMainWindow(AGENT_PRESENCE_IPC.takeOverOffer, offer),
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
 })
 
-const { pageShortcutAvailable, runPageShortcut } = createBrowserShortcutRouting({
+const { pageShortcutAvailable, runPageShortcut, runPageNextPane } = createBrowserShortcutRouting({
   takeOvers,
   tabs: () => tabRuntime.tabs,
   agentPresenceSnapshot,
@@ -533,13 +577,13 @@ const {
   refreshHomeAfterCommittedChange
 })
 
-const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
+const { currentBrowsingDataSiteSummary, clearWebsiteData, agentSiteData } = createSiteData({
   tabs: () => tabRuntime.tabs,
   historyStore: () => bookmarksAndHistory.history,
   publishVisitHistory
 })
 
-const { publishCredentials, offerToSaveCredential, configureCredentialStore } = createCredentialRuntime({
+const { publishCredentials, offerToSaveCredential, rememberSuggestedPassword, configureCredentialStore } = createCredentialRuntime({
   text,
   showDialog: (options) => trustedDialogs.show(options),
   mainWindow: () => mainWindowRefs.window,
@@ -557,9 +601,9 @@ const {
 } = createMainWindow({
   refs: mainWindowRefs,
   settings: () => settingsState.current,
-  resolvedTheme,
-  themeBackground: THEME_BACKGROUND,
-  acknowledgeUserAttention
+  resolvedTheme, themeBackground: THEME_BACKGROUND,
+  acknowledgeUserAttention,
+  quitting: () => appQuitState.quitting
 })
 
 const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppearance({
@@ -571,6 +615,7 @@ const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppea
   addressSuggestionOverlay,
   toastOverlay,
   sidebarOverlay,
+  statusBubble,
   sendToShellWindows,
   currentRendererSettingsState
 })
@@ -600,14 +645,16 @@ if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
   }).__hronautRequestUserAttentionForTest = requestUserAttention
 }
 
-const { installApplicationMenu } = createApplicationMenu({
+const { installApplicationMenu, requestHelp } = createApplicationMenu({
   text,
   showWindow,
   mainWindow: () => mainWindowRefs.window,
-  checkForUpdates,
+  // While startup is stopped there is no window to show updates in, and an update could restart Hronaut.
+  checkForUpdates: () => tabRuntime.startupFailure ? Promise.resolve({ ...appUpdates.current }) : checkForUpdates(),
   requestQuit,
   runNativeBrowserAction,
   runShortcut: (action) => runPageShortcut(action),
+  runPageNextPane,
   tabs: () => tabRuntime.tabs
 })
 
@@ -619,7 +666,9 @@ const {
   trustedTooltipOverlayUrl,
   ensureTooltipSurface,
   trustedSidebarOverlayUrl,
-  ensureSidebarOverlaySurface
+  ensureSidebarOverlaySurface,
+  trustedStatusBubbleUrl,
+  ensureStatusBubbleSurface
 } = createOverlaySurfaces({
   trustedShellUrl,
   agentCardView,
@@ -630,7 +679,7 @@ const {
   sidebarOverlayView,
   sidebarOverlay,
   sidebarOverlayKeyboard: {
-    noteKey: (input) => tabRuntime.tabs?.noteShellKey(input),
+    noteKey: (input) => tabRuntime.tabs ? noteShellKey(tabRuntime.tabs, input) : undefined,
     // The rail is the shell's own: the shell takes the keyboard and runs the shortcut, as if it was pressed there.
     runShortcut: (action) => {
       const window = mainWindowRefs.window
@@ -638,11 +687,13 @@ const {
       runPageShortcut(action)
     }
   },
-  shellTooltips
+  shellTooltips,
+  statusBubbleView,
+  statusBubble
 })
 
 const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWindow({
-  text,
+  text, spelling: spellCheck,
   trustedShellUrl,
   mainWindow: () => mainWindowRefs.window,
   refs: panelWindowRefs,
@@ -650,7 +701,7 @@ const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWin
   settings: () => settingsState.current,
   resolvedTheme,
   themeBackground: THEME_BACKGROUND,
-  tabs: () => tabRuntime.tabs,
+  tabRuntime,
   currentRendererSettingsState,
   updateState: () => appUpdates.current,
   currentMcpControlState,
@@ -661,6 +712,16 @@ const { detachedPanelTitle, openPanelWindow, closePanelWindow } = createPanelWin
   currentPanelWindowState,
   schedulePanelWindowStateSave,
   flushPanelWindowState
+})
+const { sendPageLoadedSnapshot, sendWorkspacesRestoredSnapshot } = createMainWindowSnapshot({
+  tabRuntime,
+  settings: () => settingsState.current,
+  currentRendererSettingsState,
+  updateState: () => appUpdates.current,
+  currentMcpControlState,
+  credentialStore: () => credentialRuntime.store,
+  bookmarkStore: () => bookmarksAndHistory.bookmarks,
+  historyStore: () => bookmarksAndHistory.history
 })
 
 const { applyLanguagePreferenceRuntime } = createInterfaceLanguage({
@@ -685,6 +746,7 @@ const hronautIpcMain = withTranslatedIpcErrors(ipcMain, {
 const {
   assertTrustedShellSender,
   isShellWindowSender,
+  isMainShellSender,
   assertMainShellSender,
   assertPanelShellSender,
   isHronautPageSender,
@@ -706,6 +768,7 @@ const {
 
 function registerIpc(): void {
   registerOverlayViewsIpc(hronautIpcMain, {
+    isMainShellSender,
     assertMainShellSender,
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     shellTooltips: () => shellTooltips,
@@ -715,7 +778,9 @@ function registerIpc(): void {
     toastOverlayView: () => toastOverlayView,
     tooltipView: () => tooltipView,
     sidebarOverlay: () => sidebarOverlay,
-    sidebarOverlayView: () => sidebarOverlayView
+    sidebarOverlayView: () => sidebarOverlayView,
+    statusBubble: () => statusBubble,
+    statusBubbleView: () => statusBubbleView
   })
   registerAddressOverlayIpc(hronautIpcMain, {
     assertMainShellSender,
@@ -730,7 +795,8 @@ function registerIpc(): void {
     closePanelWindow,
     panelWindowRefs,
     detachedPanelTitle,
-    mainWindow: () => mainWindowRefs.window
+    mainWindow: () => mainWindowRefs.window,
+    sendToPanelWindow
   })
   registerMcpControlIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
@@ -781,12 +847,14 @@ function registerIpc(): void {
     assertTrustedShellSender,
     senderWindow: (event) => BrowserWindow.fromWebContents(event.sender),
     mainWindow: () => mainWindowRefs.window,
-    showMessageBox: (window, options) => window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options),
+    focusAskingPage: (event) => tabRuntime.tabs ? focusPageAfterQuestion(tabRuntime.tabs, event.sender) : undefined,
+    showDialog: (options) => trustedDialogs.show(options),
     text
   })
   registerShellIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     assertMainShellSender,
+    isMainShellSender,
     handleBrowserIpc,
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     copyTextToClipboard,
@@ -814,7 +882,8 @@ function registerIpc(): void {
     mcpCredentialAccepted: (bearer) => agentServices.capabilityProfiles?.authenticate(bearer) != null,
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
-    showMessageBox,
+    showDialog: (options) => trustedDialogs.show(options),
+    focusAskingPage: (event) => tabRuntime.tabs ? focusPageAfterQuestion(tabRuntime.tabs, event.sender) : undefined,
     text
   })
   registerPageGeometryIpc({
@@ -856,7 +925,7 @@ function registerIpc(): void {
   const cancelBrowserImport = registerBrowserImportIpc({
     ipcMain: hronautIpcMain,
     assertSender: assertInitializedMainShellSender,
-    destination: id => tabRuntime.tabs!.browserImportDestination(id),
+    destination: id => browserImportDestination(tabRuntime.tabs!, id),
     consent: async (profile, destination) => {
       const { response } = await trustedDialogs.show({
         type: 'question', title: text('browserImport.title', { name: destination.name }),
@@ -871,7 +940,7 @@ function registerIpc(): void {
       pausePersistently: () => { setMcpPaused(true) },
       acquireTemporaryPause: acquireTemporaryMcpPause,
       getActiveRequestCount: () => mcpRuntime.server?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
-      fill: () => tabRuntime.tabs!.importBrowserCookies(destination, cookies)
+      fill: () => importBrowserCookies(tabRuntime.tabs!, destination, cookies)
     })
   })
   mainWindowRefs.window?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
@@ -887,6 +956,11 @@ function registerIpc(): void {
     handleBrowserIpc,
     tabs: () => tabRuntime.tabs
   })
+  registerTaskManagerIpc({
+    assertMainSender: assertMainShellSender,
+    handleBrowserIpc,
+    tabs: () => tabRuntime.tabs
+  })
   registerPageInspectionIpc({
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
@@ -894,17 +968,53 @@ function registerIpc(): void {
     copyTextToClipboard,
     copyPngToClipboard
   })
+  registerQrCodeIpc({
+    assertTrustedSender: assertMainShellSender,
+    handleBrowserIpc,
+    tabs: () => tabRuntime.tabs,
+    copyPngToClipboard
+  })
   registerCollectionIpc(hronautIpcMain, {
     runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),
     assertTrustedSender: assertInitializedTrustedShellSender,
     bookmarks: () => bookmarksAndHistory.bookmarks!,
     history: () => bookmarksAndHistory.history!,
+    siteIcons: () => bookmarksAndHistory.siteIcons?.snapshot() ?? { pages: {}, icons: {} },
     downloads: () => tabRuntime.tabs!,
+    tabs: () => tabRuntime.tabs ? browserState(tabRuntime.tabs).tabs : [],
     publishBookmarks,
     publishVisitHistory,
     historyCleared,
     historyEntryRemoved,
-    bookmarkRemoved: offerBookmarkRestore
+    ...undoHooks
+  })
+  registerBookmarksFileIpc(hronautIpcMain, {
+    assertTrustedSender: assertInitializedTrustedShellSender,
+    bookmarks: () => bookmarksAndHistory.bookmarks!,
+    pickExportFile: async (sender, suggestedName) => {
+      // Over the window that asked, which is a panel's own window once the panel is detached.
+      const window = BrowserWindow.fromWebContents(sender) ?? mainWindowRefs.window
+      if (!window || window.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
+      const selection = await dialog.showSaveDialog(window, {
+        title: text('native.dialog.exportBookmarksTitle'),
+        defaultPath: join(app.getPath('downloads'), suggestedName),
+        filters: [{ name: text('native.dialog.bookmarksFileFilter'), extensions: ['html', 'htm'] }],
+        properties: ['showOverwriteConfirmation', 'createDirectory', 'dontAddToRecent']
+      })
+      return selection.canceled ? undefined : selection.filePath
+    },
+    pickImportFile: async (sender) => {
+      const window = BrowserWindow.fromWebContents(sender) ?? mainWindowRefs.window
+      if (!window || window.isDestroyed()) throw new LocalizedError('appErrors.settings.windowUnavailable')
+      const selection = await dialog.showOpenDialog(window, {
+        title: text('native.dialog.importBookmarksTitle'),
+        buttonLabel: text('native.dialog.importBookmarksButton'),
+        filters: [{ name: text('native.dialog.bookmarksFileFilter'), extensions: ['html', 'htm'] }],
+        properties: ['openFile', 'dontAddToRecent']
+      })
+      return selection.canceled ? undefined : selection.filePaths[0]
+    },
+    publishBookmarks
   })
   registerBrowsingDataIpc({
     assertTrustedSender: assertTrustedShellSender,
@@ -916,7 +1026,7 @@ function registerIpc(): void {
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
     mcpServer: () => mcpRuntime.server,
     publishVisitHistory,
-    currentBrowsingDataSiteSummary
+    currentBrowsingDataSiteSummary, clearWebsiteData
   })
   registerIncidentPackageIpc(hronautIpcMain, {
     assertTrustedSender: assertInitializedTrustedShellSender,
@@ -962,6 +1072,8 @@ function registerIpc(): void {
     applyLanguagePreferenceRuntime,
     applyMainWindowTitleBarOverlay,
     applyMainWindowBackground,
+    applySpellCheck: (enabled) => spellCheck.apply(enabled),
+    applySpellCheckLanguages: (languages) => spellCheck.applyLanguages(languages),
     startupLaunchManager: () => settingsState.startupLaunchManager,
     defaultDownloadDirectory,
     effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
@@ -984,10 +1096,55 @@ function registerIpc(): void {
     resetMcpSettings,
     mcpCapabilityProfiles: () => agentServices.capabilityProfiles
   })
+  registerSiteSearchIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    settings: () => settingsState.current,
+    updateSettings,
+    publishSettings
+  })
+  registerSpellCheckIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    setEnabled: spellCheck.setEnabled,
+    languages: spellCheck.languages,
+    setLanguages: spellCheck.setLanguages
+  })
+  registerSecureDnsIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    app,
+    settings: () => settingsState.current,
+    updateSettings,
+    publishSettings
+  })
+  registerGraphicsAccelerationIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    inUse: graphicsAccelerationInUse,
+    settings: () => settingsState.current,
+    updateSettings,
+    publishSettings
+  })
+  registerAppRestartIpc(hronautIpcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    confirmQuit: () => confirmQuitWithDownloads('restart'),
+    quitState: appQuitState,
+    relaunch: (options) => app.relaunch(options),
+    quit: () => app.quit(),
+    restartContext: () => ({
+      argv: process.argv,
+      cwd: process.cwd(),
+      defaultApp: process.defaultApp,
+      appPath: app.getAppPath(),
+      appImage: process.env.APPIMAGE,
+      portableExecutable: process.env.PORTABLE_EXECUTABLE_FILE
+    })
+  })
   registerPermissionsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
     sitePermissionStore: () => browserSessionState.sitePermissionStore,
-    publishSitePermissions
+    publishSitePermissions: (changed) => {
+      publishSitePermissions()
+      // Decisions changed or forgotten in Settings or Site controls reach the open tabs as in Chrome: Sound at once.
+      if (tabRuntime.tabs) applySitePermissionChanges(tabRuntime.tabs, changed)
+    }
   })
   registerCredentialsIpc(hronautIpcMain, {
     assertTrustedSender: assertTrustedShellSender,
@@ -1023,32 +1180,50 @@ function registerIpc(): void {
   })
 }
 
+/**
+ * Opens saved passwords and wallets once the operating system's secure storage answers, and tells the shell the license
+ * state again, which says whether that storage is available. It never fails.
+ */
+async function openSecureStorageFeatures(): Promise<void> {
+  await Promise.all([
+    configureCredentialStore(),
+    startWallets().catch((error: unknown) => { console.error('[wallet] Wallet startup failed:', error) })
+  ])
+  if (!appQuitState.quitting) publishCommercialLicenseState()
+}
+
 async function createWindow(startMinimized = false): Promise<void> {
   await openBookmarks()
   await openVisitHistory()
   browserSessionState.persistentSession?.setDownloadPath(effectiveDownloadDirectory())
-  await configureCredentialStore()
   await configureCommercialLicenseStore()
-  await startWallets()
+  // Saved passwords and wallets wait for the operating system's secure storage, which waits as long as the person takes
+  // to unlock it, as a keyring that stayed locked at sign-in asks to. The window, the workspaces and the agents'
+  // listener start meanwhile.
+  void openSecureStorageFeatures()
   applyTheme(settingsState.current.theme)
   mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
   mainWindowRefs.window = openMainWindow(savedWindowState)
-  attachShellEditContextMenu(mainWindowRefs.window, text, { addressBar: true })
+  attachShellEditContextMenu(mainWindowRefs.window, text, { addressBar: true, spelling: spellCheck })
   mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
   await startAgentServices()
-  tabRuntime.tabs = new BrowserTabsManager(mainWindowRefs.window, {
+  const downloadHistory = new DownloadHistoryStore(join(app.getPath('userData'), 'download-history.json'))
+  const savedDownloads = await downloadHistory.load()
+  tabRuntime.tabs = new Browser(mainWindowRefs.window, {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),
+    tabHistoryPath: join(app.getPath('userData'), 'tab-history.json'),
+    closedTabsPath: join(app.getPath('userData'), 'closed-tabs.json'),
+    downloadHistory: { store: downloadHistory, saved: savedDownloads },
     requireExistingMetadata: requireExistingWorkspaceMetadata,
     mcpUrl: mcpRuntime.url,
     profilePath: app.getPath('userData'),
-    downloadDirectory: effectiveDownloadDirectory(),
-    askWhereToSaveDownloads: settingsState.current.askWhereToSaveDownloads,
+    ...browserDownloadOptions(),
     memorySaverEnabled: settingsState.current.memorySaverEnabled,
     memorySaverTimeoutMinutes: settingsState.current.memorySaverTimeoutMinutes,
     followAgentActivity: settingsState.current.followAgentActivity,
@@ -1056,8 +1231,15 @@ async function createWindow(startMinimized = false): Promise<void> {
     getChallengeDetectionEnabled: () => settingsState.current.challengeDetectionEnabled,
     getOmitAgentUrlDetail: () => settingsState.current.omitAgentUrlDetail,
     getSearchEngine: () => settingsState.current.searchEngine,
+    spellCheck,
+    offersSpellCheckLanguages: () => spellCheck.languages().available.length > 0,
+    openSpellCheckSettings: () => requestHelp('settings'),
+    sitePermissionStore: () => browserSessionState.sitePermissionStore,
+    onSitePermissionsChanged: publishSitePermissions,
     getLocale: () => settingsState.resolvedLocale,
     getTabPosition: () => settingsState.current.tabPosition,
+    // Hronaut's own pages, the main window and its overlays among them, all load from the shell's folder.
+    isInterfacePage: (url) => url.startsWith(new URL('.', trustedShellUrl()).href),
     configureSession: configureBrowserSession,
     onUserInteraction: (touched) => {
       // A key press in a page hides a shell tooltip, as it hides a native one.
@@ -1083,23 +1265,41 @@ async function createWindow(startMinimized = false): Promise<void> {
     onShortcutRequested: runPageShortcut,
     copyText: copyTextToClipboard,
     copyImageAt: copyPageImageToClipboard,
+    copyVideoFrameAt: copyVideoFrameToClipboard,
     onClipboardCopyFailed: reportClipboardFailure,
     onActionFailed: reportBrowserActionFailure,
     offerUndo: (action) => undoOffers.offer(action),
     endUndo: () => undoOffers.end(),
     onStateChanged: (state) => {
       reconcileUserAttention(state)
-      sendToPanelWindow('browser:state-changed', state)
+      sendToPanelWindow(TABS_IPC.stateChanged, state)
       scheduleAgentPresencePublish()
+    },
+    onChanged: () => {
       // A page view attached meanwhile goes on top of the open rail's, the toast's and the card's views; put them back
-      // above it, the toast above the rail and the card above the toast.
+      // above it at once, the toast above the rail and the card above the toast.
+      statusBubble.restack()
       sidebarOverlay.restack()
       toastOverlay.restack()
       agentCards.restack()
     },
-    // The rail opened over the page comes down over a page in full screen, which the window may not report itself.
-    onPageFullscreenChanged: () => sidebarOverlay.relayout(),
-    onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
+    // The rail opened over the page and the status bubble come down over a page in full screen, which the window may not
+    // report itself.
+    onPageFullscreenChanged: () => {
+      sidebarOverlay.relayout()
+      statusBubble.layoutChanged()
+    },
+    // Chrome's status bubble: the address of the link the person points at, at the page's bottom corner.
+    onPageTargetUrl: (tabId, url) => statusBubble.targetUrl(tabId, url),
+    onPagePointer: (tabId, pointer) => {
+      if (pointer) statusBubble.pointerMoved(tabId, pointer.x, pointer.y)
+      else statusBubble.pointerLeft(tabId)
+    },
+    onPagesLaidOut: () => statusBubble.layoutChanged(),
+    onDownloadsChanged: (downloads) => {
+      sendToPanelWindow(DOWNLOADS_IPC.changed, downloads)
+      downloadsUnderWayIcons.show(downloads)
+    },
     confirmBeforeUnloadClose: async () => {
       const { response } = await trustedDialogs.show({
         type: 'warning',
@@ -1107,44 +1307,91 @@ async function createWindow(startMinimized = false): Promise<void> {
         message: text('native.dialog.closeTabMessage'),
         detail: text('native.dialog.closeTabDetail'),
         buttons: [text('native.dialog.keepEditing'), text('native.dialog.discardChanges')],
-        defaultId: 0,
-        cancelId: 0,
-        primaryId: 1,
-        noLink: true,
+        defaultId: 0, cancelId: 0, primaryId: 1, noLink: true,
         variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
     },
-    confirmBeforeUnloadLeave: async () => {
+    confirmBeforeUnloadLeave: async (question) => {
       const { response } = await trustedDialogs.show({
         type: 'warning',
-        title: text('native.dialog.leavePageTitle'),
-        message: text('native.dialog.leavePageMessage'),
-        detail: text('native.dialog.leavePageDetail'),
-        buttons: [text('native.dialog.keepEditing'), text('native.dialog.leavePage')],
-        defaultId: 0,
-        cancelId: 0,
-        primaryId: 1,
-        noLink: true,
+        title: text(`native.dialog.${question}PageTitle`),
+        message: text(`native.dialog.${question}PageMessage`),
+        detail: text(`native.dialog.${question}PageDetail`),
+        buttons: [text('native.dialog.keepEditing'), text(`native.dialog.${question}Page`)],
+        defaultId: 0, cancelId: 0, primaryId: 1, noLink: true,
         variant: { kind: 'message', topic: 'unsaved-changes' }
       })
       return response === 1
     },
+    // Cancel takes the focus and Enter, so a key held from the address bar opens no app.
+    confirmOpenAppLink: async (scheme) => (await trustedDialogs.show({
+      type: 'question', title: text('native.dialog.openAppTitle'), message: text('native.dialog.openAppMessage', { scheme }),
+      detail: text('native.dialog.openAppDetail'), buttons: [text('native.dialog.cancel'), text('native.dialog.openApp')],
+      defaultId: 0, cancelId: 0, primaryId: 1, noLink: true, variant: { kind: 'message' }
+    })).response === 1,
+    askToSignIn: async ({ origin, secure, workspaceId, signal }) => {
+      // The sign-in holds for the tab's workspace, which may not be the one shown, such as one an agent works in.
+      const workspaceName = workspaceId && tabRuntime.tabs
+        ? promptWorkspaceName(workspaceId, [...listMcpTabGroups(tabRuntime.tabs), ...tabRuntime.tabs.listSavedTabGroups()])
+        : undefined
+      const { response, credentials, unanswered } = await trustedDialogs.show({
+        variant: { kind: 'http-auth', origin, secure, ...(workspaceName ? { workspaceName } : {}) },
+        signal,
+        type: 'question',
+        title: text('trustedDialogs.httpAuth.eyebrow'),
+        message: text('trustedDialogs.httpAuth.headline', { origin }),
+        ...(secure ? {} : { detail: text('trustedDialogs.httpAuth.notPrivate') }),
+        buttons: [text('native.dialog.cancel'), text('trustedDialogs.httpAuth.signIn')],
+        // Escape cancels; the dialog puts the focus in Username, and Sign in is the main action.
+        defaultId: 0,
+        cancelId: 0,
+        primaryId: 1
+      })
+      if (unanswered) return null
+      return response === 1 && credentials ? credentials : 'cancelled'
+    },
+    confirmCertificateException: async ({ host, error, workspaceId, signal }) => {
+      const workspaceName = workspaceId && tabRuntime.tabs
+        ? promptWorkspaceName(workspaceId, [...listMcpTabGroups(tabRuntime.tabs), ...tabRuntime.tabs.listSavedTabGroups()])
+        : undefined
+      const { response } = await trustedDialogs.show({
+        variant: { kind: 'certificate', host, error, ...(workspaceName ? { workspaceName } : {}) },
+        signal,
+        type: 'warning',
+        title: text('trustedDialogs.certificate.eyebrow'),
+        message: text('trustedDialogs.certificate.headline', { host }),
+        detail: text('trustedDialogs.certificate.risk'),
+        // Back to safety is the safe answer Escape and Enter give; Proceed is never drawn as the main action.
+        buttons: [text('trustedDialogs.certificate.back'), text('trustedDialogs.certificate.proceed')],
+        defaultId: 0,
+        cancelId: 0
+      })
+      return response === 1
+    },
+    onCoveredPageKeyboard: (page) => {
+      if (mainWindowRefs.window) trustedDialogs.noteKeyboardPage(mainWindowRefs.window, page)
+    },
     ...walletLifecycleCallbacks,
-    onPageVisited: recordPageVisit,
-    onPageTitleUpdated: updatePageTitle,
-    onCredentialSubmitted: offerToSaveCredential
+    ...pageHistoryCallbacks,
+    onCredentialSubmitted: offerToSaveCredential,
+    suggestedPasswords: {
+      available: () => credentialRuntime.storageStatus.available && credentialRuntime.store !== null,
+      whileAgentsPaused: (fill) => fillCredentialWhileMcpPaused({
+        pausePersistently: () => { setMcpPaused(true) },
+        acquireTemporaryPause: acquireTemporaryMcpPause,
+        getActiveRequestCount: () => mcpRuntime.server?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
+        fill
+      }),
+      suggested: rememberSuggestedPassword
+    }
   })
-  ipcMain.on('react-inspection:bootstrap', event => {
-    event.returnValue = event.senderFrame === event.sender.mainFrame
-      ? tabRuntime.tabs!.reactInspectionBootstrap(event.sender) : { enabled: false }
-  })
-  registerFixedDateIpc({ ipcMain, tabs: () => tabRuntime.tabs })
+  registerPageBootstrapIpc({ ipcMain, tabs: () => tabRuntime.tabs })
   registerIpc()
 
-  mainWindowRefs.window.on('blur', () => tabRuntime.tabs?.cancelSplitDivider())
+  mainWindowRefs.window.on('blur', () => tabRuntime.tabs?.splitDivider.cancel())
   mainWindowRefs.window.webContents.on('render-process-gone', () => {
-    tabRuntime.tabs?.cancelSplitDivider()
+    tabRuntime.tabs?.splitDivider.cancel()
     clearWindowControlsScrim()
     shellTooltips.hide()
     agentCards.shellReset()
@@ -1188,6 +1435,8 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.on('blur', () => sidebarOverlay.dismiss('blur'))
   for (const change of ['minimize', 'hide'] as const) {
     mainWindowRefs.window.on(change as 'minimize', () => sidebarOverlay.dismiss('window'))
+    // The link under the pointer is no longer pointed at; the next one shows its own bubble.
+    mainWindowRefs.window.on(change as 'minimize', () => statusBubble.hide())
   }
   mainWindowRefs.window.on('resize', scheduleWindowStateSave)
   mainWindowRefs.window.on('move', scheduleWindowStateSave)
@@ -1218,20 +1467,16 @@ async function createWindow(startMinimized = false): Promise<void> {
     toastOverlayView.close()
     sidebarOverlay.shellReset()
     sidebarOverlayView.close()
+    statusBubble.hide()
+    statusBubbleView.close()
     mainWindowRefs.controlsScrim = null
     mainWindowRefs.window = null
   })
   attachMenuBarGesture()
-  attachHistoryMouseButtons(mainWindowRefs.window, { runNativeBrowserAction, tabs: () => tabRuntime.tabs })
+  attachHistoryMouseButtons(mainWindowRefs.window, { runNativeBrowserAction, runShortcut: runPageShortcut, tabs: () => tabRuntime.tabs })
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settingsState.current.interfaceScale)
-    if (tabRuntime.tabs && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
-      if (!tabRuntime.initialization) mainWindowRefs.window.webContents.send('browser:state-changed', tabRuntime.tabs.getState())
-      mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
-      mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-      mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
-      mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
-    }
+    sendPageLoadedSnapshot(mainWindowRefs.window)
   })
   mainWindowRefs.window.webContents.on('will-navigate', (event, url) => {
     if (url !== trustedShellUrl()) event.preventDefault()
@@ -1239,9 +1484,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   let releaseTabsInitialization = (): void => undefined
-  const currentTabsInitialization = new Promise<void>((resolve) => {
-    releaseTabsInitialization = resolve
-  })
+  const currentTabsInitialization = new Promise<void>((resolve) => { releaseTabsInitialization = resolve })
   tabRuntime.initializedTabs = null
   tabRuntime.initialization = currentTabsInitialization
   try {
@@ -1250,13 +1493,13 @@ async function createWindow(startMinimized = false): Promise<void> {
     } else {
       await mainWindowRefs.window.loadFile(join(__dirname, '../renderer/index.html'))
     }
-    await tabRuntime.tabs.initialize()
+    await initializeBrowser(tabRuntime.tabs)
     tabRuntime.initializedTabs = tabRuntime.tabs
     // Only workspaces that loaded can tell which decisions belong to none: a forget that failed, or a crash, leaves those.
     const loadedTabs = tabRuntime.tabs
     void forgetRemovedWorkspacesSitePermissions(() => tabRuntime.tabs === loadedTabs
       ? [
-          ...loadedTabs.listMcpTabGroups().map((workspace) => workspace.id),
+          ...listMcpTabGroups(loadedTabs).map((workspace) => workspace.id),
           ...loadedTabs.listSavedTabGroups().map((workspace) => workspace.id)
         ]
       : null)
@@ -1267,19 +1510,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     releaseTabsInitialization()
     if (tabRuntime.initialization === currentTabsInitialization) tabRuntime.initialization = null
   }
-  if (!mainWindowRefs.window.webContents.isDestroyed()) {
-    mainWindowRefs.window.webContents.send('browser:state-changed', tabRuntime.tabs.getState())
-    mainWindowRefs.window.webContents.send('settings:changed', settingsState.current)
-    mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
-    mainWindowRefs.window.webContents.send('updates:changed', appUpdates.current)
-    mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-    mainWindowRefs.window.webContents.send('credentials:changed', credentialRuntime.store?.list() ?? [])
-    mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
-    mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
-  }
-  if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
-  if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
-  if (!startMinimized) mainWindowRefs.window.show()
+  sendWorkspacesRestoredSnapshot(mainWindowRefs.window)
+  showSavedWindow(mainWindowRefs, savedWindowState, startMinimized)
 }
 
 const { releaseRuntimeResources } = createRuntimeShutdown({
@@ -1328,13 +1560,11 @@ function createRuntimeMcpServer(
     wallets: agentWallets,
     onTabActivity: (activity, agent) => {
       noteMcpTabActivity(activity)
-      tabRuntime.tabs?.handleMcpTabActivity(activity, agent)
-      if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
-        mainWindowRefs.window.webContents.send('browser:mcp-tab-activity', activity)
-      }
+      if (tabRuntime.tabs) handleMcpTabActivity(tabRuntime.tabs, activity, agent)
+      sendToMainWindow(TABS_IPC.mcpTabActivity, activity)
     },
     onAgentPresenceChanged: scheduleAgentPresencePublish,
-    captureAgentStepThumbnail: async (tabId, workspaceId) => tabRuntime.tabs ? tabRuntime.tabs.captureAgentStepThumbnail(tabId, workspaceId) : undefined
+    captureAgentStepThumbnail: async (tabId, workspaceId) => tabRuntime.tabs ? captureAgentStepThumbnail(tabRuntime.tabs, tabId, workspaceId) : undefined
   })
 }
 
@@ -1369,6 +1599,8 @@ async function startRuntime(): Promise<void> {
   configureAutoUpdater()
   const startupLaunchManager = createStartupLaunchManager()
   await loadAuthoritativeSettings()
+  // Before any page or request looks up an address.
+  applySavedSecureDns(app, settingsState.current)
   if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
   const startMinimized = shouldStartMinimized(settingsState.current, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })
@@ -1390,9 +1622,7 @@ async function startRuntime(): Promise<void> {
   }
   if (!createTray() && startMinimized) showWindow()
   await startMcpServer()
-  if (settingsState.current.checkForUpdatesOnStartup) {
-    setTimeout(() => void checkForUpdates(), 5_000)
-  }
+  if (settingsState.current.checkForUpdatesOnStartup) setTimeout(() => void checkForUpdates(), 5_000)
   startBackgroundLicenseRefresh()
 }
 
@@ -1408,6 +1638,7 @@ registerAppLifecycle(app, {
   panelWindowRefs,
   currentPanelWindowState,
   startRuntime,
+  startupFailed: showStartupFailureNotice,
   tabs: () => tabRuntime.tabs,
   mcpRuntime,
   releaseRuntimeResources

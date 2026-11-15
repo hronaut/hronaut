@@ -4,7 +4,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   return result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
@@ -36,8 +36,7 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     const opened = JSON.parse(text(await call('browser_new_tab', { url, active: true }))) as BrowserState
     const tabId = opened.activeTabId!
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id), tabId)
-    await expect.poll(() => electronApp.context().pages().some(p => p.url() === url)).toBe(true)
-    const page = electronApp.context().pages().find(p => p.url() === url)!
+    const page = await pageAt(electronApp, url)
     await expect(page.locator('#target')).toBeVisible()
     const before = await page.evaluate(() => ({ width: innerWidth, dpr: devicePixelRatio }))
     const shellWidth = await appWindow.evaluate(() => innerWidth)
@@ -71,7 +70,13 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     await appWindow.getByRole('button', { name: /^Page zoom controls, \d+%$/ }).click()
     const controls = appWindow.getByRole('group', { name: 'Page zoom controls' })
     await expect(controls.locator('output')).toHaveText('400%')
+    // As in Chrome, zoom goes one step past 400%, to 500%, and no further.
+    await controls.getByRole('button', { name: 'Zoom in', exact: true }).click()
+    await expect(controls.locator('output')).toHaveText('500%')
+    await expect.poll(() => page.evaluate(() => innerWidth).then(width => Math.abs(width - before.width / 5) <= 1)).toBe(true)
     await expect(controls.getByRole('button', { name: 'Zoom in', exact: true })).toBeDisabled()
+    await controls.getByRole('button', { name: 'Zoom out', exact: true }).click()
+    await expect(controls.locator('output')).toHaveText('400%')
     await controls.getByRole('button', { name: 'Zoom out', exact: true }).click()
     await expect(controls.locator('output')).toHaveText('300%')
     await expect(controls.getByRole('button', { name: 'Zoom in', exact: true })).toBeEnabled()
@@ -79,7 +84,11 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     await expect(controls.locator('output')).toHaveText('400%')
     await controls.getByRole('button', { name: 'Reset', exact: true }).click()
     await expect(controls.locator('output')).toHaveText('100%')
-    for (const percent of [50, 125, 300]) await call('browser_zoom', { tabId, action: 'set', percent })
+    // 25% is the lowest zoom, as in Chrome, and a page renders at it.
+    await call('browser_zoom', { tabId, action: 'set', percent: 25 })
+    await expect.poll(() => page.evaluate(() => innerWidth).then(width => Math.abs(width - before.width * 4) <= 4)).toBe(true)
+    await expect(controls.getByRole('button', { name: 'Zoom out', exact: true })).toBeDisabled()
+    for (const percent of [125, 300]) await call('browser_zoom', { tabId, action: 'set', percent })
     await electronApp.evaluate(({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(c => c.getURL() === url)!
       page.focus()
@@ -88,7 +97,7 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
       page.sendInputEvent({ type: 'keyUp', keyCode: '=', modifiers: [...modifiers] })
     }, url)
     await expect.poll(() => appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.getState().then(s => s.tabs.find(t => t.id === id)?.zoomPercent), tabId)).toBe(400)
-    for (const percent of [49, 401, 400.5]) {
+    for (const percent of [24, 501, 400.5]) {
       const rejected = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'set', percent } }) as CallToolResult
       expect(rejected.isError).toBe(true)
     }
@@ -96,8 +105,7 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     await expect.poll(() => page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0)
     // Record Chromium's same-origin sharing, while proving separate sessions stay isolated.
     await call('browser_new_tab', { url: `${origin}/same-origin`, active: true })
-    await expect.poll(() => electronApp.context().pages().some(p => p.url() === `${origin}/same-origin`)).toBe(true)
-    const same = electronApp.context().pages().find(p => p.url() === `${origin}/same-origin`)!
+    const same = await pageAt(electronApp, `${origin}/same-origin`)
     await expect.poll(() => same.evaluate(() => innerWidth)).toBeCloseTo(before.width / 4, 0)
     const crossOriginUrl = `http://localhost:${address.port}/other-origin`
     await call('browser_new_tab', { url: crossOriginUrl, active: true })

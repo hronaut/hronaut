@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { closeFixtureServer } from './fixtures.js'
+import { closeFixtureServer, pageAt } from './fixtures.js'
 import { test, expect, text } from './capability-fixtures.js'
 
 test('preserves native Client Hints during locale-only emulation and keeps custom UA behavior', async ({ capabilities, electronApp }) => {
@@ -35,8 +35,7 @@ test('preserves native Client Hints during locale-only emulation and keeps custo
     const sample = async (id: string, name: string) => {
       const url = `${origin}/${name}-${Date.now()}`
       await call('browser_navigate', { tabId: id, url })
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
-      const page = electronApp.context().pages().find(page => page.url() === url)!
+      const page = await pageAt(electronApp, url)
       await expect(page.locator('#language')).not.toBeEmpty()
       const data = await page.evaluate(async () => {
         const nav = navigator as Navigator & { userAgentData?: { toJSON(): unknown; getHighEntropyValues(keys: string[]): Promise<unknown> } }

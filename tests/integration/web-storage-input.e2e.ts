@@ -14,7 +14,7 @@ for (const kind of ['local-storage', 'session-storage'] as const) {
       const gate = { calls: 0, restore: () => { page.executeJavaScript = execute } }
       ;(globalThis as InputGateGlobal).__webStorageInputGate = gate
       page.executeJavaScript = async function (...args) {
-        if (args[0].includes('const storage = window[')) gate.calls++
+        if (args[0].includes('function webStorageInPage(')) gate.calls++
         return execute.apply(this, args)
       }
     }, fixtureUrl)

@@ -8,7 +8,7 @@ const offerable = (state: ClaudeCodeSetupState): boolean => state === 'not-confi
 
 /**
  * "Set up Claude Code" on the Claude Code guide: Home asks main for the exact change and shows it, and main asks the
- * person natively before it writes anything. Each step checks it is still the newest, so a late answer never overwrites
+ * person in a dialog Home cannot answer before it writes anything. Each step checks it is still the newest, so a late answer never overwrites
  * what the person did since.
  */
 export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signal: AbortSignal) {

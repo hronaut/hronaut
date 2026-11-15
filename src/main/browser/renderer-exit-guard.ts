@@ -1,16 +1,47 @@
 import type { Debugger, WebContents } from 'electron'
+import type { MessageKey } from '../../shared/i18n.js'
 import { LocalizedError } from '../localized-error.js'
 
-/** A page script, DevTools command, capture or print that cannot finish because the page's renderer exited. */
+/** A page load, page script, DevTools command, capture or print that cannot finish because the page's renderer exited. */
 export class RendererExitedError extends LocalizedError {
   /** Whether the call reached the page before its renderer exited; false when it was refused unsent. */
   readonly sent: boolean
 
-  constructor(sent: boolean) {
-    super(sent ? 'appErrors.page.rendererExitedDuringAction' : 'appErrors.page.rendererExitedBeforeAction')
+  constructor(sent: boolean, key: MessageKey = sent ? 'appErrors.page.rendererExitedDuringAction' : 'appErrors.page.rendererExitedBeforeAction') {
+    super(key)
     this.name = 'RendererExitedError'
     this.sent = sent
   }
+}
+
+/** A call refused unsent because the page has not loaded yet, such as a tab restored asleep, and so has no renderer. */
+export class NotLoadedYetError extends RendererExitedError {
+  constructor() {
+    super(false, 'appErrors.page.notLoadedYet')
+    this.name = 'NotLoadedYetError'
+  }
+}
+
+// Pages that have not loaded yet and wait without a renderer until their first load, such as tabs restored asleep.
+const pagesHeldUntilFirstLoad = new WeakSet<object>()
+
+/**
+ * Refuses the page's page scripts, renderer DevTools commands, captures and prints at once, unsent, until
+ * firstLoadStarts: a page that has not loaded yet, such as a tab restored asleep, has no renderer, and Electron holds
+ * those calls until one starts, which may be never.
+ */
+export function holdUntilFirstLoad(page: object): void {
+  pagesHeldUntilFirstLoad.add(page)
+}
+
+/** Lets the calls of a page held until its first load through again, as that load starts its renderer. */
+export function firstLoadStarts(page: object): void {
+  pagesHeldUntilFirstLoad.delete(page)
+}
+
+/** Whether the page is held without a renderer until its first load. */
+export function heldUntilFirstLoad(page: object): boolean {
+  return pagesHeldUntilFirstLoad.has(page)
 }
 
 type GuardedPage = Pick<WebContents, 'isDestroyed' | 'isCrashed' | 'executeJavaScript' | 'executeJavaScriptInIsolatedWorld' | 'capturePage' | 'printToPDF'> & {
@@ -28,18 +59,25 @@ const BROWSER_PROCESS_COMMANDS = new Set([
   'Storage.getUsageAndQuota', 'Target.setAutoAttach'
 ])
 const BROWSER_PROCESS_DOMAINS = ['Fetch.', 'WebAuthn.']
+// Electron rejects a page script with this when the page's renderer goes away, which can come before it reports that
+// the renderer exited, and when a navigation replaces the document the script ran in.
+const FRAME_DISPOSED = 'Render frame was disposed before the request completed'
+// How long a script refused that way waits for Electron to report that the renderer exited.
+const EXIT_REPORT_WAIT_MS = 100
 
 /**
- * Electron never settles a page's executeJavaScript or
- * executeJavaScriptInIsolatedWorld call once its renderer exits, and holds
- * renderer DevTools commands until the next load. An operation awaiting one
- * would keep its tab, debugger queue and workspace busy indefinitely.
+ * Electron settles a page's executeJavaScript or
+ * executeJavaScriptInIsolatedWorld call whose renderer exited only with an
+ * error that does not say so, and holds renderer DevTools commands until the
+ * next load. An operation awaiting one would report a vague failure or keep
+ * its tab, debugger queue and workspace busy indefinitely.
  * printToPDF on a page whose renderer exited ends the whole application, and
  * capturePage returns an image that is not the page. Installed once on each
  * tab's page, this makes those calls fail with RendererExitedError when the
  * renderer exits and fail at once, unsent, while it stays gone, so operations
  * settle and run their cleanup. A new load starts a new renderer and calls
- * work again. Nothing is retried or replayed.
+ * work again. A page held until its first load is refused the same way until
+ * then. Nothing is retried or replayed.
  */
 export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
   // Only calls in flight are held, so a long-lived page keeps nothing per call.
@@ -49,12 +87,24 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
     inFlight.clear()
     for (const reject of rejecters) reject(new RendererExitedError(true))
   })
+  const rendererExited = (): boolean => !page.isDestroyed() && page.isCrashed()
   const settleBeforeExit = <T>(call: () => Promise<T>): Promise<T> => {
-    if (!page.isDestroyed() && page.isCrashed()) return Promise.reject(new RendererExitedError(false))
+    if (!page.isDestroyed() && heldUntilFirstLoad(page)) return Promise.reject(new NotLoadedYetError())
+    if (rendererExited()) return Promise.reject(new RendererExitedError(false))
     const pending = call()
     return new Promise<T>((resolve, reject) => {
       inFlight.add(reject)
-      pending.then(resolve, reject).finally(() => inFlight.delete(reject))
+      const settle = (outcome: () => void): void => {
+        inFlight.delete(reject)
+        outcome()
+      }
+      pending.then((value) => settle(() => resolve(value)), (error: unknown) => {
+        if (rendererExited()) return settle(() => reject(new RendererExitedError(true)))
+        if (page.isDestroyed() || !isFrameDisposedError(error)) return settle(() => reject(error))
+        // Unless render-process-gone comes meanwhile and rejects the call as stopped by the exit, a navigation replaced
+        // the document.
+        setTimeout(() => settle(() => reject(rendererExited() ? new RendererExitedError(true) : error)), EXIT_REPORT_WAIT_MS)
+      })
     })
   }
   const executeJavaScript = page.executeJavaScript.bind(page)
@@ -69,6 +119,11 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
   page.debugger.sendCommand = (method, ...args) => answeredByBrowserProcess(method)
     ? sendCommand(method, ...args)
     : settleBeforeExit(() => sendCommand(method, ...args))
+}
+
+/** Whether Electron refused a page script because a navigation or a renderer exit disposed the document it ran in. */
+export function isFrameDisposedError(error: unknown): boolean {
+  return error instanceof Error && error.message === FRAME_DISPOSED
 }
 
 /** Whether Chromium answers this DevTools command in the browser process, without waiting on the page's renderer. */

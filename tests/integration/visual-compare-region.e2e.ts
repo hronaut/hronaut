@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import type { BrowserVisualCompareReport } from '../../src/shared/types.js'
-import { closeFixtureServer, closeHronaut, launchHronaut, expect, test as base } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, launchHronaut, expect, test as base, pageAt } from './fixtures.js'
 
 const test = base.extend<{ displayScale: number }>({
   displayScale: [1, { option: true }],
@@ -31,8 +31,7 @@ for (const displayScale of [1, 2]) test.describe(`native display scale ${display
       const call = async (name: string, args: Record<string, unknown>) => { const r = await client.callTool({ name, arguments: args }) as CallToolResult; expect(r.isError, text(r)).not.toBe(true); return r }
       const tabId = (JSON.parse(text(await call('browser_new_tab', { url, active: true }))) as BrowserState).activeTabId!
       await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id), tabId)
-      await expect.poll(() => electronApp.context().pages().some(p => p.url() === url)).toBe(true)
-      const page = electronApp.context().pages().find(p => p.url() === url)!
+      const page = await pageAt(electronApp, url)
       await expect(page.locator('#target')).toBeVisible()
       // DOM styles can be current while capturePage still sees the preceding frame.
       // Wait for the fixture's actual corner pixels, not for a diff/rebaseline retry.

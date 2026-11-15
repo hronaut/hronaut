@@ -2,7 +2,7 @@ import { mkdtemp, open, readFile, readdir, rm, stat, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadMcpToken } from '../src/main/mcp-token-store.js'
+import { loadMcpToken } from '../src/main/mcp-runtime/mcp-token-store.js'
 
 vi.mock('node:fs/promises', async importOriginal => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()

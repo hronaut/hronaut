@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import { BrowserDomRecorder, type BrowserDomRecordingState } from '../src/main/browser/dom-recorder.js'
+import { BrowserDomRecorder, type BrowserDomRecordingState } from '../src/main/browser/dom-recorder/dom-recorder.js'
 import { domChangesPageScript } from '../src/shared/dom-changes.js'
 
 function deferred<T>() {

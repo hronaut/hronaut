@@ -109,7 +109,7 @@ test('review counterexample: one mutation record has a bounded removed-node budg
       const gate:MutationGate={entered:false,calls:0,disconnects:0,release,restore:()=>{page.debugger.sendCommand=original}}
       ;(globalThis as typeof globalThis&{__mutationGate?:MutationGate}).__mutationGate=gate
       page.debugger.sendCommand=async(method,params,session)=>{
-        if(method==='Runtime.evaluate'&&String(params?.expression).includes('const started = performance.now()')){
+        if(method==='Runtime.evaluate'&&String(params?.expression).includes('function frameObservationInPage(')){
           gate.context=params?.uniqueContextId
           const instrument=`this.__mutationMetrics={calls:0,disconnects:0};{const original=Node.prototype.contains;Node.prototype.contains=function(...args){__mutationMetrics.calls++;return original.apply(this,args)};const disconnect=MutationObserver.prototype.disconnect;MutationObserver.prototype.disconnect=function(){__mutationMetrics.disconnects++;return disconnect.call(this)}};`
           params={...params,expression:instrument+params?.expression}

@@ -5,31 +5,31 @@ import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { BrowserState } from '../../shared/types'
 import AppToastRegion from './components/AppToastRegion.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
-import PanelResizeHandle from './components/PanelResizeHandle.vue'
-import SplitViewDivider from './components/SplitViewDivider.vue'
-import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
+import PanelResizeHandle from './features/panels/PanelResizeHandle.vue'
+import SplitViewDivider from './features/split-view/SplitViewDivider.vue'
+import DetachedPanelUnavailableState from './features/panels/DetachedPanelUnavailableState.vue'
 import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
-import EmulationFrame from './components/EmulationFrame.vue'
-import PageSnapshot from './components/PageSnapshot.vue'
-import PageCard from './components/PageCard.vue'
+import EmulationFrame from './features/emulation/EmulationFrame.vue'
+import PageSnapshot from './features/page-tools/PageSnapshot.vue'
+import PageCard from './features/page-tools/PageCard.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
+import TaskManagerDialog from './features/task-manager/TaskManagerDialog.vue'
+import QrCodeDialog from './features/qr-code/QrCodeDialog.vue'
 import { useTrustedDialogController } from './trusted-dialogs/useTrustedDialogController.js'
 import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
-import {
-  useAppEmulationFeatureController,
-  type ResponsivePanelSurface
-} from './composables/useAppEmulationFeatureController'
+import { useAppEmulationFeatureController } from './composables/useAppEmulationFeatureController'
 import { useAppPageToolsPanelFeatureController } from './composables/useAppPageToolsPanelFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
-import { useHelpDialogController } from './composables/useHelpDialogController'
+import { useHelpDialogController } from './features/help/useHelpDialogController'
+import { useTaskManagerController } from './features/task-manager/useTaskManagerController'
+import { useQrCodeDialogController } from './features/qr-code/useQrCodeDialogController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
 import { useAppShellInteractionFeatureController } from './composables/useAppShellInteractionFeatureController'
@@ -44,15 +44,15 @@ import { useAppShellLayoutFeatureController } from './composables/useAppShellLay
 import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
 import { useAppActiveTabFeatureController } from './composables/useAppActiveTabFeatureController'
 import { useAppTransientShellLayerController } from './composables/useAppTransientShellLayerController'
-import { useSettingsWorkspaceActionsController } from './composables/useSettingsWorkspaceActionsController'
+import { useSettingsWorkspaceActionsController } from './features/settings/useSettingsWorkspaceActionsController'
 import { useAppBrowserChromeFeatureController } from './composables/useAppBrowserChromeFeatureController'
 import type { TransientPanelsCloseOptions } from './composables/useTransientPanelsController'
 import { createInWindowTooltipPort } from './composables/in-window-tooltips'
 import { useShellTooltips } from './composables/shell-tooltips'
-import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
+import { useWorkspaceShellTint } from './features/workspaces/useWorkspaceShellTint'
 import { useFullPageView } from './composables/useFullPageView'
 import { useUserAttention } from './composables/useUserAttention'
-import { useSettingsWorkspaceLists } from './composables/useSettingsWorkspaceLists'
+import { useSettingsWorkspaceLists } from './features/settings/useSettingsWorkspaceLists'
 import { confirmAction } from './confirm-action.js'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -62,8 +62,9 @@ const translate = (key: string, parameters?: Record<string, unknown>, plural?: n
   : t(key, parameters ?? {}, plural)
 const browserStore = useBrowserStore()
 const settingsStore = useSettingsStore()
-const { state, initialized: browserStateInitialized } = storeToRefs(browserStore)
-const { settings, systemTheme, windowMaterial, resolvedLocale } = storeToRefs(settingsStore)
+const { state, initialized: browserStateInitialized, allHumanInteractionLocked } = storeToRefs(browserStore)
+const { settings, systemTheme, windowMaterial, resolvedLocale, effectiveTheme } = storeToRefs(settingsStore)
+const { sync: syncState, readState, readTabs } = browserStore
 const {
   formatBytes,
   formatNumber: localNumber,
@@ -91,7 +92,8 @@ const { dispose: disposeUndoToasts } = useUndoToasts({
 const {
   reportActionError: reportShellActionError,
   reportStartupFailure: reportAppBootstrapFailure,
-  reportSearchError: showTabSearchError,
+  reportStartupRecovered,
+  reportSearchError: showErrorToast,
   copyText: copyAppText,
   reportSettingError: handleExtractedSettingError,
   reportSplitViewError,
@@ -101,7 +103,7 @@ const {
   reportBrowserActionFailure
 } = useShellFeedbackController({
   browser,
-  translate: (key, parameters) => t(key, parameters ?? {}),
+  translate,
   showToast: showAppToast
 })
 const appTabRuntimeFeatureController = useAppTabRuntimeFeatureController({
@@ -115,7 +117,6 @@ const {
   activeTab,
   diagnosticLogPreservationBusy,
   updateDiagnosticLogPreservation,
-  mcpActivityByTab,
   dispose: disposeAppTabRuntimeFeatureController
 } = appTabRuntimeFeatureController
 const appShellPresentationFeatureController = useAppShellPresentationFeatureController({
@@ -123,7 +124,7 @@ const appShellPresentationFeatureController = useAppShellPresentationFeatureCont
   systemTheme,
   windowMaterial,
   search: window.location.search,
-  translate: (key, params) => params ? t(key, params) : t(key),
+  translate,
   targetDocument: document,
   windowChrome: window.hronautShell.windowChrome
 })
@@ -152,7 +153,7 @@ const { mirrored: toastsMirrored, focusChanged: toastFocusChanged } = useToastOv
   api: isDetachedPanelWindow ? undefined : window.hronautToastOverlay,
   toasts: appToasts,
   controller: appToastController,
-  theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
+  theme: () => effectiveTheme.value,
   focusedPart: () => shellToastFocusedPart(document.activeElement)
 })
 const shell = ref<HTMLElement | null>(null)
@@ -160,38 +161,24 @@ const appTransientShellLayerController = useAppTransientShellLayerController()
 const {
   layer: transientShellLayer,
   credentialPickerOpen,
-  findOpen,
+  findOpen, findFocused,
   zoomOpen,
-  tabSearchOpen,
   commandPaletteOpen,
   commandPaletteView,
   agentStepsOpen,
   agentStepsTarget,
   showAgentSteps,
-  closeAgentSteps,
-  tabSearchPanel,
-  zoomBar,
-  commandPalettePanel,
   workspaceEditorOpen,
   openWorkspace: openTabGroupEditor,
   openWorkspaceDecisions,
   openNewWorkspace: openNewWorkspaceEditor,
-  closeWorkspace: closeWorkspaceEditor,
-  openFindForTab,
-  closeFind: closeTransientFind,
-  openCredentialPicker,
-  setZoom: setTransientZoom
+  closeFind, returnFindFocus,
+  openCredentialPicker
 } = appTransientShellLayerController
-const responsivePanelOpen = ref(false)
-const responsivePanel = ref<ResponsivePanelSurface | null>(null)
-const environmentPanelOpen = ref(false)
 const appEmulationFeatureController = useAppEmulationFeatureController({
   activeTab,
   browser,
   syncState,
-  responsivePanelOpen,
-  responsivePanel,
-  environmentPanelOpen,
   closeTransientPanels,
   translate,
   formatNumber: localNumber,
@@ -199,6 +186,8 @@ const appEmulationFeatureController = useAppEmulationFeatureController({
   showToast: showAppToast
 })
 const {
+  responsivePanelOpen,
+  environmentPanelOpen,
   emulationController,
   emulationDescription,
   environmentState,
@@ -210,12 +199,11 @@ const {
 const browserChromeLayer = ref<InstanceType<typeof AppBrowserChromeLayer> | null>(null)
 const helpDialogController = useHelpDialogController({
   beforeOpen: closeTransientPanels,
-  translate: (key) => t(key),
+  translate,
   platform: window.hronautShell?.windowChrome.platform
 })
 const {
   open: helpDialogOpen,
-  openDialog: showHelpDialog,
   close: closeHelpDialog,
   dispose: disposeHelpDialogController
 } = helpDialogController
@@ -259,10 +247,26 @@ const {
   bootstrapTasks: settingsFeatureBootstrapTasks,
   dispose: disposeAppSettingsFeatureController
 } = appSettingsFeatureController
-const {
-  open: releaseHistoryOpen,
-  close: closeReleaseHistory
-} = appSettingsFeatureController.releaseHistoryController
+const { open: releaseHistoryOpen } = appSettingsFeatureController.releaseHistoryController
+const taskManagerController = useTaskManagerController({
+  api: window.hronautTaskManager,
+  beforeOpen: () => {
+    commandPaletteOpen.value = false
+    closeTransientPanels()
+  },
+  formatError: (error) => friendlyUiError(error, t('taskManager.unavailable'))
+})
+const { open: taskManagerOpen, dispose: disposeTaskManagerController } = taskManagerController
+const qrCodeController = useQrCodeDialogController({
+  api: browser,
+  tabIds: computed(() => state.value.tabs.map((tab) => tab.id)),
+  beforeOpen: () => {
+    commandPaletteOpen.value = false
+    closeTransientPanels()
+  },
+  formatError: (error) => friendlyUiError(error, t('native.errors.actionFailed'))
+})
+const { open: qrCodeOpen } = qrCodeController
 const {
   entries: sitePermissions,
   replace: replaceSitePermissions
@@ -270,7 +274,8 @@ const {
 const {
   entries: credentials,
   storage: credentialStorage,
-  replace: replaceCredentials
+  replace: replaceCredentials,
+  acceptStorage: acceptCredentialStorage
 } = credentialsController
 const {
   search: janitorSearch,
@@ -292,10 +297,9 @@ const fullPageView = useFullPageView({
 const { active: fullPageActive, concealed: fullPageConcealed } = fullPageView
 // A hidden rail gives the page its room; the tabs keep their vertical layout for when it shows again.
 const pageRailWidth = computed(() => fullPageConcealed.value ? 0 : tabRailWidth.value)
-const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
+const { approvalOpen: walletApprovalOpen } = walletsController
 // Main's own questions, such as a website's permission request, drawn over the page instead of a system dialog.
 const trustedDialogController = useTrustedDialogController(window.hronautTrustedDialogs)
-const trustedDialogSurface = { open: trustedDialogController.open, close: trustedDialogController.cancel }
 const { walletWorkspaces, dataWorkspaces } = useSettingsWorkspaceLists(state)
 
 const {
@@ -315,8 +319,12 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   bookmarksApi: window.hronautBookmarks,
   historyApi: window.hronautHistory,
   settingsOpen,
-  tabSearchOpen,
-  syncState
+  syncState,
+  browserState: () => state.value,
+  // The startup tasks read the browser state once the shell has mounted, so its panels are there by then too.
+  browserStateReady: isDetachedPanelWindow ? browserStore.whenInitialized : undefined,
+  bookmarksInOwnWindow: panelsInOwnWindow,
+  panelWindow: window.hronautPanelWindow, historyShown: isDetachedPanelWindow ? undefined : window.hronautShell
 })
 const {
   downloads,
@@ -330,7 +338,6 @@ const {
 const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController({
   state,
   activeTab,
-  isHome: () => !activeTab.value || isHronautHomeUrl(activeTab.value.url),
   browser,
   syncState,
   collections: {
@@ -342,15 +349,14 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     historyOpen
   },
   shell: {
-    setFollowAgentActivitySuspended: (suspended) => {
-      if (!isDetachedPanelWindow) window.hronautShell.setFollowAgentActivitySuspended(suspended)
-    },
+    setFollowAgentActivitySuspended: (suspended) => { if (!isDetachedPanelWindow) window.hronautShell.setFollowAgentActivitySuspended(suspended) },
+    tabFieldFocus: isDetachedPanelWindow ? undefined : window.hronautShell,
     settingsOpen,
     settingsSection,
     updateNoticeOpen,
-    tabSearchOpen,
     zoomOpen,
-    findOpen
+    findOpen,
+    findFocused
   },
   site: {
     keepsSeparatePanelOpen,
@@ -360,32 +366,23 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
   },
   address: {
     overlay: isDetachedPanelWindow ? undefined : window.hronautAddressOverlay,
-    theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
+    siteSearches: () => settings.value.siteSearches,
+    theme: () => effectiveTheme.value,
     locale: () => resolvedLocale.value,
     translate,
     formatNumber: localNumber
   },
-  privacy: {
-    janitorSearch,
-    refresh: refreshPrivacySettings
-  },
+  privacy: { janitorSearch, refresh: refreshPrivacySettings },
   actions: {
     closeTransientPanels,
     closeHelp: closeHelpDialog,
     closeFind,
+    returnFindFocus,
     openSettingsSection,
     loadSiteSummary: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId),
+    clearSiteData: ({ url, tabId }) => window.hronautBrowsingData.clearSite(url, tabId),
     onActionError: reportShellActionError,
-    onSelectError: (error) => showAppToast(
-      'error',
-      t('runtime.workspace.openFailed'),
-      friendlyUiError(error, t('runtime.workspace.openDescription'))
-    ),
-    onNavigateError: (error) => showAppToast(
-      'error',
-      t('runtime.navigation.failed'),
-      friendlyUiError(error, t('runtime.navigation.failedDescription'))
-    )
+    showToast: showAppToast
   }
 })
 const {
@@ -400,8 +397,10 @@ const {
 } = appSiteNavigationFeatureController
 const {
   selectBrowserTab,
-  retryActivePageProblem,
-  toggleDeveloperTools
+  retryPageProblem,
+  proceedPastPageCertificateError,
+  toggleDeveloperTools,
+  showDeveloperToolsConsole
 } = browserTabActionsController
 const {
   input: addressInput,
@@ -421,6 +420,7 @@ const {
   pageToolsOpen,
   consolePanelOpen,
   networkMonitorOpen,
+  togglePageTools,
   layerHandles: pageToolsLayerHandles,
   dispose: disposeAppPageToolsPanelFeatureController
 } = useAppPageToolsPanelFeatureController({
@@ -454,7 +454,6 @@ const {
       zoomOpen,
       downloadsOpen,
       historyOpen,
-      tabSearchOpen,
       updateNoticeOpen,
       findOpen,
       closeFind
@@ -477,7 +476,7 @@ const {
     dock: { panelDock, persistDock: persistPanelDock },
     onError: reportShellActionError
   },
-  responsivePanel,
+  setResponsivePanel: appEmulationFeatureController.setResponsivePanel,
   setSiteStoragePanel
 })
 const {
@@ -492,7 +491,7 @@ const {
   prepareSplitViewMenu,
   handleSplitViewError,
   openFind,
-  toggleTabSearch,
+  openHomeTabs,
   toggleZoom,
   runShellAction,
   openSupportSettings,
@@ -514,46 +513,22 @@ const {
   activeTab,
   browser,
   syncState,
-  isHome: () => activeIsHome.value,
-  transient: {
-    credentialPickerOpen,
-    workspaceEditorOpen,
-    findOpen,
-    zoomOpen,
-    tabSearchOpen,
-    commandPaletteOpen,
-    commandPaletteView,
-    tabSearchPanel,
-    zoomBar,
-    commandPalettePanel,
-    openFindForTab,
-    closeFind,
-    closeWorkspace: closeWorkspaceEditor,
-    setZoom: setTransientZoom
-  },
+  transient: appTransientShellLayerController,
   surfaces: {
-    settings: {
-      open: settingsOpen, close: closeSettings, openSection: openSettingsSection,
-      tabOpen: settingsDialogController.tabOpen, closeTab: settingsDialogController.closeTab,
-      activate: settingsDialogController.toggle
-    },
+    settings: settingsDialogController,
     updateNotice: updateNoticeOpen,
-    help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
-    releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
+    help: helpDialogController,
+    releaseHistory: appSettingsFeatureController.releaseHistoryController,
+    taskManager: taskManagerController,
+    qrCode: qrCodeController,
     walletApproval: walletApprovalOpen,
-    trustedDialog: trustedDialogSurface,
-    agentSteps: { open: agentStepsOpen, close: closeAgentSteps },
+    trustedDialog: trustedDialogController,
     siteStorage: siteStorageOpen,
     siteControls: siteControlsOpen,
     addressSuggestions: addressSuggestionsOpen,
     pageTools: pageToolsOpen,
     console: consolePanelOpen,
     network: networkMonitorOpen,
-    responsive: {
-      open: responsivePanelOpen,
-      close: () => responsivePanel.value?.handleEscape()
-    },
-    environment: environmentPanelOpen,
     panelsInOwnWindow
   },
   features: {
@@ -572,9 +547,11 @@ const {
     expandTabGroup: (groupId) => browserChromeLayer.value?.expandTabGroup(groupId),
     togglePageTools,
     toggleDeveloperTools,
+    showDeveloperToolsConsole,
     openAgentCard: () => browserChromeLayer.value?.openAgentCard(),
     takeOverFromAgent: () => browserChromeLayer.value?.takeOverFromAgent(),
-    toggleFullPageView: fullPageView.toggle
+    toggleFullPageView: fullPageView.toggle,
+    tabStrip: () => browserChromeLayer.value ?? undefined
   },
   actions: {
     closeTransientPanels,
@@ -600,14 +577,10 @@ const {
   onAttemptSettled: () => {
     void nextTick().then(reportShellHeight)
   },
-  onRecovered: () => showAppToast(
-    'success',
-    t('runtime.toast.startupRecovered'),
-    t('runtime.toast.startupRecoveredDescription')
-  )
+  onRecovered: reportStartupRecovered
 })
 // A panel window has no page views over the shell, so it draws its tooltips itself.
-useShellTooltips(isDetachedPanelWindow ? createInWindowTooltipPort() : window.hronautShell)
+const shellTooltips = useShellTooltips(isDetachedPanelWindow ? createInWindowTooltipPort() : window.hronautShell)
 const { dispose: disposeAppEventsController } = useAppEventsController({
   browserApi: browser,
   permissionsApi: window.hronautPermissions,
@@ -615,14 +588,25 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   updatesApi: window.hronautUpdates,
   shellApi: window.hronautShell,
   onUserAttention: testAttentionSound,
-  onShortcut: runBrowserShortcut,
+  // Main runs a shortcut pressed in a page or another view here; like a key pressed here, it keeps tooltips away from
+  // a panel it opens under the resting pointer.
+  onShortcut: (action) => {
+    shellTooltips.hold()
+    return runBrowserShortcut(action)
+  },
   onTabGroupEdit: openTabGroupEditor,
   // New Tab in a tab's or workspace's menu opens the tab as the + button does, with the cursor in the address field.
   onNewTab: newTabInWorkspace,
   onVisitHistory: browserCollectionsFeatureController.openVisitHistory,
+  onBookmarkAllTabs: browserCollectionsFeatureController.bookmarkAllTabs,
+  // A page's menu can still be open when another dialog comes up, so the QR code waits for none to be open.
+  onQrCode: (request) => {
+    if (!shellFullModalOpen.value) qrCodeController.openFor(request)
+  },
   onAddressPasteAndGo: addressBarController.pasteAndGo,
   onPermissionsChanged: replaceSitePermissions,
   onCredentialsChanged: replaceCredentials,
+  onCredentialStorageChanged: acceptCredentialStorage,
   onUpdateOpen: openUpdateSettings,
   onHelp: handleHelpRequested,
   onClipboardFailure: reportClipboardFailure,
@@ -639,7 +623,9 @@ const {
   startResize: startPanelResize,
   resizeWithKeyboard: resizePanelWithKeyboard,
   resetSize: resetPanelDockSize,
-  dispose: disposeAppShellLayoutFeatureController
+  dispose: disposeAppShellLayoutFeatureController,
+  fullModalOpen: shellFullModalOpen,
+  surfaceBesideFindOpen
 } = useAppShellLayoutFeatureController({
   layout: {
     dock: panelDock,
@@ -654,6 +640,8 @@ const {
     commandPalette: commandPaletteOpen,
     helpDialog: helpDialogOpen,
     releaseHistory: releaseHistoryOpen,
+    taskManager: taskManagerOpen,
+    qrCode: qrCodeOpen,
     workspaceEditor: workspaceEditorOpen,
     credentialPicker: credentialPickerOpen,
     walletApproval: walletApprovalOpen,
@@ -667,7 +655,6 @@ const {
     zoom: zoomOpen,
     activePanel: activePanelId,
     addressSuggestions: addressSuggestionsOpen,
-    tabSearch: tabSearchOpen,
     downloads: downloadsOpen,
     history: historyOpen,
     splitMenu: splitMenuOpen,
@@ -680,11 +667,11 @@ const {
   closeAddressSuggestions
 })
 // What opens from the tabs and the toolbar keeps them in view while it is open, and so does a bar shown
-// under the toolbar (Find, Zoom, a page that failed or the license card), so it does not move under the pointer.
+// under the toolbar (Find, Zoom, a shown page that failed, in either pane, or the license card), so it does not move.
 fullPageView.holdWhile(() => [
-  mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen, tabSearchOpen,
+  mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen,
   downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen, findOpen, zoomOpen
-].some((open) => open.value === true) || Boolean(activeTab.value?.pageProblem)
+].some((open) => open.value === true) || shownPageProblems.value.length > 0
   || appSettingsFeatureController.licenseAskController.cardReason.value !== null)
 const appActiveTabFeatureController = useAppActiveTabFeatureController({
   presentation: {
@@ -702,25 +689,12 @@ const appActiveTabFeatureController = useAppActiveTabFeatureController({
     pickerOpen: credentialPickerOpen,
     openPicker: openCredentialPicker,
     fillCredential: (tabId, credentialId) => window.hronautCredentials.fill(tabId, credentialId),
-    missingCredentialMessage: () => t('runtimeActions.credential.noLongerMatches'),
-    onFilled: (credential) => showAppToast(
-      'success',
-      t('runtime.toast.passwordFilled'),
-      t('runtime.toast.passwordFilledDescription', {
-        username: credential.username || t('credentialPicker.unnamed')
-      })
-    ),
-    onError: (error) => showAppToast(
-      'error',
-      t('runtime.toast.passwordFillFailed'),
-      friendlyUiError(error, t('runtime.toast.passwordFillDescription'))
-    )
+    showToast: showAppToast
   },
   detachedPanel: {
     window: isDetachedPanelWindow,
     activePanelId,
-    label: detachedPanelLabel,
-    fallbackLabel: () => t('shell.pageTools.heading')
+    label: detachedPanelLabel
   },
   context: {
     keepsSeparatePanelOpen,
@@ -740,17 +714,14 @@ const {
   activeWebUrl,
   activeOrigin,
   currentBookmark,
-  pageProblemDetails,
+  pageProblemDetails, shownPageProblems,
   fillSelectedCredential,
   detachedPanelUnavailable,
   detachedPanelLabelText,
-  describeTabEmulation,
   dispose: disposeAppActiveTabFeatureController
 } = appActiveTabFeatureController
 const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
   browserChromeLayer,
-  pageToolsOpen,
-  closeTransientPanels,
   resize: {
     syncTitleBarGeometry,
     updateViewportWidth,
@@ -765,9 +736,10 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     showAgentSteps,
     toggleCommandPalette,
     toggleWorkspaceSwitcher,
-    toggleTabSearch,
+    openHomeTabs,
     openFind,
     toggleZoom,
+    togglePageTools,
     openLicenseSettings: openSupportSettings,
     prepareSplitViewMenu,
     handleSplitViewError
@@ -778,20 +750,8 @@ const {
   handleWindowResize,
   browserChromeActions
 } = appBrowserChromeFeatureController
-async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
-  await browserStore.syncOperation(Promise.resolve(next))
-}
-
-async function closeFind(): Promise<void> {
-  await closeTransientFind()
-}
-
 function closeTransientPanels(options?: TransientPanelsCloseOptions): void {
   transientPanelsController.close(options)
-}
-
-function togglePageTools(): void {
-  appBrowserChromeFeatureController.togglePageTools()
 }
 
 useAppLifecycleController({
@@ -816,6 +776,7 @@ useAppLifecycleController({
     disposeAttention,
     disposeAppPageToolsPanelFeatureController,
     disposeHelpDialogController,
+    disposeTaskManagerController,
     disposeAppSiteNavigationFeatureController,
     disposeAppSettingsFeatureController,
     disposeAppBrowserCollectionsFeatureController,
@@ -829,7 +790,7 @@ useAppLifecycleController({
 <template>
   <!-- With a material behind the rail, the window is clear: this paints the shell's surface beside the rail. -->
   <div v-if="!isDetachedPanelWindow" class="window-material-surface" :style="{ left: `${pageRailWidth}px` }" aria-hidden="true" />
-  <PageCard v-if="!isDetachedPanelWindow" :user-attention="userAttention" :tabs="state.tabs" />
+  <PageCard v-if="!isDetachedPanelWindow" :user-attention="userAttention" :read-tabs="readTabs" />
   <SplitViewDivider v-if="!isDetachedPanelWindow" />
   <EmulationFrame
     v-if="!isDetachedPanelWindow"
@@ -845,7 +806,7 @@ useAppLifecycleController({
     class="shell"
     :class="[
       {
-        'all-human-interaction-locked': state.allHumanInteractionLocked,
+        'all-human-interaction-locked': allHumanInteractionLocked,
         'home-shell': activeIsHome || settingsOpen,
         'detached-panel-window': isDetachedPanelWindow,
         'detached-panel-unavailable': detachedPanelUnavailable,
@@ -873,12 +834,11 @@ useAppLifecycleController({
     <AppBrowserChromeLayer
       ref="browserChromeLayer"
       v-model:command-palette-open="commandPaletteOpen"
-      v-model:tab-search-open="tabSearchOpen"
       v-model:zoom-open="zoomOpen"
       v-model:site-controls-open="siteControlsOpen"
       v-model:split-menu-open="splitMenuOpen"
       v-model:page-tools-open="pageToolsOpen"
-      :state="state"
+      :read-state="readState"
       :user-attention="userAttention"
       :workspace-switcher-open="commandPaletteOpen && commandPaletteView === 'workspaces'"
       :full-page="fullPageView"
@@ -937,16 +897,17 @@ useAppLifecycleController({
       :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <PageProblemBar
-      v-if="activeTab?.pageProblem"
-      :tab="activeTab"
+      v-for="problem in shownPageProblems" :key="problem.tab.id"
+      :tab="problem.tab" :pane="problem.pane"
       :details="pageProblemDetails"
-      @retry="runShellAction(retryActivePageProblem)"
+      @retry="runShellAction(() => retryPageProblem(problem.tab.id))"
+      @proceed="runShellAction(() => proceedPastPageCertificateError(problem.tab.id))"
     />
     <AppTransientShellLayer
       ref="transientShellLayer"
       v-model:dock="panelDock"
-      v-model:tab-search-open="tabSearchOpen"
       v-model:find-open="findOpen"
+      v-model:find-focused="findFocused"
       v-model:zoom-open="zoomOpen"
       v-model:workspace-editor-open="workspaceEditorOpen"
       v-model:credential-picker-open="credentialPickerOpen"
@@ -954,10 +915,9 @@ useAppLifecycleController({
       v-model:command-palette-view="commandPaletteView"
       v-model:agent-steps-open="agentStepsOpen"
       :agent-steps-target="agentStepsTarget"
-      :state="state"
+      :read-state="readState"
       :active-tab="activeTab"
       :user-attention="userAttention"
-      :mcp-activity-by-tab="mcpActivityByTab"
       :credentials="credentials"
       :collections-controller="browserCollectionsFeatureController"
       :active-url="activeWebUrl"
@@ -966,25 +926,24 @@ useAppLifecycleController({
       :active-origin="activeOrigin"
       :help-dialog-open="helpDialogOpen"
       :settings-open="settingsOpen"
+      :find-waits="surfaceBesideFindOpen"
       :website-available="Boolean(activeTab && !activeIsHome)"
       :browser="browser"
       :sync-state="syncState"
       :select-tab="selectBrowserTab"
       :expand-tab-group="expandTabGroupForTab"
-      :describe-emulation="describeTabEmulation"
       :format-bytes="formatBytes"
       :format-number="localNumber"
       :format-time="localTime"
       :format-percent="localPercent"
       :format-date-time="localDateTime"
       :format-error="friendlyUiError"
-      :show-error="showTabSearchError"
+      :show-error="showErrorToast"
       :fill-credential="fillSelectedCredential"
       :run-command="runCommandPaletteCommand"
       :report-command-error="reportShellActionError"
       :open-settings-section="openSettingsSection"
       :report-zoom-error="reportShellActionError"
-      @new-tab="runBrowserShortcut('new-tab')"
       @search-tabs="runBrowserShortcut('search-tabs')"
       @create-workspace="openNewWorkspaceEditor"
     />
@@ -1006,6 +965,19 @@ useAppLifecycleController({
       @manage-workspace="openWorkspaceFromSettings"
       @create-workspace="createWorkspaceFromSettings"
       @transfer-workspace-data="transferWorkspaceDataFromSettings"
+    />
+    <TaskManagerDialog
+      v-if="!isDetachedPanelWindow"
+      :controller="taskManagerController"
+      :read-tabs="readTabs"
+      :workspaces="walletWorkspaces"
+      :format-bytes="formatBytes"
+      :report-layout="reportShellHeight"
+    />
+    <QrCodeDialog
+      v-if="!isDetachedPanelWindow"
+      :controller="qrCodeController"
+      :report-layout="reportShellHeight"
     />
     <DetachedPanelUnavailableState
       v-if="detachedPanelUnavailable"

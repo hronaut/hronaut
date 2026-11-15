@@ -8,8 +8,9 @@ import { useTrustedDialogController } from '../../src/renderer/src/trusted-dialo
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { holdOverlayEntrance, occludeBrowserContent, overlayEntranceEpoch, releaseOverlayEntrance, reportPageViewsHidden, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
+import { useModalDialogFocus } from '../../src/renderer/src/composables/useModalDialogFocus.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
-import type { HronautTrustedDialogsApi, TrustedDialogRequest } from '../../src/shared/trusted-dialogs.js'
+import type { HronautTrustedDialogsApi, TrustedDialogRequest, TrustedDialogShellState } from '../../src/shared/trusted-dialogs.js'
 
 function sitePermission(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'site-permission' }>> = {}): TrustedDialogRequest {
   return {
@@ -27,12 +28,14 @@ function sitePermission(id: string, overrides: Partial<Extract<TrustedDialogRequ
 }
 
 function mountDialog(locale: SupportedLocale = 'en-US') {
-  let publish: (request: TrustedDialogRequest | null) => void = () => undefined
+  let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
   const ready = vi.fn()
   const respond = vi.fn()
+  const dismiss = vi.fn()
   const api: HronautTrustedDialogsApi = {
     ready,
     respond,
+    dismiss,
     onChanged: (listener) => {
       publish = listener
       return () => undefined
@@ -41,10 +44,11 @@ function mountDialog(locale: SupportedLocale = 'en-US') {
   const controller = useTrustedDialogController(api)
   render(TrustedDialog, { props: { controller }, global: { plugins: [createHronautI18n(locale)] } })
   return {
-    api: { ready, respond },
+    api: { ready, respond, dismiss },
     controller,
-    show: async (request: TrustedDialogRequest | null) => {
-      publish(request)
+    /** Main shows the request, or none, and says whether a sign-in closed unanswered moments ago. */
+    show: async (request: TrustedDialogRequest | null, state: TrustedDialogShellState = { afterInterruptedSignIn: false }) => {
+      publish(request, state)
       await nextTick()
       await nextTick()
     },
@@ -98,8 +102,25 @@ describe('Hronaut’s permission dialog', () => {
     await show(sitePermission('file', { permission: 'fileSystem', freshConsent: true, file: { path: '/home/notes.txt', access: 'writable' } }))
     expect(screen.getByTestId('trusted-dialog-quoted')).toHaveTextContent('/home/notes.txt')
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Write access')
-    await show(sitePermission('fonts', { permission: 'local-fonts' }))
-    expect(screen.getByRole('alertdialog', { name: 'https://maps.example wants to use “local fonts”' })).toBeInTheDocument()
+    await show(sitePermission('printing', { permission: 'web-printing' }))
+    expect(screen.getByRole('alertdialog', { name: 'https://maps.example wants to use “web printing”' })).toBeInTheDocument()
+  })
+
+  it('names what Local Network Access, fonts and MIDI requests ask for instead of their identifiers', async () => {
+    // A public website reaching a device on the local network, or an app on this computer such as a local dev server,
+    // asked for “local network” or “loopback network”, which tells the person nothing.
+    const { show } = mountDialog()
+    const asks: Array<[string, string]> = [
+      ['local-network', 'https://maps.example wants to find and connect to devices on your local network'],
+      ['local-network-access', 'https://maps.example wants to find and connect to devices on your local network'],
+      ['loopback-network', 'https://maps.example wants to connect to apps and services on this device'],
+      ['local-fonts', 'https://maps.example wants to use the fonts on your computer'],
+      ['midi', 'https://maps.example wants to use your MIDI devices']
+    ]
+    for (const [permission, headline] of asks) {
+      await show(sitePermission(permission, { permission }))
+      expect(screen.getByRole('alertdialog', { name: headline })).toBeInTheDocument()
+    }
   })
 
   it('speaks the interface language', async () => {
@@ -124,7 +145,7 @@ describe('Hronaut’s permission dialog', () => {
     expect(api.respond).toHaveBeenCalledOnce()
   })
 
-  it('answers Escape as Deny, ignores a held key from the page, and keeps open on a backdrop click', async () => {
+  it('closes on Escape without choosing Deny, ignores a held key from the page, and keeps open on a backdrop click', async () => {
     const { api, show, settle } = mountDialog()
     await show(sitePermission('one'))
     await settle()
@@ -140,8 +161,17 @@ describe('Hronaut’s permission dialog', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     expect(api.respond).not.toHaveBeenCalled()
 
+    expect(api.dismiss).not.toHaveBeenCalled()
+
+    // Main gives it its cancel answer and knows the person chose no button, so it keeps no Deny.
     await fireEvent.keyDown(deny, { key: 'Escape' })
-    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 0)
+    expect(api.dismiss).toHaveBeenCalledExactlyOnceWith('one')
+    expect(api.respond).not.toHaveBeenCalled()
+    // Answered, it takes no other answer until main shows the next request.
+    await fireEvent.click(deny)
+    await fireEvent.keyDown(deny, { key: 'Escape' })
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(api.dismiss).toHaveBeenCalledOnce()
   })
 
   it('never answers Allow from Enter: Enter presses the focused Deny', async () => {
@@ -177,8 +207,10 @@ describe('Hronaut’s permission dialog', () => {
 
   it('waits for the page to leave the screen when its own request covers the page', async () => {
     // The shell starts covering the page from the request itself, before the dialog could start its moment on screen.
-    let publish: (request: TrustedDialogRequest | null) => void = () => undefined
-    const api: HronautTrustedDialogsApi = { ready: vi.fn(), respond: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined } }
+    let publish: (request: TrustedDialogRequest | null, state: TrustedDialogShellState) => void = () => undefined
+    const api: HronautTrustedDialogsApi = {
+      ready: vi.fn(), respond: vi.fn(), dismiss: vi.fn(), onChanged: (listener) => { publish = listener; return () => undefined }
+    }
     const covered: Array<[boolean, number]> = []
     const shellApi = { setBrowserContentOccluded: (occluded: boolean, request: number) => { covered.push([occluded, request]) } }
     const Shell = defineComponent({
@@ -195,7 +227,7 @@ describe('Hronaut’s permission dialog', () => {
       }
     })
     render(Shell, { global: { plugins: [createHronautI18n('en-US')] } })
-    publish(sitePermission('one'))
+    publish(sitePermission('one'), { afterInterruptedSignIn: false })
     await nextTick()
     await nextTick()
     expect(covered).toEqual([[true, overlayEntranceEpoch()]])
@@ -338,6 +370,41 @@ describe('Hronaut’s permission dialog', () => {
     expect(dialog).not.toHaveAttribute('data-topic')
   })
 
+  it('keeps its safe answer focused over a modal that holds the focus, so Enter and Tab never reach the modal', async () => {
+    // The workspace editor and Search tabs keep the focus inside them while they are open.
+    const modalOpen = ref(true)
+    const modalPanel = ref<HTMLElement | null>(null)
+    const closeModal = vi.fn()
+    render(defineComponent({
+      setup() {
+        useModalDialogFocus({ open: modalOpen, panel: modalPanel })
+        return () => h('section', { ref: modalPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Edit workspace', tabindex: -1 }, [
+          h('button', { type: 'button', onClick: closeModal }, '×'),
+          h('button', { type: 'button' }, 'Close workspace')
+        ])
+      }
+    }))
+    await nextTick()
+    const { api, show, settle } = mountDialog()
+    await show({
+      id: 'close', type: 'question', title: 'Please confirm', message: 'Close workspace “Client”?', detail: 'Its pages close.',
+      buttons: ['Cancel', 'OK'], defaultId: 0, cancelId: 0, primaryId: 1, variant: { kind: 'message' }
+    })
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancel).toHaveFocus()
+    await settle()
+    expect(cancel).toHaveFocus()
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'OK' })).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(cancel).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenCalledWith('close', 0)
+    expect(closeModal).not.toHaveBeenCalled()
+  })
+
   it('marks one of Hronaut’s own questions by what it is about, keeping its words and the safe answer focused', async () => {
     const { api, show, settle } = mountDialog()
     await show({
@@ -370,7 +437,7 @@ function savePassword(id: string, overrides: Partial<Extract<TrustedDialogReques
     defaultId: 1,
     cancelId: 0,
     primaryId: 1,
-    variant: { kind: 'save-password', origin: 'https://login.example', username: 'ada@example.com', updating: false, ...overrides }
+    variant: { kind: 'save-password', origin: 'https://login.example', username: 'ada@example.com', updating: false, suggested: false, ...overrides }
   }
 }
 
@@ -385,6 +452,7 @@ describe('Hronaut’s save password dialog', () => {
     expect(screen.getByTestId('trusted-dialog-quoted')).toHaveTextContent('ada@example.com')
     expect(dialog.querySelector('.trusted-dialog__quoted figcaption')).toHaveTextContent('Username')
     expect(dialog).toHaveTextContent('Saved passwords are never exposed through MCP.')
+    expect(dialog).not.toHaveTextContent('Hronaut suggested this password')
     const save = screen.getByRole('button', { name: 'Save password' })
     expect(save).toHaveFocus()
     expect(save).toHaveClass('ui-button--primary')
@@ -401,6 +469,13 @@ describe('Hronaut’s save password dialog', () => {
     const dialog = screen.getByRole('alertdialog', { name: 'Update your saved password for https://login.example?' })
     expect(screen.queryByTestId('trusted-dialog-quoted')).toBeNull()
     expect(dialog).toHaveTextContent('The page sent no username with it.')
+  })
+
+  it('says what not saving means for a password Hronaut suggested', async () => {
+    const { show } = mountDialog()
+    await show(savePassword('suggested', { suggested: true }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Save your password for https://login.example?' })
+    expect(dialog).toHaveTextContent('Hronaut suggested this password and never shows it. Save it, or you will need to reset it to sign in again.')
   })
 
   it('speaks the interface language', async () => {
@@ -466,7 +541,7 @@ describe('Hronaut’s wallet recovery phrase dialog', () => {
     expect(screen.getByRole('alertdialog').textContent).not.toContain('abandon')
   })
 
-  it('never answers I saved it from an Enter held since before it opened, and answers Escape as Not yet', async () => {
+  it('never answers I saved it from an Enter held since before it opened, and closes on Escape as Not yet does', async () => {
     const { api, show, settle } = mountDialog()
     await show(walletRecovery('recovery'))
     await settle()
@@ -476,7 +551,8 @@ describe('Hronaut’s wallet recovery phrase dialog', () => {
     expect(heldEnter.defaultPrevented).toBe(true)
     expect(api.respond).not.toHaveBeenCalled()
     await fireEvent.keyDown(notYet, { key: 'Escape' })
-    expect(api.respond).toHaveBeenCalledExactlyOnceWith('recovery', 1)
+    expect(api.dismiss).toHaveBeenCalledExactlyOnceWith('recovery')
+    expect(api.respond).not.toHaveBeenCalled()
   })
 
   it('speaks the interface language', async () => {
@@ -485,5 +561,371 @@ describe('Hronaut’s wallet recovery phrase dialog', () => {
     const dialog = screen.getByRole('alertdialog', { name: 'Запишіть фразу відновлення для Treasury' })
     within(dialog).getByRole('list', { name: 'Фраза відновлення' })
     expect(dialog).toHaveTextContent('Новий гаманець')
+  })
+})
+
+const CLAUDE_AFTER = JSON.stringify({ type: 'http', url: 'http://127.0.0.1:47812/mcp', headers: { Authorization: 'Bearer •••' } }, null, 2)
+const CLAUDE_BEFORE = JSON.stringify({ type: 'http', url: 'http://127.0.0.1:47812/mcp' }, null, 2)
+
+function claudeSetup(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'claude-setup' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'question',
+    title: 'Set up Claude Code',
+    message: 'Add Hronaut to Claude Code?',
+    detail: 'File: /home/person/.claude.json',
+    buttons: ['Cancel', 'Add to Claude Code'],
+    defaultId: 0,
+    cancelId: 0,
+    primaryId: 1,
+    variant: { kind: 'claude-setup', path: '/home/person/.claude.json', after: CLAUDE_AFTER, before: CLAUDE_BEFORE, tokenHidden: true, backupName: '.claude.json.hronaut-backup-20261024T001500Z', ...overrides }
+  }
+}
+
+describe('Hronaut’s Claude Code setup dialog', () => {
+  it('shows the file, the entry Hronaut writes and the one it replaces, with Cancel focused and Add as the main action', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(claudeSetup('setup'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Add Hronaut to Claude Code?' })
+    expect(dialog).toHaveAttribute('data-variant', 'claude-setup')
+    expect(dialog).toHaveTextContent('Set up Claude Code')
+    const change = within(dialog).getByTestId('trusted-dialog-change')
+    expect(within(change).getByTestId('trusted-dialog-change-path')).toHaveTextContent('/home/person/.claude.json')
+    expect(change).toHaveTextContent('File')
+    // The entries keep their JSON layout, as Home showed them, in diff order: written, then replaced.
+    const added = within(change).getByRole('region', { name: 'New entry in "mcpServers"' })
+    const removed = within(change).getByRole('region', { name: 'Entry it replaces' })
+    expect(added.textContent).toBe(`"hronaut": ${CLAUDE_AFTER}`)
+    expect(removed.textContent).toBe(`"hronaut": ${CLAUDE_BEFORE}`)
+    expect(added.compareDocumentPosition(removed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(added.closest('.trusted-dialog__change-entry')).toHaveClass('trusted-dialog__change-entry--added')
+    expect(removed.closest('.trusted-dialog__change-entry')).toHaveClass('trusted-dialog__change-entry--removed')
+    // The token note belongs to the entry that will hold the token, not to the replaced one, whose ••• hide old values.
+    expect(within(added.closest('.trusted-dialog__change-entry')!).getByText('Hronaut writes the actual MCP token where ••• appears.')).toBeInTheDocument()
+    expect(removed.closest('.trusted-dialog__change-entry')).not.toHaveTextContent('Hronaut writes the actual MCP token')
+    expect(dialog).toHaveTextContent('A copy of the file is saved first as .claude.json.hronaut-backup-20261024T001500Z.')
+    expect(dialog).toHaveTextContent('If Claude Code is running, quit it first')
+    // The detail given for the system dialog is not repeated under Hronaut's own design.
+    expect(dialog).not.toHaveTextContent('File: /home/person/.claude.json')
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    const add = screen.getByRole('button', { name: 'Add to Claude Code' })
+    expect(add).toHaveClass('ui-button--primary')
+    await settle()
+    await fireEvent.click(add)
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('setup', 1)
+  })
+
+  it('shows only the new entry for a file without one, and no token line without a token', async () => {
+    const { show } = mountDialog()
+    await show(claudeSetup('fresh', { before: null, tokenHidden: false, after: CLAUDE_BEFORE }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Add Hronaut to Claude Code?' })
+    expect(within(dialog).getByRole('region', { name: 'New entry in "mcpServers"' }).textContent).toBe(`"hronaut": ${CLAUDE_BEFORE}`)
+    expect(within(dialog).queryByRole('region', { name: 'Entry it replaces' })).toBeNull()
+    expect(dialog).not.toHaveTextContent('•••')
+  })
+
+  it('speaks the interface language', async () => {
+    const { show } = mountDialog('uk-UA')
+    await show(claudeSetup('uk'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Додати Hronaut до Claude Code?' })
+    within(dialog).getByRole('region', { name: 'Новий запис у "mcpServers"' })
+    within(dialog).getByRole('region', { name: 'Запис, який він замінить' })
+    expect(dialog).toHaveTextContent('Hronaut запише справжній токен MCP на місце •••.')
+  })
+})
+
+function httpAuth(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'http-auth' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'question',
+    title: 'Sign in',
+    message: 'Sign in to https://intranet.example',
+    buttons: ['Cancel', 'Sign in'],
+    defaultId: 0,
+    cancelId: 0,
+    primaryId: 1,
+    variant: { kind: 'http-auth', origin: 'https://intranet.example', secure: true, workspaceName: 'Client A', ...overrides }
+  }
+}
+
+describe('Hronaut’s sign-in dialog for a website', () => {
+  it('names the website and the workspace, with the focus in Username and fields that take no typing until it takes answers', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Sign in to https://intranet.example' })
+    expect(dialog).toHaveAttribute('data-variant', 'http-auth')
+    expect(dialog).toHaveTextContent('You stay signed in to this website in the “Client A” workspace until Hronaut quits.')
+    expect(dialog).toHaveTextContent('Hronaut sends your username and password only to this website and never shows them to agents.')
+    expect(dialog).not.toHaveTextContent('not private')
+    const username = screen.getByLabelText('Username')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    expect(username).toHaveFocus()
+    expect(username).toHaveAttribute('readonly')
+    await settle()
+    expect(username).not.toHaveAttribute('readonly')
+    expect(username).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('ui-button--primary')
+  })
+
+  it('warns that anyone on the network can read what is sent over an unencrypted connection', async () => {
+    const { show } = mountDialog()
+    await show(httpAuth('one', { origin: 'http://intranet.example', secure: false, workspaceName: undefined }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Sign in to http://intranet.example' })
+    expect(dialog).toHaveClass('trusted-dialog--warning')
+    expect(dialog).toHaveTextContent('Your connection to this site is not private. Anyone on the network can read your username and password.')
+    expect(dialog).not.toHaveTextContent('workspace')
+  })
+
+  it('signs in with what the person typed, by Enter or the button, and cancels without sending any of it', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Username'), 'ada')
+    await user.type(screen.getByLabelText('Password'), 's3cret{Enter}')
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1, { username: 'ada', password: 's3cret' })
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+
+    await show(httpAuth('two'))
+    await settle()
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    await user.type(screen.getByLabelText('Password'), 'typed')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.respond).toHaveBeenLastCalledWith('two', 0)
+
+    await show(httpAuth('three'))
+    await settle()
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+    await user.type(screen.getByLabelText('Username'), 'grace')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(api.respond).toHaveBeenLastCalledWith('three', 1, { username: 'grace', password: '' })
+  })
+
+  it('takes no Enter before it takes answers, nor one held since before it opened, nor one that ends a composed word', async () => {
+    const { api, show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    const password = screen.getByLabelText('Password')
+    await fireEvent.keyDown(password, { key: 'Enter' })
+    await settle()
+    password.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true }))
+    await fireEvent.keyDown(password, { key: 'Enter', isComposing: true })
+    expect(api.respond).not.toHaveBeenCalled()
+    await fireEvent.keyDown(password, { key: 'Enter' })
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('one', 1, { username: '', password: '' })
+  })
+
+  it('moves from Username to Password on Enter, so a password typed into Username is never sent by its Enter', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Username'), 'tail{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Password')).toHaveFocus()
+  })
+
+  it('repeats a key held in its fields, such as Backspace, but never a held Enter or Tab', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    await settle()
+    const username = screen.getByLabelText('Username')
+    const held = (key: string): boolean => username.dispatchEvent(new KeyboardEvent('keydown', { key, repeat: true, bubbles: true, cancelable: true }))
+    expect(held('Backspace')).toBe(true)
+    expect(held('a')).toBe(true)
+    expect(held('Enter')).toBe(false)
+    expect(held('Tab')).toBe(false)
+  })
+
+  it('starts on its text when it shows moments after a sign-in that closed before the person answered, who may still be typing', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    const interrupted = { afterInterruptedSignIn: true }
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    // Main closes the first sign-in, as when its page loads another, and shows another tab's one in its place.
+    await show(httpAuth('two', { origin: 'https://intranet-example.test' }), interrupted)
+    const text = screen.getByTestId('trusted-dialog-details')
+    expect(text).toHaveFocus()
+    await settle()
+    expect(text).toHaveFocus()
+    // The rest of the password and its Enter press nothing, not even Cancel, and no field takes them.
+    await user.keyboard('word{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    expect(screen.getByLabelText('Password')).toHaveValue('')
+    // Tab moves on to Username, where the person signs in.
+    await user.tab()
+    expect(screen.getByLabelText('Username')).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('two', 0)
+
+    // The page that asked opens one that asks: no dialog for a moment, then the new sign-in, which the rest of the
+    // password must not reach either.
+    await show(httpAuth('three'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    await show(null, interrupted)
+    await show(httpAuth('four', { origin: 'https://intranet-example.test' }), interrupted)
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    await settle()
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    expect(screen.getByLabelText('Username')).toHaveValue('')
+    expect(api.respond).toHaveBeenCalledTimes(1)
+
+    // One that comes later starts in Username, as usual, and its text takes no focus.
+    await show(httpAuth('five'))
+    await settle()
+    expect(screen.getByLabelText('Username')).toHaveFocus()
+    expect(screen.getByTestId('trusted-dialog-details')).not.toHaveAttribute('tabindex')
+  })
+
+  it('starts any dialog shown moments after an interrupted sign-in on its text, where the rest of a password and Enter answer nothing', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(httpAuth('one'))
+    await settle()
+    await user.type(screen.getByLabelText('Password'), 'pass')
+    // A website's permission prompt replaces the sign-in that closed while the person typed.
+    await show(sitePermission('permission'), { afterInterruptedSignIn: true })
+    const text = screen.getByTestId('trusted-dialog-details')
+    expect(text).toHaveFocus()
+    await settle()
+    expect(text).toHaveFocus()
+    await user.keyboard('word{Enter}')
+    expect(api.respond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(api.respond).toHaveBeenCalledExactlyOnceWith('permission', 1)
+    // So does a message with nothing but its headline, whose OK Enter would press.
+    await show({ id: 'message', type: 'info', title: 'Hronaut', message: 'Something happened', buttons: ['OK'], defaultId: 0, cancelId: 0, variant: { kind: 'message' } }, { afterInterruptedSignIn: true })
+    await settle()
+    expect(screen.getByTestId('trusted-dialog-details')).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenCalledOnce()
+    // One that comes later starts on its safe answer, as usual.
+    await show(sitePermission('later'))
+    await settle()
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveFocus()
+  })
+
+  it('gives the focus back to the shell control it came from once answered, but to nothing when it closes before an answer', async () => {
+    const { show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    const address = document.createElement('input')
+    address.setAttribute('aria-label', 'Address')
+    document.body.append(address)
+    try {
+      address.focus()
+      await show(httpAuth('one'))
+      await settle()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await show(null)
+      expect(address).toHaveFocus()
+
+      // Answered in another tab: the person is done with it.
+      await show(httpAuth('two'))
+      await settle()
+      await show(null)
+      expect(address).toHaveFocus()
+
+      await show(httpAuth('three'))
+      await settle()
+      await user.type(screen.getByLabelText('Password'), 'pass')
+      await show(null, { afterInterruptedSignIn: true })
+      expect(address).not.toHaveFocus()
+      expect(document.activeElement).toBe(document.body)
+    } finally {
+      address.remove()
+    }
+  })
+
+  it('keeps the field the person moved to while it was opening', async () => {
+    const { show, settle } = mountDialog()
+    await show(httpAuth('one'))
+    screen.getByLabelText('Password').focus()
+    await settle()
+    expect(screen.getByLabelText('Password')).toHaveFocus()
+  })
+})
+
+function certificate(id: string, overrides: Partial<Extract<TrustedDialogRequest['variant'], { kind: 'certificate' }>> = {}): TrustedDialogRequest {
+  return {
+    id,
+    type: 'warning',
+    title: 'Not private',
+    message: 'Proceed to staging.example?',
+    buttons: ['Back to safety', 'Proceed (unsafe)'],
+    defaultId: 0,
+    cancelId: 0,
+    variant: { kind: 'certificate', host: 'staging.example', error: 'ERR_CERT_AUTHORITY_INVALID', workspaceName: 'Client A', ...overrides }
+  }
+}
+
+describe('Hronaut’s question before opening a page whose certificate was refused', () => {
+  it('names the website, why its certificate is not trusted, the risk and the workspace, with Back to safety focused', async () => {
+    const { show, settle } = mountDialog()
+    await show(certificate('one'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Proceed to staging.example?' })
+    expect(dialog).toHaveAttribute('data-variant', 'certificate')
+    expect(dialog).toHaveClass('trusted-dialog--warning')
+    expect(dialog).toHaveTextContent('Not private')
+    expect(dialog).toHaveTextContent('Its security certificate is not from an authority this computer trusts.')
+    expect(dialog).toHaveTextContent('Someone on the network might be pretending to be this website')
+    expect(dialog).toHaveTextContent('in the “Client A” workspace until it quits, and agents in the workspace can open it too.')
+    expect(dialog).not.toHaveTextContent('Hronaut trusts this certificate for this website until it quits.')
+    const back = screen.getByRole('button', { name: 'Back to safety' })
+    expect(back).toHaveFocus()
+    // Proceeding is never drawn as the main action.
+    expect(screen.getByRole('button', { name: 'Proceed (unsafe)' })).not.toHaveClass('ui-button--primary')
+    expect(back).not.toHaveClass('ui-button--primary')
+    await settle()
+    expect(back).toHaveFocus()
+  })
+
+  it('says why for each kind of certificate error, and that the choice lasts until Hronaut quits without a workspace', async () => {
+    const { show } = mountDialog()
+    for (const [error, reason] of [
+      ['ERR_CERT_COMMON_NAME_INVALID', 'Its security certificate is for another website.'],
+      ['ERR_CERT_DATE_INVALID', 'Its security certificate has expired or is not valid yet.'],
+      ['ERR_CERT_WEAK_KEY', 'Its security certificate cannot be verified.'],
+      ['toString', 'Its security certificate cannot be verified.']
+    ] as const) {
+      await show(certificate(error, { error, workspaceName: undefined }))
+      const dialog = screen.getByRole('alertdialog')
+      expect(dialog, error).toHaveTextContent(reason)
+      expect(dialog, error).toHaveTextContent('Hronaut trusts this certificate for this website until it quits.')
+      expect(dialog, error).not.toHaveTextContent('workspace')
+    }
+  })
+
+  it('goes back on Enter or Escape, and proceeds only on its button once it takes answers', async () => {
+    const { api, show, settle } = mountDialog()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
+    await show(certificate('one'))
+    await user.click(screen.getByRole('button', { name: 'Proceed (unsafe)' }))
+    expect(api.respond).not.toHaveBeenCalled()
+    await settle()
+    await user.keyboard('{Enter}')
+    expect(api.respond).toHaveBeenLastCalledWith('one', 0)
+
+    await show(certificate('two'))
+    await settle()
+    await user.keyboard('{Escape}')
+    expect(api.dismiss).toHaveBeenCalledExactlyOnceWith('two')
+    expect(api.respond).toHaveBeenCalledOnce()
+
+    await show(certificate('three'))
+    await settle()
+    await user.click(screen.getByRole('button', { name: 'Proceed (unsafe)' }))
+    expect(api.respond).toHaveBeenLastCalledWith('three', 1)
+  })
+
+  it('speaks the interface language', async () => {
+    const { show } = mountDialog('uk-UA')
+    await show(certificate('one'))
+    const dialog = screen.getByRole('alertdialog', { name: 'Перейти на staging.example?' })
+    expect(dialog).toHaveTextContent('Не захищено')
   })
 })

@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/vue'
+import { render, screen, waitFor, within } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import DownloadsPanel from '../../src/renderer/src/components/DownloadsPanel.vue'
+import DownloadsPanel from '../../src/renderer/src/features/downloads/DownloadsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserDownloadState, SupportedLocale } from '../../src/shared/types.js'
 
@@ -38,9 +38,11 @@ function renderPanel(overrides: Record<string, unknown> = {}, locale: SupportedL
       pauseDownload: vi.fn(async () => []),
       resumeDownload: vi.fn(async () => []),
       cancelDownload: vi.fn(async () => []),
+      retryDownload: vi.fn(async () => []),
       removeFinished: vi.fn(async () => []),
     clearFinished: vi.fn(async () => []),
       showInFolder: vi.fn(async () => undefined),
+      startDrag: vi.fn(async () => undefined),
       copySavedPath: vi.fn(async (_path: string): Promise<void> => undefined),
       ...overrides
     }
@@ -273,6 +275,18 @@ describe('DownloadsPanel', () => {
     expect(screen.queryByRole('button', { name: 'Cancel failed.bin' })).toBeNull()
   })
 
+  it('shows 99% until the last byte is in, as Chrome', () => {
+    // It said 100% while the download still had bytes to go.
+    renderPanel({ downloads: [download('almost', 'progressing', 999, 1000)] })
+    expect(screen.getByText('99% · 999 B of 1000 B')).toBeVisible()
+    expect(screen.getByRole('progressbar', { name: /almost\.bin/ })).toHaveAttribute('aria-valuenow', '99')
+  })
+
+  it('shows an exact share as it is, not a percent below it', () => {
+    renderPanel({ downloads: [download('exact', 'progressing', 29, 100)] })
+    expect(screen.getByText('29% · 29 B of 100 B')).toBeVisible()
+  })
+
   it('shows a paused transfer without a spinner and resumes it from the keyboard', async () => {
     const resumeDownload = vi.fn(async () => [])
     const view = renderPanel({ downloads: [{ ...download('paused', 'progressing', 25, 100), paused: true, canResume: true }], resumeDownload })
@@ -334,6 +348,41 @@ describe('DownloadsPanel', () => {
     expect(clearFinished).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('No downloads yet')).toBeVisible()
+  })
+
+  it('drags a completed download\'s file out by its icon or name, as in Chrome, and nothing else', async () => {
+    const startDrag = vi.fn(async () => undefined)
+    const saved = (id: string) => ({ ...download(id, 'completed', 100, 100), savePath: `/downloads/${id}.bin` })
+    renderPanel({ startDrag, downloads: [download('known', 'progressing', 50, 100), saved('complete'), { ...saved('removed'), fileRemoved: true }, download('unsaved', 'completed', 100, 100), download('stopped', 'cancelled', 1, 100)] })
+    const [known, complete, ...others] = screen.getAllByRole('article')
+    const sources = (row: HTMLElement) => [...row.querySelectorAll('[draggable="true"]')]
+    // The icon and the name only, so the rest of the row still selects text and clicks its controls.
+    expect(sources(complete)).toEqual([complete.querySelector('.download-state-icon'), within(complete).getByText('complete.bin')])
+    for (const row of [known, ...others]) expect(sources(row)).toEqual([])
+    // Hronaut starts the drag with the file, so the name's own drag, of its text, does not start.
+    for (const source of sources(complete)) {
+      const drag = new Event('dragstart', { bubbles: true, cancelable: true })
+      source.dispatchEvent(drag)
+      expect(drag.defaultPrevented).toBe(true)
+    }
+    expect(startDrag.mock.calls).toEqual([['complete'], ['complete']])
+    // The person still holds the pointer, so the row's controls stay as they are.
+    expect(screen.getByRole('button', { name: 'Show complete.bin in folder' })).toBeEnabled()
+    for (const target of [complete, ...[known, ...others].flatMap(row => [row.querySelector('.download-state-icon'), row.querySelector('strong')])]) {
+      const other = new Event('dragstart', { bubbles: true, cancelable: true })
+      target?.dispatchEvent(other)
+      expect(other.defaultPrevented).toBe(false)
+    }
+    expect(startDrag).toHaveBeenCalledTimes(2)
+  })
+
+  it('says when a dragged file was moved or deleted', async () => {
+    const startDrag = vi.fn(async () => { throw new Error('This file was moved or deleted, so it cannot be dragged.') })
+    renderPanel({ startDrag, downloads: [{ ...download('complete', 'completed', 100, 100), savePath: '/downloads/complete.bin' }] })
+    screen.getByText('complete.bin').dispatchEvent(new Event('dragstart', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(startDrag).toHaveBeenCalledExactlyOnceWith('complete')
+    expect(screen.getByRole('alert')).toHaveTextContent('This file was moved or deleted, so it cannot be dragged.')
   })
 
   it('does not let an older action lock or report errors in a reopened panel', async () => {
@@ -717,4 +766,50 @@ it('keeps a held Enter from pressing Remove or Close again', () => {
     expect(press.defaultPrevented).toBe(false)
     expect(repeat.defaultPrevented).toBe(true)
   }
+})
+
+describe('Downloads Retry', () => {
+  const cancelled = (id: string, canRetry?: boolean): BrowserDownloadState => ({
+    ...download(id, 'cancelled', 10, 100),
+    completedAt: '2026-08-22T00:01:00.000Z',
+    ...(canRetry ? { canRetry } : {})
+  })
+
+  it('offers Retry only where main says a download can be downloaded again, and keeps its focus', async () => {
+    // As in Chrome, the new download gets its own row and the old one stays.
+    const retryDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(`${id}-again`, 'progressing', 0, 100), cancelled(id, true)])
+    renderPanel({ downloads: [cancelled('again', true), cancelled('gone'), download('complete', 'completed', 100, 100)], retryDownload })
+    expect(screen.queryByRole('button', { name: 'Retry gone.bin' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry complete.bin' })).toBeNull()
+    const retry = screen.getByRole('button', { name: 'Retry again.bin' })
+    retry.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(retryDownload).toHaveBeenCalledExactlyOnceWith('again')
+    expect(await screen.findByRole('button', { name: 'Pause again-again.bin' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Retry again.bin' })).toHaveFocus()
+  })
+
+  it('shows why a retry failed and keeps a held Enter from starting another download', async () => {
+    renderPanel({ downloads: [cancelled('again', true)], retryDownload: vi.fn(async () => { throw new Error('This download cannot be retried.') }) })
+    const retry = screen.getByRole('button', { name: 'Retry again.bin' })
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    retry.dispatchEvent(repeat)
+    expect(repeat.defaultPrevented).toBe(true)
+    retry.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent('This download cannot be retried.')
+    expect(retry).toHaveFocus()
+  })
+
+  it.each([
+    ['de-DE', 'again.bin erneut herunterladen'],
+    ['es-ES', 'Reintentar again.bin'],
+    ['fr-FR', 'Réessayer again.bin'],
+    ['pl-PL', 'Ponów again.bin'],
+    ['ru-RU', 'Повторить загрузку again.bin'],
+    ['uk-UA', 'Повторити завантаження again.bin']
+  ] as const)('names Retry in %s', (locale, name) => {
+    renderPanel({ downloads: [cancelled('again', true)] }, locale)
+    expect(screen.getByRole('button', { name })).toHaveClass('download-retry')
+  })
 })

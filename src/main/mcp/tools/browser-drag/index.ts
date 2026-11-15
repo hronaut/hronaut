@@ -2,6 +2,7 @@ import { agentCursorIdentity } from '../../agent-presence.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import type { McpToolContext } from '../tool-context.js'
 import { browserDragInputShape, browserDragSchema } from './input.js'
+import { drag } from '../../../browser/agent-page-actions/hover-and-drag.js'
 
 export function registerBrowserDrag(context: McpToolContext): void {
   const { client, manager, registerWorkspaceTool, tabTool } = context
@@ -39,7 +40,7 @@ export function registerBrowserDrag(context: McpToolContext): void {
           throw error
         }
       }
-      return textResult(await manager.drag(input, validateNativeInput, agentCursorIdentity(client.name)))
+      return textResult(await drag(manager, input, validateNativeInput, agentCursorIdentity(client.name)))
     }),
     { stepTarget: input => ({ ref: input.sourceRef }), inputSchema: browserDragSchema }
   )

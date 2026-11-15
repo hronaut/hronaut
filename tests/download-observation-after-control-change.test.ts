@@ -9,10 +9,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // still running leaves the agent's observation, and finished downloads carry over into it. Archiving and restoring the
 // workspace handed the running transfer back to the agent, which could then pause, resume or cancel it.
 
-vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() }, session: {}, WebContentsView: class {}, nativeImage: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
+vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() }, session: {}, WebContentsView: class {}, nativeImage: { createFromBitmap: () => ({ isEmpty: () => false }) }, app: { getPath: () => '/tmp', getFileIcon: async () => ({ isEmpty: () => false }) }, Menu: {} }))
 
-const { BrowserDownloadsController } = await import('../src/main/browser/downloads-controller.js')
-const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
+const { BrowserDownloadsController } = await import('../src/main/browser/downloads/downloads-controller.js')
+const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 
 const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => {
@@ -32,6 +32,10 @@ async function fixture() {
     getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads: false }),
     getSource: () => ({ tabId: 'tab-1', workspaceId: 'w', observationGeneration: generations.get('w')! }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
+    isWorkspaceOpen: () => true,
+    retrySession: () => session as unknown as Session,
+    allowsAddress: () => true,
+    downloadReady: () => undefined,
     isAvailable: () => true,
     publish: () => undefined
   })

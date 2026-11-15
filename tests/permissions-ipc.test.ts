@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, session: { fromPartition: vi.fn() } }))
 
-import { registerPermissionsIpc } from '../src/main/permissions-ipc.js'
-import { SitePermissionStore } from '../src/main/site-permission-store.js'
+import { registerPermissionsIpc } from '../src/main/site-data/permissions-ipc.js'
+import { SitePermissionStore } from '../src/main/site-data/site-permission-store.js'
 
 const WORK = '01912345-6789-7abc-8def-0123456789ab'
 const origin = 'https://widget.example'
@@ -82,6 +82,23 @@ describe('permissions bridge', () => {
     await expect(invoke('permissions:set', origin, 'geolocation', 'always', { workspaceId: WORK })).rejects.toThrow(TypeError)
     await expect(invoke('permissions:remove', 'javascript:alert(1)', 'geolocation', { workspaceId: WORK })).rejects.toThrow('HTTP or HTTPS origin')
     expect(store.list()).toEqual(before)
+  })
+
+  it('names the decisions a change, a Forget or clearing them all changed, so their open pages can offer to reload', async () => {
+    const { invoke, publishSitePermissions } = await createBridge()
+    await invoke('permissions:set', origin, 'geolocation', 'deny', { workspaceId: WORK, embeddedIn: `${page}/room` })
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([
+      { origin, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: page }
+    ])
+    await invoke('permissions:remove', `${origin}/path`, 'geolocation', { workspaceId: WORK })
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([{ origin, permission: 'geolocation', workspaceId: WORK }])
+    // Forgetting a decision that is not there changes none.
+    await invoke('permissions:remove', origin, 'geolocation', { workspaceId: WORK })
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([])
+    await invoke('permissions:clear')
+    expect(publishSitePermissions).toHaveBeenLastCalledWith([
+      { origin, permission: 'geolocation', decision: 'deny', workspaceId: WORK, embeddedIn: page }
+    ])
   })
 
   it('creates a decision for the workspace a change names', async () => {

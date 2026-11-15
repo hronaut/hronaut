@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SelectedVideoFrame } from '../src/main/browser/video-inspection-frames.js'
-const runtime = vi.hoisted(() => ({ alive: false, exitConfirmed: true, calls: [] as string[], mode: 'normal', abort: undefined as (()=>void)|undefined, output: '' }))
+const runtime = vi.hoisted(() => ({ alive: false, exitConfirmed: true, calls: [] as string[], mode: 'normal', abort: undefined as (()=>void)|undefined, output: '', pid: 101 }))
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   class Contents extends EventEmitter {
-    getOSProcessId(): number { return 101 }
+    getOSProcessId(): number { return runtime.pid }
     setWindowOpenHandler(): void {}
     isDestroyed(): boolean { return !runtime.alive }
     async executeJavaScript(code: string): Promise<unknown> {
@@ -20,11 +20,11 @@ vi.mock('electron', async () => {
     constructor(){runtime.alive=true}
     isDestroyed(): boolean { return !runtime.alive }
     destroy(): void { runtime.alive=false }
-    async loadFile(): Promise<void> {}
+    loadFile(): Promise<void> { return runtime.mode==='loading' ? new Promise(()=>{}) : Promise.resolve() }
   } }
 })
 beforeEach(()=>{
-  vi.resetModules();vi.useFakeTimers();runtime.alive=false;runtime.exitConfirmed=true;runtime.calls=[];runtime.mode='normal'
+  vi.resetModules();vi.useFakeTimers();runtime.alive=false;runtime.exitConfirmed=true;runtime.calls=[];runtime.mode='normal';runtime.pid=101
   const png=Buffer.alloc(33);Buffer.from('89504e470d0a1a0a','hex').copy(png);png.writeUInt32BE(13,8);png.write('IHDR',12);png.writeUInt32BE(512,16);png.writeUInt32BE(312,20);runtime.output=png.toString('base64')
 })
 afterEach(()=>vi.useRealTimers())
@@ -65,4 +65,19 @@ it('keeps admission quarantined when process exit cannot be confirmed',async()=>
   await vi.advanceTimersByTimeAsync(600);await rejection
   runtime.exitConfirmed=true
   await expect(inspectVideoFrames(frames,new AbortController().signal,()=>{})).rejects.toThrow('restart Hronaut')
+})
+it('frees the slot of an inspection cancelled while its page loads, before its renderer took any frame', async () => {
+  const { inspectVideoFrames } = await import('../src/main/browser/video-inspection.js')
+  runtime.mode = 'loading'
+  runtime.pid = 0
+  const controller = new AbortController()
+  const pending = inspectVideoFrames(frames, controller.signal, () => {})
+  const rejection = expect(pending).rejects.toThrow('cancelled')
+  await vi.advanceTimersByTimeAsync(1)
+  controller.abort()
+  await rejection
+  expect(runtime.calls).toEqual([])
+  runtime.mode = 'normal'
+  runtime.pid = 101
+  await expect(inspectVideoFrames(frames, new AbortController().signal, () => {})).resolves.toBeInstanceOf(Uint8Array)
 })

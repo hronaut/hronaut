@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp', isPackaged: true } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
-import type { PageKeyboardEventsAccess, PageKeyboardEventsTab } from '../src/main/browser/tab-events/page-keyboard-events-access.js'
 import { createOverlaySurfaces } from '../src/main/windows/overlay-surfaces.js'
+import { noteShellKey } from '../src/main/browser/tab-events/shell-held-keys.js'
 
 type KeyInput = Partial<Electron.Input> & { type: Electron.Input['type'] }
 
@@ -23,7 +23,7 @@ function press(contents: EventEmitter, input: KeyInput): boolean {
 async function railView() {
   const contents = Object.assign(new EventEmitter(), { isDestroyed: () => false, isFocused: () => true, send: vi.fn(), setZoomFactor: vi.fn() })
   const held = new Set<string>()
-  const tabs = Object.assign(Object.create(BrowserTabsManager.prototype), { shellHeldKeys: held }) as BrowserTabsManager
+  const tabs = Object.assign(Object.create(Browser.prototype), { shellHeldKeys: held }) as Browser
   const pointerActivity = vi.fn()
   const runShortcut = vi.fn()
   const loaded = { view: { setBounds: vi.fn() }, webContents: contents }
@@ -36,8 +36,10 @@ async function railView() {
     tooltipView: {} as never,
     sidebarOverlayView: { ensure: async () => loaded as never, present: vi.fn(), withdraw: vi.fn() },
     sidebarOverlay: { pointerActivity },
-    sidebarOverlayKeyboard: { noteKey: (input) => tabs.noteShellKey(input), runShortcut },
-    shellTooltips: { shownId: undefined, hide: vi.fn() }
+    sidebarOverlayKeyboard: { noteKey: (input) => noteShellKey(tabs, input), runShortcut },
+    shellTooltips: { shownId: undefined, hide: vi.fn() },
+    statusBubbleView: {} as never,
+    statusBubble: {} as never
   })
   await surfaces.ensureSidebarOverlaySurface()
   // The view is loaded once and reused; its listeners are attached once.
@@ -48,24 +50,20 @@ async function railView() {
 /** A page whose keys the tab manager follows, with nothing else going on. */
 function page(held: Set<string>) {
   const contents = Object.assign(new EventEmitter(), { id: 7 })
-  const tab: PageKeyboardEventsTab = { id: 'tab-1', humanInteractionGeneration: 0, lastHumanInteractionAt: 0, lastActiveAt: 0 }
-  const access: PageKeyboardEventsAccess<PageKeyboardEventsTab> = {
-    browserContentOccluded: () => false,
-    agentInputWebContents: () => new Map(),
-    screenshotAreaSessions: () => new Map(),
-    cancelScreenshotArea: async () => false,
-    elementPickerSessions: () => new Map(),
-    cancelElementPicker: async () => false,
-    consumeExpectedAgentKeyboardInput: () => false,
-    pageShortcut: (requested) => requested,
+  const tab = { id: 'tab-1', humanInteractionGeneration: 0, lastHumanInteractionAt: 0, lastActiveAt: 0 }
+  const browser = {
+    browserContentOccluded: false,
+    agentInputWebContents: new Map(),
+    screenshotAreaSessions: new Map(),
+    elementPickerSessions: new Map(),
+    authorizedAgentKeyboardInput: new Map(),
     isHumanInteractionLocked: () => false,
-    shellHeldKeys: () => held,
-    reproRecorder: () => ({ observeReproKeyboard: vi.fn() }),
-    scheduleTabOverviewPreview: vi.fn(),
-    mcpActivityFollower: () => ({ noteHumanInput: vi.fn() }),
-    options: () => ({})
+    shellHeldKeys: held,
+    reproRecorder: { observeReproKeyboard: vi.fn() },
+    mcpActivityFollower: { noteHumanInput: vi.fn() },
+    options: {}
   }
-  attachPageKeyboardEvents(access, tab, contents as never)
+  attachPageKeyboardEvents(browser as never, tab as never, contents as never)
   return contents
 }
 
@@ -95,8 +93,11 @@ describe('keys pressed in the tab rail opened over the page', () => {
       // The rail has no website to keep F5.
       expect(press(contents, { type: 'keyDown', key: 'F5', code: 'F5' })).toBe(true)
       expect(runShortcut).toHaveBeenLastCalledWith('reload')
+      // F6 goes on to the page, as in the shell.
+      expect(press(contents, { type: 'keyDown', key: 'F6', code: 'F6' })).toBe(true)
+      expect(runShortcut).toHaveBeenLastCalledWith('focus-next-pane')
     }
-    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 2)
+    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 3)
     for (const input of [
       { type: 'keyDown', key: 'Escape', code: 'Escape' },
       { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown' },
@@ -104,7 +105,7 @@ describe('keys pressed in the tab rail opened over the page', () => {
       { type: 'keyDown', key: 't', code: 'KeyT', control: true, meta: true, isAutoRepeat: true },
       { type: 'keyUp', key: 't', code: 'KeyT', control: true }
     ] as KeyInput[]) expect(press(contents, input)).toBe(false)
-    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 2)
+    expect(runShortcut).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 3)
   })
 
   it('note who has keyboard focus as the pointer comes onto the rail', async () => {

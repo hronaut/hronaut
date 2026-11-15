@@ -14,7 +14,7 @@ export interface AppShellKeyboardSurface {
 
 type CollectionSurfaces = Pick<
   AppBrowserCollectionsFeatureController,
-  'downloadsOpen' | 'bookmarksOpen' | 'bookmarksPanel' | 'historyOpen'
+  'downloadsOpen' | 'bookmarksOpen' | 'bookmarksPanel' | 'historyOpen' | 'historyPanel'
 >
 
 type PageToolsSurfaces = Pick<
@@ -51,6 +51,8 @@ export interface AppShellKeyboardFeatureControllerOptions {
     credentialPicker: Ref<boolean>
     releaseHistory: AppShellKeyboardSurface
     helpDialog: AppShellKeyboardSurface
+    taskManager: AppShellKeyboardSurface
+    qrCode: AppShellKeyboardSurface
     settings: AppShellKeyboardSurface
   }
   overlays: {
@@ -58,7 +60,6 @@ export interface AppShellKeyboardFeatureControllerOptions {
     siteControls: Ref<boolean>
     addressSuggestions: Ref<boolean>
     find: AppShellKeyboardSurface
-    tabSearch: Ref<boolean>
     splitMenu: Ref<boolean>
     zoom: Ref<boolean>
     updateNotice: Ref<boolean>
@@ -76,11 +77,10 @@ export interface AppShellKeyboardFeatureControllerOptions {
   runShortcut: (action: BrowserShortcutAction) => void
 }
 
-function refSurface(open: Ref<boolean>, toggleShortcut?: BrowserShortcutAction): ShellKeyboardSurface {
+function refSurface(open: Ref<boolean>): ShellKeyboardSurface {
   return {
     isOpen: () => open.value,
-    close: () => { open.value = false },
-    toggleShortcut
+    close: () => { open.value = false }
   }
 }
 
@@ -110,7 +110,8 @@ export function useAppShellKeyboardFeatureController(
       refSurface(modals.credentialPicker),
       customSurface(modals.releaseHistory),
       customSurface(modals.helpDialog),
-      refSurface(overlays.tabSearch, 'search-tabs')
+      customSurface(modals.taskManager),
+      customSurface(modals.qrCode)
     ],
     escapeSurfaces: [
       panel(refSurface(overlays.siteStorage)),
@@ -124,7 +125,13 @@ export function useAppShellKeyboardFeatureController(
         open: collections.bookmarksOpen,
         close: () => collections.bookmarksPanel.value?.handleEscape()
       })),
-      refSurface(collections.historyOpen),
+      customSurface({
+        open: collections.historyOpen,
+        close: () => {
+          if (collections.historyPanel.value) collections.historyPanel.value.close()
+          else collections.historyOpen.value = false
+        }
+      }),
       panel(refSurface(pageTools.panelOpen)),
       panel(refSurface(pageTools.accessibilityPanelOpen)),
       panel(refSurface(pageTools.qualityAuditPanelOpen)),

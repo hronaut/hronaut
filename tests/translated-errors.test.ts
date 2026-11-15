@@ -3,31 +3,37 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { mkdtemp, open, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../src/main/browser/workspace-operations/workspace-operations-access.js'
+import type { OpenWorkspaceOperationAction, WorkspaceOperationAction } from '../src/main/browser/workspace-operations/workspace-operations.js'
 
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const fs = await importOriginal<typeof import('node:fs/promises')>()
   return { ...fs, open: vi.fn(fs.open) }
 })
+// The fake browser stubs these, which are functions now; the mock reaches its stubs.
+vi.mock('../src/main/browser/presented-view-visibility.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/presented-view-visibility.js')>(),
+  reconcileTabPresentation: (browser: { reconcileTabPresentation: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.reconcileTabPresentation(...args)
+}))
 
 const { LocalizedError, withTranslatedIpcErrors } = await import('../src/main/localized-error.js')
 const { translate } = await import('../src/shared/i18n.js')
 const { MAX_BROWSER_TABS } = await import('../src/shared/types.js')
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
+const { Browser } = await import('../src/main/browser/browser.js')
+const { getTab } = await import('../src/main/browser/browser-core.js')
 const { RendererExitedError } = await import('../src/main/browser/renderer-exit-guard.js')
 const { WorkspaceMetadataError } = await import('../src/main/browser/tab-store.js')
 const { waitForPage } = await import('../src/main/browser/page-waits/page-waits.js')
-const { navigate } = await import('../src/main/browser/page-navigation/page-navigation.js')
+const { navigate, reload } = await import('../src/main/browser/page-navigation/page-navigation.js')
 const { assertWorkspaceNavigationAllowed } = await import('../src/main/browser/workspace-navigation/workspace-navigation.js')
 const { reorderTab } = await import('../src/main/browser/tab-arrangement/tab-arrangement.js')
 const { setZoom } = await import('../src/main/browser/page-zoom/page-zoom.js')
 const { controlPageLifecycle } = await import('../src/main/browser/page-lifecycle/page-lifecycle.js')
 const { setTabHumanInteractionLocked } = await import('../src/main/browser/interaction-lock/interaction-lock.js')
-const { BookmarkStore } = await import('../src/main/bookmark-store.js')
+const { BookmarkStore } = await import('../src/main/bookmarks-history/bookmark-store.js')
 const { selectTabAndWait } = await import('../src/main/browser/tab-selection/tab-selection.js')
 const { createNewTab } = await import('../src/main/browser/new-tabs/new-tabs.js')
-const { requireMcpTabGroup } = await import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')
+const { assertWorkspaceNameAvailable, requireMcpTabGroup } = await import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')
 const { assertWorkspaceIdle, withSavedWorkspaceOperation, withWorkspaceOperation } = await import('../src/main/browser/workspace-operations/workspace-operations.js')
 const { setWorkspacePinned } = await import('../src/main/browser/mcp-tab-groups/workspace-pinning.js')
 const { closeMcpTabGroupInternal } = await import('../src/main/browser/mcp-tab-groups/close-mcp-tab-group.js')
@@ -44,20 +50,21 @@ const { getTabOverviewPagePreview } = await import('../src/main/browser/tab-over
 const { normalizedWorkspaceName } = await import('../src/main/browser/mcp-tab-groups/mcp-tab-groups.js')
 const { deleteSavedTabGroup } = await import('../src/main/browser/workspace-archive/workspace-archive.js')
 const { withGlobalWorkspaceStorageOperation } = await import('../src/main/browser/workspace-operations/workspace-operations.js')
-const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
+const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 const { transferWorkspaceStorage } = await import('../src/main/browser/workspace-data/workspace-data.js')
 const { canonicalizeWorkspaceNavigationRule } = await import('../src/main/browser/workspace-navigation-policy.js')
 const { armWorkspaceContinuity } = await import('../src/main/browser/workspace-continuity/workspace-continuity.js')
 const { WorkspaceTemplateImporter } = await import('../src/main/browser/workspace-template-import.js')
 const { registerWorkspacesIpc } = await import('../src/main/workspaces-ipc.js')
-const { registerSettingsIpc } = await import('../src/main/settings-ipc.js')
+const { registerSettingsIpc } = await import('../src/main/settings/settings-ipc.js')
 const { StartupLaunchManager } = await import('../src/main/startup-launch.js')
-const { createMcpRuntime } = await import('../src/main/mcp-runtime.js')
-const { ReleaseHistoryService } = await import('../src/main/release-history.js')
-const { commitRuntimeSetting } = await import('../src/main/runtime-setting-commit.js')
+const { createMcpRuntime } = await import('../src/main/mcp-runtime/mcp-runtime.js')
+const { ReleaseHistoryService } = await import('../src/main/updates/release-history.js')
+const { commitRuntimeSetting } = await import('../src/main/settings/runtime-setting-commit.js')
 const { HumanWaitingService } = await import('../src/main/mcp/human-waiting-service.js')
 const { WorkspaceContinuityStore } = await import('../src/main/mcp/workspace-continuity-store.js')
 const { screenshot } = await import('../src/main/browser/screenshots/screenshots.js')
+const { showWorkspaceContextMenu } = await import('../src/main/browser/context-menus/workspace-context-menu.js')
 
 const SHELL_URL = 'http://127.0.0.1:5173/'
 const ukrainian = (key: Parameters<typeof translate>[1], parameters?: Parameters<typeof translate>[2]) => translate('uk-UA', key, parameters)
@@ -87,17 +94,16 @@ async function failure(action: () => unknown): Promise<unknown> {
 const destroyed = { isDestroyed: () => true }
 const homeTab = { id: 'home', url: 'hronaut://home/', pinned: false, nativeInputEnvironmentGeneration: 0 }
 const websiteTab = { id: 'site', url: 'https://example.test/', pinned: false, nativeInputEnvironmentGeneration: 0 }
-const manager = (activeTabId: string | null) => Object.assign(Object.create(BrowserTabsManager.prototype), { tabs: new Map(), activeTabId }) as InstanceType<typeof BrowserTabsManager>
-const noWorkspaces = { mcpTabGroups: () => new Map(), savedTabGroups: () => new Map() }
-const labels = {
-  initialized: () => true, isDestroyed: () => false, tabLabelAdmissionClosed: () => false, tabLabelLifecycleHolds: () => 0,
-  pendingTabLabels: () => new Set()
-}
+const manager = (activeTabId: string | null) => Object.assign(Object.create(Browser.prototype), { tabs: new Map(), activeTabId }) as InstanceType<typeof Browser>
+const browserWithoutWorkspaces = { mcpTabGroups: new Map(), savedTabGroups: new Map() }
+const labels = { initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0, pendingTabLabels: new Set() }
+// The denial is recorded in the workspace's audit; with its window gone, nothing is published.
 const restrictedWorkspace = {
-  findWorkspace: () => ({ navigationPolicy: { mode: 'restricted', rules: ['https://allowed.example'] }, navigationAudit: [] }),
-  options: () => ({}),
-  changed: () => undefined
+  mcpTabGroups: new Map([['workspace', { navigationPolicy: { mode: 'restricted', rules: ['https://allowed.example'] }, navigationAudit: [] }]]),
+  options: {},
+  window: { isDestroyed: () => true }
 }
+const noWorkspaceOperations = { mcpTabGroups: new Map(), savedTabGroups: new Map(), workspaceOperations: new Map(), savedWorkspaceOperations: new Map() }
 
 describe('main-process failures people see in tabs, navigation and new tabs', () => {
   it.each([
@@ -108,44 +114,43 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     ['unreadable workspace metadata', () => { throw new WorkspaceMetadataError('invalid-json') },
       'Saved workspace metadata is unavailable (invalid-json). Startup stopped to preserve recovery options.',
       'Метадані збережених робочих просторів недоступні (invalid-json). Запуск зупинено, щоб зберегти можливість відновлення.'],
-    ['a tab that closed while its page loads', () => waitForPage({ getTab: () => ({ webContents: destroyed }) } as never, 'tab'),
+    ['a tab that closed while its page loads', () => waitForPage({ tabs: new Map([['tab', { webContents: destroyed }]]) } as never, 'tab'),
       'The tab closed while waiting for the page.',
       'Вкладку закрито під час очікування сторінки.'],
-    ['a tab that is gone', () => manager(null).getTab('019a0000-0000-7000-8000-000000000001'),
+    ['a tab that is gone', () => getTab(manager(null), '019a0000-0000-7000-8000-000000000001'),
       'Tab not found: 019a0000-0000-7000-8000-000000000001',
       'Вкладка більше недоступна.'],
-    ['no active tab', () => manager(null).getTab(),
+    ['no active tab', () => getTab(manager(null)),
       'There is no active tab',
       'Немає активної вкладки.'],
     // Address bar navigation
-    ['Home typed into a website tab', () => navigate({ getTab: () => ({ mcpGroupId: 'workspace' }), searchEngine: () => undefined } as never, 'hronaut://home/'),
+    ['Home typed into a website tab', () => navigate({ tabs: new Map([['tab', { id: 'tab', mcpGroupId: 'workspace', webContents: { isDestroyed: () => false } }]]), activeTabId: 'tab', options: {} } as never, 'hronaut://home/'),
       'Hronaut Home is a human application page and cannot be opened inside an agent workspace.',
       'Домівка Hronaut — сторінка застосунку для людини, її не можна відкрити в робочому просторі агента.'],
+    ['Try again on a page gone for good', () => reload({ tabs: new Map([['tab', { id: 'tab', webContents: destroyed }]]), activeTabId: 'tab', options: {} } as never),
+      'This page is no longer available. Close this tab and reopen it from Recently closed.',
+      'Сторінка більше недоступна. Закрийте цю вкладку й відкрийте її знову з розділу нещодавно закритих.'],
     ['a site the workspace does not allow', () => assertWorkspaceNavigationAllowed(restrictedWorkspace as never, 'workspace', 'https://blocked.example/private?q=1', 'direct'),
       'Workspace navigation to https://blocked.example is blocked. Allow this origin in the trusted workspace Site access settings.',
       'Перехід до https://blocked.example у цьому робочому просторі заблоковано. Дозвольте це джерело в налаштуваннях «Доступ до сайтів» довіреного робочого простору.'],
-    ['a workspace that just closed', () => assertWorkspaceNavigationAllowed({ findWorkspace: () => undefined } as never, 'workspace-id', 'https://example.test/', 'direct'),
+    ['a workspace that just closed', () => assertWorkspaceNavigationAllowed({ mcpTabGroups: new Map() } as never, 'workspace-id', 'https://example.test/', 'direct'),
       'Unknown workspace: workspace-id.',
       'Робочий простір більше недоступний.'],
     // Tab actions
-    ['dragging Home', () => reorderTab({ getTab: (id: string) => id === 'home' ? homeTab : websiteTab } as never, 'home', 'site', 'after'),
+    ['dragging Home', () => reorderTab({ tabs: new Map([['home', homeTab], ['site', websiteTab]]) } as never, 'home', 'site', 'after'),
       'Hronaut Home cannot be reordered',
       'Домівку Hronaut не можна переміщати.'],
-    ['zooming past the limit', () => setZoom({ getTab: () => ({ ...websiteTab, webContents: { getZoomFactor: () => 1 } }) } as never, { action: 'set', percent: 401 }),
-      'Page zoom percent must be an integer from 50 to 400',
-      'Масштаб сторінки має бути цілим числом від 50 до 400 відсотків.'],
-    ['freezing Home', () => controlPageLifecycle({ getTab: () => homeTab } as never, 'home', 'frozen'),
+    ['zooming past the limit', () => setZoom({ activeTabId: 'site', tabs: new Map([['site', { ...websiteTab, webContents: { getZoomFactor: () => 1 } }]]) } as never, { action: 'set', percent: 501 }),
+      'Page zoom percent must be an integer from 25 to 500',
+      'Масштаб сторінки має бути цілим числом від 25 до 500 відсотків.'],
+    ['freezing Home', () => controlPageLifecycle({ tabs: new Map([['home', homeTab]]) } as never, 'home', 'frozen'),
       'Only live page tabs can be frozen or resumed.',
       'Заморожувати й відновлювати можна лише вкладки із запущеними сторінками.'],
     ['unlocking a public observer page', () => setTabHumanInteractionLocked({
-      findTab: () => undefined,
-      getTab: () => ({ ...websiteTab, mcpGroupId: 'observer' }),
-      findWorkspace: () => ({ contextClass: 'public-observer' }),
-      isDestroyed: () => false,
-      interactionLockTail: () => Promise.resolve(),
-      writeInteractionLockTail: () => undefined,
-      nativeInputLockMutations: () => 0,
-      writeNativeInputLockMutations: () => undefined
+      tabs: new Map([['site', { ...websiteTab, mcpGroupId: 'observer' }]]),
+      mcpTabGroups: new Map([['observer', { contextClass: 'public-observer' }]]),
+      destroyed: false,
+      interactionLockTail: Promise.resolve()
     } as never, 'site', false),
     'Page input remains locked in a read-only public observer workspace.',
     'У робочому просторі публічного спостерігача, доступному лише для читання, введення на сторінці залишається заблокованим.'],
@@ -153,54 +158,58 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
       'Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters',
       'Адреса закладки має бути адресою HTTP або HTTPS довжиною до 4096 закодованих символів.'],
     // Selecting a tab
-    ['a tab whose renderer is gone', () => selectTabAndWait({ getTab: () => ({ ...websiteTab, webContents: destroyed }) } as never, 'site'),
+    ['a tab whose renderer is gone', () => selectTabAndWait({ tabs: new Map([['site', { ...websiteTab, webContents: destroyed }]]) } as never, 'site'),
       'This tab renderer is no longer available. Close the tab and reopen it from Recently closed.',
       'Ця вкладка більше не працює. Закрийте її та відкрийте знову в розділі «Нещодавно закриті».'],
     // New tabs
-    ['the tab limit', () => createNewTab({ options: () => ({}), tabs: () => ({ size: MAX_BROWSER_TABS }) } as never, { url: 'https://example.test/' }, true),
+    ['the tab limit', () => createNewTab({ options: {}, tabs: { size: MAX_BROWSER_TABS } } as never, { url: 'https://example.test/' }, true),
       `Tab limit reached (${MAX_BROWSER_TABS})`,
       `Досягнуто ліміту вкладок (${MAX_BROWSER_TABS}).`],
-    ['a new tab in a workspace that just closed', () => requireMcpTabGroup({ mcpTabGroups: () => new Map() } as never, 'workspace-id'),
+    ['a new tab in a workspace that just closed', () => requireMcpTabGroup({ mcpTabGroups: new Map() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id. List workspaces with browser_workspaces or create one first.',
       'Робочий простір більше недоступний.'],
     ['a workspace being archived', () => assertWorkspaceIdle({
-      workspaceOperations: () => new Map([['workspace', { action: 'archiving the workspace', blocksNewTabs: true, token: Symbol('archive') }]]),
-      mcpTabGroups: () => new Map([['workspace', { name: 'Research' }]])
+      workspaceOperations: new Map([['workspace', { action: 'archiving the workspace', blocksNewTabs: true, token: Symbol('archive') }]]),
+      mcpTabGroups: new Map([['workspace', { name: 'Research' }]])
     } as never, 'workspace'),
     'Workspace "Research" is busy archiving the workspace. Try again after that operation finishes.',
     'Робочий простір «Research» зараз архівується. Спробуйте ще раз, коли це завершиться.'],
     // Workspaces that closed while the person acted on them
-    ['pinning a workspace that just closed', () => setWorkspacePinned(noWorkspaces as never, 'workspace-id', true),
+    ['pinning a workspace that just closed', () => setWorkspacePinned(browserWithoutWorkspaces as never, 'workspace-id', true),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
-    ['closing a workspace that just closed', () => closeMcpTabGroupInternal({ ...noWorkspaces, withTabLabelLifecycle: (run: () => unknown) => run() } as never, 'workspace-id'),
+    ['closing a workspace that just closed', () => closeMcpTabGroupInternal({ ...browserWithoutWorkspaces, tabLabelLifecycleHolds: 0, pendingTabLabels: new Set() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['closing a workspace with Undo that just closed', () => closeWorkspaceForPerson(noWorkspaces as never, 'workspace-id'),
+    ['closing a workspace with Undo that just closed', () => closeWorkspaceForPerson(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['the menu of a workspace that just closed', () => Object.assign(Object.create(BrowserTabsManager.prototype), { mcpTabGroups: new Map() }).showWorkspaceContextMenu('workspace-id'),
+    ['the menu of a workspace that just closed', () => showWorkspaceContextMenu(Object.assign(Object.create(Browser.prototype), { mcpTabGroups: new Map() }), 'workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
-    ['putting the tabs of a workspace that just closed to sleep', () => sleepWorkspaceTabs(noWorkspaces as never, 'workspace-id'),
+    ['putting the tabs of a workspace that just closed to sleep', () => sleepWorkspaceTabs({ mcpTabGroups: new Map() } as never, 'workspace-id'),
       'Unknown workspace: workspace-id', 'Робочий простір більше недоступний.'],
-    ['the site data of a workspace that just closed', () => listWorkspaceStorageOrigins(noWorkspaces as never, 'workspace-id'),
+    ['the site data of a workspace that just closed', () => listWorkspaceStorageOrigins(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['the session of a workspace that just closed', () => workspaceSession(noWorkspaces as never, 'workspace-id'),
+    ['the session of a workspace that just closed', () => workspaceSession(browserWithoutWorkspaces as never, 'workspace-id'),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['an operation on a workspace that just closed', () => withWorkspaceOperation(noWorkspaces as never, 'workspace-id', 'clearing website data', async () => undefined),
+    ['an operation on a workspace that just closed', () => withWorkspaceOperation(noWorkspaceOperations as never, 'workspace-id', 'clearing website data', async () => undefined),
       'Unknown workspace: workspace-id.', 'Робочий простір більше недоступний.'],
-    ['an operation on an archived workspace that was just deleted', () => withSavedWorkspaceOperation(noWorkspaces as never, 'workspace-id', 'deleting the archived workspace', async () => undefined),
+    ['an operation on an archived workspace that was just deleted', () => withSavedWorkspaceOperation(noWorkspaceOperations as never, 'workspace-id', 'deleting the archived workspace', async () => undefined),
       'Unknown archived workspace: workspace-id.', 'Архівний робочий простір більше недоступний.'],
     // Tab labels
-    ['a label edit while a tab operation runs', () => assertTabLabelAdmission({ ...labels, tabLabelLifecycleHolds: () => 1 } as never),
+    ['a label edit while a tab operation runs', () => assertTabLabelAdmission({ ...labels, tabLabelLifecycleHolds: 1 } as never),
       'Wait for the tab operation to finish before editing its label.',
       'Дочекайтеся завершення дії з вкладкою, перш ніж змінювати її мітку.'],
-    ['too many label edits at once', () => assertTabLabelAdmission({ ...labels, pendingTabLabels: () => ({ size: 8 }) } as never),
+    ['too many label edits at once', () => assertTabLabelAdmission({ ...labels, pendingTabLabels: { size: 8 } } as never),
       'Wait for pending label edits to finish.',
       'Дочекайтеся збереження попередніх змін міток.'],
-    ['labeling Hronaut Home', () => saveTabLabel({ ...labels, getTab: () => homeTab } as never, 'home', 'Dashboard'),
+    ['labeling Hronaut Home', () => saveTabLabel({ ...labels, tabs: new Map([['home', homeTab]]) } as never, 'home', 'Dashboard'),
       'Hronaut Home cannot be labeled.',
       'Домівці Hronaut не можна задати мітку.'],
-    ['labeling a tab that closed before the label was saved', () => saveTabLabel({
-      ...labels, getTab: () => websiteTab, findTab: () => undefined, store: () => ({ save: (snapshot: () => unknown) => Promise.resolve().then(snapshot) })
-    } as never, 'site', 'Research'),
+    ['labeling a tab that closed before the label was saved', () => {
+      const tabs = new Map([['site', websiteTab]])
+      // The tab closes once its label save is queued.
+      return saveTabLabel({
+        ...labels, tabs, store: { save: (snapshot: () => unknown) => { tabs.delete('site'); return Promise.resolve().then(snapshot) } }
+      } as never, 'site', 'Research')
+    },
     'The tab is no longer available.',
     'Вкладка більше недоступна.']
   ] as const)('%s keeps its English message and reaches the shell in the interface language', async (_name, action, inEnglish, inUkrainian) => {
@@ -219,11 +228,11 @@ describe('main-process failures people see in tabs, navigation and new tabs', ()
     } satisfies Record<OpenWorkspaceOperationAction, true>
     const sentences = new Set<string>()
     for (const action of Object.keys(actions) as OpenWorkspaceOperationAction[]) {
-      const access = {
-        workspaceOperations: () => new Map([['workspace', { action, blocksNewTabs: true, token: Symbol(action) }]]),
-        mcpTabGroups: () => new Map([['workspace', { name: 'Research' }]])
+      const browser = {
+        workspaceOperations: new Map([['workspace', { action, blocksNewTabs: true, token: Symbol(action) }]]),
+        mcpTabGroups: new Map([['workspace', { name: 'Research' }]])
       }
-      const error = (() => { try { assertWorkspaceIdle(access as never, 'workspace') } catch (caught) { return caught } })()
+      const error = (() => { try { assertWorkspaceIdle(browser as never, 'workspace') } catch (caught) { return caught } })()
       expect(error).toBeInstanceOf(LocalizedError)
       expect((error as Error).message).toBe(`Workspace "Research" is busy ${action}. Try again after that operation finishes.`)
       sentences.add(ukrainian((error as InstanceType<typeof LocalizedError>).key, { name: 'Research' }))
@@ -266,20 +275,21 @@ const templateText = JSON.stringify({ format: 'hronaut-workspace-template', vers
 describe('main-process failures people see in page tools, workspace management and settings', () => {
   it.each([
     // Page tools
-    ['selecting an element on Home', () => pickElement({ getTab: () => homeTab } as never),
+    ['selecting an element on Home', () => pickElement({ activeTabId: 'home', tabs: new Map([['home', homeTab]]) } as never),
       'Open a website tab before selecting an element',
       'Відкрийте вкладку з вебсайтом, щоб вибрати елемент.'],
-    ['capturing an area of Home', () => captureScreenshotArea({ getTab: () => homeTab } as never),
+    ['capturing an area of Home', () => captureScreenshotArea({ activeTabId: 'home', tabs: new Map([['home', homeTab]]) } as never),
       'Open a website tab before capturing an area',
       'Відкрийте вкладку з вебсайтом, щоб зробити знімок області.'],
     ['a page tool while Developer Tools are open', () => withDebugger({
-      inDebuggerQueue: (_id: number, run: () => unknown) => run(), dialogMonitorAttach: async () => undefined, isDevToolsOpening: () => false
+      debuggerQueue: { run: (_id: number, run: () => unknown) => run() }, dialogMonitorAttachPromises: new Map(), devToolsOpening: new Set()
     } as never, { id: 7, isDevToolsOpened: () => true } as never, async () => undefined),
     'Close Developer Tools for this tab before using this MCP action',
     'Закрийте інструменти розробника для цієї вкладки й спробуйте ще раз.'],
     ['a PDF of a tab that closed', () => savePdf({
-      getTab: () => ({ ...websiteTab, title: 'Page', navigationGeneration: 0, webContents: { isDestroyed: () => true, removeListener: () => undefined } }),
-      pdfFilename: () => 'Page.pdf', isDestroyed: () => false, findTab: () => undefined
+      activeTabId: 'site',
+      tabs: new Map([['site', { ...websiteTab, title: 'Page', navigationGeneration: 0, webContents: { isDestroyed: () => true, removeListener: () => undefined } }]]),
+      destroyed: false
     } as never),
     'The tab closed while exporting its PDF. Open the page and export again.',
     'Вкладку закрито під час експорту PDF. Відкрийте сторінку й експортуйте її знову.'],
@@ -293,7 +303,7 @@ describe('main-process failures people see in page tools, workspace management a
     'Недостатньо місця на диску, щоб зберегти файл (ENOSPC).'],
     // Tab search page previews
     ['a full-page preview of a sleeping tab', () => getTabOverviewPagePreview({
-      getTab: () => sleepingTab, findTab: () => sleepingTab, isDestroyed: () => false, window: () => ({ isDestroyed: () => false })
+      tabs: new Map([['site', sleepingTab]]), destroyed: false, window: { isDestroyed: () => false }
     } as never, 'site'),
     'Wake this tab before requesting a full-page preview.',
     'Пробудіть цю вкладку, перш ніж запитувати перегляд усієї сторінки.'],
@@ -301,28 +311,29 @@ describe('main-process failures people see in page tools, workspace management a
     ['an empty workspace name', () => normalizedWorkspaceName('   '),
       'Workspace name cannot be empty.',
       'Назва робочого простору не може бути порожньою.'],
-    ['a workspace name already in use', () => Object.assign(Object.create(BrowserTabsManager.prototype), {
+    ['a workspace name already in use', () => assertWorkspaceNameAvailable(Object.assign(Object.create(Browser.prototype), {
       mcpTabGroups: new Map([['research', research]]), savedTabGroups: new Map()
-    }).assertWorkspaceNameAvailable('Research'),
+    }), 'Research'),
     'A workspace named "Research" already exists. Workspace names must be unique.',
     'Робочий простір із назвою «Research» уже існує. Назви робочих просторів мають бути унікальними.'],
-    ['closing a protected workspace with Undo', () => closeWorkspaceForPerson({ mcpTabGroups: () => new Map([['research', { ...research, deletionProtected: true }]]) } as never, 'research'),
+    ['closing a protected workspace with Undo', () => closeWorkspaceForPerson({ mcpTabGroups: new Map([['research', { ...research, deletionProtected: true }]]) } as never, 'research'),
       'Workspace "Research" is protected from deletion. Turn off deletion protection in workspace settings first.',
       'Робочий простір «Research» захищено від видалення. Спершу вимкніть захист від видалення в налаштуваннях робочого простору.'],
     ['deleting a protected archived workspace', () => deleteSavedTabGroup({
-      withSavedWorkspaceOperation: (_id: string, _action: string, run: () => unknown) => run(),
-      savedTabGroups: () => new Map([['saved', { ...archivedResearch, deletionProtected: true }]])
+      savedTabGroups: new Map([['saved', { ...archivedResearch, deletionProtected: true }]]),
+      savedWorkspaceOperations: new Map(),
+      pendingWorkspaceOperationPromises: new Set()
     } as never, 'saved'),
     'Workspace "Research" is protected from deletion. Turn off deletion protection in Home first.',
     'Робочий простір «Research» захищено від видалення. Спершу вимкніть захист від видалення в Домівці.'],
     ['an archived workspace that is being restored', () => withSavedWorkspaceOperation({
-      savedTabGroups: () => new Map([['saved', archivedResearch]]),
-      savedWorkspaceOperations: () => new Map([['saved', { action: 'restoring the archived workspace', blocksNewTabs: true, token: Symbol('restore') }]])
+      savedTabGroups: new Map([['saved', archivedResearch]]),
+      savedWorkspaceOperations: new Map([['saved', { action: 'restoring the archived workspace', blocksNewTabs: true, token: Symbol('restore') }]])
     } as never, 'saved', 'deleting the archived workspace', async () => undefined),
     'Archived workspace "Research" is busy restoring the archived workspace. Try again after that operation finishes.',
     'Робочий простір «Research» зараз відновлюється з архіву. Спробуйте ще раз, коли це завершиться.'],
     ['workspace storage while data is being copied', () => withGlobalWorkspaceStorageOperation({
-      workspaceStorageOperation: () => ({ action: 'copying workspace data', blocksNewTabs: false, token: Symbol('copy') })
+      workspaceStorageOperation: { action: 'copying workspace data', blocksNewTabs: false, token: Symbol('copy') }
     } as never, 'clearing website data', async () => undefined),
     'Workspace storage is busy copying workspace data. Try again after that operation finishes.',
     'Сховище робочих просторів зайняте: зараз копіюються дані робочого простору. Спробуйте ще раз, коли це завершиться.'],
@@ -339,16 +350,15 @@ describe('main-process failures people see in page tools, workspace management a
     `Restoring "Research" would exceed the ${MAX_BROWSER_TABS}-tab limit.`,
     `Відновлення «Research» перевищить ліміт вкладок (${MAX_BROWSER_TABS}).`],
     ['moving data out of an open workspace', () => transferWorkspaceStorage({
-      mcpTabGroups: () => new Map([['research', research], ['work', { ...research, id: 'work', name: 'Work' }]]),
-      savedTabGroups: () => new Map(),
-      isClosingWorkspace: () => false
+      mcpTabGroups: new Map([['research', research], ['work', { ...research, id: 'work', name: 'Work' }]]),
+      savedTabGroups: new Map()
     } as never, { sourceWorkspaceId: 'research', targetWorkspaceId: 'work', mode: 'move' }),
     'Archive both workspaces before moving data, or choose Copy to keep their pages open.',
     'Заархівуйте обидва робочі простори, перш ніж переміщувати дані, або виберіть «Копіювати», щоб їхні сторінки залишилися відкритими.'],
     ['a Site access rule with credentials', () => canonicalizeWorkspaceNavigationRule('https://person:secret@example.com'),
       'Navigation rules cannot contain credentials.',
       'Правила доступу до сайтів не можуть містити облікові дані.'],
-    ['a checkpoint while workspace actions are pending', () => armWorkspaceContinuity({ continuityActions: () => new Set(['research']) } as never, 'research'),
+    ['a checkpoint while workspace actions are pending', () => armWorkspaceContinuity({ continuityActions: new Set(['research']) } as never, 'research'),
       'Wait for pending workspace actions before creating a checkpoint',
       'Дочекайтеся завершення дій у робочому просторі, перш ніж створювати контрольну точку.'],
     ['importing a template whose names collide', () => new WorkspaceTemplateImporter({ existingWorkspaces: () => [research] } as never).import(templateText),
@@ -419,9 +429,9 @@ describe('main-process failures people see in page tools, workspace management a
     for (const action of Object.keys(actions) as WorkspaceOperationAction[]) {
       const operation = { action, blocksNewTabs: true, token: Symbol(action) }
       const archived = await failure(() => withSavedWorkspaceOperation({
-        savedTabGroups: () => new Map([['saved', archivedResearch]]), savedWorkspaceOperations: () => new Map([['saved', operation]])
+        savedTabGroups: new Map([['saved', archivedResearch]]), savedWorkspaceOperations: new Map([['saved', operation]])
       } as never, 'saved', 'restoring the archived workspace', async () => undefined))
-      const storage = await failure(() => withGlobalWorkspaceStorageOperation({ workspaceStorageOperation: () => operation } as never, 'clearing website data', async () => undefined))
+      const storage = await failure(() => withGlobalWorkspaceStorageOperation({ workspaceStorageOperation: operation } as never, 'clearing website data', async () => undefined))
       expect(archived).toBeInstanceOf(LocalizedError)
       expect(storage).toBeInstanceOf(LocalizedError)
       expect((archived as Error).message).toBe(`Archived workspace "Research" is busy ${action}. Try again after that operation finishes.`)
@@ -560,8 +570,8 @@ describe('main-process failures people see in continuity checkpoints and waiting
     'Підтвердьте, що сторінку перевірено й що попередня дія вже могла мати наслідки.'],
     // Workspaces
     ['a busy workspace whose record is already gone', () => assertWorkspaceIdle({
-      workspaceOperations: () => new Map([['019a0000-0000-7000-8000-000000000001', { action: 'closing the workspace', blocksNewTabs: true, token: Symbol('close') }]]),
-      mcpTabGroups: () => new Map()
+      workspaceOperations: new Map([['019a0000-0000-7000-8000-000000000001', { action: 'closing the workspace', blocksNewTabs: true, token: Symbol('close') }]]),
+      mcpTabGroups: new Map()
     } as never, '019a0000-0000-7000-8000-000000000001'),
     'Workspace "019a0000-0000-7000-8000-000000000001" is busy closing the workspace. Try again after that operation finishes.',
     'Цей робочий простір зараз зайнятий іншою дією. Спробуйте ще раз, коли це завершиться.']
@@ -578,8 +588,8 @@ describe('main-process failures people see in continuity checkpoints and waiting
     const savedId = '019a0000-0000-7000-8000-000000000002'
     let reads = 0
     const error = await failure(() => withSavedWorkspaceOperation({
-      savedTabGroups: () => reads++ === 0 ? new Map([[savedId, { ...archivedResearch, id: savedId }]]) : new Map(),
-      savedWorkspaceOperations: () => new Map([[savedId, { action: 'deleting the archived workspace', blocksNewTabs: true, token: Symbol('delete') }]])
+      savedTabGroups: { get: (id: string) => reads++ === 0 && id === savedId ? { ...archivedResearch, id: savedId } : undefined },
+      savedWorkspaceOperations: new Map([[savedId, { action: 'deleting the archived workspace', blocksNewTabs: true, token: Symbol('delete') }]])
     } as never, savedId, 'restoring the archived workspace', async () => undefined))
     expect(error).toBeInstanceOf(LocalizedError)
     expect((error as Error).message).toBe('Archived workspace "Research" is busy deleting the archived workspace. Try again after that operation finishes.')
@@ -590,10 +600,15 @@ describe('main-process failures people see in continuity checkpoints and waiting
 })
 
 describe('translated failures keep the English and the cause agents and logs read', () => {
-  const elementTab = { id: 'site', loading: false, navigationGeneration: 0, webContents: { executeJavaScript: vi.fn() } }
-  const screenshots = {
-    getTab: () => elementTab, validateTarget: () => undefined,
-    withRenderableTab: (_tab: unknown, run: () => unknown) => run(), dismissAgentPointer: async () => undefined
+  const elementTab = {
+    id: 'site', loading: false, navigationGeneration: 0,
+    webContents: { id: 4, isDestroyed: () => false, isCrashed: () => false, executeJavaScript: vi.fn(), executeJavaScriptInIsolatedWorld: async () => undefined }
+  }
+  // The element's tab shown in a visible window, which a screenshot captures as it is.
+  const screenshotBrowser = {
+    tabs: new Map([[elementTab.id, elementTab]]), activeTabId: elementTab.id, destroyed: false, renderQueues: new Map(),
+    window: { isDestroyed: () => false, isVisible: () => true, isMinimized: () => false },
+    splitViewContains: () => false, reconcileTabPresentation: () => undefined
   }
 
   it.each([
@@ -602,7 +617,7 @@ describe('translated failures keep the English and the cause agents and logs rea
   ])('keeps the page script error for an element screenshot target that is %s', async (_state, pageError, inUkrainian) => {
     const rejected = new Error(`Error: ${pageError}`)
     elementTab.webContents.executeJavaScript.mockRejectedValueOnce(rejected)
-    const error = await failure(() => screenshot(screenshots as never, { selector: '#target' }))
+    const error = await failure(() => screenshot(screenshotBrowser as never, { selector: '#target' }))
     expect(error).toBeInstanceOf(LocalizedError)
     expect(error).toMatchObject({ message: rejected.message, cause: rejected })
     await expect(shownTo(SHELL_URL, error)).resolves.toBe(inUkrainian)
@@ -612,7 +627,7 @@ describe('translated failures keep the English and the cause agents and logs rea
   it('passes any other element screenshot failure through as it is', async () => {
     const rejected = new Error('Script failed to execute')
     elementTab.webContents.executeJavaScript.mockRejectedValueOnce(rejected)
-    await expect(failure(() => screenshot(screenshots as never, { selector: '#target' }))).resolves.toBe(rejected)
+    await expect(failure(() => screenshot(screenshotBrowser as never, { selector: '#target' }))).resolves.toBe(rejected)
   })
 
   it.each([

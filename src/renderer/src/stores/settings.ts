@@ -1,9 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { translate } from '../../../shared/i18n.js'
+import { translate } from '../locale-messages.js'
 import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
 import { DEFAULT_TAB_POSITION } from '../../../shared/tab-position.js'
 import type { WindowMaterial } from '../../../shared/window-material.js'
+import type { SiteSearchDraft } from '../../../shared/site-search.js'
+import type { SecureDnsMode } from '../../../shared/secure-dns.js'
 import type {
   AppSettings,
   AttentionSoundCue,
@@ -23,6 +25,9 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   tabPosition: DEFAULT_TAB_POSITION,
   useSystemTitleBar: false,
   searchEngine: 'google',
+  siteSearches: [],
+  secureDnsMode: 'automatic',
+  secureDnsTemplate: '',
   hideInTray: true,
   launchAtStartup: false,
   launchMinimized: false,
@@ -31,6 +36,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   challengeDetectionEnabled: false,
   omitAgentUrlDetail: false,
   allowWebsiteFileSaving: false,
+  sitePermissionsBlockedByDefault: [],
   followAgentActivity: false,
   showAgentCursor: true,
   pinAgentLiveStatus: false,
@@ -40,10 +46,14 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   mcpToolSet: 'essentials',
   downloadDirectory: null,
   askWhereToSaveDownloads: false,
+  saveDialogDirectory: null,
   memorySaverEnabled: true,
   memorySaverTimeoutMinutes: 60,
+  graphicsAcceleration: true,
   checkForUpdatesOnStartup: true,
-  languagePreference: 'system'
+  languagePreference: 'system',
+  spellCheck: true,
+  spellCheckLanguages: []
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -186,6 +196,10 @@ export const useSettingsStore = defineStore('settings', () => {
   const setTabPosition = (position: TabPosition): Promise<AppSettings> => applySettings(window.hronautSettings.setTabPosition(position))
   const setUseSystemTitleBar = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setUseSystemTitleBar(enabled))
   const setSearchEngine = (engine: SearchEngineName): Promise<AppSettings> => applySettings(window.hronautSettings.setSearchEngine(engine))
+  const addSiteSearch = (draft: SiteSearchDraft): Promise<AppSettings> => applySettings(window.hronautSettings.addSiteSearch(draft))
+  const updateSiteSearch = (id: string, draft: SiteSearchDraft): Promise<AppSettings> => applySettings(window.hronautSettings.updateSiteSearch(id, draft))
+  const removeSiteSearch = (id: string): Promise<AppSettings> => applySettings(window.hronautSettings.removeSiteSearch(id))
+  const setSecureDns = (mode: SecureDnsMode, template: string): Promise<AppSettings> => applySettings(window.hronautSettings.setSecureDns(mode, template))
   const setHideInTray = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setHideInTray(enabled))
   const setLaunchAtStartup = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchAtStartup(enabled))
   const setLaunchMinimized = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchMinimized(enabled))
@@ -194,9 +208,14 @@ export const useSettingsStore = defineStore('settings', () => {
   const setFollowAgentActivity = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setFollowAgentActivity(enabled))
   const setShowAgentCursor = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setShowAgentCursor(enabled))
   const setPinAgentLiveStatus = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setPinAgentLiveStatus(enabled))
+  const setSpellCheck = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setSpellCheck(enabled))
+  const setSpellCheckLanguages = (languages: string[]): Promise<AppSettings> => applySettings(window.hronautSettings.setSpellCheckLanguages(languages))
   const setChallengeDetectionEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setChallengeDetectionEnabled(enabled))
   const setOmitAgentUrlDetail = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setOmitAgentUrlDetail(enabled))
   const setAllowWebsiteFileSaving = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAllowWebsiteFileSaving(enabled))
+  const setSitePermissionsBlockedByDefault = (permissions: string[]): Promise<AppSettings> => (
+    applySettings(window.hronautSettings.setSitePermissionsBlockedByDefault(permissions))
+  )
   const setMcpRemoteAccess = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpRemoteAccess(enabled))
   const setMcpAuthentication = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpAuthentication(enabled))
   const setMcpPort = (port: number): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpPort(port))
@@ -207,6 +226,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setMemorySaverEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMemorySaverEnabled(enabled))
   const setMemorySaverTimeoutMinutes = (minutes: MemorySaverTimeoutMinutes): Promise<AppSettings> => applySettings(window.hronautSettings.setMemorySaverTimeoutMinutes(minutes))
   const resetMemorySaver = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetMemorySaver())
+  const setGraphicsAcceleration = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setGraphicsAcceleration(enabled))
   const setCheckForUpdatesOnStartup = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setCheckForUpdatesOnStartup(enabled))
 
   async function setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState> {
@@ -251,6 +271,10 @@ export const useSettingsStore = defineStore('settings', () => {
     setTabPosition,
     setUseSystemTitleBar,
     setSearchEngine,
+    addSiteSearch,
+    updateSiteSearch,
+    removeSiteSearch,
+    setSecureDns,
     setHideInTray,
     setLaunchAtStartup,
     setLaunchMinimized,
@@ -259,9 +283,12 @@ export const useSettingsStore = defineStore('settings', () => {
     setFollowAgentActivity,
     setShowAgentCursor,
     setPinAgentLiveStatus,
+    setSpellCheck,
+    setSpellCheckLanguages,
     setChallengeDetectionEnabled,
     setOmitAgentUrlDetail,
     setAllowWebsiteFileSaving,
+    setSitePermissionsBlockedByDefault,
     setMcpRemoteAccess,
     setMcpAuthentication,
     setMcpPort,
@@ -272,6 +299,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setMemorySaverEnabled,
     setMemorySaverTimeoutMinutes,
     resetMemorySaver,
+    setGraphicsAcceleration,
     setCheckForUpdatesOnStartup,
     setLanguagePreference
   }

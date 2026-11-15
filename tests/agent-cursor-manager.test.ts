@@ -1,15 +1,26 @@
 import { afterEach, expect, it, vi } from 'vitest'
-vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+// A bitmap whose byte order is neither BGRA nor RGBA, so that main encodes the screenshot itself, as the fake image does.
+vi.mock('electron', () => ({
+  session: {}, WebContentsView: class {}, shell: {}, app: { getPath: () => '/tmp' },
+  nativeImage: { createFromBuffer: () => ({ toBitmap: () => Buffer.alloc(4) }) }
+}))
+// Rendering a hidden page, as the fixture's manager answers it.
+vi.mock('../src/main/browser/renderable-tab/renderable-tab.js', () => ({
+  withRenderableTab: (browser: { withRenderableTab(...args: unknown[]): unknown }, ...args: unknown[]) => browser.withRenderableTab(...args)
+}))
+// The saved PDF goes nowhere; its name comes back as the path.
+vi.mock('../src/main/browser/unique-download-file.js', () => ({
+  writeUniqueDownloadFile: async (_directory: string, filename: string) => `/downloads/${filename}`
+}))
+import { Browser } from '../src/main/browser/browser.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
+import { captureVisual } from '../src/main/browser/visual-compare/visual-capture.js'
+import { showAgentPointer } from '../src/main/browser/agent-pointer/agent-pointer.js'
 import type { AgentPointerIdentity } from '../src/main/browser/page-scripts.js'
+import { savePdf } from '../src/main/browser/pdf-export/pdf-export.js'
+import { screenshot } from '../src/main/browser/screenshots/screenshots.js'
 
 const CLAUDE: AgentPointerIdentity = { name: 'Claude Code', fill: '#2aa198', ink: '#111318' }
-
-type PointerManager = Pick<BrowserTabsManager, 'screenshot' | 'savePdf'> & {
-  captureVisual(tab: unknown, settleMs: number): Promise<{ png: Buffer }>
-  showAgentPointer(webContents: unknown, point: { x: number; y: number }, effect: 'click', options?: { agent?: AgentPointerIdentity }): Promise<void>
-}
 
 function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = async () => true) {
   const order: string[] = []
@@ -40,7 +51,7 @@ function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = asy
     removeListener: vi.fn()
   }
   const tab = { id: 'tab-1', title: 'Checkout', navigationGeneration: 1, webContents }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     options: showAgentCursor === undefined ? {} : { getShowAgentCursor: () => showAgentCursor },
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,
@@ -49,9 +60,8 @@ function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = asy
     destroyed: false,
     cssStatePreview: { active: () => false },
     withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run(),
-    writeUniqueDownload: async (filename: string) => `/downloads/${filename}`,
     snapshotDeltaContext: () => ({ tabId: tab.id, workspaceId: null, navigationGeneration: 1, observationGeneration: 0, humanInteractionGeneration: 0, snapshotFormatVersion: 1 })
-  }) as unknown as PointerManager
+  }) as unknown as Browser
   return { manager, tab, webContents, order, scripts }
 }
 
@@ -61,20 +71,20 @@ afterEach(() => {
 
 it('draws the agent\'s named cursor in its own world, and nothing while agent cursors are off', async () => {
   const on = fixture()
-  await on.manager.showAgentPointer(on.webContents, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
+  await showAgentPointer(on.manager, on.webContents as never, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
   expect(on.webContents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledOnce()
   expect(on.webContents.executeJavaScriptInIsolatedWorld.mock.calls[0]?.[0]).toBe(ISOLATED_WORLDS.agentPointer)
   expect(on.scripts[0]).toContain('"name":"Claude Code"')
   expect(on.scripts[0]).toContain('#2aa198')
 
   const off = fixture(false)
-  await off.manager.showAgentPointer(off.webContents, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
+  await showAgentPointer(off.manager, off.webContents as never, { x: 10, y: 20 }, 'click', { agent: CLAUDE })
   expect(off.webContents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
 })
 
 it('takes an agent\'s cursor off the page before capturing a screenshot for an agent', async () => {
   const { manager, order, scripts } = fixture(true)
-  const shot = await manager.screenshot({ tabId: 'tab-1' })
+  const shot = await screenshot(manager, { tabId: 'tab-1' })
   expect(shot.mimeType).toBe('image/png')
   expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`, 'capture'])
   expect(scripts[0]).toContain('[data-hronaut-agent-pointer]')
@@ -83,7 +93,7 @@ it('takes an agent\'s cursor off the page before capturing a screenshot for an a
 it('captures anyway when the page does not answer, after a moment', async () => {
   vi.useFakeTimers()
   const { manager, order } = fixture(true, () => new Promise(() => undefined))
-  const shot = manager.screenshot({ tabId: 'tab-1' })
+  const shot = screenshot(manager, { tabId: 'tab-1' })
   await vi.advanceTimersByTimeAsync(299)
   expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`])
   await vi.advanceTimersByTimeAsync(1)
@@ -93,13 +103,13 @@ it('captures anyway when the page does not answer, after a moment', async () => 
 
 it('takes an agent\'s cursor off the page before printing it to PDF, since it would show on every page', async () => {
   const { manager, order, scripts } = fixture(true)
-  await expect(manager.savePdf({ tabId: 'tab-1' })).resolves.toMatchObject({ bytes: 4 })
+  await expect(savePdf(manager, { tabId: 'tab-1' })).resolves.toMatchObject({ bytes: 4 })
   expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`, 'print'])
   expect(scripts[0]).toContain('[data-hronaut-agent-pointer]')
 })
 
 it('takes an agent\'s cursor off the page before a visual comparison capture', async () => {
   const { manager, tab, order } = fixture(true)
-  await expect(manager.captureVisual(tab, 0)).resolves.toMatchObject({ png: Buffer.from('png') })
+  await expect(captureVisual(manager, tab as never, 0)).resolves.toMatchObject({ png: Buffer.from('png') })
   expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`, 'capture'])
 })

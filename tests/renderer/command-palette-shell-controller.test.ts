@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   type CommandPaletteActions,
   useCommandPaletteShellController
-} from '../../src/renderer/src/composables/useCommandPaletteShellController.js'
+} from '../../src/renderer/src/features/command-palette/useCommandPaletteShellController.js'
 import { COMMAND_PALETTE_COMMANDS } from '../../src/shared/command-palette.js'
 
 function actions(overrides: Partial<CommandPaletteActions> = {}): CommandPaletteActions {

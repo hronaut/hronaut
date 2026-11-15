@@ -1,7 +1,7 @@
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { BrowserDebuggerQueue } from '../src/main/browser/debugger-queue.js'
-import { BrowserProfilingController, type BrowserProfilingTab } from '../src/main/browser/profiling-controller.js'
+import { BrowserProfilingController, type BrowserProfilingTab } from '../src/main/browser/profiling/profiling-controller.js'
 
 function deferred<T>() {
   let resolve!: (value: T) => void

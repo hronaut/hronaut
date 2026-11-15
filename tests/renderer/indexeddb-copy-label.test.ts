@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import SiteStorageIndexedDbView from '../../src/renderer/src/components/SiteStorageIndexedDbView.vue'
+import SiteStorageIndexedDbView from '../../src/renderer/src/features/site-storage/SiteStorageIndexedDbView.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserIndexedDbReport, SupportedLocale } from '../../src/shared/types.js'
 

@@ -1,8 +1,9 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { BrowserTabsManager } from '../../../browser/tabs-manager.js'
+import type { Browser } from '../../../browser/browser.js'
 import { McpCapabilityAuthorizationError } from '../../capability-profile-store.js'
 import { errorResult, mcpWorkspaceState, textResult, urlDetailOmitted } from '../../tool-results.js'
 import type { WorkspaceToolCall } from '../tool-context.js'
+import { getMcpGroupState } from '../../../browser/workspace-scope/workspace-scope.js'
 
 /**
  * How a labeled tab creation settles. It holds a human-waiting dispatch certificate, refreshed before publication,
@@ -10,7 +11,7 @@ import type { WorkspaceToolCall } from '../tool-context.js'
  * unsaved label reports that the tab, its navigation or its label may already exist. The tool reports its own tab
  * activity once the call settles.
  */
-export function labeledCreationSettlement(manager: BrowserTabsManager, input: Record<string, unknown>) {
+export function labeledCreationSettlement(manager: Browser, input: Record<string, unknown>) {
   let attempted = false
   let policy: Record<string, unknown> | undefined
   let certificate: (() => void) | undefined
@@ -33,7 +34,7 @@ export function labeledCreationSettlement(manager: BrowserTabsManager, input: Re
       publication()
       if (reviewFinalizationFailed) throw new Error('Review finalization failed')
       if (result.isError && !(knownNotSaved && result.structuredContent?.status === 'LABEL_NOT_SAVED')) throw new Error('Creation settlement failed')
-      const state = mcpWorkspaceState(manager.getMcpGroupState(String(input.workspaceId)), urlDetailOmitted(manager))
+      const state = mcpWorkspaceState(getMcpGroupState(manager, String(input.workspaceId)), urlDetailOmitted(manager))
       settled = { ...result, content: result.content.map(item => item.type === 'text' ? { ...item, text: JSON.stringify({ ...JSON.parse(item.text), ...state }, null, 2) } : item) }
     } catch (error) {
       rememberInputPolicy(error)

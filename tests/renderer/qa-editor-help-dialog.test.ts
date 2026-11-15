@@ -3,9 +3,9 @@ import { join } from 'node:path'
 import { render, screen } from '@testing-library/vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import HelpDialog from '../../src/renderer/src/components/HelpDialog.vue'
-import WorkspaceEditor from '../../src/renderer/src/components/WorkspaceEditor.vue'
-import { useHelpDialogController } from '../../src/renderer/src/composables/useHelpDialogController.js'
+import HelpDialog from '../../src/renderer/src/features/help/HelpDialog.vue'
+import WorkspaceEditor from '../../src/renderer/src/features/workspaces/WorkspaceEditor.vue'
+import { useHelpDialogController } from '../../src/renderer/src/features/help/useHelpDialogController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserWorkspaceNavigationPolicy } from '../../src/shared/types.js'
 
@@ -115,7 +115,7 @@ function mountEditor(navigationPolicy: BrowserWorkspaceNavigationPolicy = { mode
   const wrapper = mount(WorkspaceEditor, {
     attachTo: document.body,
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+    props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
       'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
   })
   const editor = wrapper.vm as unknown as { openNew: () => Promise<void>; openExisting: (id: string) => Promise<void> }

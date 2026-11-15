@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { snapshotScript } from '../src/main/browser/page-scripts.js'
 import { snapshotDeltaChanges } from '../src/shared/snapshot-delta.js'
 
-const capture = (selector?: string): string => window.eval(snapshotScript(100_000, true, selector)).text
+const capture = (selector?: string): string => window.eval(snapshotScript(100_000, selector)).text
 const controls = (text: string): string[] => text.split('\n').filter(line => line.startsWith('['))
 
 beforeEach(() => {
@@ -86,7 +86,7 @@ it('names each control the agent was shown for the shell, by its label and never
     <input type="submit" value="Place order">
     <button>Review   order</button>
     <div contenteditable="true">editor-canary</div>`
-  const result = window.eval(snapshotScript(100_000, true)) as { targetNames: [string, string][] }
+  const result = window.eval(snapshotScript(100_000)) as { targetNames: [string, string][] }
   expect(result.targetNames).toEqual([
     ['e1', 'Promo code'], ['e2', 'Notes'], ['e3', 'Country'], ['e4', 'Card number'], ['e5', 'Search'], ['e6', 'Place order'], ['e7', 'Review order']
   ])
@@ -95,7 +95,7 @@ it('names each control the agent was shown for the shell, by its label and never
 
 it('names only the controls whose lines fit in the snapshot', () => {
   document.body.innerHTML = Array.from({ length: 200 }, (_, index) => `<button>Action ${index}</button>`).join('')
-  const result = window.eval(snapshotScript(1_000, true)) as { text: string; targetNames: [string, string][] }
+  const result = window.eval(snapshotScript(1_000)) as { text: string; targetNames: [string, string][] }
   expect(result.targetNames.length).toBeGreaterThan(0)
   expect(result.targetNames.length).toBeLessThan(200)
   for (const [ref] of result.targetNames) expect(result.text).toContain(`[${ref}`)

@@ -203,6 +203,8 @@ describe('release quality gates', () => {
     // A cached ESLint result for an unchanged file hides a type-aware error that a change in another file causes, and
     // the release gate lints without a cache, so the rehearsal does too.
     expect(validate).not.toContain('.cache/eslint')
+    // The release takes a rehearsal's validate result, so a rehearsal typechecks without earlier state as the release does.
+    expect(validate).toContain("- name: Restore static-analysis state\n        if: ${{ !startsWith(github.ref_name, 'release/') }}\n        uses: actions/cache/restore@v6")
   })
 
   it('blocks native preflights on the release gate\'s advisories and only reports development ones', async () => {
@@ -238,6 +240,73 @@ describe('release quality gates', () => {
     }
   })
 
+  // The release ran validate and all the Electron shards again on the tree its rehearsal had just passed.
+  it('takes validate and Electron shard results from a release rehearsal that passed on the same tree', async () => {
+    type Step = { name?: string, id?: string, if?: string, run?: string, uses?: string, with?: Record<string, unknown>, env?: Record<string, string> }
+    type Job = { name?: string, needs?: string | string[], if?: string, permissions?: Record<string, string>, outputs?: Record<string, string>, strategy?: { matrix: { shard: number[] } }, steps: Step[] }
+    const [releaseSource, ciSource] = await Promise.all([
+      readFile('.github/workflows/release.yml', 'utf8'),
+      readFile('.github/workflows/ci.yml', 'utf8')
+    ])
+    const release = parse(releaseSource) as { on: { workflow_dispatch: { inputs: Record<string, { type: string, default: unknown }> } }, jobs: Record<string, Job> }
+    const ci = parse(ciSource) as { jobs: Record<string, Job> }
+    const ciWorkflow = parse(ciSource) as { on: unknown }
+    const { REHEARSED_JOBS } = await import('../scripts/find-release-rehearsal.ts')
+    const step = (job: Job, name: string) => {
+      const found = job.steps.find((candidate) => candidate.name === name)
+      if (!found) throw new Error(`Workflow step not found: ${name}`)
+      return found
+    }
+    const reused = "needs.prepare-release.outputs.rehearsal_run != ''"
+    const finder = await readFile('scripts/find-release-rehearsal.ts', 'utf8')
+    const notReused = "needs.prepare-release.outputs.rehearsal_run == ''"
+
+    expect(release.on.workflow_dispatch.inputs.full_tests).toMatchObject({ type: 'boolean', default: false })
+    const prepare = release.jobs['prepare-release']!
+    expect(prepare.permissions).toEqual({ actions: 'read', contents: 'read' })
+    expect(prepare.outputs?.rehearsal_run).toBe('${{ steps.rehearsal.outputs.run_id }}')
+    expect(finder).toContain('appendFile(process.env.GITHUB_OUTPUT, `run_id=${run}\\n`)')
+    const find = step(prepare, 'Find the release rehearsal that passed on this tree')
+    expect(find).toMatchObject({
+      id: 'rehearsal',
+      if: "github.event_name != 'workflow_dispatch' || inputs.full_tests != true",
+      run: 'node scripts/find-release-rehearsal.ts "$(git rev-parse "$GITHUB_SHA^{tree}")"'
+    })
+
+    const integration = release.jobs['test-integration']!
+    expect(step(integration, 'Take the shard\'s result from the release rehearsal').if).toBe(reused)
+    expect(step(integration, 'Checkout immutable release source').if).toBe(notReused)
+    expect(step(integration, 'Run Electron integration tests in Docker').if).toBe(notReused)
+    const validate = release.jobs.validate!
+    expect(step(validate, 'Take static validation from the release rehearsal').if).toBe(reused)
+    expect(step(validate, 'Run static validation')).toMatchObject({ if: notReused, run: 'npm run validate' })
+    // Advisories can be published after the rehearsal.
+    expect(step(validate, 'Audit production dependencies').if).toBeUndefined()
+
+    // The finder asks for the rehearsal's jobs by the names ci.yml gives them.
+    const shards = ci.jobs['integration-shard']!
+    expect(REHEARSED_JOBS).toEqual([
+      'validate',
+      ...shards.strategy!.matrix.shard.map((shard) => shards.name!.replace('${{ matrix.shard }}', String(shard)))
+    ])
+    expect(integration.strategy!.matrix.shard).toEqual(shards.strategy!.matrix.shard)
+    expect(step(integration, 'Run Electron integration tests in Docker').env)
+      .toEqual(step(shards, 'Run Electron integration tests in Docker').env)
+    // A rehearsal stands for the tree it was dispatched on only while ci.yml takes no input and checks out that commit.
+    expect(ciWorkflow.on).toEqual({ workflow_dispatch: null })
+    for (const job of ['validate', 'integration-shard']) {
+      const checkout = ci.jobs[job]!.steps.find(({ uses }) => uses?.startsWith('actions/checkout@'))
+      expect(checkout).toBeDefined()
+      expect(checkout?.with).toBeUndefined()
+    }
+    for (const job of ['validate', 'integration-shard']) {
+      expect(ci.jobs[job]!.steps.map(({ run }) => run).filter(Boolean)).toEqual(expect.arrayContaining(
+        release.jobs[job === 'validate' ? 'validate' : 'test-integration']!.steps
+          .filter(({ if: condition }) => condition === notReused).map(({ run }) => run).filter(Boolean)
+      ))
+    }
+  })
+
   it.each(['build-linux', 'build-macos', 'build-windows'])(
     'does not package desktop artifacts after adapter validation fails (%s)', async build => {
       const workflow = parse(await readFile('.github/workflows/release.yml', 'utf8')) as {
@@ -268,10 +337,26 @@ describe('release quality gates', () => {
       expect(testMcpb).toContain(`- ${os}`)
     }
     expect(testMcpb).toContain('npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts')
-    expect(testMcpb).toContain('npm test -- tests/claude-code-plugin.test.ts')
     expect(buildMcpb).toContain('- test-mcpb')
     expect(buildMcpb).toContain('npm run package:mcpb')
     expect(buildMcpb).toContain('dist/hronaut-operator-manifest.json')
+  })
+
+  it('announces only a publicly verified release on Discord, without blocking it', async () => {
+    const releaseWorkflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const announce = job(releaseWorkflow, 'announce-discord')
+
+    expect(announce).toContain("if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true")
+    expect(announce).toContain('- publish-release')
+    expect(announce).toContain('- verify-public-release')
+    expect(announce).toContain('continue-on-error: true')
+    expect(announce).toContain('persist-credentials: false')
+    expect(announce).toContain('secrets.DISCORD_RELEASE_WEBHOOK_URL')
+    expect(announce).toContain('secrets.DISCORD_RELEASE_BOT_TOKEN')
+    expect(announce).toContain('git show "$NOTES_SHA:CHANGELOG.md"')
+    for (const name of ['publish-release', 'verify-public-release', 'publish-mcp-registry', 'update-scoop-manifest']) {
+      expect(job(releaseWorkflow, name)).not.toContain('announce-discord')
+    }
   })
 
   it('publishes only verified release MCPB assets to the official Registry', async () => {
@@ -418,21 +503,30 @@ describe('release quality gates', () => {
       expect(integration).not.toContain('docker/build-push-action')
       expect(integration).not.toContain('type=gha,scope=hronaut-integration')
       expect(integration).not.toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT')
-      expect(integration).toContain('if: failure()')
+      // A shard that passed only after a flaky-test recheck keeps the first failures' traces too.
+      expect(integration).toContain('if: ${{ !cancelled() }}')
       expect(integration).toContain('uses: actions/upload-artifact@v7')
       expect(integration).toContain('path: ci-artifacts/')
       expect(integration).toContain('retention-days: 7')
     }
-    expect(manualIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
-    expect(manualIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
+    expect(manualIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/12')
+    expect(manualIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"')
     expect(releaseIntegration).toContain('fail-fast: false')
-    expect(releaseIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
-    expect(releaseIntegration).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8]')
-    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
+    expect(releaseIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/12')
+    expect(releaseIntegration).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]')
+    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/12"')
     expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
-    expect(releaseIntegration).toContain('release-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}')
+    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_RUN_PERFORMANCE: "${{ matrix.shard == 2 }}"')
+    expect(releaseIntegration).toContain('diagnostics-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}')
+    // The publish job downloads every release-* artifact into the assets it attests and publishes; only builds may match.
+    const releaseArtifacts = [...releaseWorkflow.matchAll(/^ +name: (release-.*)$/gm)].map((match) => match[1])
+    expect(releaseArtifacts).toEqual(['release-mcpb', 'release-linux-${{ matrix.slug }}', 'release-macos', 'release-windows-${{ matrix.target }}'])
+    expect(releaseWorkflow).toContain('          pattern: release-*\n          path: release-assets\n')
     expect(playwright).toContain('retries: process.env.CI ? 1 : 0')
     expect(playwright).toContain('failOnFlakyTests: Boolean(process.env.CI)')
+    expect(playwright).toContain("[['json', { outputFile: `test-results/json/${artifactShard}.json` }]]")
+    expect(runner).toContain("grep -q '^::warning title=Flaky Electron tests::' \"$startup_log\"")
+    expect(runner).toContain('if { (( status != 0 )) || [[ "$flaky_passed" == true ]]; } && docker inspect "$container_name" >/dev/null 2>&1; then')
     expect(playwright).toContain("trace: process.env.CI ? 'retain-on-failure' : 'off'")
     expect(runner).toContain('compose_build_arguments+=(--build)')
     expect(runner).not.toContain('--no-build')
@@ -440,6 +534,15 @@ describe('release quality gates', () => {
     expect(runner).toContain('docker cp "$container_name:/workspace/$source_directory" - | tar -xf - -C "$artifact_directory"')
     expect(runner).toContain('docker rm --force "$container_name"')
     expect(runner).not.toContain('run --build --rm integration')
+  })
+
+  // A retry or a recorded trace would let a run that missed a limit pass, or measure the recording with the app.
+  it('measures responsiveness once, alone and unrecorded', async () => {
+    const config = await readFile('playwright.performance.config.ts', 'utf8')
+    expect(config).toContain("testMatch: '**/*.perf.ts'")
+    expect(config).toContain('workers: 1')
+    expect(config).toContain('retries: 0')
+    expect(config).toContain("use: { trace: 'off' }")
   })
 
   it('keeps wallet documentation in the website public source before output cleanup', async () => {

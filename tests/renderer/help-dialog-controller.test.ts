@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useHelpDialogController } from '../../src/renderer/src/composables/useHelpDialogController.js'
+import { useHelpDialogController } from '../../src/renderer/src/features/help/useHelpDialogController.js'
 
 describe('help dialog controller', () => {
   it('opens either help view and runs shell cleanup first', () => {
@@ -40,24 +40,45 @@ describe('help dialog controller', () => {
     expect(mac.keys['runtime.shortcuts.history']).toEqual(['Cmd', 'Y'])
     expect(mac.keys['runtime.shortcuts.downloads']).toEqual(['Cmd', 'Option', 'L'])
     expect(mac.keys['runtime.shortcuts.devtools']).toEqual(['Cmd', 'Option', 'I'])
+    expect(mac.keys['runtime.shortcuts.console']).toEqual(['Cmd', 'Option', 'J'])
     expect(mac.keys['runtime.shortcuts.viewSource']).toEqual(['Cmd', 'Option', 'U'])
     expect(mac.keys['runtime.shortcuts.back']).toEqual(['Cmd', '['])
     expect(mac.keys['runtime.shortcuts.forward']).toEqual(['Cmd', ']'])
     expect(mac.keys['runtime.shortcuts.addressNewTab']).toEqual(['Option', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressBackgroundTab']).toEqual(['Cmd', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Control', 'Return'])
+    expect(mac.keys['runtime.shortcuts.findFollowLink']).toEqual(['Control', 'Return'])
     expect(mac.keys['runtime.shortcuts.addressForgetVisit']).toEqual(['Shift', 'Fn', 'Delete'])
+    expect(mac.keys['runtime.shortcuts.moveTabNext']).toEqual(['Control', 'Shift', 'Page Down'])
+    // macOS names the key Control, as in the rows beside it.
+    expect(mac.keys['runtime.shortcuts.nextTab']).toEqual(['Control', 'Tab'])
+    expect(mac.keys['runtime.shortcuts.nextPane']).toBeUndefined()
+    expect(mac.keys['shell.home.open']).toBeUndefined()
+    expect(mac.keys['runtime.shortcuts.stop']).toBeUndefined()
+    // Chrome gives its Task manager no key on macOS.
+    expect(mac.keys['runtime.shortcuts.taskManager']).toBeUndefined()
+    expect(mac.keys['runtime.shortcuts.moveTabPrevious']).toEqual(['Control', 'Shift', 'Page Up'])
+    expect(mac.keys['runtime.shortcuts.settings']).toEqual(['Cmd', ','])
     const linux = keysFor('linux')
     expect(linux.mac).toBe(false)
     expect(linux.keys['runtime.shortcuts.pick']).toEqual(['Ctrl', 'Shift', 'C'])
     expect(linux.keys['runtime.shortcuts.history']).toEqual(['Ctrl', 'H'])
     expect(linux.keys['runtime.shortcuts.downloads']).toEqual(['Ctrl', 'J'])
+    expect(linux.keys['runtime.shortcuts.taskManager']).toEqual(['Shift', 'Esc'])
     expect(linux.keys['runtime.shortcuts.devtools']).toEqual(['F12'])
+    expect(linux.keys['runtime.shortcuts.console']).toEqual(['Ctrl', 'Shift', 'J'])
     expect(linux.keys['runtime.shortcuts.back']).toEqual(['Alt', '←'])
     expect(linux.keys['runtime.shortcuts.forward']).toEqual(['Alt', '→'])
     expect(linux.keys['runtime.shortcuts.addressNewTab']).toEqual(['Alt', 'Enter'])
     expect(linux.keys['runtime.shortcuts.addressBackgroundTab']).toEqual(['Alt', 'Shift', 'Enter'])
     expect(linux.keys['runtime.shortcuts.addressWwwCom']).toEqual(['Ctrl', 'Enter'])
+    expect(linux.keys['runtime.shortcuts.findFollowLink']).toEqual(['Ctrl', 'Enter'])
+    expect(linux.keys['runtime.shortcuts.moveTabNext']).toEqual(['Ctrl', 'Shift', 'Page Down'])
+    expect(linux.keys['runtime.shortcuts.nextPane']).toEqual(['F6'])
+    expect(linux.keys['shell.home.open']).toEqual(['Alt', 'Home'])
+    expect(linux.keys['runtime.shortcuts.settings']).toBeUndefined()
+    expect(linux.keys['runtime.shortcuts.stop']).toEqual(['Esc'])
+    expect(linux.keys['runtime.shortcuts.moveTabPrevious']).toEqual(['Ctrl', 'Shift', 'Page Up'])
     // Every key is one key, so the dialog can write each in its platform's own way.
     for (const keys of Object.values(linux.keys)) for (const key of keys) expect(key === '+' || !/.\+./u.test(key)).toBe(true)
   })
@@ -129,7 +150,15 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.addressForgetVisit',
       keys: ['Shift', 'Delete']
     })
-    expect(controller.shortcuts.value).toHaveLength(36)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.addressKeywordSearch',
+      keys: ['Tab']
+    })
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.bookmarkAllTabs',
+      keys: ['Ctrl/Cmd', 'Shift', 'D']
+    })
+    expect(controller.shortcuts.value).toHaveLength(46)
     controller.dispose()
   })
 })

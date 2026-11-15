@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { domChanges } from '../../../browser/dom-recorder/browser-dom-recorder.js'
 
 export function registerBrowserDomChanges(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -20,6 +21,6 @@ export function registerBrowserDomChanges(context: McpToolContext): void {
     }: {
       tabId?: string
       action: 'start' | 'get' | 'stop' | 'clear'
-    }) => textResult(await manager.domChanges(action, tabId)))
+    }) => textResult(await domChanges(manager, action, tabId)))
   )
 }

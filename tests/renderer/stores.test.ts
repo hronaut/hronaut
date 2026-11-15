@@ -1,4 +1,4 @@
-import { nextTick } from 'vue'
+import { isReactive, nextTick, watch } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { BrowserState, RendererSettingsState } from '../../src/shared/types.js'
 import { useBrowserStore } from '../../src/renderer/src/stores/browser.js'
@@ -44,6 +44,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       tabPosition: 'top',
       useSystemTitleBar: false,
       searchEngine: 'google',
+      siteSearches: [],
       hideInTray: true,
       launchAtStartup: false,
       launchMinimized: false,
@@ -52,6 +53,9 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: [],
+      secureDnsMode: 'automatic',
+      secureDnsTemplate: '',
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,
@@ -61,10 +65,14 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
+      saveDialogDirectory: null,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
+      graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: locale
+      languagePreference: locale,
+      spellCheck: true,
+      spellCheckLanguages: []
     },
     systemTheme: 'dark',
     systemLocale: locale,
@@ -90,8 +98,9 @@ function installBrowserApi(options: {
   getState: () => Promise<BrowserState>
   onStateChanged: (listener: (state: BrowserState) => void) => () => void
   selectTab?: (tabId: string) => Promise<BrowserState>
+  stateDrawn?: () => void
 }): void {
-  Object.defineProperty(window, 'hronaut', { configurable: true, value: options })
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: { stateDrawn: () => undefined, ...options } })
 }
 
 function installSettingsApi(options: {
@@ -165,6 +174,27 @@ describe('browser Pinia store lifecycle', () => {
     await store.initialize()
     expect(store.state.activeTabId).toBe('recovered')
     expect(onStateChanged).toHaveBeenCalledTimes(2)
+  })
+
+  it('settles a wait for the first browser state once a read succeeds, also after a failed one', async () => {
+    const failure = new Error('state unavailable')
+    const getState = vi.fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(browserState('recovered'))
+    installBrowserApi({ getState, onStateChanged: () => vi.fn() })
+    const store = useBrowserStore()
+    let settled = false
+    const waiting = store.whenInitialized().then(() => { settled = true })
+
+    await expect(store.initialize()).rejects.toBe(failure)
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    await store.initialize()
+    await waiting
+    expect(store.state.activeTabId).toBe('recovered')
+    // Once read, a wait settles at once.
+    await expect(store.whenInitialized()).resolves.toBeUndefined()
+    store.dispose()
   })
 
   it('keeps a leaked browser listener inert when failed initialization cleanup throws', async () => {
@@ -278,6 +308,26 @@ describe('browser Pinia store lifecycle', () => {
     store.dispose()
   })
 
+  it('syncs a state in hand or a pending one, and still lets a newer response win', async () => {
+    installBrowserApi({
+      getState: async () => browserState('initial'),
+      onStateChanged: () => vi.fn()
+    })
+    const store = useBrowserStore()
+    await store.initialize()
+
+    await store.sync(browserState('in-hand'))
+    expect(store.state.activeTabId).toBe('in-hand')
+
+    const older = deferred<BrowserState>()
+    const olderSync = store.sync(older.promise)
+    await store.sync(browserState('newer'))
+    older.resolve(browserState('older'))
+    await olderSync
+    expect(store.state.activeTabId).toBe('newer')
+    store.dispose()
+  })
+
   it('keeps the latest browser action authoritative when responses settle in request order', async () => {
     installBrowserApi({
       getState: async () => browserState('initial'),
@@ -336,6 +386,283 @@ describe('browser Pinia store lifecycle', () => {
     await syncing
 
     expect(store.state.activeTabId).toBe('initial')
+  })
+
+  it('tells main once it drew each published state, so main sends the next only then', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    const stateDrawn = vi.fn()
+    const selectTab = vi.fn(async (tabId: string) => browserState(tabId))
+    installBrowserApi({ getState: async () => browserState('initial'), onStateChanged: (next) => { listener = next; return vi.fn() }, selectTab, stateDrawn })
+    const store = useBrowserStore()
+    await store.initialize()
+    // The state read at start and an action's reply are answers, not publications.
+    await store.selectTab('selected')
+    await nextTick()
+    expect(stateDrawn).not.toHaveBeenCalled()
+
+    let shownTabId: string | null | undefined
+    let shownWhenDrawn: string | null | undefined
+    stateDrawn.mockImplementation(() => { shownWhenDrawn = shownTabId })
+    const unwatch = watch(() => store.state.activeTabId, (id) => { shownTabId = id })
+    try {
+      listener?.(browserState('published'))
+      expect(stateDrawn).not.toHaveBeenCalled()
+      await nextTick()
+      expect(stateDrawn).toHaveBeenCalledTimes(1)
+      // It was drawn first: what follows the state had already run.
+      expect(shownWhenDrawn).toBe('published')
+    } finally {
+      unwatch()
+      store.dispose()
+    }
+    // A store that stopped listening draws nothing more, so it says nothing.
+    listener?.(browserState('after dispose'))
+    await nextTick()
+    expect(stateDrawn).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the tabs that did not change, so only the changed tab draws again', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    const twoTabs = (secondTitle: string): BrowserState => {
+      const state = browserState('first')
+      return { ...state, tabs: [state.tabs[0], { ...state.tabs[0], id: 'second', title: secondTitle, active: false }] }
+    }
+    installBrowserApi({ getState: async () => twoTabs('Loading'), onStateChanged: (next) => { listener = next; return vi.fn() } })
+    const store = useBrowserStore()
+    await store.initialize()
+    const [first, second] = store.state.tabs
+    const workspaces = store.state.mcpTabGroups
+
+    listener?.(twoTabs('Loaded'))
+    expect(store.state.tabs[0]).toBe(first)
+    expect(store.state.tabs[1]).not.toBe(second)
+    expect(store.state.tabs[1].title).toBe('Loaded')
+    expect(store.state.mcpTabGroups).toBe(workspaces)
+
+    const tabs = store.state.tabs
+    listener?.(twoTabs('Loaded'))
+    expect(store.state.tabs).toBe(tabs)
+    listener?.({ ...twoTabs('Loaded'), tabs: [...twoTabs('Loaded').tabs].reverse() })
+    expect(store.state.tabs.map(tab => tab.id)).toEqual(['second', 'first'])
+    expect(store.state.tabs[1]).toBe(first)
+    store.dispose()
+  })
+
+  it('keeps the split view and the followed agent while they stay equal, so what shows them does not draw again', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    const split = (ratio: number): BrowserState => ({
+      ...browserState('first'),
+      splitView: { firstTabId: 'first', secondTabId: 'second', orientation: 'vertical', ratio },
+      agentFollow: { tabId: 'first', agentName: 'Claude' }
+    })
+    installBrowserApi({ getState: async () => split(0.5), onStateChanged: (next) => { listener = next; return vi.fn() } })
+    const store = useBrowserStore()
+    await store.initialize()
+    const { splitView, agentFollow } = store.state
+
+    listener?.(split(0.5))
+    expect(store.state.splitView).toBe(splitView)
+    expect(store.state.agentFollow).toBe(agentFollow)
+
+    listener?.(split(0.7))
+    expect(store.state.splitView).not.toBe(splitView)
+    expect(store.state.splitView?.ratio).toBe(0.7)
+    expect(store.state.agentFollow).toBe(agentFollow)
+
+    listener?.(browserState('first'))
+    expect('splitView' in store.state).toBe(false)
+    expect('agentFollow' in store.state).toBe(false)
+    store.dispose()
+  })
+
+  // Under four agents the shell spent 8% of its time in Vue's proxies around the state's tabs, read on every draw of
+  // the tab strip, though the shell never changes a state it got.
+  it('keeps each state as it arrived, without Vue proxies around its tabs, and still updates what reads it', async () => {
+    let listener: ((state: BrowserState) => void) | undefined
+    installBrowserApi({ getState: async () => browserState('first'), onStateChanged: (next) => { listener = next; return vi.fn() } })
+    const store = useBrowserStore()
+    const titles: string[] = []
+    const unwatch = watch(() => store.state.tabs[0]?.title, (title) => { if (title) titles.push(title) })
+    try {
+      await store.initialize()
+      expect(isReactive(store.state)).toBe(false)
+      expect(isReactive(store.state.tabs[0])).toBe(false)
+      titles.length = 0
+      const next = browserState('first')
+      next.tabs[0].title = 'Loaded'
+      listener?.(next)
+      await nextTick()
+      expect(titles).toEqual(['Loaded'])
+      expect(store.state.tabs[0]).toBe(next.tabs[0])
+    } finally {
+      unwatch()
+      store.dispose()
+    }
+  })
+
+  // Under four agents main took 45 ms at the median to answer a tab click; the shell now shows the click at once.
+  describe('guesses of the person\'s tab actions', () => {
+    /** Tabs a and b, with the given one shown and an optional title for b, as a state main sends. */
+    function twoTabs(activeTabId: 'a' | 'b', titleOfB = 'B'): BrowserState {
+      const state = browserState('a')
+      const b = { ...state.tabs[0], id: 'b', title: titleOfB, url: 'https://example.org/' }
+      state.tabs = [{ ...state.tabs[0], active: activeTabId === 'a' }, { ...b, active: activeTabId === 'b' }]
+      state.activeTabId = activeTabId
+      return state
+    }
+
+    async function storeWith(initial: BrowserState, selectTab?: (tabId: string) => Promise<BrowserState>) {
+      let listener: ((state: BrowserState) => void) | undefined
+      installBrowserApi({ getState: async () => initial, onStateChanged: (next) => { listener = next; return vi.fn() }, selectTab })
+      const store = useBrowserStore()
+      await store.initialize()
+      return { store, publish: (next: BrowserState) => listener?.(next) }
+    }
+
+    it('shows a selected tab before main answers, and main\'s answer after', async () => {
+      const answer = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'), () => answer.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs.map((tab) => tab.active)).toEqual([false, true])
+      expect(store.activeTab?.id).toBe('b')
+      answer.resolve(twoTabs('b', 'B answered'))
+      await selecting
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs[1].title).toBe('B answered')
+      store.dispose()
+    })
+
+    it('keeps the guess over a state main published before it handled the action', async () => {
+      const answer = deferred<BrowserState>()
+      const { store, publish } = await storeWith(twoTabs('a'), () => answer.promise)
+      const selecting = store.selectTab('b')
+      publish(twoTabs('a', 'B loaded'))
+      // The published change shows, under the guess: the tab strip does not jump back to a.
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs[1].title).toBe('B loaded')
+      publish(twoTabs('b', 'B selected'))
+      answer.resolve(twoTabs('b', 'B selected'))
+      await selecting
+      expect(store.state.activeTabId).toBe('b')
+      expect(store.state.tabs[1].title).toBe('B selected')
+      store.dispose()
+    })
+
+    it('shows main\'s state again when the action fails or main does something else', async () => {
+      const refused = deferred<BrowserState>()
+      const { store, publish } = await storeWith(twoTabs('a'), () => refused.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('b')
+      refused.reject(new Error('refused'))
+      await expect(selecting).rejects.toThrow('refused')
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs.map((tab) => tab.active)).toEqual([true, false])
+
+      // A state that arrived meanwhile wins over the answer, and still replaces the guess once the action settles.
+      const answer = deferred<BrowserState>()
+      const other = store.syncOperation(answer.promise, (state) => ({ ...state, activeTabId: 'b' }))
+      publish(twoTabs('a', 'B after'))
+      expect(store.state.activeTabId).toBe('b')
+      answer.resolve(twoTabs('b'))
+      await other
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs[1].title).toBe('B after')
+      store.dispose()
+    })
+
+    it('shows the newest of several waiting guesses, and the newest answer once all settle', async () => {
+      const first = deferred<BrowserState>()
+      const second = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'))
+      const toB = store.syncOperation(first.promise, (state) => ({ ...state, activeTabId: 'b' }))
+      const toA = store.syncOperation(second.promise, (state) => ({ ...state, activeTabId: 'a' }))
+      expect(store.state.activeTabId).toBe('a')
+      first.resolve(twoTabs('b'))
+      await toB
+      // The newer action still waits, so its guess still shows.
+      expect(store.state.activeTabId).toBe('a')
+      second.resolve(twoTabs('a', 'B after both'))
+      await toA
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs[1].title).toBe('B after both')
+      store.dispose()
+    })
+
+    it('keeps the objects of tabs a guess left alone, so their rows do not draw again', async () => {
+      const answer = deferred<BrowserState>()
+      const initial = twoTabs('a')
+      initial.tabs.push({ ...initial.tabs[1], id: 'c', active: false })
+      const { store } = await storeWith(initial, () => answer.promise)
+      const c = store.state.tabs[2]
+      const selecting = store.selectTab('b')
+      expect(store.state.tabs[2]).toBe(c)
+      const answered = structuredClone(initial)
+      answered.activeTabId = 'b'
+      answered.tabs[0].active = false
+      answered.tabs[1].active = true
+      answer.resolve(answered)
+      await selecting
+      expect(store.state.tabs[2]).toBe(c)
+      store.dispose()
+    })
+
+    it('shows main\'s answer, not the guess, when main answers without doing what was guessed', async () => {
+      const answer = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'), () => answer.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('b')
+      answer.resolve(twoTabs('a', 'B answered'))
+      await selecting
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs.map((tab) => tab.active)).toEqual([true, false])
+      expect(store.state.tabs[1].title).toBe('B answered')
+      store.dispose()
+    })
+
+    it('drops the guess of an action sent earlier once a later one settles, as main had both by then', async () => {
+      const toB = deferred<BrowserState>()
+      const toA = deferred<BrowserState>()
+      const { store, publish } = await storeWith(twoTabs('a'))
+      const first = store.syncOperation(toB.promise, (state) => ({ ...state, activeTabId: 'b' }))
+      const second = store.syncOperation(toA.promise, (state) => ({ ...state, activeTabId: 'a', allTabsMuted: true }))
+      publish(twoTabs('a'))
+      toA.resolve({ ...twoTabs('a'), allTabsMuted: true })
+      await second
+      expect(store.state.activeTabId).toBe('a')
+      toB.resolve(twoTabs('b'))
+      await first
+      expect(store.state.activeTabId).toBe('a')
+      store.dispose()
+    })
+
+    it('shows an earlier answer without the guess of a later action that failed', async () => {
+      const earlier = deferred<BrowserState>()
+      const refused = deferred<BrowserState>()
+      const { store } = await storeWith(twoTabs('a'), () => refused.promise)
+      const pause = store.syncOperation(earlier.promise)
+      const selecting = store.selectTab('b')
+      earlier.resolve(twoTabs('a', 'B paused'))
+      await pause
+      refused.reject(new Error('refused'))
+      await expect(selecting).rejects.toThrow('refused')
+      expect(store.state.activeTabId).toBe('a')
+      expect(store.state.tabs[1].title).toBe('B paused')
+      store.dispose()
+    })
+
+    it('shows a sleeping or loading tab only once main does, since main shows it only after it wakes', async () => {
+      const answer = deferred<BrowserState>()
+      const initial = twoTabs('a')
+      initial.tabs[1] = { ...initial.tabs[1], sleeping: true }
+      const { store } = await storeWith(initial, () => answer.promise)
+      const selecting = store.selectTab('b')
+      expect(store.state.activeTabId).toBe('a')
+      answer.resolve(twoTabs('b'))
+      await selecting
+      expect(store.state.activeTabId).toBe('b')
+      store.dispose()
+    })
   })
 })
 

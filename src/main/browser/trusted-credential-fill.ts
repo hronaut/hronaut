@@ -1,4 +1,9 @@
-import type { CredentialFillPageResult } from './credential-fill-page.js'
+import type { CredentialFillPageResult } from './credential-fill/credential-fill.page.js'
+
+/** Whether a fill script's answer is one the fill gives. */
+export function isCredentialFillPageResult(value: unknown): value is CredentialFillPageResult {
+  return value === 'none' || value === 'changed' || value === 'filled'
+}
 
 interface CredentialFillAuthorityState {
   humanInteractionGeneration: number
@@ -6,6 +11,7 @@ interface CredentialFillAuthorityState {
   lastActiveAt: number
 }
 
+/** A fill that changed the page counts as the person's input at `now`, on the monotonic clock. */
 export function recordTrustedCredentialFill(
   outcome: CredentialFillPageResult,
   tab: CredentialFillAuthorityState,

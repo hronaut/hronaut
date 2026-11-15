@@ -22,7 +22,7 @@ test('settles superseded and stopped page searches and permits a real search aft
       let requestId = 0
       page.findInPage = () => ++requestId
       Reflect.set(page, 'restoreFindLifecycleFixture', () => { page.findInPage = original })
-      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed') }
+      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed'), gone: page.listenerCount('render-process-gone') }
     }, url)
     await appWindow.evaluate(`(() => {
       window.findLifecycleResults = [];
@@ -34,8 +34,8 @@ test('settles superseded and stopped page searches and permits a real search aft
     await expect.poll(() => appWindow.evaluate('window.findLifecycleResults.length')).toBe(11)
     expect(await electronApp.evaluate(({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
-      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed') }
-    }, url)).toEqual({ found: baseline.found + 1, destroyed: baseline.destroyed + 1 })
+      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed'), gone: page.listenerCount('render-process-gone') }
+    }, url)).toEqual({ found: baseline.found + 1, destroyed: baseline.destroyed + 1, gone: baseline.gone + 1 })
     await appWindow.evaluate(`window.hronaut.stopFindInPage(${JSON.stringify(tabId)})`)
     await expect.poll(() => appWindow.evaluate('window.findLifecycleResults.length')).toBe(12)
     expect(await appWindow.evaluate('window.findLifecycleResults.every(message => message.includes("cancelled or superseded"))')).toBe(true)
@@ -44,13 +44,17 @@ test('settles superseded and stopped page searches and permits a real search aft
       Reflect.get(page, 'restoreFindLifecycleFixture')()
       Reflect.deleteProperty(page, 'restoreFindLifecycleFixture')
       await page.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
-      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed') }
+      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed'), gone: page.listenerCount('render-process-gone') }
     }, url)).toEqual(baseline)
     expect(await appWindow.evaluate(`window.hronaut.findInPage({ tabId: ${JSON.stringify(tabId)}, query: 'needle' })`))
       .toEqual({ activeMatchOrdinal: 1, matches: 3 })
     await appWindow.evaluate(`window.hronaut.stopFindInPage(${JSON.stringify(tabId)})`)
     const bar = appWindow.getByRole('search', { name: 'Find in page' })
     await appWindow.getByRole('button', { name: 'Find in page', exact: true }).click()
+    // Ending the search above left its first match selected, as Chrome's find bar does when it closes, so Find opens with
+    // its text and finds that match, as in Chrome.
+    await expect(bar.getByRole('searchbox', { name: 'Find text' })).toHaveValue('needle')
+    await expect(bar.locator('.find-count')).toHaveText('1 / 3')
     await bar.getByRole('searchbox', { name: 'Find text' }).fill('needle')
     await expect(bar.locator('.find-count')).toHaveText('1 / 3')
     await electronApp.evaluate(({ ipcMain }) => {

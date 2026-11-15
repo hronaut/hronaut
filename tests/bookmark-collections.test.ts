@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { BookmarkStore } from '../src/main/bookmark-store.js'
+import { BookmarkStore } from '../src/main/bookmarks-history/bookmark-store.js'
 
 const directories: string[] = []
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
@@ -32,6 +32,31 @@ it('preserves assignment across duplicate URL saves, edits and restart', async (
   await restarted.removeCollection(collection.id)
   expect(restarted.list()).toEqual(store.list())
   expect(restarted.collectionSnapshot().collections).toEqual([])
+})
+
+// Add current and Ctrl/Cmd+D, while the bookmarks panel shows a collection, save the page into it, as a page added in
+// Chrome's bookmark manager goes into the folder it shows.
+it('saves a new bookmark into the collection named in the same write, and leaves one saved before in its own', async () => {
+  const { path, store } = await fixture()
+  const reading = await store.createCollection('Reading')
+  const work = await store.createCollection('Work')
+  const entry = await store.add({ url: 'https://example.test/article', title: 'Article', collectionId: reading.id })
+  const written = JSON.parse(await readFile(path, 'utf8')) as { collections: Array<{ id: string; bookmarkIds: string[] }> }
+  expect(written.collections.find(collection => collection.id === reading.id)?.bookmarkIds).toEqual([entry.id])
+  expect(store.collectionSnapshot().collections.find(collection => collection.id === reading.id)?.bookmarkIds).toEqual([entry.id])
+  // Saving the address again from another collection updates the bookmark where it is.
+  const again = await store.add({ url: entry.url, title: 'Article again', collectionId: work.id })
+  expect(again.id).toBe(entry.id)
+  // A collection removed before the save is written leaves the new bookmark in Unfiled.
+  const removing = store.removeCollection(work.id)
+  const saving = store.add({ url: 'https://example.test/loose', title: 'Loose', collectionId: work.id })
+  await removing
+  const loose = await saving
+  const restarted = new BookmarkStore(path)
+  await restarted.load()
+  expect(restarted.list().map(bookmark => bookmark.title).sort()).toEqual(['Article again', 'Loose'])
+  expect(restarted.collectionSnapshot().collections).toEqual([{ ...reading, bookmarkIds: [entry.id] }])
+  expect(restarted.collectionSnapshot().collections.flatMap(collection => collection.bookmarkIds)).not.toContain(loose.id)
 })
 
 it('ignores malformed or dangling assignments without losing valid bookmarks', async () => {

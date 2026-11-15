@@ -1,3 +1,6 @@
+import type { Browser } from './browser.js'
+import type { BrowserTab } from './browser-tab.js'
+
 export const MAX_REPORTED_OPENED_TABS = 5
 
 /** Tabs the clicked tab asked Hronaut to open while one click ran. A page timer
@@ -79,4 +82,26 @@ export function recheckOpenedTabs(report: TabsOpenedDuringClick, isCurrent: (tab
   const tabIds = report.tabIds.filter(isCurrent)
   const closed = (report.closed ?? 0) + report.tabIds.length - tabIds.length
   return { ...report, tabIds, ...(closed ? { closed } : {}) }
+}
+
+/** Starts watching the tabs the tab's page asks Hronaut to open, as during a click. */
+export function observeOpenedTabs(browser: Browser, tab: BrowserTab): OpenedTabObservation {
+  const observation = new OpenedTabObservation()
+  const observations = browser.openedTabObservations.get(tab) ?? new Set()
+  observations.add(observation)
+  browser.openedTabObservations.set(tab, observations)
+  return observation
+}
+
+/** Publishes only tabs that are still open in the source tab's current workspace. */
+export function stopObservingOpenedTabs(browser: Browser, tab: BrowserTab, observation: OpenedTabObservation): TabsOpenedDuringClick | undefined {
+  const observations = browser.openedTabObservations.get(tab)
+  observations?.delete(observation)
+  if (observations?.size === 0) browser.openedTabObservations.delete(tab)
+  const sourceCurrent = browser.tabs.get(tab.id) === tab
+  const report = observation.stop((tabId) => {
+    const opened = browser.tabs.get(tabId)
+    return sourceCurrent && opened !== undefined && opened.mcpGroupId === tab.mcpGroupId
+  })
+  return sourceCurrent ? report : undefined
 }

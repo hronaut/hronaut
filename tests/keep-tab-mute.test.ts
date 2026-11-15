@@ -14,6 +14,8 @@ vi.mock('electron', () => {
       isDestroyed: () => false,
       setAudioMuted(muted: boolean) { this.audioMuted = muted },
       isAudioMuted() { return this.audioMuted },
+      isLoading: () => false,
+      getURL: () => '',
       loadURL: () => Promise.resolve(),
       navigationHistory: { restore: () => Promise.resolve() }
     }
@@ -23,9 +25,67 @@ vi.mock('electron', () => {
   return { session: {}, WebContentsView, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, powerMonitor: { on: () => undefined }, Menu: {} }
 })
 
-const { BrowserTabsManager } = await import('../src/main/browser/tabs-manager.js')
-const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry.js')
+// The prototype-built browsers below stub changed, getState and reorderTab; muting, reopening and duplicating tabs
+// reach them through these.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+// The browser's withTabLabelLifecycle stub runs the tab operations that wait for pending label saves.
+vi.mock('../src/main/browser/tab-labels/tab-labels.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-labels/tab-labels.js')>(),
+  withTabLabelLifecycle: (browser: { withTabLabelLifecycle: (run: () => Promise<unknown>) => Promise<unknown> }, run: () => Promise<unknown>) => (
+    browser.withTabLabelLifecycle(run)
+  )
+}))
+vi.mock('../src/main/browser/tab-arrangement/tab-arrangement.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-arrangement/tab-arrangement.js')>(),
+  reorderTab: (
+    browser: { reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') => unknown },
+    tabId: string,
+    targetTabId: string,
+    placement: 'before' | 'after'
+  ) => browser.reorderTab(tabId, targetTabId, placement)
+}))
+// Their closeWithBookkeeping stub does a real close's bookkeeping, which closing tabs for the person reaches through
+// closeTab.
+vi.mock('../src/main/browser/tab-close/close-tab.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/tab-close/close-tab.js')>(),
+  closeTab: (browser: { closeWithBookkeeping: (tabId: string) => Promise<unknown> }, tabId: string) => browser.closeWithBookkeeping(tabId)
+}))
+
+// The prototype-built browser below stubs roundPageCorners, with which a new tab's page gets the page card's corners.
+vi.mock('../src/main/browser/window-layout/window-layout.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/window-layout/window-layout.js')>(),
+  roundPageCorners: (browser: { roundPageCorners: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.roundPageCorners(...args)
+}))
+
+// It also stubs the workspace's navigation check and observation generation, the session hooks and the page events,
+// which createTab runs through these.
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  assertWorkspaceNavigationAllowed: (browser: { assertWorkspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.assertWorkspaceNavigationAllowed(...args)
+}))
+vi.mock('../src/main/browser/workspace-continuity/workspace-continuity.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-continuity/workspace-continuity.js')>(),
+  workspaceObservationGeneration: (browser: { workspaceObservationGeneration: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceObservationGeneration(...args)
+}))
+vi.mock('../src/main/browser/session-hooks/session-hooks.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/session-hooks/session-hooks.js')>(),
+  installSessionHooks: (browser: { installSessionHooks: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.installSessionHooks(...args)
+}))
+// Every tab closes with a page that closes itself; these fake pages emit no events.
+vi.mock('../src/main/browser/tab-events/page-close-events.js', () => ({ attachPageCloseEvents: () => undefined }))
+vi.mock('../src/main/browser/tab-events/leave-site-question.js', () => ({ attachLeaveSiteQuestion: () => undefined }))
+vi.mock('../src/main/browser/tab-events/attach-tab-events.js', () => ({
+  attachTabEvents: (browser: { attachTabEvents: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.attachTabEvents(...args)
+}))
+const { Browser } = await import('../src/main/browser/browser.js')
+const { WorkspaceRegistry } = await import('../src/main/browser/workspace-registry/workspace-registry.js')
 const { closeTabsForPerson } = await import('../src/main/browser/tab-close/close-tabs-for-person.js')
+const { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabEntry } = await import('../src/main/browser/tab-reopening/tab-reopening.js')
+const { setAllTabsMuted, setTabMuted } = await import('../src/main/browser/tab-muting/tab-muting.js')
 
 const WORKSPACE = '01912345-6789-7abc-8def-0123456789ab'
 
@@ -33,13 +93,7 @@ interface Tab { id: string; url: string; muted: boolean; tabMuted: boolean; mcpG
 interface Manager {
   tabs: Map<string, Tab>
   createTab(options: { url: string; mcpGroupId: string; active: boolean }): Promise<Tab>
-  setTabMuted(tabId: string, muted: boolean): unknown
-  setAllTabsMuted(muted: boolean): unknown
-  rememberClosedTab(tab: Tab): void
-  reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<Tab>
-  duplicateTabAfterLabelSave(tabId: string): Promise<unknown>
-  personTabCloseAccess(): never
-  closeTabInternal(tabId: string): Promise<unknown>
+  closeWithBookkeeping(tabId: string): Promise<unknown>
 }
 
 /**
@@ -48,7 +102,7 @@ interface Manager {
  */
 function browser() {
   const offers: UndoableAction[] = []
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     destroyed: false, initialized: true, restoringLayout: false,
     options: { partition: 'persist:hronaut', offerUndo: (offer: UndoableAction) => { offers.push(offer) } },
     window: {
@@ -61,12 +115,11 @@ function browser() {
     contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     assertWorkspaceNavigationAllowed: vi.fn(), workspaceNavigationAllowed: () => true, workspaceObservationGeneration: () => 0,
     roundPageCorners: vi.fn(), installSessionHooks: vi.fn(), attachTabEvents: vi.fn(), layout: vi.fn(), changed: vi.fn(),
-    selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => undefined,
+    selectTab: vi.fn(), reorderTab: vi.fn(), navigationHistorySnapshot: () => ({ entries: [], index: -1 }),
     withTabLabelLifecycle: (run: () => Promise<unknown>) => run(), getState: () => ({}), text: (key: string) => key,
-    orderedTabs(this: Manager) { return [...this.tabs.values()] },
-    async closeTabInternal(this: Manager, tabId: string) {
+    async closeWithBookkeeping(this: Manager, tabId: string) {
       // The close bookkeeping of a real close: the tab is remembered, then removed.
-      this.rememberClosedTab(this.tabs.get(tabId)!)
+      rememberClosedTab(this as never, this.tabs.get(tabId)! as never)
       this.tabs.delete(tabId)
       return {}
     }
@@ -99,7 +152,7 @@ function browser() {
 
 async function mutedTab(manager: Manager): Promise<Tab> {
   const tab = await manager.createTab({ url: 'https://video.example/autoplay', mcpGroupId: WORKSPACE, active: false })
-  manager.setTabMuted(tab.id, true)
+  setTabMuted(manager as never, tab.id, true)
   expect(tab).toMatchObject({ muted: true, tabMuted: true, webContents: { audioMuted: true } })
   return tab
 }
@@ -108,19 +161,22 @@ const sound = (tab: Tab | undefined) => ({ muted: tab?.muted, tabMuted: tab?.tab
 const MUTED = { muted: true, tabMuted: true, pageMuted: true }
 const findByUrl = (manager: Manager, url: string) => [...manager.tabs.values()].find((candidate) => candidate.url === url)
 
+/** Reopens the most recently closed tab in the background, as Reopen Closed Tab does before showing it. */
+const reopenLastClosed = async (manager: Manager): Promise<Tab> => await reopenClosedTabEntry(manager as never, undefined, false) as unknown as Tab
+
 describe('a muted tab brought back', () => {
   it('stays muted after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await mutedTab(manager)
-    await manager.closeTabInternal(tab.id)
+    await manager.closeWithBookkeeping(tab.id)
 
-    expect(sound(await manager.reopenClosedTabEntry(undefined, false))).toEqual(MUTED)
+    expect(sound(await reopenLastClosed(manager))).toEqual(MUTED)
   })
 
   it('stays muted after Undo of closing it', async () => {
     const { manager, offers } = browser()
     const tab = await mutedTab(manager)
-    await closeTabsForPerson(manager.personTabCloseAccess(), [tab.id])
+    await closeTabsForPerson(manager as never, [tab.id])
 
     await offers[0]!.undo()
 
@@ -131,7 +187,7 @@ describe('a muted tab brought back', () => {
     const { manager } = browser()
     const tab = await mutedTab(manager)
 
-    await manager.duplicateTabAfterLabelSave(tab.id)
+    await duplicateTabAfterLabelSave(manager as never, tab.id)
 
     expect(sound([...manager.tabs.values()].find((candidate) => candidate.id !== tab.id))).toEqual(MUTED)
   })
@@ -153,7 +209,7 @@ describe('a tab muted only because every tab was muted', () => {
   // the tab brought back must have sound.
   async function quietTab(manager: Manager): Promise<Tab> {
     const tab = await manager.createTab({ url: 'https://docs.example/', mcpGroupId: WORKSPACE, active: false })
-    manager.setAllTabsMuted(true)
+    setAllTabsMuted(manager as never, true)
     expect(sound(tab)).toEqual({ muted: true, tabMuted: false, pageMuted: true })
     return tab
   }
@@ -162,17 +218,17 @@ describe('a tab muted only because every tab was muted', () => {
   it('comes back with sound after Reopen Closed Tab', async () => {
     const { manager } = browser()
     const tab = await quietTab(manager)
-    await manager.closeTabInternal(tab.id)
-    manager.setAllTabsMuted(false)
+    await manager.closeWithBookkeeping(tab.id)
+    setAllTabsMuted(manager as never, false)
 
-    expect(sound(await manager.reopenClosedTabEntry(undefined, false))).toEqual(SOUND)
+    expect(sound(await reopenLastClosed(manager))).toEqual(SOUND)
   })
 
   it('has a duplicate with sound', async () => {
     const { manager } = browser()
     const tab = await quietTab(manager)
-    await manager.duplicateTabAfterLabelSave(tab.id)
-    manager.setAllTabsMuted(false)
+    await duplicateTabAfterLabelSave(manager as never, tab.id)
+    setAllTabsMuted(manager as never, false)
 
     expect(sound([...manager.tabs.values()].find((candidate) => candidate.id !== tab.id))).toEqual(SOUND)
   })
@@ -182,7 +238,7 @@ describe('a tab muted only because every tab was muted', () => {
     const tab = await quietTab(manager)
     await registry.archive(WORKSPACE)
     expect(registry.archived.get(WORKSPACE)?.tabs[0]).not.toHaveProperty('muted')
-    manager.setAllTabsMuted(false)
+    setAllTabsMuted(manager as never, false)
 
     await registry.restore(WORKSPACE)
 

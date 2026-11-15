@@ -184,7 +184,7 @@ test('exports original mixed audio, camera motion and transitions with decoded s
 })
 
 test('rejects invalid audio and unauthorized access without changing a retained composition', async ({ capabilities, appWindow, profileDirectory }) => {
-  const { client, tabId, fixtureUrl } = capabilities
+  const { client, tabId } = capabilities
   const call = (action: string, extra: Record<string, unknown> = {}) => client.callTool({ name: 'browser_video', arguments: { tabId, action, ...extra } }) as Promise<CallToolResult>
   const state = async () => JSON.parse(text(await call('get'))) as BrowserVideoState
   expect((await call('start')).isError).not.toBe(true)
@@ -212,9 +212,6 @@ test('rejects invalid audio and unauthorized access without changing a retained 
   const workspaceId = await appWindow.evaluate(async id => (await (window as unknown as VideoTestWindow).hronaut.getState()).tabs.find(tab => tab.id === id)!.mcpGroupId!, tabId)
   const reclaimed = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'claim-ownership', workspaceId } }) as CallToolResult
   expect(reclaimed.isError, text(reclaimed)).not.toBe(true)
-  await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: 'about:blank' } })
-  expect((await call('import-audio', { audioPath: validPath, audioProvenance: 'Original test fixture.' })).isError).toBe(true)
-  await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: fixtureUrl } })
   expect((await state()).audioAssets).toEqual(before.audioAssets)
   const importedResult = await call('import-audio', { audioPath: validPath, audioProvenance: 'Original test fixture.' })
   expect(importedResult.isError, text(importedResult)).not.toBe(true)

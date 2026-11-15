@@ -1,11 +1,12 @@
 import type { App } from 'electron'
 import { shouldStartMinimized } from './startup-launch.js'
-import type { BrowserTabsManager } from './browser/tabs-manager.js'
-import type { McpRuntimeState } from './mcp-runtime.js'
+import type { Browser } from './browser/browser.js'
+import type { McpRuntimeState } from './mcp-runtime/mcp-runtime.js'
 import type { SavedWindowState } from './window-state.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
 import type { AppSettings } from '../shared/types.js'
+import { failHeldNetworkResponses } from './browser/network-conditions/held-responses.js'
 
 /**
  * Whether the app is quitting, created once by index.ts. It is set once and stays set: closing the main window then
@@ -41,8 +42,10 @@ interface AppLifecycleHost {
   currentPanelWindowState(): SavedWindowState | null
   /** Everything startup does once Electron is ready: settings, the window, the tray, the MCP listener and licensing. */
   startRuntime(): Promise<void>
+  /** Tells the person Hronaut could not start, and quits once they read it. */
+  startupFailed(error: unknown): Promise<void>
   /** The tab runtime, which needs an orderly shutdown once it exists. */
-  tabs(): BrowserTabsManager | null
+  tabs(): Browser | null
   /** The MCP listener, which needs an orderly shutdown while it runs. */
   mcpRuntime: Pick<McpRuntimeState, 'server'>
   /** Stops the listener and the tab runtime and flushes every store; later calls share the first shutdown. */
@@ -52,8 +55,8 @@ interface AppLifecycleHost {
 /**
  * The application's lifecycle events: one instance per profile, where a second launch shows the window or quits the
  * first one; staying alive with no window so MCP clients can reconnect; recording window bounds before quitting;
- * starting once Electron is ready; and an orderly shutdown that exits after at most ten seconds, so an update relaunch
- * can continue.
+ * starting once Electron is ready; logging a helper process that ended unexpectedly; and an orderly shutdown that
+ * exits after at most ten seconds, so an update relaunch can continue.
  */
 export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' | 'exit'>, host: AppLifecycleHost): void {
   let shutdownExitScheduled = false
@@ -76,7 +79,16 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
     host.mainWindowRefs.lastState = host.currentWindowState() ?? host.mainWindowRefs.lastState
     host.panelWindowRefs.lastState = host.currentPanelWindowState() ?? host.panelWindowRefs.lastState
     // A page that closes with a request still held lets Chromium send it to its real destination.
-    host.tabs()?.failHeldNetworkResponses()
+    const browser = host.tabs()
+    if (browser) failHeldNetworkResponses(browser)
+  })
+
+  // A GPU, network service or other helper process that ends unexpectedly is restarted by Chromium; without a line here,
+  // a window that flickered blank or requests that failed meanwhile left no trace.
+  app.on('child-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit' || host.quit.quitting) return
+    const name = details.name ? ` (${details.name})` : ''
+    console.error(`[process] ${details.type}${name} process ended: ${details.reason} (exit code ${details.exitCode})`)
   })
 
   app.whenReady().then(async () => {
@@ -89,7 +101,14 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
       app.quit()
       return
     }
-    await host.startRuntime()
+    try {
+      await host.startRuntime()
+    } catch (error) {
+      // Without this, the process would stay without a window yet keep the profile: the next launch would only ask it
+      // to show that window. A start that quitting interrupted needs no notice.
+      if (host.quit.quitting) console.error('[startup] Startup ended while quitting:', error)
+      else await host.startupFailed(error)
+    }
   })
 
   app.on('will-quit', (event) => {

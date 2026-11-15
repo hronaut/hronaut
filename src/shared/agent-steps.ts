@@ -9,6 +9,7 @@ export const AGENT_STEP_KINDS = [
   'fillForm',
   'choose',
   'pressKey',
+  'steps',
   'hover',
   'scroll',
   'drag',
@@ -39,7 +40,9 @@ const STEP_BY_TOOL: Readonly<Record<string, AgentStepKind>> = {
   browser_fill_form: 'fillForm',
   browser_select: 'choose',
   browser_press: 'pressKey',
+  browser_steps: 'steps',
   browser_hold_key: 'pressKey',
+  browser_key_sequence: 'pressKey',
   browser_hover: 'hover',
   browser_scroll: 'scroll',
   browser_wheel: 'scroll',
@@ -55,6 +58,7 @@ const STEP_BY_TOOL: Readonly<Record<string, AgentStepKind>> = {
   browser_find: 'read',
   browser_public_outcome: 'read',
   browser_screenshot: 'screenshot',
+  browser_frame_stream: 'screenshot',
   browser_pdf_save: 'screenshot',
   browser_screenshot_save: 'screenshot',
   browser_visual_compare: 'screenshot',
@@ -80,7 +84,7 @@ export function agentStepKind(toolName: string): AgentStepKind {
 /** Steps that change the page or the tabs. An agent taking one has moved on from waiting for you;
  * reading, waiting, scrolling or showing a tab does not count. */
 const ACTING_STEPS: ReadonlySet<AgentStepKind> = new Set<AgentStepKind>([
-  'click', 'type', 'fillForm', 'choose', 'pressKey', 'drag', 'touch', 'navigate', 'history', 'openTab', 'closeTab', 'upload'
+  'click', 'type', 'fillForm', 'choose', 'pressKey', 'steps', 'drag', 'touch', 'navigate', 'history', 'openTab', 'closeTab', 'upload'
 ])
 
 export function agentStepActs(kind: AgentStepKind): boolean {

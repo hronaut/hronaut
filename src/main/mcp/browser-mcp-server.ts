@@ -3,7 +3,7 @@ import { StorageComparisonInputError } from '../browser/storage-comparison-opera
 import { WebStorageInputError } from '../browser/web-storage-operation.js'
 import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
-import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
+import type { UserAttentionLifecycle } from '../attention/user-attention-lifecycle.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
 import { BROWSER_SERVER_INSTRUCTIONS, BROWSER_TOOL_CATALOG, mcpToolCatalogForSet, type BrowserToolDefinition } from './tool-catalog.js'
@@ -22,10 +22,11 @@ import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspa
 import type { AgentCall } from './agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
 import { webAddress } from '../browser/url.js'
-import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import type { Browser } from '../browser/browser.js'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../shared/types.js'
 import type { McpToolSet } from '../../shared/mcp-tool-sets.js'
 import { errorResult, textResult, toolDefinition } from './tool-results.js'
+import { pageDialogInterrupted } from './website-dialog-calls.js'
 import { mcpCapabilityAction, mcpCapabilityOperationClass } from './capability-classification.js'
 import { registerBrowserWorkspaces } from './tools/browser-workspaces/index.js'
 import { registerBrowserSavedWorkspaces } from './tools/browser-saved-workspaces/index.js'
@@ -72,7 +73,10 @@ import { registerBrowserWheel } from './tools/browser-wheel/index.js'
 import { registerBrowserTouch } from './tools/browser-touch/index.js'
 import { registerBrowserScroll } from './tools/browser-scroll/index.js'
 import { registerBrowserHoldKey } from './tools/browser-hold-key/index.js'
+import { registerBrowserKeySequence } from './tools/browser-key-sequence/index.js'
+import { registerBrowserFrameStream } from './tools/browser-frame-stream/index.js'
 import { registerBrowserPress } from './tools/browser-press/index.js'
+import { registerBrowserSteps } from './tools/browser-steps/index.js'
 import { registerBrowserInsertText } from './tools/browser-insert-text/index.js'
 import { registerBrowserFillFromFile } from './tools/browser-fill-from-file/index.js'
 import { registerBrowserFileUpload } from './tools/browser-file-upload/index.js'
@@ -136,18 +140,19 @@ import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '
 import type { WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from './wallet-agent-sessions.js'
 import type { McpClientActivity } from './http-server.js'
 import { createWorkspaceToolRegistrar, requiresWorkspaceWriteLease } from './workspace-tool-call.js'
+import { listMcpTabGroups, requireMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
+import { getMcpGroupState } from '../browser/workspace-scope/workspace-scope.js'
+import { agentStepName } from '../browser/page-snapshots/page-snapshots.js'
+import { runAgentCall } from '../browser/browser-state/agent-calls.js'
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
   const suppliedBytes = Buffer.from(supplied, 'utf8')
-  return expectedBytes.length === suppliedBytes.length
-    && timingSafeEqual(expectedBytes, suppliedBytes)
+  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes)
 }
 
-export function assertMcpToolRegistrationContract(
-  catalog: readonly Pick<BrowserToolDefinition, 'name'>[],
-  registeredNames: readonly string[]
-): void {
+export function assertMcpToolRegistrationContract(catalog: readonly Pick<BrowserToolDefinition, 'name'>[], registeredNames: readonly string[]): void {
   const duplicates = (names: readonly string[]) => [...new Set(names.filter((name, index) => names.indexOf(name) !== index))].sort()
   const catalogNames = catalog.map((tool) => tool.name)
   const catalogSet = new Set(catalogNames)
@@ -171,7 +176,7 @@ export function assertMcpToolRegistrationContract(
  * rate-limit checks have admitted the session; nothing else should call it.
  */
 export function createBrowserMcpServer(
-  manager: BrowserTabsManager,
+  manager: Browser,
   showWindowInactive: () => void,
   getUserAttention: () => UserAttentionRequest | null,
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>,
@@ -209,6 +214,8 @@ export function createBrowserMcpServer(
       // Keep trusted native-dispatch provenance until workspace settlement has
       // recorded its uncertain outcome and attempted review finalization.
       if (error instanceof NativeInputCleanupError || error instanceof NativeWheelOutcomeUnknownError || error instanceof WebStorageInputError || error instanceof StorageComparisonInputError || error instanceof EmulationInputError) throw error
+      // So does an action a page's dialog stopped after it reached the page, whose effects the workspace call reports.
+      if (pageDialogInterrupted(error)) throw error
       return errorResult(error)
     }
   }
@@ -261,7 +268,7 @@ export function createBrowserMcpServer(
     const pageOrigins = toolOptions.get(name)?.pageOrigins
     if (workspaceId && pageOrigins !== 'none') {
       try {
-        const state = manager.getMcpGroupState(workspaceId)
+        const state = getMcpGroupState(manager, workspaceId)
         const tabId = target?.tabId
           ?? (typeof input.tabId === 'string' ? input.tabId : state.activeTabId)
         if (pageOrigins === 'all-tabs') origins.push(...state.tabs.map(tab => tab.url))
@@ -332,7 +339,7 @@ export function createBrowserMcpServer(
         const address = typeof target.url === 'string' && target.url.trim() ? webAddress(target.url) : undefined
         return address ? agentStepAddress(address) : undefined
       }
-      return typeof target.ref === 'string' ? manager.agentStepName(workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined, target.ref) : undefined
+      return typeof target.ref === 'string' ? agentStepName(manager, workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined, target.ref) : undefined
     } catch {
       return undefined
     }
@@ -410,14 +417,15 @@ export function createBrowserMcpServer(
         }
         if (leaseWorkspaceId && authorizedLeaseWorkspace
           && requiresWorkspaceWriteLease(name, input, leaseExempt)) {
-          finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
+          if (options.alongsideWorkspaceChange) workspaceLeases.require(leaseWorkspaceId, client.id)
+          else finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
         }
         await authorizeCapability(name, input, 'consume')
         assertAutomationAccess?.()
         requireAgentControl(name, input)
         const result = await actionTracker.run(() => agentControlContext.run(
           () => { if (!singleTabControlTools.has(name)) requireAgentControl(name, input) },
-          () => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args)
+          () => runAgentCall(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
         ))
         try {
           await authorizeCapability(name, settlement?.capabilityInput?.(input) ?? input, 'active-dispatch')
@@ -501,13 +509,13 @@ export function createBrowserMcpServer(
     }
     return { ...textResult(outcome), structuredContent: outcome, isError: true }
   }
-  const authorizedActiveWorkspaces = (): ReturnType<BrowserTabsManager['listMcpTabGroups']> => (
-    manager.listMcpTabGroups().filter((workspace) => activeWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
+  const authorizedActiveWorkspaces = (): ReturnType<typeof listMcpTabGroups> => (
+    listMcpTabGroups(manager).filter((workspace) => activeWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
   )
-  const authorizedSavedWorkspaces = (): ReturnType<BrowserTabsManager['listSavedTabGroups']> => (
+  const authorizedSavedWorkspaces = (): ReturnType<Browser['listSavedTabGroups']> => (
     manager.listSavedTabGroups().filter((workspace) => savedWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
   )
-  const forkOnlySource = (source: ReturnType<BrowserTabsManager['listWorkspaceForkSources']>[number]) => ({
+  const forkOnlySource = (source: ReturnType<Browser['listWorkspaceForkSources']>[number]) => ({
     ...source,
     forkOnly: true as const,
     forkWith: { action: 'create' as const, storage: 'fork-workspace' as const, sourceWorkspaceId: source.id }
@@ -528,13 +536,13 @@ export function createBrowserMcpServer(
       savedWorkspaceIds.add(workspaceId)
       return
     }
-    manager.requireMcpTabGroup(workspaceId)
+    requireMcpTabGroup(manager, workspaceId)
     activeWorkspaceIds.add(workspaceId)
   }
-  const requireAgentWorkspace = (workspaceId: string): ReturnType<BrowserTabsManager['requireMcpTabGroup']> => {
+  const requireAgentWorkspace = (workspaceId: string): ReturnType<typeof requireMcpTabGroup> => {
     agentControlContext.getStore()?.()
     if (!activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
-    const workspace = manager.requireMcpTabGroup(workspaceId)
+    const workspace = requireMcpTabGroup(manager, workspaceId)
     return workspace
   }
   const requireSavedWorkspace = (workspaceId: string): void => {
@@ -558,7 +566,7 @@ export function createBrowserMcpServer(
     if (typeof input.reviewId !== 'string' || typeof input.reviewRevision !== 'string') return undefined
     const workspaceId = input.workspaceId
     if (typeof workspaceId !== 'string') return undefined
-    const state = manager.getMcpGroupState(workspaceId)
+    const state = getMcpGroupState(manager, workspaceId)
     const tabId = typeof input.tabId === 'string' ? input.tabId : state.activeTabId ?? undefined
     const tab = tabId ? state.tabs.find(candidate => candidate.id === tabId) : undefined
     let origin: string | undefined
@@ -717,7 +725,10 @@ export function createBrowserMcpServer(
   registerBrowserTouch(toolContext)
   registerBrowserScroll(toolContext)
   registerBrowserHoldKey(toolContext)
+  registerBrowserKeySequence(toolContext)
+  registerBrowserFrameStream(toolContext)
   registerBrowserPress(toolContext)
+  registerBrowserSteps(toolContext)
   registerBrowserInsertText(toolContext)
   registerBrowserFillFromFile(toolContext)
   registerBrowserFileUpload(toolContext)
@@ -779,7 +790,7 @@ export function createBrowserMcpServer(
 
   const previousClose = server.server.onclose
   server.server.onclose = () => {
-    for (const workspaceId of activeWorkspaceIds) manager.suspendWorkspaceContinuity(workspaceId)
+    for (const workspaceId of activeWorkspaceIds) suspendWorkspaceContinuity(manager, workspaceId)
     previousClose?.()
   }
 

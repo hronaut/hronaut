@@ -1,7 +1,7 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { CommandPaletteResultSection } from '../../src/shared/command-palette-search.js'
-import { useCommandPaletteController } from '../../src/renderer/src/composables/useCommandPaletteController.js'
+import { useCommandPaletteController } from '../../src/renderer/src/features/command-palette/useCommandPaletteController.js'
 
 type Controller = ReturnType<typeof useCommandPaletteController>
 type Search = (query: string) => readonly CommandPaletteResultSection[]

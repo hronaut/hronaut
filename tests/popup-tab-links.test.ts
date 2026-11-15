@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+// The browser below answers workspaceNavigationAllowed, which a page navigating its tab asks.
+vi.mock('../src/main/browser/workspace-navigation/workspace-navigation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/workspace-navigation/workspace-navigation.js')>(),
+  workspaceNavigationAllowed: (browser: { workspaceNavigationAllowed: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.workspaceNavigationAllowed(...args)
+}))
 import { attachNavigationEvents } from '../src/main/browser/tab-events/navigation-events.js'
 import { sleepBlockReason } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
@@ -24,26 +29,25 @@ function websiteTab(id: string, openerTabId?: string) {
   }
 }
 
-function sleepAccess(tabs: Array<ReturnType<typeof websiteTab>>) {
+function sleepBrowser(tabs: Array<ReturnType<typeof websiteTab>>) {
   const byId = new Map(tabs.map(tab => [tab.id, tab]))
   return {
-    hasTab: (tabId: string) => byId.has(tabId),
-    tabs: () => byId.values(),
-    activeTabId: () => 'shown',
+    tabs: byId,
+    activeTabId: 'shown',
     splitViewContains: () => false,
-    options: () => ({}),
-    devToolsOpening: () => new Set(),
-    screenshotAreaSessions: () => new Map(),
-    elementPickerSessions: () => new Map(),
-    agentInputWebContents: () => new Map(),
-    videoRecorder: () => ({ state: () => ({ status: 'idle' }) }),
-    cssStatePreview: () => ({ active: () => false }),
-    domMutationSource: () => ({ active: () => false }),
-    virtualPasskeys: () => ({ active: () => false }),
-    logpoints: () => ({ active: () => false }),
-    mcpActivitiesByTab: () => new Map(),
-    downloadController: () => ({ hasActiveDownload: () => false }),
-    renderQueues: () => new Map(),
+    options: {},
+    devToolsOpening: new Set(),
+    screenshotAreaSessions: new Map(),
+    elementPickerSessions: new Map(),
+    agentInputWebContents: new Map(),
+    videoRecorder: { status: () => 'idle' },
+    cssStatePreview: { active: () => false },
+    domMutationSource: { active: () => false },
+    virtualPasskeys: { active: () => false },
+    logpoints: { active: () => false },
+    mcpActivitiesByTab: new Map(),
+    downloadController: { hasActiveDownload: () => false },
+    renderQueues: new Map(),
     remove: (tabId: string) => byId.delete(tabId)
   }
 }
@@ -53,19 +57,19 @@ describe('putting a popup or the tab that opened it to sleep', () => {
     const app = websiteTab('app')
     const popup = websiteTab('popup', 'app')
     const other = websiteTab('other')
-    const access = sleepAccess([app, popup, other])
-    expect(sleepBlockReason(access as never, app as never)).toBe('appErrors.sleep.window')
-    expect(sleepBlockReason(access as never, popup as never)).toBe('appErrors.sleep.window')
-    expect(sleepBlockReason(access as never, other as never)).toBeUndefined()
+    const browser = sleepBrowser([app, popup, other])
+    expect(sleepBlockReason(browser as never, app as never)).toBe('appErrors.sleep.window')
+    expect(sleepBlockReason(browser as never, popup as never)).toBe('appErrors.sleep.window')
+    expect(sleepBlockReason(browser as never, other as never)).toBeUndefined()
   })
 
   it('lets either sleep once the other is closed', () => {
     const app = websiteTab('app')
     const popup = websiteTab('popup', 'app')
-    const access = sleepAccess([app, popup])
-    access.remove('app')
-    expect(sleepBlockReason(access as never, popup as never)).toBeUndefined()
-    const reopened = sleepAccess([app])
+    const browser = sleepBrowser([app, popup])
+    browser.remove('app')
+    expect(sleepBlockReason(browser as never, popup as never)).toBeUndefined()
+    const reopened = sleepBrowser([app])
     expect(sleepBlockReason(reopened as never, app as never)).toBeUndefined()
   })
 })
@@ -76,8 +80,8 @@ describe('a page navigating a sleeping tab', () => {
     const tab = { id: 'popup', url: 'https://popup.example/', sleeping: true, mcpGroupId: 'client', navigationPolicyDenialSequence: 0 }
     const workspaceNavigationAllowed = vi.fn(() => policyAllows)
     const fallback = anything() as Record<string | symbol, unknown>
-    const access = new Proxy({}, { get: (_target, key) => key === 'workspaceNavigationAllowed' ? workspaceNavigationAllowed : fallback[key] })
-    attachNavigationEvents(access as never, tab as never, contents as never)
+    const browser = new Proxy({}, { get: (_target, key) => key === 'workspaceNavigationAllowed' ? workspaceNavigationAllowed : fallback[key] })
+    attachNavigationEvents(browser as never, tab as never, contents as never)
     const navigate = (url: string, isMainFrame = true) => {
       const preventDefault = vi.fn()
       contents.emit('will-frame-navigate', { url, isMainFrame, preventDefault })

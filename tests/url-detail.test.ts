@@ -1,12 +1,14 @@
 import { runInNewContext } from 'node:vm'
 import type { WebContents } from 'electron'
 import { describe, expect, it } from 'vitest'
-import type { PageSnapshotsAccess, PageSnapshotsTab } from '../src/main/browser/page-snapshots/page-snapshots-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { setSnapshotBaseline, snapshotDelta, snapshotDetails } from '../src/main/browser/page-snapshots/page-snapshots.js'
 import { compactTabDiscovery } from '../src/main/mcp/tab-discovery.js'
 import { mcpWorkspaceState, mcpWorkspaceTab, savedWorkspaceWithoutUrlDetail } from '../src/main/mcp/tool-results.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION, type BrowserSnapshotDeltaContext } from '../src/shared/snapshot-delta.js'
 import type { BrowserState } from '../src/shared/types.js'
+import { pageFunctionExpression } from '../src/shared/page-script.js'
 import { titleShowsUrlDetail, urlWithoutDetail } from '../src/shared/url-detail.js'
 
 const SECRET_URL = 'https://user-canary:pass-canary@shop.example.test:8443/checkout/step%202?session=query-canary&view=cart#fragment-canary'
@@ -32,9 +34,9 @@ describe('URL detail omission', () => {
   })
 
   it('runs from its source text alone, as the snapshot scripts embed it', () => {
-    expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: SECRET_URL, URL })).toBe('https://shop.example.test:8443/checkout/step%202')
-    expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: 'https://shop.example/cart;jsessionid=SECRET', URL })).toBe('https://shop.example/cart;jsessionid=[REDACTED]')
-    expect(runInNewContext(`(${urlWithoutDetail.toString()})(value)`, { value: 'nope', URL })).toBe('')
+    expect(runInNewContext(`${pageFunctionExpression(urlWithoutDetail)}(value)`, { value: SECRET_URL, URL })).toBe('https://shop.example.test:8443/checkout/step%202')
+    expect(runInNewContext(`${pageFunctionExpression(urlWithoutDetail)}(value)`, { value: 'https://shop.example/cart;jsessionid=SECRET', URL })).toBe('https://shop.example/cart;jsessionid=[REDACTED]')
+    expect(runInNewContext(`${pageFunctionExpression(urlWithoutDetail)}(value)`, { value: 'nope', URL })).toBe('')
   })
 
   it('recognizes a title that shows the address instead of one the page set', () => {
@@ -109,6 +111,12 @@ describe('URL detail omission', () => {
     expect(mcpWorkspaceTab({ ...tab, handedBack: { at: 5, note: 'The page stayed at the same address.' } }, true).handedBack).toEqual({ at: 5, note: 'The page stayed at the same address.' })
   })
 
+  it('keeps out whether the person changed a permission of the tab\'s website since it loaded', () => {
+    const tab = { id: 't', title: 'Call', url: 'https://meet.example.test/room', permissionReloadOffered: true as const }
+    expect(mcpWorkspaceTab(tab)).toEqual({ id: 't', title: 'Call', url: 'https://meet.example.test/room' })
+    expect(mcpWorkspaceTab(tab, true)).not.toHaveProperty('permissionReloadOffered')
+  })
+
   it('shows saved workspaces and their tabs without detail, in workspace state too', () => {
     const saved = { id: 's', name: 'Checkout', tabs: [{ title: SECRET_URL, url: SECRET_URL, pinned: false }, { title: 'Inbox', url: 'https://mail.example.test/?folder=query-canary', pinned: true }] }
     expect(savedWorkspaceWithoutUrlDetail(saved)).toMatchObject({
@@ -146,45 +154,43 @@ describe('snapshot URL lines without detail', () => {
       isDestroyed: () => false,
       executeJavaScriptInIsolatedWorld: async (_world: number, sources: Array<{ code: string }>) => {
         scripts.push(sources[0]!.code)
-        const omitted = sources[0]!.code.includes("add(true ? 'URL: '")
+        const omitted = sources[0]!.code.includes('"omitUrlDetail":true')
         const text = `URL: ${omitted ? 'https://shop.example.test/checkout (query and fragment omitted)' : 'https://shop.example.test/checkout?view=cart'}\nTITLE: Checkout`
         return { formatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION, text, maxChars: 30_000, returnedChars: text.length, truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } }
       }
     } as unknown as WebContents
-    const tab: PageSnapshotsTab = { id: 'tab-1', url: 'https://shop.example.test/checkout?view=cart', mcpGroupId: 'w', webContents, walletNavigationGeneration: 0, snapshotBaselineGeneration: 0 }
+    const tab = { id: 'tab-1', url: 'https://shop.example.test/checkout?view=cart', mcpGroupId: 'w', webContents, walletNavigationGeneration: 0, snapshotBaselineGeneration: 0 } as unknown as BrowserTab
     const baselines = new Map()
     const baselineIds = new Map<string, string>()
-    const access: PageSnapshotsAccess<PageSnapshotsTab> = {
-      getTab: () => tab,
-      findTab: () => tab,
-      tabs: () => [tab][Symbol.iterator](),
-      findWorkspace: () => ({ activeTabId: tab.id }),
-      options: () => ({ getOmitAgentUrlDetail: () => omit }),
+    const browser = {
+      tabs: new Map([[tab.id, tab]]),
+      mcpTabGroups: new Map([['w', { activeTabId: tab.id }]]),
+      options: { getOmitAgentUrlDetail: () => omit },
       snapshotDeltaContext: () => CONTEXT,
-      snapshotBaselines: () => baselines,
-      snapshotBaselineIdsByTab: () => baselineIds
-    }
-    return { access, scripts, setOmit: (value: boolean) => { omit = value } }
+      snapshotBaselines: baselines,
+      snapshotBaselineIdsByTab: baselineIds
+    } as unknown as Browser
+    return { browser, scripts, setOmit: (value: boolean) => { omit = value } }
   }
 
   it('asks the page for the URL line the setting calls for and marks the snapshot', async () => {
     const page = fakePage()
-    expect(await snapshotDetails(page.access, 'tab-1')).not.toHaveProperty('urlDetail')
-    expect(page.scripts[0]).toContain("add(false ? 'URL: '")
+    expect(await snapshotDetails(page.browser, 'tab-1')).not.toHaveProperty('urlDetail')
+    expect(page.scripts[0]).toContain('"omitUrlDetail":false')
     page.setOmit(true)
-    const snapshot = await snapshotDetails(page.access, 'tab-1')
+    const snapshot = await snapshotDetails(page.browser, 'tab-1')
     expect(snapshot).toMatchObject({ urlDetail: 'omitted', text: expect.stringContaining('(query and fragment omitted)') })
-    expect(page.scripts[1]).toContain("add(true ? 'URL: '")
+    expect(page.scripts[1]).toContain('"omitUrlDetail":true')
   })
 
   it('starts a delta over instead of comparing URL lines across a change of the setting', async () => {
     const page = fakePage()
-    const baseline = await setSnapshotBaseline(page.access, 'tab-1')
+    const baseline = await setSnapshotBaseline(page.browser, 'tab-1')
     page.setOmit(true)
-    const delta = await snapshotDelta(page.access, { tabId: 'tab-1', baselineId: baseline.baselineId })
+    const delta = await snapshotDelta(page.browser, { tabId: 'tab-1', baselineId: baseline.baselineId })
     expect(delta).toMatchObject({ status: 'invalidated', invalidationReason: 'snapshot-format', changes: [] })
     expect(JSON.stringify(delta)).not.toContain('view=cart')
-    const fresh = await setSnapshotBaseline(page.access, 'tab-1')
-    expect(await snapshotDelta(page.access, { tabId: 'tab-1', baselineId: fresh.baselineId })).toMatchObject({ status: 'unchanged' })
+    const fresh = await setSnapshotBaseline(page.browser, 'tab-1')
+    expect(await snapshotDelta(page.browser, { tabId: 'tab-1', baselineId: fresh.baselineId })).toMatchObject({ status: 'unchanged' })
   })
 })

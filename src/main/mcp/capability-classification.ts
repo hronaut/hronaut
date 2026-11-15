@@ -18,6 +18,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_storage_changes: new Set(['get']),
   browser_repro: new Set(['get']),
   browser_video: new Set(['get', 'inspect']),
+  browser_frame_stream: new Set(['read']),
   browser_dom_changes: new Set(['get']),
   browser_dom_mutation_source: new Set(['get']),
   browser_live_region: new Set(['get']),
@@ -33,7 +34,8 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   // Records are what expressions read from the page, so reading them takes the same permission as adding them.
   browser_logpoint: new Set(['scripts']),
   browser_downloads: new Set(['list']),
-  browser_webmcp: new Set(['status', 'list'])
+  browser_webmcp: new Set(['status', 'list']),
+  browser_zoom: new Set(['get'])
 }
 
 export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOperationClass>> = {
@@ -66,8 +68,10 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_wheel: 'interact',
   browser_touch: 'interact',
   browser_press: 'interact',
+  browser_steps: 'interact',
   browser_insert_text: 'interact',
   browser_hold_key: 'interact',
+  browser_key_sequence: 'interact',
   browser_file_upload: 'external-request',
   browser_file_drop: 'external-request',
   browser_fill_from_file: 'external-request',
@@ -77,6 +81,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_zoom: 'browser-state',
   browser_audio: 'browser-state',
   browser_screenshot: 'browser-state',
+  browser_frame_stream: 'browser-state',
   browser_pdf_save: 'external-request',
   browser_screenshot_save: 'external-request',
   browser_performance: 'browser-state',
@@ -134,7 +139,7 @@ export function mcpCapabilityAction(toolName: string, input: Record<string, unkn
   if (typeof input.action === 'string') return input.action
   if (toolName === 'browser_console' || toolName === 'browser_network') return input.clear === true ? 'clear' : 'list'
   if (toolName === 'browser_downloads') return 'list'
-  if (toolName === 'browser_pwa_lifecycle') return 'get'
+  if (toolName === 'browser_pwa_lifecycle' || toolName === 'browser_zoom') return 'get'
   return undefined
 }
 

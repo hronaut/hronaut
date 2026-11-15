@@ -1,14 +1,20 @@
 import type { AgentStepKind } from '../../../shared/agent-steps.js'
 import type { HomeBootstrap, HomeDashboard, HomeFeedEntry, HronautHomeApi } from '../../../shared/home.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from '../../../shared/home-workspaces.js'
+import { splitConfirmation, type Confirmation } from '../../../shared/confirmation.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { agentStepText } from '../../../shared/agent-step-text.js'
 import { tabTitleForDisplay } from '../../../shared/tab-title.js'
 import { mountActivityFeed } from './activity-feed.js'
 import { element, errorText, interpolate, messageAt, pluralText, timeAgo } from './dom.js'
-import { renderNewWorkspaceTile, renderWorkspaceCard, renderWorkspaceEmpty, updateCardStatus, type CardStatus } from './workspace-card.js'
+import {
+  cardSignatures, renderWorkspaceCard, renderWorkspaceEmpty, updateCardCounts, updateCardStatus, updateCardTabs, type CardStatus
+} from './workspace-card.js'
 
 type LiveAgents = Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>
+/** The card buttons that act on one workspace. */
+const WORKSPACE_ACTIONS = ['open', 'edit', 'transfer', 'copy-agent-key', 'delete', 'archive', 'clear'] as const
+type WorkspaceActionView = typeof WORKSPACE_ACTIONS[number]
 
 export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal: AbortSignal, onStateChange?: (state: HomeWorkspaceState) => void) {
   let state = data.workspaces
@@ -19,19 +25,46 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   let undoId: string | null = null
   const messages = data.messages.workspaceLibrary
   const labels = data.messages.settings.privacy
-  // Main asks with Cancel as the default button; `window.confirm` presses OK on Enter, in English. Component tests
+  // Main asks in Hronaut's dialog with Cancel focused; `window.confirm` presses OK on Enter, in English. Component tests
   // mount Home without the bridge.
-  // eslint-disable-next-line no-restricted-properties -- only without Home's bridge, as in component tests
-  const confirm = (message: string): boolean => api.confirm ? api.confirm(message) : window.confirm(message)
+  const confirm = async (question: Confirmation): Promise<boolean> => {
+    if (api.confirm) return api.confirm(question)
+    // eslint-disable-next-line no-restricted-properties -- only without Home's bridge, as in component tests
+    return window.confirm(question.detail ? `${question.message}\n\n${question.detail}` : question.message)
+  }
+  /**
+   * Asks before a change to a workspace. No other action or refresh starts while the question waits, and a yes counts
+   * only while the workspace is still there and unprotected: an agent may archive, restore, protect or delete it
+   * meanwhile, so Home reads the workspaces again after the yes.
+   */
+  async function confirmWorkspaceChange(template: string, group: { id: string; name: string }): Promise<boolean> {
+    pending = true
+    try {
+      if (!await confirm(splitConfirmation((parameters) => interpolate(template, parameters), { name: group.name })) || signal.aborted) return false
+      ++revision
+      const latest = await api.getWorkspaces()
+      if (signal.aborted) return false
+      state = latest; onStateChange?.(state); render()
+      const current = [...state.mcpTabGroups, ...state.savedTabGroups].find(candidate => candidate.id === group.id)
+      return Boolean(current && !current.deletionProtected)
+    } catch {
+      // Without the current workspaces the yes cannot be checked, so nothing changes.
+      return false
+    } finally {
+      pending = false
+    }
+  }
   const mission = data.messages.home.mission
   const root = element('home-workspaces')
+  const needsYou = element('home-needs-you')
+  // A workspace opens from its card, from an agent or step in the Agents view, and from the needs-you line.
+  const places = [root, element('home-connected'), needsYou]
   const search = element<HTMLInputElement>('workspace-search')
   const grid = element('workspace-grid')
   const error = element('workspace-error')
   const notice = element('workspace-notice')
   const undo = element<HTMLButtonElement>('workspace-undo')
-  const cards = new Map<string, { node: HTMLElement; signature: string }>()
-  const newTile = document.createElement('div')
+  const cards = new Map<string, { node: HTMLElement; frame: string; tabs: string }>()
   const feed = mountActivityFeed(data)
   const count = (message: string, value: number): string => pluralText(data.locale, message, value)
   const t = (key: string, values?: Record<string, unknown>): string => messageAt(data.messages, key, values as Record<string, string | number>)
@@ -65,7 +98,40 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     }
     return entry => waiting.has(entry.id)
   }
+  /** One amber line for each open workspace where an agent waits for the person, with the way there. */
+  function renderNeedsYou(): void {
+    const waiting = state.mcpTabGroups.flatMap(group => {
+      const activity = live.workspaceActivity?.[group.id]
+      if (activity?.state !== 'needs-you') return []
+      const name = live.agents?.find(agent => agent.key === activity.agentKeys[0])?.name || data.messages.shell.agents.unnamed
+      return [{ id: group.id, workspace: group.name, name }]
+    })
+    const signature = JSON.stringify(waiting)
+    // Rebuilt only when it changes, so the button the person is on stays under the keyboard.
+    if (needsYou.dataset.signature === signature) return
+    needsYou.dataset.signature = signature
+    const focused = needsYou.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.workspaceId : undefined
+    needsYou.replaceChildren(...waiting.map(item => {
+      const line = document.createElement('p')
+      line.className = 'needs-you-line'
+      const dot = document.createElement('span')
+      dot.className = 'dot needs-you'; dot.setAttribute('aria-hidden', 'true')
+      const words = document.createElement('span')
+      words.className = 'needs-you-words'; words.textContent = interpolate(mission.needsYouIn, { name: item.name, workspace: item.workspace })
+      const open = document.createElement('button')
+      open.type = 'button'; open.dataset.workspaceAction = 'open'; open.dataset.workspaceId = item.id; open.textContent = messages.openWorkspace
+      // Each line's button says which workspace it opens, as a card's and an agent's do.
+      open.setAttribute('aria-label', interpolate(mission.open, { name: item.workspace }))
+      line.append(dot, words, open)
+      return line
+    }))
+    needsYou.hidden = !waiting.length
+    const again = [...needsYou.querySelectorAll<HTMLElement>('[data-workspace-id]')].find(button => button.dataset.workspaceId === focused)
+    // The line the person was on went once its agent stopped waiting: the view's own tab keeps the keyboard on Home.
+    if (focused) (again ?? document.querySelector<HTMLElement>('.home-navigation [aria-selected="true"]'))?.focus({ preventScroll: true })
+  }
   function render(): void {
+    renderNeedsYou()
     const groups = [
       ...state.mcpTabGroups.map(group => ({ ...group, archived: false, timestamp: group.lastUsedAt, tabs: state.tabs.filter(tab => tab.mcpGroupId === group.id) })),
       ...state.savedTabGroups.map(group => ({ ...group, archived: true, timestamp: group.savedAt }))
@@ -79,40 +145,48 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       tab.tabIndex = view === collection ? 0 : -1
     }
     grid.setAttribute('aria-labelledby', `workspaces-${view}`)
-    element('workspace-hint').textContent = messages[view === 'archived' ? 'archiveHelp' : 'openHelp']
     // Undo stays while the archive does: a cleared workspace's goes once the shell deletes it.
     undo.hidden = !undoId || !state.savedTabGroups.some(group => group.id === undoId)
     for (const [id, card] of cards) if (!visible.some(group => group.id === id)) { card.node.remove(); cards.delete(id) }
     grid.querySelector('.workspace-empty')?.remove()
     visible.forEach((group, index) => {
       const status = cardStatus(group)
-      const signature = JSON.stringify([group, state.allHumanInteractionLocked])
+      const signatures = cardSignatures(group, state.allHumanInteractionLocked)
       let card = cards.get(group.id)
-      if (!card) { card = { node: document.createElement('article'), signature: '' }; cards.set(group.id, card) }
+      if (!card) { card = { node: document.createElement('article'), frame: '', tabs: '' }; cards.set(group.id, card) }
       const focused = card.node.contains(document.activeElement) ? document.activeElement as HTMLElement : null
       const focusKey = focused?.dataset.workspaceAction ?? focused?.dataset.workspacePreference
       let focusTarget = focused
-      if (card.signature !== signature) {
-        renderWorkspaceCard(card.node, group, { messages, labels, mission, untitledTab: data.messages.tabSearch.newTabTitle, count, allHumanInteractionLocked: state.allHumanInteractionLocked, status })
-        card.signature = signature
+      const untitledTab = data.messages.tabSearch.newTabTitle
+      if (card.frame !== signatures.frame) {
+        const allHumanInteractionLocked = state.allHumanInteractionLocked
+        renderWorkspaceCard(card.node, group, { messages, labels, mission, untitledTab, count, allHumanInteractionLocked, status })
         focusTarget = focusKey
           ? card.node.querySelector<HTMLElement>(`[data-workspace-action="${focusKey}"],[data-workspace-preference="${focusKey}"]`)
           : focused?.tagName === 'SUMMARY' ? card.node.querySelector('summary') : null
-      } else updateCardStatus(card.node, status)
+      } else {
+        // As an agent browses, only the tiles and counts change: the card's menu, and the person's pointer and focus on it, stay.
+        if (card.tabs !== signatures.tabs) updateCardTabs(card.node, group, { messages, labels, untitledTab, count })
+        updateCardCounts(card.node, group, { labels, count })
+        updateCardStatus(card.node, status)
+      }
+      card.frame = signatures.frame
+      card.tabs = signatures.tabs
       // Failed or unchanged saves still need to restore the authoritative values.
       if (!pending) for (const preference of ['hiddenFromSidebar', 'deletionProtected'] as const) {
         const input = card.node.querySelector<HTMLInputElement>(`[data-workspace-preference="${preference}"]`)
         if (input) input.checked = Boolean(group[preference])
       }
-      // Retain the same card and controls on polling; move only when ordering changes.
-      if (grid.children[index] !== card.node) grid.insertBefore(card.node, grid.children[index] ?? null)
-      // Moving an existing card can blur its controls; restore only after ordering.
+      // Retain the same card and controls on polling; move only when ordering changes. A card already on Home moves without
+      // taking the focus off its controls, which would close its open menu: an agent's step moves its workspace first.
+      if (grid.children[index] !== card.node) {
+        const before = grid.children[index] ?? null
+        if (card.node.parentNode === grid && 'moveBefore' in grid) grid.moveBefore(card.node, before)
+        else grid.insertBefore(card.node, before)
+      }
+      // Moving an existing card without moveBefore can blur its controls; restore only after ordering.
       if (focusTarget?.isConnected && document.activeElement !== focusTarget) focusTarget.focus({ preventScroll: true })
     })
-    // Open workspaces end with a tile for a new one; a search or the archive shows only what matches.
-    if (view === 'open' && !query && visible.length) {
-      if (grid.lastElementChild !== newTile) grid.append(newTile)
-    } else newTile.remove()
     if (!visible.length) renderWorkspaceEmpty(grid, messages[query ? 'noMatches' : view === 'archived' ? 'noArchived' : 'empty'], messages[query ? 'searchHelp' : view === 'archived' ? 'archiveHelp' : 'emptyHelp'])
     feed.update(live.feed ?? [], {
       workspaceName: id => state.mcpTabGroups.find(group => group.id === id)?.name,
@@ -120,7 +194,8 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       initial: entry => live.agents?.find(agent => agent.key === entry.agentKey)?.initial
     })
     root.setAttribute('aria-busy', String(pending))
-    root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[data-workspace-action],input[data-workspace-preference]').forEach(control => {
+    const selector = 'button[data-workspace-action],input[data-workspace-preference]'
+    places.flatMap(place => [...place.querySelectorAll<HTMLButtonElement | HTMLInputElement>(selector)]).forEach(control => {
       if (pending) {
         // The control the person is on stays enabled: Chromium drops focus from a disabled control, which would close
         // its menu and send focus to the search field. Pressing it again meanwhile does nothing, as `action` ignores it.
@@ -137,10 +212,10 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     // the archive has no room for that.
     if (input.view === 'clear') {
       const undoable = state.savedTabGroups.length < MAX_ARCHIVED_WORKSPACES
-      if (!group || group.deletionProtected || (!undoable && !confirm(interpolate(messages.clearConfirm, { name: group.name })))) return
+      if (!group || group.deletionProtected || (!undoable && !await confirmWorkspaceChange(messages.clearConfirm, group))) return
       request = { ...input, undoable }
     }
-    if (input.view === 'delete' && (!group || group.deletionProtected || !confirm(interpolate(messages.deleteConfirm, { name: group.name })))) return
+    if (input.view === 'delete' && (!group || group.deletionProtected || !await confirmWorkspaceChange(messages.deleteConfirm, group))) return
     pending = true
     const generation = ++revision
     error.textContent = ''; error.hidden = true
@@ -150,6 +225,10 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       if (generation !== revision || signal.aborted) return
       state = next
       onStateChange?.(state)
+      if (request.view === 'copy-agent-key') {
+        undoId = null
+        notice.textContent = interpolate(messages.agentKeyNotice, { name: group?.name ?? '' })
+      }
       if (request.view === 'archive' || request.view === 'clear' || request.view === 'restore' || request.view === 'delete') {
         // Home's own Undo restores the archive, so it can be reached from the keyboard here too.
         undoId = request.view === 'archive' || (request.view === 'clear' && request.undoable) ? request.workspaceId : null
@@ -161,8 +240,11 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       if (generation === revision && !signal.aborted) {
         pending = false
         render()
-        // A card that went away took focus with it: keep the person in the list, on Undo when it is offered.
-        if (!root.contains(document.activeElement) && 'workspaceId' in request) (undo.hidden ? search : undo).focus({ preventScroll: true })
+        // A card that went away took focus with it: keep the person in the list, on Undo when it is offered, or on the
+        // view's own tab when the action came from another view.
+        const stayed = places.some(place => place.contains(document.activeElement))
+        const fallback = root.hidden ? document.querySelector<HTMLElement>('.home-navigation [aria-selected="true"]') : undo.hidden ? search : undo
+        if (!stayed && 'workspaceId' in request) fallback?.focus({ preventScroll: true })
       }
     }
   }
@@ -175,7 +257,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       state = next; onStateChange?.(state); render()
     } catch { /* Actions surface errors; polling retains the last usable view. */ }
   }
-  root.addEventListener('click', event => {
+  for (const place of places) place.addEventListener('click', event => {
     const control = (event.target as Element).closest<HTMLButtonElement>('[data-workspace-action]')
     if (!control || control.disabled) return
     // A menu closes once one of its actions is chosen, and gives focus back to its button.
@@ -183,8 +265,8 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     if (menu) { menu.open = false; menu.querySelector('summary')?.focus({ preventScroll: true }) }
     const actionView = control.dataset.workspaceAction
     if (actionView === 'create' || actionView === 'templates') void action({ view: actionView })
-    else if (['open', 'edit', 'transfer', 'delete', 'archive', 'clear'].includes(actionView ?? '') && control.dataset.workspaceId) {
-      void action({ view: actionView as 'open' | 'edit' | 'transfer' | 'delete' | 'archive' | 'clear', workspaceId: control.dataset.workspaceId })
+    else if (WORKSPACE_ACTIONS.includes(actionView as WorkspaceActionView) && control.dataset.workspaceId) {
+      void action({ view: actionView as WorkspaceActionView, workspaceId: control.dataset.workspaceId })
     }
   }, { signal })
   root.addEventListener('change', event => {
@@ -199,7 +281,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   // Enter repeats while it is held. A menu's action gives the focus back to the menu's button and an archive or clear
   // gives it to Undo, so the repeats opened the menu again and restored the workspace just archived. A button here
   // takes a new press.
-  root.addEventListener('keydown', event => {
+  for (const place of places) place.addEventListener('keydown', event => {
     if (event.repeat && event.key === 'Enter' && (event.target as Element).closest('button, summary')) event.preventDefault()
   }, { signal })
   root.addEventListener('keydown', event => {
@@ -237,7 +319,6 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       render(); element(`workspaces-${view}`).focus()
     }, { signal })
   }
-  renderNewWorkspaceTile(newTile, data.messages.workspaceSwitcher.newWorkspace, mission.newWorkspaceHelp)
   render()
   /** Agents' state from Home's status, read with the dashboard. */
   function setLive(next: LiveAgents): void {

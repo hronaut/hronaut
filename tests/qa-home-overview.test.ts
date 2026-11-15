@@ -75,8 +75,9 @@ describe('Overview recent actions in plain words (#873)', () => {
   it('shows one heading per panel', async () => {
     mountTestHome()
     await flush()
-    byId<HTMLButtonElement>('home-tab-overview').click()
-    expect(words(byId('home-view-title'))).toBe('Agent activity')
+    byId<HTMLButtonElement>('agents-section-overview').click()
+    expect(words(byId('home-view-title'))).toBe('Agents')
+    expect(words(byId('home-view-description'))).toBe('A local, content-free view of what Hronaut handled during this launch.')
     expect(words(byId('activity-title'))).toBe('Recent activity')
   })
 })
@@ -145,11 +146,11 @@ describe('Overview setup checks in words (#873)', () => {
     expect(words(query('summary', details))).toBe('Setup checks and connections')
     expect(details.contains(byId('readiness-checks'))).toBe(true)
     expect(details.contains(byId('connections'))).toBe(true)
-    byId<HTMLButtonElement>('home-tab-connect').click()
+    byId<HTMLButtonElement>('agents-section-connect').click()
     query<HTMLButtonElement>('[data-open-view="overview"][data-open-details]').click()
     expect(details.open).toBe(true)
     expect(byId('home-overview').hidden).toBe(false)
-    expect(document.activeElement).toBe(byId('home-tab-overview'))
+    expect(document.activeElement).toBe(byId('agents-section-overview'))
   })
 
   it('lists each connection as text, with its requests counted in the interface language', async () => {

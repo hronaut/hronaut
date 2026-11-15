@@ -14,7 +14,7 @@ vi.mock('electron', () => ({
 
 const { showContextMenu } = await import('../src/main/browser/context-menus/page-context-menu.js')
 type PageTab = { id: string, url: string, webContents: WebContents }
-type PageContextMenuAccess = import('../src/main/browser/context-menus/page-context-menu-access.js').PageContextMenuAccess<PageTab>
+type MenuBrowser = Parameters<typeof showContextMenu>[0]
 
 const PAGE = 'https://gallery.example/album/7?sort=new'
 
@@ -29,15 +29,15 @@ function saveFromMenu(itemId: 'save-link' | 'save-image', params: Partial<Contex
     downloadURL
   } as unknown as WebContents
   const tab: PageTab = { id: 'tab', url: PAGE, webContents }
-  const access = {
-    findTab: () => tab,
-    window: () => ({}),
-    options: () => ({ copyText: async () => undefined, copyImageAt: async () => undefined }),
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    window: {},
+    options: { copyText: async () => undefined, copyImageAt: async () => undefined },
     text: (key: string) => key,
     isHumanInteractionLocked: () => false,
-    expectSavedLinkName
-  } as unknown as PageContextMenuAccess
-  showContextMenu(access, tab, {
+    downloadController: { expectSavedLinkName }
+  } as unknown as MenuBrowser
+  showContextMenu(browser, tab as never, {
     x: 10, y: 20, linkURL: '', srcURL: '', selectionText: '', isEditable: false, mediaType: 'none', editFlags: {},
     pageURL: PAGE, frameURL: PAGE, referrerPolicy: 'strict-origin-when-cross-origin', ...params
   } as unknown as ContextMenuParams)
@@ -81,12 +81,30 @@ describe('saving from the page menu', () => {
   it('gives Save Link the link\'s download name before starting the download, and Save Image none', () => {
     // downloadURL cannot carry the name, so Save Link saved `/export?id=5` as export.csv instead of report.csv.
     const link = saveFromMenu('save-link', { linkURL: 'https://gallery.example/export?id=5', suggestedFilename: 'report.csv' })
-    expect(expectSavedLinkName).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 7 }), 'https://gallery.example/export?id=5', 'report.csv')
+    expect(expectSavedLinkName).toHaveBeenCalledExactlyOnceWith(7, 'https://gallery.example/export?id=5', 'report.csv')
     expect(expectSavedLinkName.mock.invocationCallOrder[0]).toBeLessThan(link.mock.invocationCallOrder[0]!)
     expectSavedLinkName.mockReset()
     saveFromMenu('save-link', { linkURL: 'https://gallery.example/files/a.zip', suggestedFilename: '' })
     saveFromMenu('save-image', { mediaType: 'image', srcURL: 'https://images.example/a.png', hasImageContents: true, linkURL: 'https://gallery.example/export?id=5', suggestedFilename: 'report.csv' })
     expect(expectSavedLinkName).not.toHaveBeenCalled()
+  })
+
+  it('saves an image the page made itself, from a data or blob address, which opens in no tab', () => {
+    // Save Image was unavailable for both, which Chrome saves, such as a chart a page draws into an image.
+    for (const srcURL of ['data:image/png;base64,iVBORw0KGgo=', 'blob:https://gallery.example/8c4f']) {
+      const saved = saveFromMenu('save-image', { mediaType: 'image', srcURL, hasImageContents: true })
+      const items = built.templates.at(-1)!
+      expect(items.find(entry => entry.id === 'save-image')?.enabled).toBe(true)
+      expect(items.find(entry => entry.id === 'open-image-new-tab')?.enabled).toBe(false)
+      expect(saved).toHaveBeenCalledExactlyOnceWith(srcURL)
+    }
+  })
+
+  it('keeps Save Image unavailable for an address other than http, https, data or blob', () => {
+    for (const srcURL of ['file:///home/user/a.png', 'filesystem:https://gallery.example/temporary/a.png', 'not an address']) {
+      saveFromMenu('save-image', { mediaType: 'image', srcURL, hasImageContents: true })
+      expect(built.templates.at(-1)!.find(entry => entry.id === 'save-image')?.enabled).toBe(false)
+    }
   })
 
   it('takes the referrer from the frame that was right-clicked, not the top-level page', () => {

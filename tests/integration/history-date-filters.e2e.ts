@@ -14,8 +14,10 @@ test('filters synthetic history by local dates without changing saved visits', a
       url: `https://example.test/day-${daysAgo}`, visitedAt: date.toISOString(), visitCount: 3
     }
   })
+  // The history saves the visit times it keeps for a page; with one, its last visit, the file stays as written.
+  const saved = entries.map(entry => ({ ...entry, earlierVisitAt: Date.parse(entry.visitedAt) }))
   const path = join(profileDirectory, 'history.json')
-  await writeFile(path, JSON.stringify({ version: 1, entries }))
+  await writeFile(path, JSON.stringify({ version: 1, entries: saved }))
   let instance = await launchHronaut(profileDirectory, mcpPort)
   try {
     let window = instance.window
@@ -48,7 +50,7 @@ test('filters synthetic history by local dates without changing saved visits', a
     expect(await panel.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
     await testInfo.attach('history-dates-compact', { body: await panel.screenshot(), contentType: 'image/png' })
     expect(await window.evaluate(() => (window as unknown as { hronautHistory: HronautHistoryApi }).hronautHistory.list())).toEqual(entries)
-    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual(entries)
+    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual(saved)
     await closeHronaut(instance.app)
     instance = await launchHronaut(profileDirectory, mcpPort)
     window = instance.window

@@ -2,7 +2,7 @@ import { createTestingPinia } from '@pinia/testing'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import AppearanceSettings from '../../src/renderer/src/components/AppearanceSettings.vue'
+import AppearanceSettings from '../../src/renderer/src/features/settings/AppearanceSettings.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { RendererSettingsState } from '../../src/shared/types.js'
 
@@ -14,6 +14,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       tabPosition: 'top',
       useSystemTitleBar: false,
       searchEngine: 'google',
+      siteSearches: [],
       hideInTray: true,
       launchAtStartup: false,
       launchMinimized: false,
@@ -22,6 +23,9 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: [],
+      secureDnsMode: 'automatic',
+      secureDnsTemplate: '',
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,
@@ -31,10 +35,14 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
+      saveDialogDirectory: null,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
+      graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: locale
+      languagePreference: locale,
+      spellCheck: true,
+      spellCheckLanguages: []
     },
     systemTheme: 'light',
     systemLocale: locale,
@@ -81,6 +89,16 @@ describe('AppearanceSettings', () => {
     await userEvent.setup().keyboard('{ArrowRight}')
     expect(system).toHaveFocus()
     expect(setTheme.mock.calls.map(([theme]) => theme)).toEqual(['light', 'system', 'galactic', 'system'])
+    // With Alt, Ctrl or Cmd these keys are the browser's: Alt+Home chose the first theme instead of opening Home.
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      for (const key of ['Home', 'End', 'ArrowRight']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
+        system.dispatchEvent(event)
+        expect(event.defaultPrevented, key).toBe(false)
+      }
+    }
+    expect(system).toHaveFocus()
+    expect(setTheme).toHaveBeenCalledTimes(4)
   })
 
   it('renders accessible theme controls', () => {
@@ -139,9 +157,10 @@ describe('AppearanceSettings', () => {
       configurable: true,
       value: { windowChrome: { platform: 'darwin', mode: 'overlay', mainWindow: true } }
     })
+    const restart = vi.fn(async () => true)
     Object.defineProperty(window, 'hronautSettings', {
       configurable: true,
-      value: { setUseSystemTitleBar }
+      value: { setUseSystemTitleBar, restart }
     })
     const pinia = createTestingPinia({
       stubActions: false,
@@ -156,6 +175,8 @@ describe('AppearanceSettings', () => {
 
     expect(setUseSystemTitleBar).toHaveBeenCalledWith(true)
     expect(screen.getByRole('status')).toHaveTextContent('Restart Hronaut to apply this window-frame change.')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Restart' }))
+    expect(restart).toHaveBeenCalledOnce()
   })
 
 })

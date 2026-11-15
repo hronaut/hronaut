@@ -31,11 +31,17 @@ test('views the source of a frame and reloads the frame alone from its menu, as 
   try {
     await appWindow.evaluate(url => (window as unknown as { hronaut: { newTab(options: { url: string; active: boolean }): Promise<unknown> } }).hronaut.newTab({ url, active: true }), url)
     await expect(appWindow.getByRole('tab', { name: /Frame menu fixture/ })).toBeVisible()
-    // The text the frame shows once its document has loaded, which counts its loads.
+    // The text the frame shows once its document has loaded, which counts its loads. A script sent to a frame that is
+    // reloading can be dropped with its document and never settle, so each read gives up after a second and the poll
+    // reads again.
     const frameText = (): Promise<string | undefined> => electronApp.evaluate(async ({ webContents }, input: { url: string; frameUrl: string }) => {
       const frame = webContents.getAllWebContents().find(contents => contents.getURL() === input.url)?.mainFrame.framesInSubtree
         .find(candidate => candidate.url === input.frameUrl)
-      return await frame?.executeJavaScript('document.querySelector("#card")?.textContent') as string | undefined
+      if (!frame) return undefined
+      return await Promise.race([
+        frame.executeJavaScript('document.querySelector("#card")?.textContent') as Promise<string | undefined>,
+        new Promise<undefined>(resolve => setTimeout(resolve, 1000))
+      ])
     }, { url, frameUrl })
     await expect.poll(frameText).toBe('Card form 1')
 
@@ -91,6 +97,7 @@ test('views the source of a frame and reloads the frame alone from its menu, as 
     ])
 
     expect(await choose('reload-frame')).toBe(true)
+    await expect.poll(() => requests.frame).toBe(2)
     await expect.poll(frameText).toBe('Card form 2')
     expect(requests.page).toBe(1)
 

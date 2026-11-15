@@ -1,6 +1,8 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { lcpAttributionPageFunction, sanitizeLcpAttribution } from '../src/shared/performance-lcp.js'
+import { sanitizeLcpAttribution } from '../src/shared/performance-lcp.js'
+import { lcpAttributionInPage } from '../src/shared/performance-lcp.page.js'
+import { pageFunctionExpression } from '../src/shared/page-script.js'
 import type { BrowserPerformanceLcpAttribution } from '../src/shared/types.js'
 
 function fixture() {
@@ -16,7 +18,7 @@ function fixture() {
   }
 }
 function summarize(metric: unknown): BrowserPerformanceLcpAttribution {
-  return runInNewContext(`(${lcpAttributionPageFunction})(metric)`, { metric, URL }) as BrowserPerformanceLcpAttribution
+  return runInNewContext(`${pageFunctionExpression(lcpAttributionInPage)}(metric)`, { metric, URL }) as BrowserPerformanceLcpAttribution
 }
 
 describe('bounded LCP phase attribution', () => {

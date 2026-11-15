@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { Session, WebContents } from 'electron'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
+import { pageScript } from '../../../shared/page-script.js'
 import { snapshotDeltaInvalidationReason } from '../../../shared/snapshot-delta.js'
 import {
   MAX_STORAGE_CHANGE_VALUE_BYTES,
@@ -14,25 +15,28 @@ import {
 import type { BrowserStorageChangesAction, BrowserStorageChangesReport } from '../../../shared/types.js'
 import { utf8Prefix } from '../../../shared/utf8.js'
 import { StorageComparisonInputError, type StorageComparisonHooks } from '../storage-comparison-operation.js'
-import type { SiteStorageAccess, SiteStorageTab } from './site-storage-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { storageSnapshotInPage } from './storage-changes.page.js'
 
 /** Records, compares or clears the tab's in-memory storage baseline for its origin. */
-export async function storageChanges<Tab extends SiteStorageTab>(
-  access: SiteStorageAccess<Tab>,
+export async function storageChanges(
+  browser: Browser,
   action: BrowserStorageChangesAction = 'get',
   tabId?: string,
   includeValues = false,
   hooks?: StorageComparisonHooks
 ): Promise<BrowserStorageChangesReport> {
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
   const pageUrl = new URL(tab.url)
   const origin = pageUrl.origin
   const contents = tab.webContents
   const storageSession = contents.session
   const url = tab.url
-  const context = access.snapshotDeltaContext(tab)
-  const workspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-  const permissionGeneration = workspace ? access.inspectionPermission(workspace) ?? 0 : 0
+  const context = browser.snapshotDeltaContext(tab)
+  const workspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+  const permissionGeneration = workspace ? browser.inspectionPermissions.get(workspace) ?? 0 : 0
   let comparison = tab.storageComparison
   let operationGeneration = tab.storageComparisonGeneration
   let documentCommitted = false
@@ -44,12 +48,12 @@ export async function storageChanges<Tab extends SiteStorageTab>(
     if (!rejected) {
       try {
         hooks?.validate()
-        const currentWorkspace = tab.mcpGroupId ? access.findWorkspace(tab.mcpGroupId) : undefined
-        if (access.isDestroyed() || access.findTab(tab.id) !== tab || tab.webContents !== contents
+        const currentWorkspace = tab.mcpGroupId ? browser.mcpTabGroups.get(tab.mcpGroupId) : undefined
+        if (browser.destroyed || findTab(browser, tab.id) !== tab || tab.webContents !== contents
           || contents.isDestroyed() || contents.session !== storageSession || tab.url !== url
           || currentWorkspace !== workspace
-          || (currentWorkspace ? access.inspectionPermission(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-          || snapshotDeltaInvalidationReason(context, access.snapshotDeltaContext(tab))
+          || (currentWorkspace ? browser.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+          || snapshotDeltaInvalidationReason(context, browser.snapshotDeltaContext(tab))
           || documentCommitted || tab.storageComparisonGeneration !== operationGeneration
           || tab.storageComparison !== comparison) throw new Error('Storage comparison context changed')
         return
@@ -100,7 +104,7 @@ export async function storageChanges<Tab extends SiteStorageTab>(
 }
 
 function storageChangesReport(
-  tab: SiteStorageTab,
+  tab: BrowserTab,
   origin: string,
   action: BrowserStorageChangesAction,
   includeValues: boolean
@@ -171,41 +175,10 @@ async function captureStorageSnapshot(
   requireCurrentOperation: () => void
 ): Promise<BrowserStorageSnapshot> {
   requireCurrentOperation()
-  const domStorage = await contents.executeJavaScript(`(() => {
-      const limit = ${MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND};
-      const previewLimit = ${MAX_STORAGE_CHANGE_VALUE_BYTES};
-      const fingerprint = (value) => {
-        let first = 2166136261;
-        let second = 2246822519;
-        for (let index = 0; index < value.length; index += 1) {
-          const code = value.charCodeAt(index);
-          first = Math.imul(first ^ code, 16777619);
-          second = Math.imul(second ^ code, 3266489917);
-        }
-        return [first >>> 0, second >>> 0, value.length].join(':');
-      };
-      const read = (storage) => {
-        const values = [];
-        for (let index = 0; index < storage.length; index += 1) {
-          const key = storage.key(index);
-          if (key !== null) values.push([key, storage.getItem(key) ?? '']);
-        }
-        values.sort((left, right) => left[0].localeCompare(right[0]));
-        return {
-          itemCount: values.length,
-          entries: values.slice(0, limit).map(([key, value]) => ({
-            key,
-            fingerprint: fingerprint(value),
-            valueBytes: new TextEncoder().encode(value).byteLength,
-            valuePreview: value.slice(0, previewLimit)
-          }))
-        };
-      };
-      return { local: read(localStorage), session: read(sessionStorage) };
-    })()`, false) as {
-    local: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
-    session: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
-  }
+  const domStorage = await contents.executeJavaScript(
+    pageScript(storageSnapshotInPage, MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND, MAX_STORAGE_CHANGE_VALUE_BYTES),
+    false
+  ) as ReturnType<typeof storageSnapshotInPage>
   requireCurrentOperation()
   const cookies = await storageSession.cookies.get({ url })
   requireCurrentOperation()

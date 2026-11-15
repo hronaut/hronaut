@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test, pageAt } from './fixtures.js'
 
 interface DragObservation {
   events: { type: string; target: string; x: number; y: number; scrollY: number }[]
@@ -65,7 +65,7 @@ for (const mode of ['selectors-down', 'selectors-up', 'refs', 'coordinates'] as 
       await call('browser_wait', { ...args, selector: '#source' })
       await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id!), opened.activeTabId)
       expect(JSON.parse(await call('browser_resize', { ...args, width: 800, height: 640 }))).toMatchObject({ width: 800, height: 640 })
-      const page = electronApp.context().pages().find(page => page.url() === url)!
+      const page = await pageAt(electronApp, url)
       const points = await page.evaluate(() => {
         scrollTo(0, 700)
         const source = document.querySelector('#source')!.getBoundingClientRect()

@@ -36,6 +36,8 @@ export const nativeClickFailureResult = (progress: NativeClickProgress, reasonVa
     effects: possible ? 'possible' : 'none', retrySafe: false,
     press: progress.downAttempted > 0 ? 'attempted' : 'not-dispatched', progress: { ...progress },
     ...(reason === 'TARGET_DISABLED' ? { message: 'Target is natively disabled.' } : {}),
+    ...(reason === 'PAGE_PINCHED'
+      ? { message: 'The page is pinched larger, so the press was not sent. Reset it with browser_zoom (action reset) first.' } : {}),
     ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
     nextAction: (reason === 'CLICK_STATE_UNCONFIRMED' || progress.targetCleanup === 'unconfirmed' || progress.inputCleanupFailed || progress.downAttempted > progress.upAcknowledged ? 'Close this tab before another semantic native click; retained handles or input cleanup could not be confirmed. ' : '') + 'Inspect fresh visible state before a new request. Preparatory scroll/hover and earlier presses are not rolled back. Press acknowledgements do not prove target routing or handler execution; do not replay automatically.' }
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
@@ -208,14 +210,17 @@ export function urlDetailOmitted(manager: { omitAgentUrlDetail?: () => boolean }
   return manager.omitAgentUrlDetail?.() === true
 }
 
-/** A tab as agents read it. With `omitUrlDetail`, the person's setting, its addresses carry no query or fragment. */
-export function mcpWorkspaceTab<T extends AddressedTab & { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState }>(tab: T, omitUrlDetail = false): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState'> & {
+/**
+ * A tab as agents read it. With `omitUrlDetail`, the person's setting, its addresses carry no query or fragment. Whether
+ * the person changed a permission of its website since it loaded stays the person's.
+ */
+export function mcpWorkspaceTab<T extends AddressedTab & { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState; permissionReloadOffered?: true }>(tab: T, omitUrlDetail = false): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState' | 'permissionReloadOffered'> & {
   networkConditionState?: { application: import('../../shared/types.js').BrowserNetworkConditionState['application']; retainedRuleCount: number }
   workspaceId?: string
   workspaceName?: string
   urlDetail?: 'omitted'
 } {
-  const { mcpGroupId, mcpGroupName, networkConditionState, ...rest } = tab
+  const { mcpGroupId, mcpGroupName, networkConditionState, permissionReloadOffered: _personal, ...rest } = tab
   return {
     ...(omitUrlDetail ? tabWithoutUrlDetail(rest) : withoutOmittedNote(rest)),
     ...(networkConditionState ? { networkConditionState: { application: networkConditionState.application, retainedRuleCount: networkConditionState.retainedRules.length } } : {}),

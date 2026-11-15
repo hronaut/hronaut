@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type Gate = {
   ready: boolean
@@ -62,16 +63,16 @@ for (const [phase, change, target, dialog] of cases) {
         await barrier
       }
       page.executeJavaScript = async (script, ...args) => {
-        if (script.includes('element.click();')) gate.dispatches++
+        if (script.includes('function clickTargetInPage(')) gate.dispatches++
         const result = await execute.call(page, script, ...args)
         if ((phase === 'input' && script === 'window.__hronautAgentInputActive = true')
-          || (phase === 'pointer' && script.includes('element.scrollIntoView') && !script.includes('element.click();'))) await hold()
+          || (phase === 'pointer' && script.includes('function targetPointInPage('))) await hold()
         return result
       }
       api.sendCommand = async (method, ...args) => {
         const params = args[0] as { expression?: string } | undefined
         if (method === 'Input.dispatchMouseEvent') gate.mouseCommands++
-        if (method === 'Runtime.evaluate' && (params?.expression?.includes('element.click();') || params?.expression?.includes("new MouseEvent('click'"))) gate.dispatches++
+        if (method === 'Runtime.evaluate' && (params?.expression?.includes('function dialogAwareClickInPage(') || params?.expression?.includes('function dialogAwareCoordinateClickInPage('))) gate.dispatches++
         const result = await send.call(api, method, ...args)
         if (phase === 'context' && method === 'Page.getFrameTree') await hold()
         return result
@@ -118,13 +119,8 @@ for (const [phase, change, target, dialog] of cases) {
       const result = await pending
       let terminalActivity: unknown
       if (change === 'cancel') await expect.poll(async () => {
-        terminalActivity = await electronApp.evaluate(async ({ webContents }, id) => {
-          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const response = await home.session.fetch('hronaut://home/api/status')
-          if (!response.ok) throw new Error(`Activity observation failed: ${response.status}`)
-          const state = await response.json() as { recentActivity: { tabId: string; toolName: string; result: unknown }[] }
-          return state.recentActivity.find(activity => activity.tabId === id && activity.toolName === 'browser_click')?.result
-        }, tabId)
+        const state = await homeStatus<{ recentActivity: { tabId: string; toolName: string; result: unknown }[] }>(electronApp)
+        terminalActivity = state.recentActivity.find(activity => activity.tabId === tabId && activity.toolName === 'browser_click')?.result
         return terminalActivity
       }).toMatchObject({ dispatch: 'dispatched', effects: 'possible', outcome: 'cancelled' })
       const observation = await electronApp.evaluate(async ({ webContents }, url) => {

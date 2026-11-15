@@ -252,9 +252,11 @@ test('recovers an idle presented native view and preserves an explicit page hold
       pageLifecycleState: 'active',
       emulation: { animationPlaybackRate: 0.25 }
     })
+    // The runtime the matrix was measured on, read from the app rather than written down.
+    const runtime = await evaluate('return { electron: process.versions.electron, chromium: process.versions.chrome }')
     await testInfo.attach('page-lifecycle-support-matrix', {
       body: JSON.stringify({
-        runtime: { electron: '44.3.0', chromium: '152.0.7977.78' }, frozenForMs: 500,
+        runtime, frozenForMs: 500,
         deltasDuringHold: Object.fromEntries((Object.keys(lifecycleProbe.before) as Array<keyof PageLifecycleClockProbe>).map(key => [
           key, lifecycleProbe.after[key]! - lifecycleProbe.before[key]!
         ])),

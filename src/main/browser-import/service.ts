@@ -8,11 +8,13 @@ interface ImportPorts {
   destination(id: string): ImportDestination
   discover(): Promise<ImportProfile[]>
   consent(profile: BrowserImportProfile, destination: ImportDestination): Promise<boolean>
-  read(profile: ImportProfile): Promise<CookieSnapshot>
+  read(profile: ImportProfile, signal: AbortSignal): Promise<CookieSnapshot>
   write(destination: ImportDestination, cookies: Cookie[]): Promise<BrowserImportResult>
-  now?: () => number
 }
-interface PreviewState { id: string; destination: ImportDestination; cookies: Cookie[]; skipped: number; expiresAt: number }
+/** A preview's expiry shows on the wall clock; it ends on the monotonic clock, which a clock set back or forward does not move. */
+interface PreviewState {
+  id: string; destination: ImportDestination; cookies: Cookie[]; skipped: number; expiresAt: number; deadlineMonotonic: number
+}
 const LIFETIME = 5 * 60_000
 
 /** The caller authenticates the trusted shell. Neither profiles nor previews enter MCP. */
@@ -23,9 +25,12 @@ export class BrowserImportService {
   private previewState: PreviewState | null = null
   private timer: ReturnType<typeof setTimeout> | undefined
   private committing = false
+  // The profile read under way, which may wait on a keyring or wallet unlock prompt.
+  private reading: AbortController | undefined
   constructor(private readonly ports: ImportPorts) {}
   cancel(): void {
     this.generation++
+    this.reading?.abort(); this.reading = undefined
     this.profiles = []; this.destination = null
     if (this.previewState) for (const cookie of this.previewState.cookies) cookie.value = ''
     this.previewState = null
@@ -52,16 +57,19 @@ export class BrowserImportService {
     if (!destination || workspaceId !== destination.id || !profile) throw new BrowserImportError('expired')
     // Changing profiles invalidates both the old read grant and old cookie values.
     const generation = ++this.generation
+    this.reading?.abort(); this.reading = undefined
     if (this.previewState) for (const cookie of this.previewState.cookies) cookie.value = ''
     this.previewState = null
     this.check(generation, destination)
     if (!await this.ports.consent({ id: profile.id, browser: profile.browser, name: profile.name }, destination)) return null
     this.check(generation, destination)
-    const snapshot = await this.ports.read(profile)
+    const reading = this.reading = new AbortController()
+    let snapshot: CookieSnapshot
+    try { snapshot = await this.ports.read(profile, reading.signal) } finally { if (this.reading === reading) this.reading = undefined }
     try { this.check(generation, destination) } catch (error) { for (const cookie of snapshot.cookies) cookie.value = ''; throw error }
     const id = randomUUID()
-    const expiresAt = (this.ports.now?.() ?? Date.now()) + LIFETIME
-    this.previewState = { id, destination, ...snapshot, expiresAt }
+    const expiresAt = Date.now() + LIFETIME
+    this.previewState = { id, destination, ...snapshot, expiresAt, deadlineMonotonic: performance.now() + LIFETIME }
     clearTimeout(this.timer); this.timer = setTimeout(() => this.cancel(), LIFETIME); this.timer.unref()
     const sites = new Map<string, { domain: string; count: number; includesSubdomains: boolean }>()
     for (const cookie of snapshot.cookies) {
@@ -75,7 +83,7 @@ export class BrowserImportService {
     if (this.committing) throw new BrowserImportError('busy')
     const preview = this.previewState
     if (!preview || preview.id !== id) throw new BrowserImportError('expired')
-    if (preview.expiresAt <= (this.ports.now?.() ?? Date.now())) { this.cancel(); throw new BrowserImportError('expired') }
+    if (preview.deadlineMonotonic <= performance.now()) { this.cancel(); throw new BrowserImportError('expired') }
     try { this.check(this.generation, preview.destination) } catch (error) { this.cancel(); throw error }
     const available = new Set(preview.cookies.map(c => c.domain!.replace(/^\./, '')))
     if (!domains.length || domains.length > 20_000 || domains.some(d => !available.has(d))) throw new BrowserImportError('expired')

@@ -47,6 +47,8 @@ interface Session {
   userVerified: boolean
   startedAt: number
   expiresAt: number
+  /** When it ends, on the monotonic clock its timer runs on, from which a report gives the time left whatever the wall clock does. */
+  deadlineMonotonic: number
   credentials: number
   registrations: number
   signIns: number
@@ -200,7 +202,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
     authority.assertCurrent()
     const session: Session = {
       origin, webContents, authority, started: false, userVerified,
-      startedAt: 0, expiresAt: 0, credentials: 0, registrations: 0, signIns: 0, release: () => undefined
+      startedAt: 0, expiresAt: 0, deadlineMonotonic: 0, credentials: 0, registrations: 0, signIns: 0, release: () => undefined
     }
     // The boundary is in place before anything is checked or enabled, so no navigation can slip between them.
     this.sessions.set(tab, session)
@@ -246,6 +248,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
     session.started = true
     session.startedAt = Date.now()
     session.expiresAt = session.startedAt + durationMs
+    session.deadlineMonotonic = performance.now() + durationMs
     session.expiry = setTimeout(() => this.end(tab, session, 'expired'), durationMs)
     session.authorityCheck = setInterval(() => this.checkPage(tab, session), PAGE_CHECK_MS)
     this.lastEnded.delete(tab)
@@ -368,7 +371,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
           userVerified: own.userVerified,
           startedAt: new Date(own.startedAt).toISOString(),
           expiresAt: new Date(own.expiresAt).toISOString(),
-          remainingMs: Math.max(0, own.expiresAt - Date.now()),
+          remainingMs: Math.max(0, Math.round(own.deadlineMonotonic - performance.now())),
           credentials: own.credentials,
           registrations: own.registrations,
           signIns: own.signIns

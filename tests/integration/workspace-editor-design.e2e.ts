@@ -19,7 +19,8 @@ test('workspace description stays aligned and readable across themes, sizes, and
 
     for (const theme of ['light', 'dark'] as const) {
       await appWindow.evaluate(theme => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setTheme(theme), theme)
-      for (const [width, height, scale] of [[1200, 900, 1], [640, 640, 1.1], [600, 600, 1.25]] as const) {
+      // The narrowest window each interface size allows: the shell's 600 CSS pixels at that scale.
+      for (const [width, height, scale] of [[1200, 900, 1], [660, 640, 1.1], [750, 600, 1.25]] as const) {
         await electronApp.evaluate(({ BrowserWindow }, { width, height }) => {
           const window = BrowserWindow.getAllWindows()[0]!
           window.setMinimumSize(600, 600)

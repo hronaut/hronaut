@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { BrowserVideoRecorder, type VideoRecorderHost } from '../src/main/browser/video-recorder.js'
+import { BrowserVideoRecorder, type VideoCapture, type VideoCaptureResult, type VideoRecorderHost } from '../src/main/browser/video-recorder.js'
 import { VIDEO_LIMITS, VIDEO_RECORDING_NOTICES, videoAnnotationSchema, videoOptionsSchema, validateVideoEdit, videoSourceTime } from '../src/shared/video.js'
 
 beforeEach(() => vi.useFakeTimers())
@@ -7,7 +7,7 @@ afterEach(() => vi.useRealTimers())
 function fixture() {
   const host = { changed: vi.fn(), render: vi.fn<VideoRecorderHost['render']>(async () => new Uint8Array([1, 2, 3])), save: vi.fn<VideoRecorderHost['save']>(async () => ({ filename: 'video.webm', path: '/downloads/video.webm' })), now: () => Date.now() }
   const recorder = new BrowserVideoRecorder(host)
-  const capture = vi.fn(async (): Promise<{ data: Uint8Array; width: number; height: number } | null> => ({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 }))
+  const capture = vi.fn(async (): Promise<VideoCaptureResult> => ({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 }))
   const validate = vi.fn()
   const source = vi.fn()
   const manage = (action: 'get' | 'start' | 'pause' | 'resume' | 'stop' | 'render' | 'export' | 'clear') => recorder.manage('tab', { action }, capture, validate, source)
@@ -38,6 +38,20 @@ it('excludes paused time, keeps source frames immutable, and exports edited clip
   expect(recorder.state('tab').previewReady).toBe(false)
   await manage('export')
   expect(host.render).toHaveBeenCalledTimes(2)
+  recorder.destroy()
+})
+
+it('saves an export through the writer its caller chose, and keeps none when the person saved nothing', async () => {
+  const { recorder, manage, capture, validate, source, host } = fixture()
+  await manage('start')
+  await vi.advanceTimersByTimeAsync(1000)
+  await manage('stop')
+  const saveFile = vi.fn(async (): Promise<string | undefined> => undefined)
+  host.save.mockResolvedValueOnce(undefined)
+  const output = await recorder.manage('tab', { action: 'export' }, capture, validate, source, undefined, undefined, saveFile)
+  expect(host.save).toHaveBeenCalledWith(expect.any(Uint8Array), expect.any(Function), saveFile)
+  expect(output).toMatchObject({ status: 'stopped', previewReady: true })
+  expect(output.exported).toBeUndefined()
   recorder.destroy()
 })
 
@@ -77,18 +91,75 @@ it('cleans up timers and late captures when a tab closes', async () => {
   expect(capture).toHaveBeenCalledTimes(1)
 })
 
-it('rejects concurrent operations and cancels a render on clear before a file can be saved', async () => {
+it('queues an action behind an export and cancels a render on clear before a file can be saved', async () => {
   const { recorder, manage, host } = fixture()
   await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
   let release!: (value: Uint8Array) => void
   host.render.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
   const exporting = manage('export')
-  await expect(manage('start')).rejects.toThrow('current video operation')
+  // A start asked for meanwhile waits for the export instead of being refused, and applies to what is left by then.
+  const starting = manage('start')
   await manage('clear')
   release(new Uint8Array([1]))
   await expect(exporting).rejects.toThrow('cancelled')
   expect(host.save).not.toHaveBeenCalled()
-  expect(recorder.state('tab').status).toBe('idle')
+  await expect(starting).resolves.toMatchObject({ status: 'recording' })
+  expect(recorder.state('tab').status).toBe('recording')
+  recorder.destroy()
+})
+
+it('applies a pause asked for during the first frame once that frame is taken', async () => {
+  const { recorder, manage, capture } = fixture()
+  let frame!: (result: VideoCaptureResult) => void
+  capture.mockImplementationOnce(() => new Promise(resolve => { frame = resolve }))
+  const starting = manage('start')
+  let paused = false
+  const pausing = manage('pause').then(() => { paused = true })
+  await vi.advanceTimersByTimeAsync(100)
+  expect(paused).toBe(false)
+  expect(recorder.state('tab').status).toBe('recording')
+  frame({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 })
+  await starting
+  await pausing
+  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 1 })
+  recorder.destroy()
+})
+
+it('cancels an action that waited for a recording cleared and started again, instead of applying it to the new one', async () => {
+  const { recorder, manage, host } = fixture()
+  await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
+  // The export stays busy for as long as its save waits, such as on the Save dialog.
+  let saved!: () => void
+  host.save.mockImplementationOnce(() => new Promise(resolve => { saved = () => resolve(undefined) }))
+  const exporting = manage('export')
+  await vi.advanceTimersByTimeAsync(1)
+  let settled = false
+  const pausing = manage('pause').finally(() => { settled = true })
+  // A clear lets the waiting action go at once, while the export's own save goes on.
+  await manage('clear')
+  await manage('start')
+  await expect(pausing).rejects.toThrow('cancelled')
+  expect(settled).toBe(true)
+  expect(recorder.state('tab').status).toBe('recording')
+  saved()
+  await exporting.catch(() => undefined)
+  expect(recorder.state('tab').status).toBe('recording')
+  recorder.destroy()
+})
+
+it('lets a caller that cancels stop waiting for an export', async () => {
+  const { recorder, manage, capture, validate, host } = fixture()
+  await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
+  let release!: (value: Uint8Array) => void
+  host.render.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+  const exporting = manage('export')
+  const controller = new AbortController()
+  const editing = recorder.manage('tab', { action: 'edit', annotations: [] }, capture, validate, validate, controller.signal)
+  controller.abort()
+  await expect(editing).rejects.toThrow('cancelled')
+  release(new Uint8Array([1]))
+  await exporting
+  recorder.destroy()
 })
 
 it('bounds memory, duration and number of retained recordings', async () => {
@@ -169,8 +240,10 @@ it('discards an import when its recording is cleared or authority is revoked dur
   let finish!: (bytes: Uint8Array) => void
   Object.assign(host, { loadAudio: vi.fn(() => new Promise<Uint8Array>(resolve => { finish = resolve })) })
   const pending = recorder.manage('tab', { action: 'import-audio', audioPath: '/original.wav', audioProvenance: 'Original' }, capture, validate)
-  await expect(manage('export')).rejects.toThrow('current video operation')
+  // The export waits for the import, and is cancelled with it once the recording it was asked for is cleared.
+  const exporting = manage('export')
   await manage('clear')
+  await expect(exporting).rejects.toThrow('cancelled')
   finish(new Uint8Array(44))
   await expect(pending).rejects.toThrow('cancelled')
   expect(recorder.state('tab')).toMatchObject({ status: 'idle', audio: [] })
@@ -257,5 +330,120 @@ it('drops why capture paused by itself once the person stops it, and keeps a lim
   expect(recorder.state('tab').status).toBe('stopped')
   await manage('stop')
   expect(recorder.state('tab').notice).toBe(VIDEO_RECORDING_NOTICES.sizeLimit)
+  recorder.destroy()
+})
+
+it('keeps 30 samples a second when each capture takes 20 ms', async () => {
+  const { recorder, manage, capture } = fixture()
+  capture.mockImplementation(() => new Promise(resolve => { setTimeout(() => resolve({ data: new Uint8Array([4]), width: 640, height: 360 }), 20) }))
+  const started = manage('start')
+  await vi.advanceTimersByTimeAsync(1000)
+  await started
+  await manage('stop')
+  // A delay counted from the end of the last capture would give 1000 / (33 + 20), about 19.
+  expect(recorder.state('tab').frameCount).toBeGreaterThanOrEqual(VIDEO_LIMITS.framesPerSecond - 1)
+  recorder.destroy()
+})
+
+it('records a still page by repeating its last frame without its bytes, and does not pause for a gap', async () => {
+  const { recorder, manage, capture } = fixture()
+  await manage('start')
+  const first = recorder.state('tab')
+  capture.mockImplementation(async () => 'unchanged')
+  await vi.advanceTimersByTimeAsync(5000)
+  const still = recorder.state('tab')
+  expect(still.status).toBe('recording')
+  expect(still.frameCount).toBeGreaterThanOrEqual(5 * VIDEO_LIMITS.framesPerSecond - 1)
+  expect(still.bytes).toBe(first.bytes)
+  await manage('stop')
+  expect(recorder.state('tab').durationMs).toBe(5000)
+  recorder.destroy()
+})
+
+it('releases the capture source on pause, stop and clear, and starts it again by capturing after resume', async () => {
+  const { recorder, manage, capture } = fixture()
+  const release = vi.fn()
+  Object.assign(capture, { release })
+  await manage('start')
+  await manage('pause')
+  expect(release).toHaveBeenCalledTimes(1)
+  const before = capture.mock.calls.length
+  await manage('resume')
+  await vi.advanceTimersByTimeAsync(100)
+  expect(capture.mock.calls.length).toBeGreaterThan(before)
+  await manage('stop')
+  expect(release).toHaveBeenCalledTimes(2)
+  await manage('clear')
+  expect(release).toHaveBeenCalledTimes(3)
+  recorder.destroy()
+})
+
+it('resumes with the capture of the call that resumes, given the sizes of the one that started', async () => {
+  const { recorder, capture, validate, source } = fixture()
+  await recorder.manage('tab', { action: 'start' }, capture, validate, source)
+  await recorder.manage('tab', { action: 'pause' }, capture, validate, source)
+  const resumed: VideoCapture = Object.assign(vi.fn(async (): Promise<VideoCaptureResult> => ({ data: new Uint8Array([7]), width: 640, height: 360 })), {
+    continueFrom: vi.fn()
+  })
+  const before = capture.mock.calls.length
+  await recorder.manage('tab', { action: 'resume' }, resumed, validate, source)
+  await vi.advanceTimersByTimeAsync(200)
+  expect(capture.mock.calls.length).toBe(before)
+  expect(resumed).toHaveBeenCalled()
+  expect(resumed.continueFrom).toHaveBeenCalledWith(capture)
+  expect(recorder.state('tab')).toMatchObject({ status: 'recording' })
+  recorder.destroy()
+})
+
+it('repeats nothing before the first frame, so a page that never draws one pauses for a gap', async () => {
+  const { recorder, manage, capture } = fixture()
+  capture.mockImplementation(async () => 'unchanged')
+  await manage('start')
+  await vi.advanceTimersByTimeAsync(3200)
+  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 0, notice: VIDEO_RECORDING_NOTICES.gap })
+  recorder.destroy()
+})
+
+it('reports a repeat of the last frame as the newest retained frame', async () => {
+  const { recorder, manage, capture } = fixture()
+  await manage('start')
+  capture.mockImplementation(async () => 'unchanged')
+  await vi.advanceTimersByTimeAsync(500)
+  const state = recorder.state('tab')
+  expect(state.frameCount).toBeGreaterThan(1)
+  expect(state.timing?.lastFrame).toMatchObject({ sequence: state.frameCount, sourceTimeMs: expect.any(Number) })
+  expect(state.timing!.lastFrame!.sourceTimeMs).toBeGreaterThan(400)
+  recorder.destroy()
+})
+
+it('keeps the recording\'s size across a rounding difference between capture paths, and pauses for a changed viewport', async () => {
+  const { recorder, manage, capture } = fixture()
+  await manage('start')
+  capture.mockImplementation(async () => ({ data: new Uint8Array([8]), width: 640, height: 358 }))
+  await vi.advanceTimersByTimeAsync(100)
+  expect(recorder.state('tab')).toMatchObject({ status: 'recording', width: 640, height: 360 })
+  expect(recorder.state('tab').frameCount).toBeGreaterThan(1)
+  capture.mockImplementation(async () => ({ data: new Uint8Array([9]), width: 600, height: 338 }))
+  await vi.advanceTimersByTimeAsync(100)
+  expect(recorder.state('tab')).toMatchObject({ status: 'paused', width: 640, height: 360, notice: VIDEO_RECORDING_NOTICES.conditions })
+  recorder.destroy()
+})
+
+it('changes nothing when asked again for the pause or stop it already has', async () => {
+  const { recorder, manage, host } = fixture()
+  await manage('start')
+  await vi.advanceTimersByTimeAsync(200)
+  await manage('pause')
+  const paused = recorder.state('tab').timing!.revision
+  await manage('pause')
+  expect(recorder.state('tab').timing!.revision).toBe(paused)
+  await manage('stop')
+  await manage('render')
+  const stopped = recorder.state('tab')
+  expect(stopped.timing!.revision).toBeGreaterThan(paused)
+  await manage('stop')
+  expect(recorder.state('tab').timing!.revision).toBe(stopped.timing!.revision)
+  expect(recorder.state('tab').previewReady).toBe(true)
+  expect(host.render).toHaveBeenCalledTimes(1)
   recorder.destroy()
 })

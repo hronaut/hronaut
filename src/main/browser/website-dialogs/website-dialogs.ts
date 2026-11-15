@@ -1,8 +1,14 @@
 import type { WebContents } from 'electron'
 import type { BrowserDialogAction, BrowserDialogHandlingOptions } from '../../../shared/types.js'
-import { RendererExitedError } from '../renderer-exit-guard.js'
+import { heldUntilFirstLoad, RendererExitedError } from '../renderer-exit-guard.js'
 import { PrintDialogOpenError, whenPrintDialogCloses } from '../print-dialog-guard.js'
-import type { WebsiteDialogsAccess, WebsiteDialogsTab } from './website-dialogs-access.js'
+import { WebsiteDialogOpenError, whenWebsiteDialogCloses } from '../website-dialog-guard.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { recordNativeInputBarrier } from '../interaction-lock/input-lock-state.js'
+import { publishChange } from '../browser-state/browser-state.js'
+import { withDebugger } from '../debugger-lease/debugger-lease.js'
 
 /** The buffer limits dialog monitoring gives the page's network domain, so retained request data stays bounded. */
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
@@ -12,16 +18,51 @@ const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
 /** Pages whose monitoring stopped at an exited renderer and starts again on their next load. */
 const monitoringAfterNextLoad = new WeakSet<WebContents>()
 
-/** Accepts or dismisses the website dialog the tab shows. */
-export async function handleDialog<Tab extends WebsiteDialogsTab>(access: WebsiteDialogsAccess<Tab>, action: BrowserDialogAction, tabId?: string): Promise<{
+/** Pages whose website dialog Hronaut or an agent answered through the debugger, until the dialog closes. */
+const answeredThroughDebugger = new WeakSet<WebContents>()
+
+/** Pages with an agent's action under way that answers the website dialogs it raises. */
+const agentActionsAnsweringDialogs = new WeakSet<WebContents>()
+
+/** Whether an agent's action under way on the page answers the website dialogs it raises, so none waits for the person. */
+export function agentAnswersWebsiteDialogs(webContents: WebContents): boolean {
+  return agentActionsAnsweringDialogs.has(webContents)
+}
+
+/** The agent's answer named a website dialog the tab no longer shows, so nothing was answered. */
+export class WebsiteDialogChangedError extends Error {
+  constructor() {
+    super('Hronaut no longer sees the dialog you read showing; nothing was answered. Read the tab again before answering the dialog it shows.')
+    this.name = 'WebsiteDialogChangedError'
+  }
+}
+
+/**
+ * Accepts or dismisses the website dialog the tab shows. Given the id of the dialog the agent read, it answers only that
+ * one, never a dialog the page showed after it, such as one asking to delete something once the person answered the
+ * first.
+ */
+export async function handleDialog(browser: Browser, action: BrowserDialogAction, tabId?: string, dialogId?: string): Promise<{
   handled: true
   action: BrowserDialogAction
 }> {
-  const tab = access.getTab(tabId)
+  const tab = getTab(browser, tabId)
+  const stillTheDialogRead = (): void => {
+    if (dialogId !== undefined && tab.dialog?.id !== dialogId) throw new WebsiteDialogChangedError()
+  }
+  stillTheDialogRead()
   const webContents = tab.webContents
-  await access.withDebugger(webContents, () => webContents.debugger.sendCommand('Page.handleJavaScriptDialog', {
-    accept: action === 'accept'
-  }))
+  const answer = { accept: action === 'accept' }
+  // The browser answers a dialog the page shows through the attached debugger, without the page. So the answer takes
+  // no turn after page commands or monitoring set-up, which wait for the page the dialog holds.
+  if (tab.dialog && webContents.debugger.isAttached()) await answerWebsiteDialog(webContents, answer)
+  else {
+    // Its turn may come after page commands the dialog held, and by then the page may show another dialog.
+    await withDebugger(browser, webContents, () => {
+      stillTheDialogRead()
+      return answerWebsiteDialog(webContents, answer)
+    })
+  }
   return { handled: true, action }
 }
 
@@ -30,8 +71,8 @@ export async function handleDialog<Tab extends WebsiteDialogsTab>(access: Websit
  * each one, with the prompt text when given, and fails when answering one
  * failed. Without a dialog action it just runs the operation.
  */
-export async function withOptionalDialogHandling<Tab extends WebsiteDialogsTab, T>(
-  access: WebsiteDialogsAccess<Tab>,
+export async function withOptionalDialogHandling<T>(
+  browser: Browser,
   webContents: WebContents,
   options: BrowserDialogHandlingOptions,
   operation: () => Promise<T>
@@ -42,19 +83,34 @@ export async function withOptionalDialogHandling<Tab extends WebsiteDialogsTab, 
   const dialogAction = options.dialogAction
   if (dialogAction === undefined) return operation()
 
-  return access.withDebugger(webContents, async () => {
+  return withDebugger(browser, webContents, async () => {
+    const answer = {
+      accept: dialogAction === 'accept',
+      ...(options.promptText !== undefined ? { promptText: options.promptText } : {})
+    }
     let handling = Promise.resolve()
     let handlingError: unknown
-    const listener = (_event: Electron.Event, method: string): void => {
+    let dialogsClosed = 0
+    const listener = (_event: Electron.Event, method: string, params: { type?: string }): void => {
+      if (method === 'Page.javascriptDialogClosed') dialogsClosed++
       if (method !== 'Page.javascriptDialogOpening') return
+      if (params.type !== 'alert' && params.type !== 'confirm') {
+        // Electron shows no box for a page asking before it unloads or for a prompt, and answers them itself at once,
+        // so the agent's answer goes first.
+        handling = handling.then(() => answerWebsiteDialog(webContents, answer)).catch((error: unknown) => { handlingError = error })
+        return
+      }
+      const closedBefore = dialogsClosed
       handling = handling.then(async () => {
-        await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', {
-          accept: dialogAction === 'accept',
-          ...(options.promptText !== undefined ? { promptText: options.promptText } : {})
-        })
+        await afterDialogBoxShows()
+        // An alert from a site the person blocked dialogs from is turned down at once, as is one over trusted chrome.
+        if (dialogsClosed !== closedBefore || !webContents.debugger.isAttached()) return
+        await answerWebsiteDialog(webContents, answer)
       }).catch((error: unknown) => { handlingError = error })
     }
     webContents.debugger.on('message', listener)
+    // The debugger queue runs one operation on the page at a time.
+    agentActionsAnsweringDialogs.add(webContents)
     try {
       await webContents.debugger.sendCommand('Page.enable')
       const result = await operation()
@@ -62,15 +118,16 @@ export async function withOptionalDialogHandling<Tab extends WebsiteDialogsTab, 
       if (handlingError) throw handlingError
       return result
     } finally {
+      agentActionsAnsweringDialogs.delete(webContents)
       webContents.debugger.removeListener('message', listener)
     }
   })
 }
 
 /** Forgets the page's monitor attachment and execution contexts and detaches its debugger. */
-export function detachDialogMonitoring<Tab extends WebsiteDialogsTab>(access: WebsiteDialogsAccess<Tab>, webContents: WebContents): void {
-  access.dialogMonitorAttachPromises().delete(webContents.id)
-  access.defaultExecutionContexts().delete(webContents.id)
+export function detachDialogMonitoring(browser: Browser, webContents: WebContents): void {
+  browser.dialogMonitorAttachPromises.delete(webContents.id)
+  browser.defaultExecutionContexts.delete(webContents.id)
   if (webContents.debugger.isAttached()) webContents.debugger.detach()
 }
 
@@ -78,25 +135,93 @@ export function detachDialogMonitoring<Tab extends WebsiteDialogsTab>(access: We
  * Clears the tab's website dialog and dismisses it in the page while trusted
  * chrome covers the window, unless the tab closed or the browser is closing.
  */
-export async function dismissWebsiteDialogForTrustedChrome<Tab extends WebsiteDialogsTab>(access: WebsiteDialogsAccess<Tab>, tab: Tab): Promise<void> {
+export async function dismissWebsiteDialogForTrustedChrome(browser: Browser, tab: BrowserTab): Promise<void> {
   const webContents = tab.webContents
   if (tab.dialog) {
     tab.dialog = undefined
-    access.changed(false)
+    publishChange(browser, false)
   }
-  if (access.isDestroyed() || webContents.isDestroyed() || access.findTab(tab.id) !== tab) return
-  await ensureDialogMonitoring(access, tab)
+  // The dialog was reported through the page's debugger. Enabling its domains again, as monitoring does, would wait for
+  // the page, which the dialog holds until someone answers it.
   if (
-    access.isDestroyed()
+    browser.destroyed
     || webContents.isDestroyed()
-    || access.findTab(tab.id) !== tab
+    || findTab(browser, tab.id) !== tab
     || !webContents.debugger.isAttached()
   ) return
   // Website dialogs are native Chromium surfaces and can otherwise appear
   // above renderer-owned trusted chrome. Reject them while a trusted modal
   // owns the window; the page must never get to cover or impersonate the
   // approval surface.
-  await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: false }).catch(() => undefined)
+  await afterDialogBoxShows()
+  if (webContents.isDestroyed() || !webContents.debugger.isAttached()) return
+  await answerWebsiteDialog(webContents, { accept: false }).catch(() => undefined)
+}
+
+/**
+ * Answers the page's website dialog through its debugger, which closes the dialog but leaves Electron's box for it on
+ * screen; the box is closed as the debugger reports the dialog closed.
+ */
+async function answerWebsiteDialog(webContents: WebContents, answer: { accept: boolean, promptText?: string }): Promise<void> {
+  answeredThroughDebugger.add(webContents)
+  try {
+    await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', answer)
+  } catch (error) {
+    answeredThroughDebugger.delete(webContents)
+    throw error
+  }
+}
+
+/**
+ * Waits until Electron has shown its box for the dialog the page just opened. The debugger reports the dialog before
+ * Electron shows its box, and a dialog answered before then leaves the box on screen with nothing to close it.
+ */
+function afterDialogBoxShows(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
+/**
+ * Waits for a command to the page unless a website dialog opens first, and then resolves undefined: the page answers
+ * nothing until the dialog closes. The command still settles once it does.
+ */
+export function unlessWebsiteDialogOpens<T>(webContents: WebContents, command: Promise<T>): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    const listener = (_event: Electron.Event, method: string): void => {
+      if (method === 'Page.javascriptDialogOpening') settle(() => resolve(undefined))
+    }
+    const settle = (finish: () => void): void => {
+      webContents.debugger.removeListener('message', listener)
+      finish()
+    }
+    webContents.debugger.on('message', listener)
+    command.then((value) => settle(() => resolve(value)), (error: unknown) => settle(() => reject(error)))
+  })
+}
+
+/**
+ * Closes the box Electron shows for a website dialog that closed because Hronaut or an agent answered it through the
+ * debugger, as for trusted chrome covering the pages or an agent's answer. That box would stay on screen and keep
+ * Hronaut's window disabled until the person clicked it. Electron closes its boxes for a page on its internal
+ * `-cancel-dialogs` event, which never answers the page. A dialog the person answered closed with its box, so nothing
+ * is closed for it. Called as the dialog closes, before its page can open another; an alert or confirm is answered only
+ * once its box shows, so the box is there to close.
+ */
+export function closeWebsiteDialogBox(webContents: WebContents): void {
+  if (answeredThroughDebugger.delete(webContents) && !webContents.isDestroyed()) webContents.emit('-cancel-dialogs')
+}
+
+/**
+ * Closes the box of a website dialog whose page went away while it showed, as when an agent closes the tab. Electron
+ * closes a page's boxes when it navigates or its renderer exits, but not when the page is destroyed, so the box stayed
+ * on screen and kept Hronaut's window disabled until the person clicked it. Called once the page is destroyed.
+ */
+export function closeWebsiteDialogBoxOfDestroyedPage(webContents: WebContents): void {
+  answeredThroughDebugger.delete(webContents)
+  try {
+    webContents.emit('-cancel-dialogs')
+  } catch (error) {
+    console.warn('[browser] Could not close the dialog box of a closed page:', error)
+  }
 }
 
 /**
@@ -104,18 +229,24 @@ export async function dismissWebsiteDialogForTrustedChrome<Tab extends WebsiteDi
  * the page, runtime, log, audit and network domains that website dialogs and
  * page diagnostics observe, then applies the human interaction lock. Concurrent
  * callers share one attachment, which page lifecycle and debugger operations
- * wait for.
+ * wait for. Once monitoring is in place it holds until the debugger detaches,
+ * and a call does nothing.
  */
-export function ensureDialogMonitoring<Tab extends WebsiteDialogsTab>(access: WebsiteDialogsAccess<Tab>, tab: Tab): Promise<void> {
+export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promise<void> {
   const webContents = tab.webContents
-  const existing = access.dialogMonitorAttachPromises().get(webContents.id)
+  const existing = browser.dialogMonitorAttachPromises.get(webContents.id)
   if (existing) return existing
+  // Enabling the page's domains again would wait for the page, which a website dialog holds until someone answers it,
+  // and every debugger operation waits for that.
+  if (tab.networkDebuggerEnabled && webContents.debugger.isAttached()) return Promise.resolve()
   const attaching = (async () => {
     if (
-      access.isDestroyed()
+      browser.destroyed
       || webContents.isDestroyed()
       || webContents.isDevToolsOpened()
-      || access.isDevToolsOpening(webContents.id)
+      || browser.devToolsOpening.has(webContents.id)
+      // A page that has not loaded yet has no renderer to answer; monitoring starts as its first load does.
+      || heldUntilFirstLoad(webContents)
     ) return
     try {
       const attachedHere = !webContents.debugger.isAttached()
@@ -139,20 +270,22 @@ export function ensureDialogMonitoring<Tab extends WebsiteDialogsTab>(access: We
       // Reattachment never restores request conditions. A detached epoch
       // requires explicit recovery; dialog monitoring is independent.
       tab.networkDebuggerEnabled = true
-      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', {
-        ignore: access.isHumanInteractionLocked(tab) && !access.isAgentInput(webContents.id)
-      })
+      const agentInput = browser.agentInputWebContents.has(webContents.id)
+      const ignore = browser.isHumanInteractionLocked(tab) && !agentInput
+      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore })
+      // An agent's input under way keeps the barrier lifted for itself; left unknown, its inputs lift and restore it by the lock.
+      recordNativeInputBarrier(tab, agentInput ? undefined : ignore)
       // Emulation uncertainty also requires explicit recovery; never reapply it here.
     } catch (error) {
       tab.networkDebuggerEnabled = false
-      if (access.isDestroyed() || webContents.isDestroyed()) return
+      if (browser.destroyed || webContents.isDestroyed()) return
       if (error instanceof RendererExitedError) {
         // A crashed page has nothing to monitor; its next load does.
         if (!monitoringAfterNextLoad.has(webContents)) {
           monitoringAfterNextLoad.add(webContents)
           webContents.once('dom-ready', () => {
             monitoringAfterNextLoad.delete(webContents)
-            void ensureDialogMonitoring(access, tab)
+            void ensureDialogMonitoring(browser, tab)
           })
         }
         return
@@ -160,16 +293,21 @@ export function ensureDialogMonitoring<Tab extends WebsiteDialogsTab>(access: We
       if (error instanceof PrintDialogOpenError) {
         // A page that prints as it opens, such as a receipt, holds its renderer in the print dialog; the page is
         // monitored once the person closes it.
-        void whenPrintDialogCloses(webContents).then(() => ensureDialogMonitoring(access, tab))
+        void whenPrintDialogCloses(webContents).then(() => ensureDialogMonitoring(browser, tab))
+        return
+      }
+      if (error instanceof WebsiteDialogOpenError) {
+        // A page that alerts as it opens holds its renderer the same way until someone answers the dialog.
+        void whenWebsiteDialogCloses(webContents).then(() => ensureDialogMonitoring(browser, tab))
         return
       }
       console.error('[browser] Could not enable page diagnostics:', error)
     }
   })()
-  access.dialogMonitorAttachPromises().set(webContents.id, attaching)
+  browser.dialogMonitorAttachPromises.set(webContents.id, attaching)
   void attaching.finally(() => {
-    if (access.dialogMonitorAttachPromises().get(webContents.id) === attaching) {
-      access.dialogMonitorAttachPromises().delete(webContents.id)
+    if (browser.dialogMonitorAttachPromises.get(webContents.id) === attaching) {
+      browser.dialogMonitorAttachPromises.delete(webContents.id)
     }
   })
   return attaching

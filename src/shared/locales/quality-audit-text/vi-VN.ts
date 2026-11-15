@@ -1,0 +1,82 @@
+export const viVNQualityAuditText = {
+  categories: {
+    accessibility: 'Hỗ trợ tiếp cận',
+    performance: 'Hiệu suất',
+    metadata: 'Siêu dữ liệu và SEO',
+    security: 'Bảo mật',
+    pwa: 'PWA và ngoại tuyến',
+    'browser-issues': 'Sự cố Chromium'
+  },
+  statuses: {
+    pass: 'đạt',
+    info: 'thông tin',
+    warning: 'cảnh báo',
+    error: 'lỗi',
+    'not-applicable': 'không áp dụng'
+  },
+  severities: {
+    error: 'lỗi',
+    warning: 'cảnh báo',
+    info: 'thông tin'
+  },
+  fixed: {
+    accessibilityClear: 'Không tìm thấy lỗi vi phạm WCAG AA nào bằng kiểm tra tự động',
+    performanceNone: 'Không quan sát được chỉ số Web Vitals nào trong lượt truy cập này',
+    metadataClear: 'Không tìm thấy sự cố siêu dữ liệu nào',
+    securitySecure: 'Tài liệu chính được truyền qua kênh bảo mật',
+    pwaNone: 'Không phát hiện bề mặt PWA hoặc ứng dụng ngoại tuyến nào',
+    browserIssuesClear: 'Không tìm thấy sự cố Chromium nào được lưu giữ',
+    webVitalsNotObserved: 'Không quan sát được chỉ số Web Vitals nào trong lượt truy cập hiện tại; hãy tải lại và tương tác với trang trước khi chạy lại bước kiểm tra.',
+    insecureTransport: 'Tài liệu chính không dùng kênh truyền bảo mật hoạt động bình thường.',
+    certificateExpired: 'Chứng chỉ của tài liệu chính đã hết hạn.',
+    certificateNotYetValid: 'Chứng chỉ của tài liệu chính chưa có hiệu lực.',
+    certificateInvalid: 'Chứng chỉ của tài liệu chính hiện không hợp lệ.',
+    pwaInspectionPartial: 'Một số thông tin chẩn đoán PWA không có cho lượt kiểm tra này.'
+  },
+  caveats: {
+    localDiagnostic: 'Đây là thông tin chẩn đoán cục bộ có giới hạn, được tổng hợp từ bằng chứng của Hronaut; đây không phải là điểm Lighthouse hay chứng nhận.',
+    accessibilityAutomation: 'Kiểm tra hỗ trợ tiếp cận tự động không thể thay thế việc kiểm thử bằng bàn phím, trình đọc màn hình, thu phóng, chuyển động và khả năng sử dụng thực tế với con người.',
+    performanceVisit: 'Hiệu suất phản ánh lượt truy cập và môi trường cục bộ hiện tại; hãy lặp lại các phép đo quan trọng trong điều kiện tiêu biểu.',
+    pwaOptional: 'PWA không được coi là yêu cầu đối với các trang web không cung cấp bề mặt ứng dụng ngoại tuyến.',
+    reloadIssues: 'Hãy tải lại trước khi tái hiện các sự cố Chromium chỉ xảy ra khi khởi động, rồi chạy lại bước kiểm tra này.'
+  },
+  text: {
+    violations: '{count} lỗi vi phạm',
+    violationNodes: '{count} nút bị ảnh hưởng',
+    accessibilityViolations: '{violations} trên {nodes}',
+    affectedNodes: '{count} nút bị ảnh hưởng',
+    accessibilityFinding: '{help} ({nodes})',
+    rulesPassed: '{count} quy tắc đạt',
+    checksNeedReview: '{count} mục kiểm tra cần xem xét',
+    needsHumanReview: '{count} mục kiểm tra hỗ trợ tiếp cận cần con người xem xét.',
+    performanceGood: '{good}/{total} chỉ số Web Vitals quan sát được ở mức tốt',
+    metricEvidence: '{name}: {value} ({rating})',
+    metricFinding: '{name} được đánh giá là {rating} ở mức {value}.',
+    resources: '{count} tài nguyên',
+    longTasks: '{count} tác vụ dài',
+    metadataIssues: '{count} sự cố siêu dữ liệu',
+    language: 'Ngôn ngữ: {language}',
+    languageMissing: 'Ngôn ngữ: thiếu',
+    canonicalUrls: 'URL chính tắc: {count}',
+    structuredData: 'Dữ liệu có cấu trúc: {valid} hợp lệ · {invalid} không hợp lệ',
+    securityState: 'Trạng thái bảo mật: {state}',
+    securityStateFinding: 'Chromium báo cáo trạng thái bảo mật của tài liệu chính là {state}.',
+    transportSecure: 'Kênh truyền: bảo mật',
+    transportInsecure: 'Kênh truyền: không bảo mật',
+    protocol: 'Giao thức: {protocol}',
+    protocolUnavailable: 'Giao thức: không có',
+    certificateValid: 'Chứng chỉ: hợp lệ',
+    certificateInvalid: 'Chứng chỉ: không hợp lệ',
+    certificateUnavailable: 'Chứng chỉ: không có',
+    registrations: '{count} bản đăng ký service worker',
+    caches: '{count} bộ nhớ đệm',
+    manifestPresent: 'Tệp kê khai: có',
+    manifestMissing: 'Tệp kê khai: không phát hiện',
+    controlledYes: 'Do service worker kiểm soát: có',
+    controlledNo: 'Do service worker kiểm soát: không',
+    installabilityIssues: 'Sự cố về khả năng cài đặt: {count}',
+    installabilityFinding: 'Chromium báo cáo một sự cố về khả năng cài đặt PWA: {issue}.',
+    installabilityUnknown: 'Chromium báo cáo một sự cố về khả năng cài đặt PWA: sự cố không xác định.',
+    browserIssues: '{count} sự cố do trình duyệt tạo ra'
+  }
+}

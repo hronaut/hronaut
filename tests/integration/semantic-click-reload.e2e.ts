@@ -38,11 +38,11 @@ test('semantic click rejects a pending reload committed during preparation', asy
         restore: () => { if (!page.isDestroyed()) page.executeJavaScript = execute } }
       ;(globalThis as Scope).__semanticReloadGate = gate
       page.executeJavaScript = async (script, ...args) => {
-        if (script.includes('element.click();')) gate.dispatches++
+        if (script.includes('function clickTargetInPage(')) gate.dispatches++
         const result = execute.call(page, script, ...args)
         // A pending reload can defer script execution until the new document.
         // Hold the real preparation promise, without faking a navigation event.
-        if (!gate.ready && script.includes('element.scrollIntoView')) {
+        if (!gate.ready && (script.includes('function targetPointInPage(') || script.includes('function clickTargetInPage('))) {
           void result.catch(() => undefined)
           gate.ready = true
           await barrier

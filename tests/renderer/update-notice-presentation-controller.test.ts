@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useUpdateNoticePresentationController } from '../../src/renderer/src/composables/useUpdateNoticePresentationController.js'
+import { useUpdateNoticePresentationController } from '../../src/renderer/src/features/updates/useUpdateNoticePresentationController.js'
 import type { AppUpdateState } from '../../src/shared/types.js'
 
 function createController(status: AppUpdateState['status'] = 'idle') {

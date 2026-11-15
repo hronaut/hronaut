@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { type FillSettlement, fillSettlement } from './fill-settlement.js'
+import { fillFromFile } from '../../../browser/text-file-fill/text-file-fill.js'
 
 export function registerBrowserFillFromFile(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -50,7 +51,7 @@ export function registerBrowserFillFromFile(context: McpToolContext): void {
         }
       }
       try {
-        const result = await manager.fillFromFile(target, { path, expectedOrigin, sha256 }, validateFill, progress)
+        const result = await fillFromFile(manager, target, { path, expectedOrigin, sha256 }, validateFill, progress)
         return { ...textResult(result), structuredContent: { ...result } }
       } catch (error) {
         // Also a failure after writing that the checks above never saw.

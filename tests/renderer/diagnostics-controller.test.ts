@@ -665,6 +665,34 @@ describe('diagnostics controller', () => {
     controller.dispose()
   })
 
+  it('keeps the recorder controls enabled while a tab update refreshes the recording, so Clear right after Stop applies', async () => {
+    const refresh = deferred<BrowserReproRecording>()
+    const { activeTab, browser, controller } = createController()
+    const stopped = reproRecording()
+    const cleared = { ...stopped, stepCount: 0, steps: [] }
+    controller.reproPanelOpen.value = true
+    browser.manageRepro.mockResolvedValueOnce(stopped)
+    await controller.stopReproRecording()
+    expect(controller.reproState.value).toBe('ready')
+
+    browser.manageRepro.mockImplementationOnce(() => refresh.promise)
+    activeTab.value = { ...tab(), reproRecording: { active: false, stepCount: stopped.stepCount, startedAt: '2026-08-21T12:00:00.000Z' } }
+    await nextTick()
+    await nextTick()
+    expect(browser.manageRepro).toHaveBeenLastCalledWith('get', 'tab-1')
+    expect(controller.reproState.value).toBe('ready')
+
+    browser.manageRepro.mockResolvedValueOnce(cleared)
+    await controller.clearReproRecording()
+    expect(browser.manageRepro).toHaveBeenLastCalledWith('clear', 'tab-1')
+    refresh.resolve(stopped)
+    await refresh.promise
+    await nextTick()
+    expect(controller.reproRecording.value).toEqual(cleared)
+    expect(controller.reproState.value).toBe('ready')
+    controller.dispose()
+  })
+
   it('shows recorder action failures despite an intervening refresh', async () => {
     const pending = deferred<void>()
     const { browser, controller } = createController()

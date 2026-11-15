@@ -4,6 +4,13 @@ import { navigate, reload } from '../src/main/browser/page-navigation/page-navig
 import { PAGE_LOAD_WAIT_MS } from '../src/main/browser/page-waits/page-load-limit.js'
 import { putTabToSleep, wakeTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
+// The browsers below stub changed and getState, which loading, retrying and waking publish through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+
 // A page whose load never ends, such as one with an image its server never answers, held browser_navigate, the
 // address bar and every agent call on a sleeping tab for as long as the page kept loading: Electron settles a load
 // only at the page's load event. The e2e probe that found it drove the real app with such an image.
@@ -27,21 +34,21 @@ describe('opening an address whose page never finishes loading', () => {
   function tabLoadingForever(shows: boolean) {
     const webContents = Object.assign(new EventEmitter(), {
       isDestroyed: () => false,
+      isCrashed: () => false,
       loadURL: vi.fn(() => {
         if (shows) webContents.emit('did-navigate', {}, 'https://next.example/')
         return new Promise<void>(() => {})
       })
     })
     const tab = { id: 'tab', navigationGeneration: 0, documentGeneration: 0, navigationPolicyDenialSequence: 0, sleeping: false, webContents }
-    const access = {
-      getTab: () => tab,
-      findTab: (id: string) => (id === tab.id ? tab : undefined),
-      searchEngine: () => undefined,
+    const browser = {
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: tab.id,
+      options: {},
       prepareDiagnosticNavigation: vi.fn(),
-      confirmLeavePage: vi.fn(),
       getState: () => ({ ok: true })
     }
-    return { webContents, go: (byPerson?: boolean) => navigate(access as never, 'https://next.example/', undefined, { byPerson }) }
+    return { webContents, go: (byPerson?: boolean) => navigate(browser as never, 'https://next.example/', undefined, { byPerson }) }
   }
 
   it.each([false, true])('returns once the wait has passed, leaving the page loading (by a person: %s)', async byPerson => {
@@ -73,24 +80,25 @@ describe('opening an address whose page never finishes loading', () => {
 
 describe('retrying a failed page whose load never ends', () => {
   it('tells the caller once the wait has passed, leaving the page loading', async () => {
-    const webContents = { loadURL: vi.fn(() => new Promise<void>(() => {})) }
+    const webContents = { isDestroyed: () => false, loadURL: vi.fn(() => new Promise<void>(() => {})) }
     const tab = { id: 'tab', sleeping: false, pageProblem: { kind: 'load-error', url: ADDRESS }, webContents }
-    const access = {
-      getTab: () => tab,
-      isRendererRecovering: () => false,
+    const browser = {
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: tab.id,
+      rendererRecovery: { isRecovering: () => false },
       prepareDiagnosticNavigation: vi.fn(),
       changed: vi.fn(),
       waitForPage: vi.fn(() => new Promise<void>(() => {})),
       getState: () => ({ ok: true })
     }
-    const retry = reload(access as never)
+    const retry = reload(browser as never)
     const outcome = expect(retry).rejects.toMatchObject({ message: 'Timed out waiting for the page to finish loading.' })
     await vi.advanceTimersByTimeAsync(PAGE_LOAD_WAIT_MS - 1)
     expect(await stateOf(retry)).toBe('pending')
     await vi.advanceTimersByTimeAsync(1)
     await outcome
     expect(webContents.loadURL).toHaveBeenCalledWith(ADDRESS, undefined)
-    expect(access.waitForPage).not.toHaveBeenCalled()
+    expect(browser.waitForPage).not.toHaveBeenCalled()
   })
 })
 
@@ -131,20 +139,18 @@ describe('waking a tab whose page never finishes loading', () => {
       navigationGeneration: 3, pinned: false, pageLifecycleState: 'active',
       lastActiveAt: 0, sleepNavigationHistory: { entries: [], index: 0 }, webContents, wakePromise: undefined as Promise<void> | undefined
     }
-    const access = {
-      getTab: () => tab,
-      findTab: (id: string) => (id === tab.id ? tab : undefined),
-      hasTab: (id: string) => id === tab.id,
-      activeTabId: () => undefined,
+    const manager = {
+      tabs: new Map([[tab.id, tab]]),
+      activeTabId: undefined,
       splitViewContains: () => false,
-      tabOverviewSleepPreviews: () => new Map(),
+      tabOverviewSleepPreviews: new Map(),
       changed: vi.fn(),
       getState: () => ({ tabs: [] })
     }
     return {
       tab, entries, webContents,
-      wake: () => wakeTab(access as never, tab.id),
-      sleep: () => putTabToSleep(access as never, tab as never, false)
+      wake: () => wakeTab(manager as never, tab.id),
+      sleep: () => putTabToSleep(manager as never, tab as never, false)
     }
   }
 

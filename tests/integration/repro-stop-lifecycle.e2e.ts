@@ -1,7 +1,9 @@
 import { createServer } from 'node:http'
 import type { BrowserReproRecording, BrowserState } from '../../src/shared/types.js'
-import { reproScrollScript, reproTargetScript } from '../../src/main/browser/repro-page-scripts.js'
+import { reproScrollInPage, reproTargetInPage } from '../../src/main/browser/repro-recorder/repro-page.page.js'
+import { snapshotTextInPage } from '../../src/main/browser/snapshot-text.page.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { pageScriptStart } from './page-script-parts.js'
 
 const cases = [
   { phase: 'queued input', action: 'restart' },
@@ -41,7 +43,11 @@ for (const { phase, action } of cases) {
         testState.__reproStopRestore = () => { page.executeJavaScript = original }
         page.executeJavaScript = async function (...args) {
           const result = await original.apply(this, args)
-          if (args[0] !== input.script) return result
+          // The queued input's target is the focused element's, read with no point.
+          const held = input.target
+            ? typeof args[0] === 'string' && args[0].startsWith(input.target.start) && args[0].includes(input.target.focused)
+            : typeof args[0] === 'string' && args[0].startsWith(input.script)
+          if (!held) return result
           page.executeJavaScript = original
           await new Promise<void>(resolve => {
             testState.__reproStopRelease = resolve
@@ -64,7 +70,7 @@ for (const { phase, action } of cases) {
         } finally {
           globalThis.setTimeout = nativeSetTimeout
         }
-      }, { url, inFlight: phase === 'in-flight scroll', concurrent: phase === 'concurrent stops' || phase === 'in-flight scroll', queuedInput: phase === 'queued input', script: phase === 'queued input' ? reproTargetScript() : reproScrollScript() })
+      }, { url, inFlight: phase === 'in-flight scroll', concurrent: phase === 'concurrent stops' || phase === 'in-flight scroll', queuedInput: phase === 'queued input', target: phase === 'queued input' ? { start: pageScriptStart(reproTargetInPage), focused: `(undefined, ${pageScriptStart(snapshotTextInPage)}` } : undefined, script: pageScriptStart(reproScrollInPage) })
       if (phase === 'in-flight scroll') {
         await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __reproStopHeld?: boolean }).__reproStopHeld === true)).toBe(true)
       }

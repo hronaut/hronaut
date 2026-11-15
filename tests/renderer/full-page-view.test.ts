@@ -112,6 +112,63 @@ describe('full-page view', () => {
     } finally { h.dispose() }
   })
 
+  // A press on a tab shows it while the button is down, and its page takes the keyboard then: the chrome went 400 ms
+  // after the press, in the middle of a drag of that tab.
+  it('keeps the chrome through a press on a tab that gives the page the keyboard, and through its drag', () => {
+    const h = harness()
+    h.chrome.classList.add('shell')
+    h.field.setAttribute('role', 'tab')
+    h.field.dataset.tabId = 'a'
+    const pointer = (type: string) => h.field.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, isPrimary: true, button: 0 }))
+    try {
+      h.view.toggle()
+      h.chrome.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+      vi.advanceTimersByTime(180)
+      pointer('pointerdown')
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+      window.dispatchEvent(new Event('blur'))
+      pointer('pointercancel')
+      h.field.dispatchEvent(new Event('dragstart', { bubbles: true }))
+      vi.advanceTimersByTime(1000)
+      expect(h.view.concealed.value).toBe(false)
+      // A tab dropped is not a click on the page: the chrome stays while the pointer is on it.
+      h.field.dispatchEvent(new Event('dragend', { bubbles: true }))
+      vi.advanceTimersByTime(1000)
+      expect(h.view.concealed.value).toBe(false)
+      h.chrome.dispatchEvent(new MouseEvent('mouseleave'))
+      vi.advanceTimersByTime(300)
+      expect(h.view.concealed.value).toBe(true)
+    } finally { h.dispose() }
+  })
+
+  // Over Home, the press on a website tab turned the view on and hid the tabs under the button, losing a drag.
+  it('keeps the chrome while a press on a tab that turns the view on holds, and then goes as after a click', () => {
+    const h = harness()
+    h.chrome.classList.add('shell')
+    h.field.setAttribute('role', 'tab')
+    h.field.dataset.tabId = 'a'
+    const pointer = (type: string) => h.field.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 8, isPrimary: true, button: 0 }))
+    try {
+      h.view.toggle()
+      // Home is shown: the view waits for a website.
+      h.available.value = false
+      expect(h.view.active.value).toBe(false)
+      pointer('pointerdown')
+      h.available.value = true
+      expect(h.view.concealed.value).toBe(false)
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+      window.dispatchEvent(new Event('blur'))
+      vi.advanceTimersByTime(1000)
+      expect(h.view.concealed.value).toBe(false)
+      // The release lets the page have the window once the click is done, 400 ms on.
+      pointer('pointerup')
+      vi.advanceTimersByTime(300)
+      expect(h.view.concealed.value).toBe(false)
+      vi.advanceTimersByTime(200)
+      expect(h.view.concealed.value).toBe(true)
+    } finally { h.dispose() }
+  })
+
   it('stays in view when it starts while you work in the chrome', () => {
     const h = harness()
     try {

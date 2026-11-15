@@ -1,10 +1,58 @@
+/**
+ * How one MCP tool call runs, in order. Names in backticks are the members declared below; one a tool omits is skipped.
+ * 1. McpHttpServer (http-server.ts) checks the token or capability credential (401), local Origin (403/400), the HTTP
+ *    method (405), pause (503), the active-request limit (429) and the session (404 unknown, 401 another credential,
+ *    400 missing), names the client and builds a new session's MCP server.
+ * 2. The MCP SDK refuses a tool outside the session's tool set or capability profile ("disabled") and arguments that
+ *    fail its schema (a workspace tool's: workspaceId, reviewId and reviewRevision plus its fields, or `inputSchema`).
+ * 3. registerToolWithSettlement (browser-mcp-server.ts) wraps every tool. trackAgentCall shows the step in the
+ *    workspace's toolbar, named by `stepTarget`. The call's `settlement` is created; `admit` may return a result.
+ * 4. It checks agent control (requireTabAgentControl; one tab only for `singleTabControl` or `tabTarget` not 'none'),
+ *    the capability at admission (capability-decision.ts; `pageOrigins` picks the pages named), the license, the write
+ *    lease (`leaseTarget` names or claims the workspace; a non-read call not `leaseExempt` starts beginMutation),
+ *    then consumes a capability use and checks the license and agent control again. A failure goes to `settleError`
+ *    or errorResult (tool-results.ts); a capability denial also invalidates the approved review named by reviewId.
+ * 5. actionTracker.run counts the call as active and runs the handler. A workspace tool's handler is the wrapper from
+ *    createWorkspaceToolRegistrar (workspace-tool-call.ts) inside tool(), which turns what the wrapper throws into
+ *    errorResult, except native-input errors and the emulation and storage input errors.
+ * 6. The workspace wrapper requires workspaceId and both review fields or neither, strips the review fields, applies
+ *    `normalizeArguments`, reads `readOnly` and `continuityInspection`, then checks the capability for dispatch, the
+ *    caller's own workspace, the write lease when the call needs one, `publicObserverAllowed`, no pending human
+ *    decision (HumanWaitingService.requireDispatch) and continuity; `continuityInspection` skips the last two.
+ * 7. It resolves the tab by `tabTarget` (without selecting it when `preservesPresentation`), records the authority of
+ *    a destructive action, checks that `postcondition` has an audit run and that `reconciliation` matches it, and
+ *    passes the admitted call to `prepare`. A failure in steps 6 and 7 throws.
+ * 8. A browser_* call runs through AuditReceiptService.execute: during an audit run, AuditReceiptRun saves a decision
+ *    receipt before the operation and evidence and outcome receipts after it. Other calls run the operation directly.
+ * 9. The operation checks the recorded authority (a change returns POLICY_REJECTED, UNTRUSTED_TARGET or
+ *    STALE_PRECONDITION) and the target, reads `reconciliation` (which may end the call), starts the tab activity of
+ *    a `tabActivityToolName` handler, marks a continuity read or write, and wakes the tab when the handler's
+ *    `resolvedTargetWakePolicy` is 'before-handler' (the default) unless `preservesPresentation`.
+ * 10. It repeats the human decision, authority and target checks, begins the reviewed attempt when there is a review,
+ *    runs `certify` and `beforeDispatch`, calls the handler with the resolved tabId, then runs `afterDispatch`.
+ * 11. It checks that the action's authority held during dispatch, then the human decision, `recheckAfterDispatch`, a
+ *    worker observation's origin (validateLifecycle), the lease generation, the control revision, the workspace,
+ *    human input and the tab again (`closesTargetTab` skips agent control, human input and the tab). A failure
+ *    discards the result as STALE_OBSERVATION when read-only, else OUTCOME_UNKNOWN; a native-input error gives an
+ *    outcome-unknown result. The result's browser state is then scoped to the workspace.
+ * 12. After the outcome receipt, a succeeded call with `postcondition` is read back (postWriteVerification). A reviewed
+ *    attempt ends 'verified' after a verified read-back and 'unknown' after an unknown one or an error result.
+ *    `finalize` runs (audit path only) and the tab activity ends through `deferActivity` and `classifyActivity`. A
+ *    thrown error ends it as failed, except that a `waitsOnTab` call whose tab closed returns STALE_OBSERVATION.
+ * 13. registerToolWithSettlement checks the capability for dispatch again (`capabilityInput`); a denial returns
+ *    `publicationRevoked`, `settleDenied`, or STALE_OBSERVATION / OUTCOME_UNKNOWN. Then `publish` may settle the
+ *    result and `recordsReadiness` records the readiness probe; a throw goes to `settleError` or errorResult.
+ * 14. Finally `dispose` runs and the lease mutation ends, after `pendingCompletion` when there is one. trackAgentCall
+ *    marks the step finished or failed, the SDK checks any output schema, and the HTTP response is sent.
+ */
 import type { RegisteredTool, ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js'
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
-import type { BrowserTabsManager } from '../../browser/tabs-manager.js'
-import type { UserAttentionLifecycle } from '../../user-attention-lifecycle.js'
+import type { Browser } from '../../browser/browser.js'
+import type { listMcpTabGroups, requireMcpTabGroup } from '../../browser/mcp-tab-groups/mcp-tab-groups.js'
+import type { UserAttentionLifecycle } from '../../attention/user-attention-lifecycle.js'
 import { McpActionTracker } from '../action-tracker.js'
 import type { AuditReceiptService } from '../audit-receipt-service.js'
 import type { AuditReceiptAuthorization } from '../audit-receipt-store.js'
@@ -153,6 +201,12 @@ export interface ToolOptions<S extends ToolCallSettlement | undefined> {
    * deletes that saved workspace, so it is checked against saved workspaces and claimed when unclaimed.
    */
   leaseTarget?: (input: Record<string, unknown>) => { workspaceId: unknown; saved: boolean }
+  /**
+   * The call may run while another call of the same client changes the workspace; it still needs that client's write
+   * lease. Only answering a website dialog declares it: the dialog holds the other call's page, so that call ends only
+   * once the dialog is answered.
+   */
+  alongsideWorkspaceChange?: boolean
 }
 
 /** What a workspace tool may also declare about its calls, for the workspace wrapper in workspace-tool-call.ts. */
@@ -205,7 +259,7 @@ export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: Workspace
  * its authorizations, and the shared wrappers that admit, guard and settle each call (see browser-mcp-server.ts and workspace-tool-call.ts).
  */
 export interface McpToolContext {
-  manager: BrowserTabsManager
+  manager: Browser
   client: McpClientActivity
   bookmarks: BookmarkOperations
   history: HistoryOperations
@@ -261,14 +315,14 @@ export interface McpToolContext {
     target?: { workspaceId: string; tabId?: string; origins?: string[] }
   ) => McpCapabilityProfile | undefined
   capabilityAllowsUrl: (profile: McpCapabilityProfile | undefined, url: string) => boolean
-  requireAgentWorkspace: (workspaceId: string) => ReturnType<BrowserTabsManager['requireMcpTabGroup']>
+  requireAgentWorkspace: (workspaceId: string) => ReturnType<typeof requireMcpTabGroup>
   requireSavedWorkspace: (workspaceId: string) => void
   authorizeResume: (workspaceId: string, resumeKey: string, saved: boolean) => void
-  authorizedActiveWorkspaces: () => ReturnType<BrowserTabsManager['listMcpTabGroups']>
-  authorizedSavedWorkspaces: () => ReturnType<BrowserTabsManager['listSavedTabGroups']>
+  authorizedActiveWorkspaces: () => ReturnType<typeof listMcpTabGroups>
+  authorizedSavedWorkspaces: () => ReturnType<Browser['listSavedTabGroups']>
   workspaceAuthorizationError: () => Error
   withResumeKey: <T extends { id: string }>(workspace: T) => T & { resumeKey: string }
-  forkOnlySource: (source: ReturnType<BrowserTabsManager['listWorkspaceForkSources']>[number]) => ReturnType<BrowserTabsManager['listWorkspaceForkSources']>[number] & {
+  forkOnlySource: (source: ReturnType<Browser['listWorkspaceForkSources']>[number]) => ReturnType<Browser['listWorkspaceForkSources']>[number] & {
     forkOnly: true
     forkWith: { action: 'create'; storage: 'fork-workspace'; sourceWorkspaceId: string }
   }

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, isDownloadDirectory, isThemeName, SettingsStore } from '../src/main/settings-store.js'
+import { DEFAULT_SETTINGS, isDownloadDirectory, isThemeName, SettingsStore } from '../src/main/settings/settings-store.js'
 import { ATTENTION_SOUND_CUES, isAttentionSoundCue } from '../src/shared/types.js'
 import { isSearchEngineName } from '../src/shared/search-engine.js'
 import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../src/shared/interface-scale.js'
@@ -10,6 +10,7 @@ import { THEME_NAMES } from '../src/shared/theme.js'
 
 const temporaryDirectories: string[] = []
 const customDownloadDirectory = join(tmpdir(), 'hronaut-custom-downloads')
+const customSaveDialogDirectory = join(tmpdir(), 'hronaut-last-saved')
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
@@ -65,6 +66,21 @@ describe('SettingsStore', () => {
     expect((await store.load()).allowWebsiteFileSaving).toBe(true)
   })
 
+  // Only permissions Settings lists are kept, each once and in its order; a name it does not list leaves the others.
+  it.each([
+    [undefined, []],
+    ['camera', []],
+    [['camera', 'camera'], ['camera']],
+    [['camera', 'fullscreen', 42], ['camera']],
+    [['sound', 'notifications', 'geolocation'], ['geolocation', 'notifications', 'sound']]
+  ])('loads the permissions blocked for every website from %j', async (value, expected) => {
+    const { path, store } = await createStore()
+    await store.save({ ...DEFAULT_SETTINGS })
+    await writeFile(path, JSON.stringify({ sitePermissionsBlockedByDefault: value }))
+    expect(DEFAULT_SETTINGS.sitePermissionsBlockedByDefault).toEqual([])
+    expect((await store.load()).sitePermissionsBlockedByDefault).toEqual(expected)
+  })
+
   it('preserves optional authentication when restoring a remote-access profile', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
@@ -80,6 +96,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
+      siteSearches: [{ id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }],
       hideInTray: false,
       launchAtStartup: true,
       launchMinimized: true,
@@ -88,6 +105,9 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: ['camera', 'sound'],
+      secureDnsMode: 'secure',
+      secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -97,10 +117,14 @@ describe('SettingsStore', () => {
       mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
+      saveDialogDirectory: customSaveDialogDirectory,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
+      graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
-      languagePreference: 'uk-UA'
+      languagePreference: 'uk-UA',
+      spellCheck: false,
+      spellCheckLanguages: ['uk', 'en-US']
     })
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
       theme: 'matrix',
@@ -108,6 +132,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
+      siteSearches: [{ id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }],
       hideInTray: false,
       launchAtStartup: true,
       launchMinimized: true,
@@ -116,6 +141,9 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: ['camera', 'sound'],
+      secureDnsMode: 'secure',
+      secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -125,10 +153,14 @@ describe('SettingsStore', () => {
       mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
+      saveDialogDirectory: customSaveDialogDirectory,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
+      graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
-      languagePreference: 'uk-UA'
+      languagePreference: 'uk-UA',
+      spellCheck: false,
+      spellCheckLanguages: ['uk', 'en-US']
     })
     expect(await store.load()).toEqual({
       theme: 'matrix',
@@ -136,6 +168,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
+      siteSearches: [{ id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }],
       hideInTray: false,
       launchAtStartup: true,
       launchMinimized: true,
@@ -144,6 +177,9 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: ['camera', 'sound'],
+      secureDnsMode: 'secure',
+      secureDnsTemplate: 'https://dns.quad9.net/dns-query',
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -153,10 +189,14 @@ describe('SettingsStore', () => {
       mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
+      saveDialogDirectory: customSaveDialogDirectory,
       memorySaverEnabled: false,
       memorySaverTimeoutMinutes: 15,
+      graphicsAcceleration: false,
       checkForUpdatesOnStartup: false,
-      languagePreference: 'uk-UA'
+      languagePreference: 'uk-UA',
+      spellCheck: false,
+      spellCheckLanguages: ['uk', 'en-US']
     })
   })
 
@@ -204,6 +244,7 @@ describe('SettingsStore', () => {
       tabPosition: 'left',
       useSystemTitleBar: false,
       searchEngine: 'google',
+      siteSearches: [],
       hideInTray: true,
       launchAtStartup: false,
       launchMinimized: false,
@@ -212,6 +253,9 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       omitAgentUrlDetail: false,
       allowWebsiteFileSaving: false,
+      sitePermissionsBlockedByDefault: [],
+      secureDnsMode: 'automatic',
+      secureDnsTemplate: '',
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,
@@ -221,11 +265,38 @@ describe('SettingsStore', () => {
       mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
+      saveDialogDirectory: null,
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60,
+      graphicsAcceleration: true,
       checkForUpdatesOnStartup: true,
-      languagePreference: 'system'
+      languagePreference: 'system',
+      spellCheck: true,
+      spellCheckLanguages: []
     })
+  })
+
+  it('reads secure DNS back as Automatic unless the file holds a known mode, and Secure only with a provider', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    expect(DEFAULT_SETTINGS).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
+    await writeFile(path, JSON.stringify({ secureDnsMode: 'off', secureDnsTemplate: ' https://dns.google/dns-query{?dns} ' }))
+    expect(await store.load()).toMatchObject({ secureDnsMode: 'off', secureDnsTemplate: 'https://dns.google/dns-query{?dns}' })
+    await writeFile(path, JSON.stringify({ secureDnsMode: 'secure', secureDnsTemplate: 'http://dns.example/dns-query' }))
+    expect(await store.load()).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
+    await writeFile(path, JSON.stringify({ secureDnsMode: 'strict', secureDnsTemplate: 7 }))
+    expect(await store.load()).toMatchObject({ secureDnsMode: 'automatic', secureDnsTemplate: '' })
+  })
+
+  it('keeps the well-formed site searches of a settings file and drops the rest', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    const wikipedia = { id: 'wiki', name: 'Wikipedia', keyword: 'w', url: 'https://en.wikipedia.org/w/index.php?search=%s' }
+    await writeFile(path, JSON.stringify({ siteSearches: [wikipedia, { ...wikipedia, id: 'again' }, { id: 'x', name: 'X', keyword: 'x', url: 'javascript:%s' }] }))
+    expect((await store.load()).siteSearches).toEqual([wikipedia])
+    await writeFile(path, JSON.stringify({ siteSearches: 'w' }))
+    expect((await store.load()).siteSearches).toEqual([])
+    expect(DEFAULT_SETTINGS.siteSearches).toEqual([])
   })
 
   it('starts a new profile with MCP authentication on and keeps a saved choice', async () => {
@@ -280,7 +351,7 @@ describe('SettingsStore', () => {
     expect((await store.load()).mcpToolSet).toBe('essentials')
   })
 
-  it.each(['uk', 'en-GB', 'ja-JP', '', 42, null])('migrates an invalid language preference to system: %s', async (languagePreference) => {
+  it.each(['uk', 'en-GB', 'nl-NL', '', 42, null])('migrates an invalid language preference to system: %s', async (languagePreference) => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ languagePreference }), 'utf8')
@@ -315,11 +386,50 @@ describe('SettingsStore', () => {
     expect((await store.load()).downloadDirectory).toBeNull()
   })
 
+  it.each(['downloads', '', 'relative/path', 42, null])('keeps no save dialog folder for an invalid persisted one: %s', async (saveDialogDirectory) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ saveDialogDirectory }), 'utf8')
+    expect((await store.load()).saveDialogDirectory).toBeNull()
+  })
+
   it.each([0, 10, 61, 60.5, '60', null])('rejects an invalid persisted Memory Saver timeout: %s', async (memorySaverTimeoutMinutes) => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ memorySaverTimeoutMinutes }), 'utf8')
     expect((await store.load()).memorySaverTimeoutMinutes).toBe(60)
+  })
+
+  it.each([
+    { spellCheck: false, expected: false },
+    { spellCheck: true, expected: true },
+    { spellCheck: 'off', expected: true },
+    { spellCheck: undefined, expected: true }
+  ])('checks spelling unless the saved settings turned it off: $spellCheck', async ({ spellCheck, expected }) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ spellCheck }), 'utf8')
+    expect((await store.load()).spellCheck).toBe(expected)
+  })
+
+  /** As many different valid language codes. */
+  const codes = (count: number) => Array.from({ length: count }, (_, index) => `x${String.fromCharCode(97 + (index % 26))}-${String(index).padStart(2, '0')}`)
+
+  it.each([
+    { spellCheckLanguages: ['uk', 'en-US', 'en-GB-oxendict'], expected: ['uk', 'en-US', 'en-GB-oxendict'] },
+    { spellCheckLanguages: [], expected: [] },
+    { spellCheckLanguages: undefined, expected: [] },
+    { spellCheckLanguages: 'uk', expected: [] },
+    { spellCheckLanguages: ['uk', 'uk'], expected: [] },
+    { spellCheckLanguages: ['uk', 7], expected: [] },
+    { spellCheckLanguages: ['../uk'], expected: [] },
+    { spellCheckLanguages: codes(64), expected: codes(64) },
+    { spellCheckLanguages: codes(65), expected: [] }
+  ])('keeps saved spell check languages only as different language codes: $spellCheckLanguages', async ({ spellCheckLanguages, expected }) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ spellCheckLanguages }), 'utf8')
+    expect((await store.load()).spellCheckLanguages).toEqual(expected)
   })
 
   it('accepts only absolute download directories', () => {

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import BookmarksPanel from '../../src/renderer/src/components/BookmarksPanel.vue'
+import BookmarksPanel from '../../src/renderer/src/features/bookmarks/BookmarksPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserBookmark, BookmarkCollectionSnapshot } from '../../src/shared/types.js'
 import { queryByTooltip } from './helpers/tooltip.js'
@@ -33,6 +33,9 @@ function panelProps(overrides: Record<string, unknown> = {}) {
     copyBookmarkAddress: vi.fn(async () => undefined),
     openBookmarkInBackground: vi.fn(async () => undefined),
     openBookmark: vi.fn(async () => undefined),
+    exportBookmarks: vi.fn(async () => null),
+    importBookmarks: vi.fn(async () => null),
+    formatNumber: (value: number) => value.toLocaleString('en-US'),
     ...overrides
   }
 }
@@ -919,6 +922,115 @@ describe('current page bookmark focus', () => {
   })
 })
 
+// Chrome's bookmark manager adds a page to the folder it shows; Add current and Ctrl/Cmd+D put it in Unfiled, so a
+// collection's list did not show it.
+describe('saving the current page while a collection is shown', () => {
+  const gamma = bookmark('gamma', 'Gamma notes')
+
+  function collectionsApi() {
+    let changed!: (snapshot: BookmarkCollectionSnapshot) => void
+    const api = {
+      list: vi.fn(async () => ({ revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: [] }] })),
+      onChanged: vi.fn((callback: typeof changed) => { changed = callback; return () => undefined }),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    return { api, changed: (snapshot: BookmarkCollectionSnapshot) => changed(snapshot) }
+  }
+
+  it.each(['Add current', 'the shortcut'])('saves the page into the collection from %s', async via => {
+    const { api, changed } = collectionsApi()
+    const addBookmark = vi.fn(async () => [gamma, bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Beta page')])
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({ collectionsApi: api, currentBookmark: undefined, activeUrl: gamma.url, activeTitle: gamma.title, addBookmark })
+    })
+    try {
+      await flushPromises()
+      const user = userEvent.setup()
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), 'c:project')
+      expect(screen.getByText('No bookmarks in this collection')).toBeVisible()
+      if (via === 'Add current') await user.click(screen.getByRole('button', { name: 'Add current' }))
+      else await (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+      await flushPromises()
+      expect(addBookmark).toHaveBeenCalledExactlyOnceWith(gamma.url, gamma.title, 'project')
+      expect(api.assign).not.toHaveBeenCalled()
+      // Main saves both in one write and sends the collections on.
+      changed({ revision: 2, collections: [{ id: 'project', name: 'Project', bookmarkIds: ['gamma'] }] })
+      await wrapper.setProps({ bookmarks: [gamma, bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Beta page')], currentBookmark: gamma })
+      expect(screen.getByRole('button', { name: /^Gamma notes/ })).toBeVisible()
+      expect(screen.queryByRole('button', { name: /^Alpha docs/ })).toBeNull()
+      expect(screen.getByRole('combobox', { name: 'Collection for Gamma notes' })).toHaveValue('project')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('names no collection when the list shows every bookmark or Unfiled', async () => {
+    for (const shown of ['all', 'unfiled']) {
+      const { api } = collectionsApi()
+      const addBookmark = vi.fn(async () => [gamma])
+      const view = renderPanel({ collectionsApi: api, bookmarks: [], currentBookmark: undefined, activeUrl: gamma.url, activeTitle: gamma.title, addBookmark })
+      await flushPromises()
+      const user = userEvent.setup()
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), shown)
+      await user.click(screen.getByRole('button', { name: 'Add current' }))
+      await flushPromises()
+      expect(addBookmark).toHaveBeenCalledExactlyOnceWith(gamma.url, gamma.title, undefined)
+      view.unmount()
+    }
+  })
+
+  // The panel opens through its owner, and its opening ended the save already under way, so its failure was never shown.
+  it('shows a failed save from the shortcut that opened the panel', async () => {
+    const { api } = collectionsApi()
+    const addBookmark = vi.fn(async () => { throw new Error('Could not save the bookmarks') })
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({
+        collectionsApi: api, open: false, currentBookmark: undefined, activeUrl: gamma.url, activeTitle: gamma.title, addBookmark,
+        'onUpdate:open': (open: boolean) => wrapper.setProps({ open })
+      })
+    })
+    try {
+      await flushPromises()
+      await (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+      await flushPromises()
+      expect(addBookmark).toHaveBeenCalledOnce()
+      expect(screen.getByRole('alert')).toHaveTextContent('Could not save the bookmarks')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  // The star opens the panel and loads its list; the panel's opening dropped that load's failure too. The opening also
+  // loads the collections, which a load already under way would hold off.
+  it('shows a failed load from the star that opened the panel, with its collections', async () => {
+    const { api } = collectionsApi()
+    const listBookmarks = vi.fn(async () => { throw new Error('Bookmark storage is unavailable') })
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({
+        collectionsApi: api, open: false, listBookmarks,
+        'onUpdate:open': (open: boolean) => wrapper.setProps({ open })
+      })
+    })
+    try {
+      await flushPromises()
+      await (wrapper.vm as unknown as { toggle: () => Promise<void> }).toggle()
+      await flushPromises()
+      expect(listBookmarks).toHaveBeenCalled()
+      expect(screen.getByRole('alert')).toHaveTextContent('Bookmark storage is unavailable')
+      expect(api.list).toHaveBeenCalledOnce()
+      expect(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' })).toHaveTextContent('Project')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+})
+
 describe('held Enter', () => {
   it('keeps a held Enter from pressing Remove or Close again', () => {
     renderPanel()
@@ -934,6 +1046,43 @@ describe('held Enter', () => {
       expect(press.defaultPrevented).toBe(false)
       expect(repeat.defaultPrevented).toBe(true)
     }
+  })
+
+  // Add current turned into Remove current and back with each repeat, adding the bookmark anew without its name or
+  // collection; Open in background opened one more tab; Rename and Edit address opened the name field and the repeat
+  // saved it unchanged, so the field opened and closed until the key was let go.
+  it.each(['Remove current', 'Rename Alpha docs', 'Edit address for Alpha docs', 'Open Alpha docs in background tab'])(
+    'keeps a held Enter from pressing %s again', name => {
+      renderPanel()
+      const button = screen.getByRole('button', { name })
+      const press = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+      button.dispatchEvent(press)
+      button.dispatchEvent(repeat)
+
+      expect(press.defaultPrevented).toBe(false)
+      expect(repeat.defaultPrevented).toBe(true)
+    })
+
+  it('saves a new name only for a new press of Enter, not the repeats of the one held on Rename', async () => {
+    const renameBookmark = vi.fn(async () => [bookmark('alpha', 'Alpha guide'), bookmark('beta', 'Beta page')])
+    renderPanel({ renameBookmark })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Rename Alpha docs' }))
+    const field = screen.getByRole('textbox', { name: 'Rename Alpha docs' })
+    expect(field).toHaveFocus()
+
+    const repeat = new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true })
+    field.dispatchEvent(repeat)
+    await flushPromises()
+    expect(repeat.defaultPrevented).toBe(true)
+    expect(renameBookmark).not.toHaveBeenCalled()
+    expect(field).toHaveFocus()
+
+    await fireEvent.update(field, 'Alpha guide')
+    await fireEvent.keyDown(field, { key: 'Enter' })
+    await flushPromises()
+    expect(renameBookmark).toHaveBeenCalledExactlyOnceWith('alpha', 'Alpha guide')
+    expect(screen.queryByRole('textbox', { name: 'Rename Alpha docs' })).toBeNull()
   })
 })
 
@@ -1001,5 +1150,148 @@ describe('opening a bookmark behind with a middle-click or Ctrl+click, as in Chr
     await flushPromises()
     expect(openBookmarkInBackground).toHaveBeenCalledOnce()
     finish()
+  })
+})
+
+describe('bookmarks file', () => {
+  it('imports and exports a bookmarks file from the panel, as Chrome\'s bookmark manager, with nothing to export when empty', async () => {
+    const importBookmarks = vi.fn(async () => ({ added: 2, alreadySaved: 0, notWebPages: 0, overLimit: 0, limit: 500 }))
+    const exportBookmarks = vi.fn(async () => 2)
+    const view = renderPanel({ importBookmarks, exportBookmarks })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    await flushPromises()
+    expect(screen.getByRole('status')).toHaveTextContent('Exported 2 bookmarks.')
+    await view.rerender(panelProps({ importBookmarks, exportBookmarks, bookmarks: [], currentBookmark: undefined }))
+    expect(screen.getByRole('button', { name: 'Export…' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('button', { name: 'Import…' }))
+    await flushPromises()
+    expect(importBookmarks).toHaveBeenCalledOnce()
+    expect(screen.getByRole('status')).toHaveTextContent('Imported 2 bookmarks.')
+    expect(exportBookmarks).toHaveBeenCalledOnce()
+  })
+
+  it('opens no file dialog while a bookmark is being removed', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const importBookmarks = vi.fn(async () => null)
+    const exportBookmarks = vi.fn(async () => null)
+    renderPanel({ importBookmarks, exportBookmarks, removeBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Beta page' }))
+    const importButton = screen.getByRole('button', { name: 'Import…' })
+    expect(importButton).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: 'Export…' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(importButton)
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    expect(importBookmarks).not.toHaveBeenCalled()
+    expect(exportBookmarks).not.toHaveBeenCalled()
+    finish([bookmark('alpha', 'Alpha docs')])
+    await flushPromises()
+    expect(importButton).toHaveAttribute('aria-disabled', 'false')
+    await user.click(importButton)
+    expect(importBookmarks).toHaveBeenCalledOnce()
+  })
+})
+
+describe('open all', () => {
+  it('opens the bookmarks the list shows, and offers nothing to open when it shows none', async () => {
+    const openBookmarkInBackground = vi.fn(async () => undefined)
+    renderPanel({ openBookmarkInBackground })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'Beta')
+    await user.click(screen.getByRole('button', { name: 'Open all (1)' }))
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledExactlyOnceWith(bookmark('beta', 'Beta page'))
+    await user.clear(screen.getByRole('searchbox'))
+    await user.type(screen.getByRole('searchbox'), 'Nothing like it')
+    expect(screen.queryByRole('button', { name: /^Open all/u })).toBeNull()
+  })
+
+  it('opens a chosen collection\'s bookmarks in the order the list sorts them', async () => {
+    const openBookmarkInBackground = vi.fn(async (_bookmark: BrowserBookmark) => undefined)
+    const api = {
+      list: vi.fn(async () => ({ revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: ['beta', 'gamma'] }] })),
+      onChanged: vi.fn(() => vi.fn()),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    renderPanel({ openBookmarkInBackground, collectionsApi: api, bookmarks: [bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Zeta page'), bookmark('gamma', 'Gamma page')] })
+    await flushPromises()
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), 'c:project')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort bookmarks' }), 'title')
+    await user.click(screen.getByRole('button', { name: 'Open all (2)' }))
+    await flushPromises()
+    expect(openBookmarkInBackground.mock.calls.map(([opened]) => opened.id)).toEqual(['gamma', 'beta'])
+  })
+
+  it('keeps every other bookmark change waiting while it opens', async () => {
+    let finish!: () => void
+    const openBookmarkInBackground = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    const removeBookmark = vi.fn(async () => [])
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ openBookmarkInBackground, removeBookmark }) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open all (2)' }))
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Remove Alpha docs' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Import…' })).toHaveAttribute('aria-disabled', 'true')
+    // Neither a bookmark's own Open in background tab nor the current page's shortcut acts meanwhile.
+    await user.click(screen.getByRole('button', { name: 'Open Beta page in background tab' }))
+    await (wrapper.vm as unknown as { toggleCurrent: () => Promise<void> }).toggleCurrent()
+    expect(openBookmarkInBackground).toHaveBeenCalledOnce()
+    expect(removeBookmark).not.toHaveBeenCalled()
+    finish()
+    await flushPromises()
+    finish()
+    await flushPromises()
+    expect(openBookmarkInBackground).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Remove Alpha docs' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Opened 2 tabs.')
+    wrapper.unmount()
+  })
+
+  it('takes back its question with Escape before a rename it came after', async () => {
+    const many = Array.from({ length: 15 }, (_, index) => bookmark(`page-${index}`, `Page ${index}`))
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ bookmarks: many, currentBookmark: undefined }) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Rename Page 0' }))
+    await user.click(screen.getByRole('button', { name: 'Open all (15)' }))
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    await flushPromises()
+    expect(screen.queryByRole('group')).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Rename Page 0' })).toBeInTheDocument()
+    wrapper.unmount()
+  })
+
+  it('gives the keyboard to Search when the list empties under its question', async () => {
+    const many = Array.from({ length: 15 }, (_, index) => bookmark(`page-${index}`, `Page ${index}`))
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ bookmarks: many, currentBookmark: undefined }) })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'Page')
+    await user.click(screen.getByRole('button', { name: 'Open all (15)' }))
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    // A live update leaves no bookmark the search matches.
+    await wrapper.setProps({ bookmarks: [bookmark('other', 'Unrelated')] })
+    await flushPromises()
+    expect(screen.queryByRole('group')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Open all/u })).toBeNull()
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+    wrapper.unmount()
+  })
+
+  it('takes back its question with Escape before Escape closes the panel', async () => {
+    const many = Array.from({ length: 15 }, (_, index) => bookmark(`page-${index}`, `Page ${index}`))
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ bookmarks: many, currentBookmark: undefined }) })
+    await wrapper.get('.bookmarks-open-all button').trigger('click')
+    expect(wrapper.find('[role="group"]').exists()).toBe(true)
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    await flushPromises()
+    expect(wrapper.find('[role="group"]').exists()).toBe(false)
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+    ;(wrapper.vm as unknown as { handleEscape: () => void }).handleEscape()
+    expect(wrapper.emitted('update:open')).toEqual([[false]])
+    wrapper.unmount()
   })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' }, Menu: {} }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+import { Browser } from '../src/main/browser/browser.js'
+import { closeTabTransition } from '../src/main/browser/tab-close/close-transition.js'
 import { sleepFallbackTab } from '../src/main/browser/tab-sleep/tab-sleep.js'
 
 // Closing, or putting to sleep, the last tab of a workspace's row showed the first tab of the next workspace, though
@@ -11,13 +12,11 @@ interface Tab { id: string; url: string; pinned: boolean; sleeping: boolean; mcp
 interface Internals {
   activeTabId: string | null
   tabs: Map<string, Tab>
-  closeTabTransition(tab: Tab): { splitPartnerId: string | null; nextId: string | undefined }
-  orderedTabs(): Tab[]
 }
 
 function fixture(tabs: Array<{ id: string; mcpGroupId: string; sleeping?: boolean }>) {
   const group = (id: string) => ({ id, name: id, lastUsedAt: '2026-10-21T09:00:00.000Z' })
-  return Object.assign(Object.create(BrowserTabsManager.prototype), {
+  return Object.assign(Object.create(Browser.prototype), {
     mcpTabGroups: new Map([['work', group('work')], ['docs', group('docs')]]),
     tabs: new Map(tabs.map(tab => [tab.id, {
       ...tab, url: `https://${tab.id}.example/`, pinned: false, sleeping: tab.sleeping ?? false, webContents: { isDestroyed: () => false }
@@ -29,11 +28,11 @@ function fixture(tabs: Array<{ id: string; mcpGroupId: string; sleeping?: boolea
 
 const nextAfterClosing = (manager: Internals, id: string) => {
   manager.activeTabId = id
-  return manager.closeTabTransition(manager.tabs.get(id)!).nextId
+  return closeTabTransition(manager as never, manager.tabs.get(id)! as never).nextId
 }
 
 const fallbackWhenSleeping = (manager: Internals, id: string) => (
-  sleepFallbackTab({ orderedTabs: () => manager.orderedTabs() } as never, manager.tabs.get(id)! as never) as Tab | undefined
+  sleepFallbackTab(manager as never, manager.tabs.get(id)! as never) as Tab | undefined
 )?.id
 
 describe('closing the shown tab', () => {

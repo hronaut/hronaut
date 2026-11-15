@@ -6,7 +6,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication, Page } from '@playwright/test'
 import type { ReactInspectionAction, ReactInspectionResult } from '../../src/shared/react-inspection.js'
 import type { BrowserState } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test as base } from './fixtures.js'
+import { closeFixtureServer, expect, test as base, pageAt } from './fixtures.js'
 import { reactInspectionBundle } from './react-inspection-bundle.js'
 
 export function decode<T>(result: CallToolResult): T {
@@ -73,8 +73,7 @@ export const test = base.extend<{ react: ReactFixture }>({
       await connect()
       const workspace = await success<Workspace>(call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'React integration' }))
       const tabId = (await success<{activeTabId: string}>(call('browser_new_tab', { workspaceId: workspace.id, url: origin + '/initial' }))).activeTabId
-      await expect.poll(() => electronApp.context().pages().some(page => page.url() === origin + '/initial')).toBe(true)
-      const page = electronApp.context().pages().find(page => page.url() === origin + '/initial')!
+      const page = await pageAt(electronApp, origin + '/initial')
       await expect(page.locator('span')).toHaveCount(1)
       const contentsId = await electronApp.evaluate(({ webContents }, url) => {
         const contents = webContents.getAllWebContents().find(contents => contents.getURL() === url)

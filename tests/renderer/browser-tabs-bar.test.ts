@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/vue'
+import { createEvent, fireEvent, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { nextTick, shallowRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import BrowserTabsBar from '../../src/renderer/src/components/BrowserTabsBar.vue'
+import { renderTabsBar } from './render-tabs-bar.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 import type { SupportedLocale } from '../../src/shared/locale.js'
@@ -100,7 +100,7 @@ function renderTabs(
   railPinned = true,
   locale: SupportedLocale = 'en-US'
 ) {
-  return render(BrowserTabsBar, {
+  return renderTabsBar({
     global: { plugins: [createHronautI18n(locale)] },
     props: {
       state,
@@ -116,6 +116,127 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it('draws only the row of a tab that changed, as when one of many loading pages gets its title', async () => {
+    const first = tab('first', { networkRouteCount: 7 })
+    const second = tab('second', { loading: true })
+    const state = browserState({ tabs: [first, second] })
+    // As in the shell, a tab's name reads the whole browser state, which each change replaces.
+    const current = shallowRef(state)
+    const tabTooltip = (value: BrowserTabState): string => current.value.tabs.find(candidate => candidate.id === value.id)?.title ?? value.title
+    // Only the first tab's row counts its 7 rules, so each call with 7 is that row drawing.
+    const formatNumber = vi.fn((value: number) => String(value))
+    const view = renderTabsBar({
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { state, hydrated: true, orientation: 'vertical', railPinned: true, mcpActivityByTab: {}, formatNumber, tabTooltip, describeEmulation: () => '' }
+    })
+    expect(formatNumber).toHaveBeenCalledWith(7)
+    formatNumber.mockClear()
+    // The shell's store keeps the object of each tab that did not change.
+    const next = { ...state, tabs: [first, { ...second, title: 'Loaded', loading: false }] }
+    current.value = next
+    await view.rerender({ state: next })
+    expect(screen.getByRole('tab', { name: 'Loaded' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Page first' })).toBeTruthy()
+    expect(formatNumber.mock.calls.filter(([value]) => value === 7)).toEqual([])
+  })
+
+  // While agents work, their pages load, the tools they run on tabs change, and their workspaces' counts and times move,
+  // many times a second. The strip around the rows, with its buttons and workspace headers, draws again only when what
+  // it shows changes; each row reads its own tab.
+  it('draws the strip again when what it shows changes, not for a tab\'s page, an agent\'s tool or a workspace\'s counts', async () => {
+    const first = tab('first')
+    const second = tab('second', { loading: true })
+    const state = browserState({ tabs: [first, second] })
+    // The rail's workspace header counts its tabs, and no row formats a number, so each call is the strip drawing.
+    const formatNumber = vi.fn((value: number) => String(value))
+    const view = renderTabsBar({
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { state, hydrated: true, orientation: 'vertical', railPinned: true, formatNumber, tabTooltip: (value: BrowserTabState) => value.title, describeEmulation: () => '' }
+    })
+    await flushPromises()
+    expect(formatNumber).toHaveBeenCalledWith(2)
+    formatNumber.mockClear()
+
+    const loaded = {
+      ...state,
+      tabs: [first, { ...second, title: 'Loaded', loading: false }],
+      mcpTabGroups: [{ ...workspace(), tabCount: 2, activeTabId: second.id, lastUsedAt: '2026-08-22T10:00:00.000Z' }]
+    }
+    await view.rerender({
+      state: loaded,
+      mcpActivityByTab: { second: { activityId: 'click-1', tabId: second.id, toolName: 'browser_click', phase: 'started', occurredAt: 1 } }
+    })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Loaded' }).dataset.mcpCommand).toBe('browser_click')
+    expect(formatNumber).not.toHaveBeenCalled()
+
+    await view.rerender({ state: { ...loaded, tabs: [...loaded.tabs, tab('third')] } })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Page third' })).toBeTruthy()
+    expect(formatNumber).toHaveBeenCalledWith(3)
+  })
+
+  // A tab's name says when it is locked, which the lock on every tab decides as well as the tab itself.
+  it('names a tab again when the lock on every tab changes, though the tab itself did not', async () => {
+    const first = tab('first')
+    const state = browserState({ tabs: [first] })
+    // As in the shell, a tab's name reads the whole browser state.
+    const current = shallowRef(state)
+    const tabTooltip = (value: BrowserTabState): string => `${value.title}${current.value.allHumanInteractionLocked ? ', locked' : ''}`
+    const view = renderTabsBar({
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { state, hydrated: true, orientation: 'horizontal', railPinned: true, formatNumber: (value: number) => String(value), tabTooltip, describeEmulation: () => '' }
+    })
+    expect(screen.getByRole('tab', { name: 'Page first' })).toBeTruthy()
+    const locked = { ...state, allHumanInteractionLocked: true }
+    current.value = locked
+    await view.rerender({ state: locked })
+    expect(screen.getByRole('tab', { name: 'Page first, locked' })).toBe(screen.getByRole('tab'))
+  })
+
+  it('measures the strip again when tabs come and go, not when a loading page changes its title', async () => {
+    // Measuring lays out the whole shell, and 45 loading pages change their titles about a hundred times.
+    const first = tab('first')
+    const state = browserState({ tabs: [first, tab('second', { loading: true })] })
+    const view = renderTabs(state)
+    // The strip is measured once it is mounted.
+    await flushPromises()
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    let measured = 0
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, get: () => { measured += 1; return 1_280 } })
+
+    await view.rerender({ state: { ...state, tabs: [first, tab('second', { title: 'Loaded', loading: false })] } })
+    await flushPromises()
+    expect(screen.getByRole('tab', { name: 'Loaded' })).toBeTruthy()
+    expect(measured).toBe(0)
+
+    await view.rerender({ state: { ...state, tabs: [first, tab('second', { title: 'Loaded' }), tab('third')] } })
+    await flushPromises()
+    expect(measured).toBeGreaterThan(0)
+  })
+
+  it('measures the rail again when a Stop button, a needs-you dot or a Following row changes what it holds', async () => {
+    const first = tab('first', { active: true })
+    const state = browserState({ tabs: [first, tab('second')], activeTabId: first.id })
+    const view = renderTabs(state, true, 'vertical')
+    await flushPromises()
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    let measured = 0
+    Object.defineProperty(strip, 'scrollHeight', { configurable: true, get: () => { measured += 1; return 960 } })
+    const remeasured = async (props: Record<string, unknown>): Promise<number> => {
+      measured = 0
+      await view.rerender(props)
+      await flushPromises()
+      return measured
+    }
+
+    const capturing = { ...state, tabs: [first, tab('second', { pwaLifecycleActive: true })] }
+    expect(await remeasured({ state: capturing })).toBeGreaterThan(0)
+    expect(await remeasured({ userAttention: { id: 'attention-1', reason: 'Human decision required: provide-input', requestedAt: '2026-10-28T00:00:00.000Z', tabId: 'second' } })).toBeGreaterThan(0)
+    expect(await remeasured({ state: { ...capturing, agentFollow: { tabId: first.id, agentName: 'Claude Code' } } })).toBeGreaterThan(0)
+    expect(screen.getByTestId('workspace-following')).toBeTruthy()
+  })
+
   it.each(['horizontal', 'vertical'] as const)('normalizes wheel units in the %s tab strip', async orientation => {
     renderTabs(browserState(), true, orientation)
     const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
@@ -428,7 +549,7 @@ describe('BrowserTabsBar', () => {
     }
     const publish = async (agents: AgentPresence[]) => { listener({ revision: ++revision, workspaces: { 'workspace-1': agents } }); await nextTick() }
     window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
-    render(BrowserTabsBar, {
+    renderTabsBar({
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
         state: browserState(),
@@ -487,7 +608,7 @@ describe('BrowserTabsBar', () => {
       onChanged: (next) => { listener = next; return () => undefined }
     }
     window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
-    render(BrowserTabsBar, {
+    renderTabsBar({
       global: { plugins: [createHronautI18n('en-US')] },
       props: {
         state: browserState(),
@@ -558,6 +679,31 @@ describe('BrowserTabsBar', () => {
     await view.rerender({ mcpActivityByTab: {} })
     expect(first).not.toHaveAttribute('aria-description')
     expect(first).toHaveAttribute('data-tooltip', 'Page first')
+  })
+
+  it('keeps the tabs above the page as wide as they are while tabs close with the mouse, until the pointer leaves', async () => {
+    // As Chrome does, so the next tab's close button comes under the pointer rather than sliding away from it.
+    const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 150 } as DOMRect)
+    const view = renderTabs(browserState({ tabs: [tab('first'), tab('second'), tab('third', { active: true })], activeTabId: 'third' }))
+    const row = (name: string) => screen.getByRole('tab', { name })
+    await fireEvent.click(row('Page first').querySelector('.tab-close')!)
+    expect(view.emitted('closeTab')).toEqual([['first']])
+    for (const name of ['Page second', 'Page third']) expect(row(name).style.width).toBe('150px')
+    await fireEvent.pointerLeave(document.querySelector('.tabs-strip')!)
+    for (const name of ['Page second', 'Page third']) expect(row(name).style.width).toBe('')
+    // The rail lists tabs in rows, which closing one does not widen.
+    await view.rerender({ orientation: 'vertical' })
+    await fireEvent.click(row('Page second').querySelector('.tab-close')!)
+    expect(row('Page third').style.width).toBe('')
+    measure.mockRestore()
+  })
+
+  it('names a tab\'s close button Close tab, without the key that closes the shown tab', () => {
+    // As in Chrome: on a tab in the background, Ctrl/Cmd+W would close the shown tab, not this one.
+    renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }))
+    for (const name of ['Page first', 'Page second']) {
+      expect(screen.getByRole('tab', { name }).querySelector('.tab-close')).toHaveAttribute('data-tooltip', 'Close tab')
+    }
   })
 
   it('keeps live workspace descriptions in workspace-header hover text without rendering a preview', async () => {
@@ -1114,6 +1260,23 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('closeTab')).toBeUndefined()
   })
 
+  it('leaves Home, End and the arrows with Alt, Ctrl or Cmd to their shortcuts', async () => {
+    renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true }), tab('third')], activeTabId: 'second' }))
+    const control = screen.getByRole('tab', { name: /Page second/ })
+    control.focus()
+    for (const key of ['Home', 'End', 'ArrowLeft', 'ArrowRight']) {
+      for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })
+        control.dispatchEvent(event)
+        // Alt+Home moved the keyboard to the first tab instead of opening Home, and Alt+Left to the tab before
+        // instead of going back.
+        expect(event.defaultPrevented, `${key} ${JSON.stringify(modifiers)}`).toBe(false)
+        await nextTick()
+        expect(control).toHaveFocus()
+      }
+    }
+  })
+
   it('keeps the keyboard close shortcut available while website input is locked', async () => {
     const audible = tab('audible', { active: true, audible: true })
     const view = renderTabs(browserState({
@@ -1467,7 +1630,9 @@ describe('BrowserTabsBar', () => {
       else await view.rerender({ state: { ...initial, tabs: [first, { ...focused, title: 'Loaded document title' }, active] } })
       await nextTick()
       expect(focusedControl).toHaveFocus()
-      expect(revealFocused).toHaveBeenCalled()
+      // A resize reveals the keyboard target again; a new title moves no tab, so nothing scrolls.
+      if (change === 'resize') expect(revealFocused).toHaveBeenCalled()
+      else expect(revealFocused).not.toHaveBeenCalled()
       expect(scrollBy).not.toHaveBeenCalled()
 
       // A genuine selection change must still reveal the selected page even
@@ -1923,5 +2088,637 @@ describe('BrowserTabsBar drop marker while dragging a tab', () => {
 
     await fireEvent.drop(rejected, { clientX: 90 })
     expect(view.emitted().reorderTab).toBeUndefined()
+  })
+})
+
+describe('BrowserTabsBar dropped links', () => {
+  function renderWithLinkDrops(state: BrowserState, options: { linkDrops?: boolean; orientation?: 'horizontal' | 'vertical' } = {}) {
+    return renderTabsBar({
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        state,
+        hydrated: true,
+        orientation: options.orientation ?? 'horizontal',
+        railPinned: true,
+        mcpActivityByTab: {},
+        formatNumber: (value: number) => String(value),
+        tabTooltip: (value: BrowserTabState) => value.title,
+        describeEmulation: () => '',
+        linkDrops: options.linkDrops ?? true
+      }
+    })
+  }
+
+  function bounds(control: HTMLElement): void {
+    vi.spyOn(control, 'getBoundingClientRect').mockReturnValue({
+      left: 20, width: 100, right: 120, top: 0, bottom: 40, height: 40, x: 20, y: 0, toJSON: () => ({})
+    })
+  }
+
+  /** What a link dragged from a page carries, as Chromium hands it to the shell. */
+  function link(address = 'https://example.com/dropped', types = ['text/plain', 'text/uri-list', 'text/html'], effectAllowed = 'all') {
+    const data: Record<string, string> = { 'text/plain': address, 'text/uri-list': address, 'text/html': `<a href="${address}">Dropped</a>` }
+    return { types, effectAllowed, dropEffect: 'none', getData: (type: string) => types.includes(type) ? data[type] ?? '' : '' }
+  }
+
+  interface DragInit { clientX?: number; clientY?: number; dataTransfer: object }
+
+  /**
+   * Sends a drag event at the point; jsdom has no DragEvent, so the point goes on the event as Chromium's would carry
+   * it. Whether the bar took the event comes back.
+   */
+  async function drag(kind: 'dragEnter' | 'dragOver' | 'dragLeave' | 'drop', control: Element, init: DragInit): Promise<boolean> {
+    const event = createEvent[kind](control, { dataTransfer: init.dataTransfer })
+    Object.defineProperties(event, { clientX: { value: init.clientX ?? 0 }, clientY: { value: init.clientY ?? 0 } })
+    control.dispatchEvent(event)
+    await nextTick()
+    return event.defaultPrevented
+  }
+
+  const dragEnter = (control: Element, init: DragInit) => drag('dragEnter', control, init)
+  const dragLeave = (control: Element, init: DragInit) => drag('dragLeave', control, init)
+
+  const dragOver = (control: Element, init: DragInit) => drag('dragOver', control, init)
+  const drop = (control: Element, init: DragInit) => drag('drop', control, init)
+
+  it.each([
+    [21, 'before'], [44, 'before'], [45, 'onto'], [70, 'onto'], [94, 'onto'], [95, 'after'], [119, 'after']
+  ] as const)('marks a link at x=%i as dropped %s the tab, a quarter of it at either edge beside it, as in Chrome', async (clientX, placement) => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(second)
+    const dataTransfer = link()
+
+    expect(await dragOver(second, { clientX, dataTransfer })).toBe(true)
+    expect(dataTransfer.dropEffect).toBe('copy')
+    expect(second).toHaveClass(`drop-${placement}`)
+    expect(view.container.querySelectorAll('.drop-before, .drop-after, .drop-onto')).toHaveLength(1)
+
+    await drop(second, { clientX, dataTransfer })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: { tabId: 'second', placement } }]])
+    expect(view.container.querySelector('.drop-before, .drop-after, .drop-onto')).toBeNull()
+    expect(view.emitted().reorderTab).toBeUndefined()
+  })
+
+  it('places a link by its height in the rail', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }), { orientation: 'vertical' })
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+
+    await drop(first, { clientX: 70, clientY: 5, dataTransfer: link() })
+    await drop(first, { clientX: 70, clientY: 20, dataTransfer: link() })
+    await drop(first, { clientX: 70, clientY: 35, dataTransfer: link() })
+
+    expect((view.emitted().dropLink as [{ target: { placement: string } }][]).map(([details]) => details.target.placement)).toEqual(['before', 'onto', 'after'])
+  })
+
+  it('opens the first address of a link list, or the dragged text when there is none', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const list = { types: ['text/uri-list', 'text/plain'], getData: (type: string) => type === 'text/uri-list' ? '# saved links\r\nhttps://example.com/one\r\nhttps://example.com/two' : 'Saved links' }
+    const words = { types: ['text/plain'], getData: (type: string) => type === 'text/plain' ? 'spell check languages' : '' }
+
+    await drop(first, { clientX: 70, dataTransfer: list })
+    await drop(first, { clientX: 70, dataTransfer: words })
+
+    expect(view.emitted().dropLink).toEqual([
+      [{ text: 'https://example.com/one', target: { tabId: 'first', placement: 'onto' } }],
+      [{ text: 'spell check languages', target: { tabId: 'first', placement: 'onto' } }]
+    ])
+  })
+
+  it('opens a link dropped on a workspace\'s New tab button in that workspace', async () => {
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const view = renderWithLinkDrops(browserState({
+      tabs: [tab('first'), tab('elsewhere', { mcpGroupId: other.id, mcpGroupName: other.name })],
+      activeTabId: 'first',
+      mcpTabGroups: [workspace(), other]
+    }))
+    const newTab = screen.getByRole('button', { name: 'New tab in QA workspace' })
+
+    expect(await dragOver(newTab, { dataTransfer: link() })).toBe(true)
+    expect(newTab).toHaveClass('link-drop-target')
+    expect(screen.getByRole('button', { name: 'New tab in Research workspace' })).not.toHaveClass('link-drop-target')
+
+    await drop(newTab, { dataTransfer: link() })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: { workspaceId: 'workspace-2' } }]])
+    expect(newTab).not.toHaveClass('link-drop-target')
+  })
+
+  it('opens a link dropped on the New tab button of a strip with no workspace in a new tab of the person\'s', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [], activeTabId: null, mcpTabGroups: [] }))
+    const newTab = screen.getByRole('button', { name: 'New tab' })
+
+    expect(await dragOver(newTab, { dataTransfer: link() })).toBe(true)
+    expect(newTab).toHaveClass('link-drop-target')
+    await drop(newTab, { dataTransfer: link() })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: {} }]])
+  })
+
+  // The marker stayed on the last tab a link was over after the link left the strip, as when it was dropped elsewhere.
+  // Chromium names no element a drag leaves for, and enters the next element before it leaves the last.
+  it('keeps the marker while the link moves within a tab, and clears it over a gap or once the link leaves the strip', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(first)
+    bounds(second)
+    const title = first.querySelector('.tab-title')!
+    const gap = second.closest('.workspace-tab-list')!
+    const markers = () => view.container.querySelectorAll('.drop-before, .drop-after, .drop-onto')
+
+    await dragEnter(first, { clientX: 70, dataTransfer: link() })
+    await dragEnter(title, { clientX: 70, dataTransfer: link() })
+    await dragLeave(first, { dataTransfer: link() })
+    expect(first).toHaveClass('drop-onto')
+    await dragEnter(second, { clientX: 100, dataTransfer: link() })
+    await dragLeave(title, { dataTransfer: link() })
+    expect(second).toHaveClass('drop-after')
+    expect(markers()).toHaveLength(1)
+    // The space around the tabs takes no link.
+    expect(await dragEnter(gap, { dataTransfer: link() })).toBe(false)
+    await dragLeave(second, { dataTransfer: link() })
+    expect(markers()).toHaveLength(0)
+    await dragEnter(second, { clientX: 100, dataTransfer: link() })
+    await dragLeave(gap, { dataTransfer: link() })
+    expect(second).toHaveClass('drop-after')
+    // Out of the strip.
+    await dragLeave(second, { dataTransfer: link() })
+    expect(markers()).toHaveLength(0)
+  })
+
+  it('counts nothing left over from a tab dropped in the strip, so a later link\'s marker still goes as it leaves', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(first)
+    bounds(second)
+    const data = new Map<string, string>()
+    const tabDrag = { types: ['application/x-hronaut-tab'], effectAllowed: 'move', dropEffect: 'none', setData: (type: string, value: string) => { data.set(type, value) }, getData: (type: string) => data.get(type) ?? '' }
+
+    await fireEvent.dragStart(first, { dataTransfer: tabDrag })
+    await dragEnter(first, { clientX: 100, dataTransfer: tabDrag })
+    await dragEnter(second, { clientX: 100, dataTransfer: tabDrag })
+    await drop(second, { clientX: 100, dataTransfer: tabDrag })
+    await fireEvent.dragEnd(first, { dataTransfer: tabDrag })
+    expect(view.emitted().reorderTab).toHaveLength(1)
+
+    await dragEnter(first, { clientX: 70, dataTransfer: link() })
+    expect(first).toHaveClass('drop-onto')
+    await dragLeave(first, { dataTransfer: link() })
+    expect(view.container.querySelector('.drop-before, .drop-after, .drop-onto')).toBeNull()
+  })
+
+  // A link released as soon as it reached a tab or button dropped nothing: the pointer's entering was not taken.
+  it('takes a link the moment it enters a tab or a New tab button', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const newTab = screen.getByRole('button', { name: 'New tab in Research workspace' })
+    bounds(first)
+
+    expect(await dragEnter(first, { clientX: 70, dataTransfer: link() })).toBe(true)
+    expect(first).toHaveClass('drop-onto')
+    expect(await dragEnter(newTab, { dataTransfer: link() })).toBe(true)
+    await dragLeave(first, { dataTransfer: link() })
+    expect(newTab).toHaveClass('link-drop-target')
+    expect(first).not.toHaveClass('drop-onto')
+    await drop(newTab, { dataTransfer: link() })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/dropped', target: { workspaceId: 'workspace-1' } }]])
+  })
+
+  it.each([
+    ['all', 'copy'], ['copyLink', 'copy'], ['uninitialized', 'copy'], ['link', 'link'], ['linkMove', 'link'], ['move', 'move']
+  ])('takes a link whose source allows %s as a %s, as Chrome\'s tab strip does', async (effectAllowed, dropEffect) => {
+    renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const dataTransfer = link(undefined, undefined, effectAllowed)
+
+    await dragOver(first, { clientX: 70, dataTransfer })
+
+    expect(dataTransfer.dropEffect).toBe(dropEffect)
+  })
+
+  // Chromium hands an image dragged from a page over with its picture as a file too, which kept a linked picture from
+  // opening its link.
+  it('opens the address of an image dragged from a page, which carries the picture as a file', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const dataTransfer = link('https://example.com/article', ['text/uri-list', 'text/html', 'Files'])
+
+    expect(await dragOver(first, { clientX: 70, dataTransfer })).toBe(true)
+    await drop(first, { clientX: 70, dataTransfer })
+
+    expect(view.emitted().dropLink).toEqual([[{ text: 'https://example.com/article', target: { tabId: 'first', placement: 'onto' } }]])
+  })
+
+  it('opens nothing for a file from the computer, even one that comes with its address', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+    const withAddress = link('file:///home/me/notes.txt', ['Files', 'text/uri-list'])
+
+    await drop(first, { clientX: 70, dataTransfer: withAddress })
+    await drop(first, { clientX: 70, dataTransfer: link('FILE:///home/me/notes.txt', ['text/uri-list']) })
+
+    expect(view.emitted().dropLink).toBeUndefined()
+  })
+
+  it.each([
+    ['a file from the computer', link('/home/me/notes.txt', ['Files'])],
+    ['a file from the computer with its name as text', link('/home/me/notes.txt', ['Files', 'text/plain'])],
+    ['a tab from the other copy of the rail', link('tab', ['application/x-hronaut-tab'])],
+    ['a tab that also carries text', link('tab', ['text/plain', 'application/x-hronaut-tab'])],
+    ['nothing it can read as text', link('', ['text/html'])]
+  ])('takes no drop of %s', async (_name, dataTransfer) => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+
+    expect(await dragOver(first, { clientX: 70, dataTransfer })).toBe(false)
+    expect(first).not.toHaveClass('drop-onto')
+    await drop(first, { clientX: 70, dataTransfer })
+
+    expect(view.emitted().dropLink).toBeUndefined()
+  })
+
+  it('takes no link in a copy that does not open links, as the one main draws over the page', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first')], activeTabId: 'first' }), { linkDrops: false })
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    bounds(first)
+
+    expect(await dragOver(first, { clientX: 70, dataTransfer: link() })).toBe(false)
+    expect(await dragOver(screen.getByRole('button', { name: 'New tab in Research workspace' }), { dataTransfer: link() })).toBe(false)
+    await drop(first, { clientX: 70, dataTransfer: link() })
+
+    expect(view.emitted().dropLink).toBeUndefined()
+  })
+
+  it('still moves a tab of the bar dragged over another, and marks its drag as a tab', async () => {
+    const view = renderWithLinkDrops(browserState({ tabs: [tab('first'), tab('second')], activeTabId: 'first' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    bounds(second)
+    const data = new Map<string, string>()
+    const dataTransfer = { types: ['text/plain'], effectAllowed: 'all', dropEffect: 'none', setData: (type: string, value: string) => { data.set(type, value) }, getData: (type: string) => data.get(type) ?? '' }
+
+    await fireEvent.dragStart(first, { dataTransfer })
+    // The drag says it is a tab, and gives a page or another app it is released over no tab id to read.
+    expect([...data]).toEqual([['application/x-hronaut-tab', 'tab']])
+    await dragOver(second, { clientX: 100, dataTransfer })
+    expect(second).toHaveClass('drop-after')
+    await drop(second, { clientX: 100, dataTransfer })
+
+    expect(view.emitted().reorderTab).toEqual([[{ tabId: 'first', targetTabId: 'second', placement: 'after' }]])
+    expect(view.emitted().dropLink).toBeUndefined()
+  })
+})
+
+// Ctrl or Shift with a click on a tab only showed it; as in Chrome, it selects several tabs, which the tab menu and a
+// drag then act on.
+describe('BrowserTabsBar selecting several tabs', () => {
+  function renderWithSelection(state: BrowserState, options: { tabSelection?: boolean; platform?: 'darwin' | 'linux'; settingsActive?: boolean } = {}) {
+    return renderTabsBar({
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        state,
+        hydrated: true,
+        orientation: 'horizontal',
+        railPinned: true,
+        mcpActivityByTab: {},
+        formatNumber: (value: number) => String(value),
+        tabTooltip: (value: BrowserTabState) => value.title,
+        describeEmulation: () => '',
+        platform: options.platform ?? 'linux',
+        tabSelection: options.tabSelection ?? true,
+        settingsActive: options.settingsActive ?? false
+      }
+    })
+  }
+
+  function stateShowing(activeTabId: string, ids = ['a', 'b', 'c', 'd'], extra: BrowserTabState[] = [], groups = [workspace()]): BrowserState {
+    return browserState({ tabs: [...ids.map((id) => tab(id, { active: id === activeTabId })), ...extra], activeTabId, mcpTabGroups: groups })
+  }
+
+  const control = (id: string) => screen.getByRole('tab', { name: `Page ${id}` })
+  const selected = () => screen.getAllByRole('tab').filter((element) => element.getAttribute('aria-selected') === 'true').map((element) => element.dataset.tabId)
+  const highlighted = (view: ReturnType<typeof renderWithSelection>) => [...view.container.querySelectorAll<HTMLElement>('.tab.selected')].map((element) => element.dataset.tabId)
+
+  it('adds a tab with Ctrl and a click and shows it, and takes a tab out again', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['b']])
+    expect(selected()).toEqual(['a', 'b'])
+    expect(highlighted(view)).toEqual(['a', 'b'])
+    expect(screen.getByRole('tablist', { name: 'Research' })).toHaveAttribute('aria-multiselectable', 'true')
+
+    // The shown tab moves to the tab added, and the selection stays; screen readers hear which selected tab is shown.
+    await view.rerender({ state: stateShowing('b') })
+    expect(control('b')).toHaveAttribute('aria-current', 'page')
+    expect(control('a')).not.toHaveAttribute('aria-current')
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['a', 'b', 'd'])
+
+    // A tab taken out that is not shown leaves the others; the shown one hands the view to the first selected tab.
+    await fireEvent.click(control('a'), { ctrlKey: true })
+    expect(selected()).toEqual(['b', 'd'])
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['b'], ['d'], ['b']])
+    await view.rerender({ state: stateShowing('b') })
+    expect(selected()).toEqual(['b'])
+    expect(highlighted(view)).toEqual([])
+
+    expect(control('b')).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('tablist', { name: 'Research' })).not.toHaveAttribute('aria-multiselectable')
+
+    // The only selected tab stays.
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(selected()).toEqual(['b'])
+    expect(view.emitted().selectTab).toHaveLength(3)
+  })
+
+  it('shows the first selected tab when the shown one is taken out', async () => {
+    const view = renderWithSelection(stateShowing('c'))
+    await fireEvent.click(control('a'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('a') })
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['a', 'b', 'c', 'd'])
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    expect(view.emitted().selectTab?.at(-1)).toEqual(['a'])
+    await view.rerender({ state: stateShowing('a') })
+    expect(selected()).toEqual(['a', 'b', 'c'])
+  })
+
+  it('selects the tabs from the last one clicked with Shift, and adds them with Ctrl and Shift', async () => {
+    const view = renderWithSelection(stateShowing('b'))
+    await fireEvent.click(control('d'), { shiftKey: true })
+    expect(view.emitted().selectTab).toEqual([['d']])
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['b', 'c', 'd'])
+
+    // The range starts where it did, so a second Shift+click shortens it.
+    await fireEvent.click(control('a'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('a') })
+    expect(selected()).toEqual(['a', 'b'])
+
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    await fireEvent.click(control('c'), { shiftKey: true, ctrlKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    expect(selected()).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('selects with Shift from the tab clicked last, even when another tab is shown', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    // Taking A out leaves C shown, and A is where Shift selects from.
+    await fireEvent.click(control('a'), { ctrlKey: true })
+    expect(selected()).toEqual(['c'])
+    await fireEvent.click(control('d'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('counts from the tabs it asked to show before the state shows them', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    // A plain click and a Ctrl+click before either tab is shown select both.
+    await fireEvent.click(control('b'))
+    await fireEvent.click(control('d'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('b') })
+    await view.rerender({ state: stateShowing('d') })
+    expect(selected()).toEqual(['b', 'd'])
+
+    // Adding a tab and taking it out again before it is shown shows the tab shown before.
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    expect(view.emitted().selectTab?.slice(-2)).toEqual([['c'], ['b']])
+    await view.rerender({ state: stateShowing('c') })
+    await view.rerender({ state: stateShowing('b') })
+    expect(selected()).toEqual(['b', 'd'])
+  })
+
+  it('leaves only the tab selected when a selected tab is shown another way', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('b') })
+    expect(selected()).toEqual(['a', 'b'])
+    // Ctrl+Tab, tab search or an agent shows A.
+    await view.rerender({ state: stateShowing('a') })
+    expect(selected()).toEqual(['a'])
+    expect(highlighted(view)).toEqual([])
+  })
+
+  it('shows the clicked tab with Ctrl and a click while Settings covers the page, and opening Settings ends a selection', async () => {
+    const view = renderWithSelection(stateShowing('a'), { settingsActive: true })
+    await fireEvent.click(control('a'), { ctrlKey: true })
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['a'], ['b']])
+    expect(highlighted(view)).toEqual([])
+
+    await view.rerender({ state: stateShowing('b'), settingsActive: false })
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    expect(selected()).toEqual(['b', 'c'])
+    await view.rerender({ settingsActive: true })
+    expect(highlighted(view)).toEqual([])
+    expect(selected()).toEqual([])
+  })
+
+  it('drops a tab moved to another workspace from the selection', async () => {
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const moved = (activeTabId: string) => browserState({
+      tabs: ['a', 'b', 'c', 'd'].map((id) => tab(id, { active: id === activeTabId, ...(id === 'b' ? { mcpGroupId: other.id, mcpGroupName: other.name } : {}) })),
+      activeTabId,
+      mcpTabGroups: [workspace(), other]
+    })
+    const view = renderWithSelection(stateShowing('a', undefined, [], [workspace(), other]))
+    await fireEvent.click(control('c'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('c', undefined, [], [workspace(), other]) })
+    expect(selected()).toEqual(['a', 'b', 'c'])
+    await view.rerender({ state: moved('c') })
+    expect(highlighted(view)).toEqual(['a', 'c'])
+    expect(screen.getByRole('tablist', { name: 'QA' })).not.toHaveAttribute('aria-multiselectable')
+    expect(screen.getByRole('tablist', { name: 'Research' })).toHaveAttribute('aria-multiselectable', 'true')
+  })
+
+  it('uses Cmd on macOS, where Control with a click opens the menu', async () => {
+    const view = renderWithSelection(stateShowing('a'), { platform: 'darwin' })
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(selected()).toEqual(['a'])
+    await view.rerender({ state: stateShowing('b') })
+    await fireEvent.click(control('c'), { metaKey: true })
+    expect(selected()).toEqual(['b', 'c'])
+    expect(view.emitted().selectTab).toEqual([['b'], ['c']])
+  })
+
+  // The tab strip chose a tab when the mouse button came up, so a tab showed only after the whole click, unlike Chrome.
+  const press = (target: Element, options: PointerEventInit = {}) => target.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: 'mouse', button: 0, ...options
+  }))
+
+  it('shows a tab when the mouse button goes down on it, as Chrome does, and the click that ends the press adds nothing', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    press(control('b'))
+    expect(view.emitted().selectTab).toEqual([['b']])
+    await fireEvent.click(control('b'), { detail: 1 })
+    expect(view.emitted().selectTab).toEqual([['b']])
+
+    // Another button, a touch or a pen leaves it to the click; so does a click from the keyboard, which has no press.
+    press(control('c'), { button: 1 })
+    press(control('c'), { pointerType: 'touch' })
+    press(control('c'), { pointerType: 'pen' })
+    expect(view.emitted().selectTab).toEqual([['b']])
+    await fireEvent.click(control('c'), { detail: 1 })
+    await fireEvent.click(control('d'), { detail: 0 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['c'], ['d']])
+  })
+
+  it('forgets a press that had no click, as a drag, once the keyboard clicks or another press comes, on a control too', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    // The press became a drag, so no click ended it; Enter or Space on the tab still shows it.
+    press(control('b'))
+    await fireEvent.click(control('b'), { detail: 0 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['b']])
+    // A press on the tab's close control, released on the tab, makes a click on the tab that shows it.
+    press(control('c'))
+    press(control('c').querySelector('.tab-close')!)
+    await fireEvent.click(control('c'), { detail: 1 })
+    expect(view.emitted().selectTab).toEqual([['b'], ['b'], ['c'], ['c']])
+  })
+
+  it('shows a tab on the press in the rail drawn over the page, which selects no several tabs', async () => {
+    const view = renderWithSelection(stateShowing('a'), { tabSelection: false })
+    press(control('b'), { ctrlKey: true })
+    await fireEvent.click(control('b'), { detail: 1, ctrlKey: true })
+    expect(view.emitted().selectTab).toEqual([['b']])
+  })
+
+  it('changes the selection with Ctrl or Shift on the press, and keeps several selected tabs for a drag until the click', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    press(control('b'), { ctrlKey: true })
+    await nextTick()
+    expect(selected()).toEqual(['a', 'b'])
+    // The click that ends the press does not take the tab out again.
+    await fireEvent.click(control('b'), { ctrlKey: true, detail: 1 })
+    expect(selected()).toEqual(['a', 'b'])
+    await view.rerender({ state: stateShowing('b') })
+    press(control('d'), { shiftKey: true })
+    await nextTick()
+    expect(selected()).toEqual(['b', 'c', 'd'])
+    await fireEvent.click(control('d'), { shiftKey: true, detail: 1 })
+    expect(selected()).toEqual(['b', 'c', 'd'])
+    expect(view.emitted().selectTab).toEqual([['b'], ['d']])
+    await view.rerender({ state: stateShowing('d') })
+
+    // A plain press on a selected tab keeps them all, so a drag would carry them; the click leaves that tab alone.
+    press(control('c'))
+    expect(selected()).toEqual(['b', 'c', 'd'])
+    expect(view.emitted().selectTab).toHaveLength(2)
+    await fireEvent.click(control('c'), { detail: 1 })
+    expect(highlighted(view)).toEqual([])
+    expect(view.emitted().selectTab?.at(-1)).toEqual(['c'])
+  })
+
+  it('leaves a tab to its close and mute controls when the press is on them, and Control on macOS to the menu', async () => {
+    const view = renderWithSelection(stateShowing('a', ['a', 'b'], [tab('m', { audible: true })]))
+    press(control('b').querySelector('.tab-close')!)
+    press(screen.getByRole('tab', { name: /Page m/ }).querySelector('.tab-audio')!)
+    expect(view.emitted().selectTab).toBeUndefined()
+    await fireEvent.click(control('b').querySelector('.tab-close')!, { detail: 1 })
+    expect(view.emitted().closeTab).toEqual([['b']])
+    expect(view.emitted().selectTab).toBeUndefined()
+
+    const mac = renderWithSelection(stateShowing('a'), { platform: 'darwin' })
+    press(within(mac.container as HTMLElement).getByRole('tab', { name: 'Page c' }), { ctrlKey: true })
+    expect(mac.emitted().selectTab).toBeUndefined()
+  })
+
+  it('leaves one tab selected after a plain click, a tab shown another way, or a click in another workspace', async () => {
+    const other = { ...workspace('workspace-2'), name: 'QA' }
+    const elsewhere = tab('x', { mcpGroupId: other.id, mcpGroupName: other.name })
+    const view = renderWithSelection(stateShowing('a', undefined, [elsewhere], [workspace(), other]))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    expect(selected()).toEqual(['a', 'b'])
+    await fireEvent.click(control('c'))
+    expect(selected()).toEqual(['a'])
+    await view.rerender({ state: stateShowing('c', undefined, [elsewhere], [workspace(), other]) })
+    expect(selected()).toEqual(['c'])
+
+    // The tab clicked last is where Shift selects from.
+    await fireEvent.click(control('b'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('b', undefined, [elsewhere], [workspace(), other]) })
+    expect(selected()).toEqual(['b', 'c'])
+    // The keyboard, tab search or an agent shows a tab outside the selection.
+    await view.rerender({ state: stateShowing('d', undefined, [elsewhere], [workspace(), other]) })
+    expect(selected()).toEqual(['d'])
+
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    expect(selected()).toEqual(['c', 'd'])
+    await fireEvent.click(control('x'), { ctrlKey: true })
+    expect(selected()).toEqual(['d'])
+    expect(view.emitted().selectTab?.at(-1)).toEqual(['x'])
+  })
+
+  it('drops a closed tab from the selection', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('c'), { shiftKey: true })
+    await view.rerender({ state: stateShowing('c') })
+    expect(selected()).toEqual(['a', 'b', 'c'])
+    await view.rerender({ state: stateShowing('c', ['a', 'c', 'd']) })
+    expect(selected()).toEqual(['a', 'c'])
+    await view.rerender({ state: stateShowing('c', ['c', 'd']) })
+    expect(selected()).toEqual(['c'])
+    expect(highlighted(view)).toEqual([])
+  })
+
+  it('opens the menu of a selected tab for every selected tab, and of another tab for that tab alone', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('c'), { ctrlKey: true })
+    await fireEvent.contextMenu(control('a'))
+    await fireEvent.contextMenu(control('b'))
+    expect(view.emitted().showTabContextMenu).toEqual([['a', ['a', 'c']], ['b', undefined]])
+  })
+
+  it('moves the selected tabs together when one of them is dragged', async () => {
+    const view = renderWithSelection(stateShowing('a'))
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    await view.rerender({ state: stateShowing('b') })
+    vi.spyOn(control('d'), 'getBoundingClientRect').mockReturnValue({
+      left: 20, width: 100, right: 120, top: 0, bottom: 32, height: 32, x: 20, y: 0, toJSON: () => ({})
+    })
+
+    await fireEvent.dragStart(control('b'))
+    expect(view.container.querySelectorAll('.tab.dragging')).toHaveLength(2)
+    // Not beside a tab it moves.
+    await fireEvent.dragOver(control('a'), { clientX: 90 })
+    expect(view.container.querySelector('.drop-before, .drop-after')).toBeNull()
+    await fireEvent.dragOver(control('d'), { clientX: 90 })
+    expect(control('d')).toHaveClass('drop-after')
+    await fireEvent.drop(control('d'), { clientX: 90 })
+    expect(view.emitted().reorderTab).toEqual([[{ tabId: 'b', targetTabId: 'd', placement: 'after', tabIds: ['a', 'b'] }]])
+
+    // A tab outside the selection moves alone.
+    await fireEvent.dragStart(control('c'))
+    await fireEvent.dragOver(control('d'), { clientX: 90 })
+    await fireEvent.drop(control('d'), { clientX: 90 })
+    expect(view.emitted().reorderTab?.at(-1)).toEqual([{ tabId: 'c', targetTabId: 'd', placement: 'after' }])
+  })
+
+  it('only shows a tab with Ctrl or Shift and a click in the copy of the rail drawn over the page', async () => {
+    const view = renderWithSelection(stateShowing('a'), { tabSelection: false })
+    await fireEvent.click(control('b'), { ctrlKey: true })
+    await fireEvent.click(control('c'), { shiftKey: true })
+    expect(view.emitted().selectTab).toEqual([['b'], ['c']])
+    expect(selected()).toEqual(['a'])
+    expect(screen.getByRole('tablist', { name: 'Research' })).not.toHaveAttribute('aria-multiselectable')
   })
 })

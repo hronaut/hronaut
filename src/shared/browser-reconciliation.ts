@@ -1,3 +1,6 @@
+import { pageScript } from './page-script.js'
+import { reconciliationEvidenceInPage } from './browser-reconciliation.page.js'
+
 export type BrowserReconciliationMode = 'create' | 'update' | 'upsert'
 export type BrowserReconciliationEvidence =
   | 'matches'
@@ -61,34 +64,10 @@ function validateCondition(input: BrowserReconciliationCondition): URL {
  */
 export function browserReconciliationScript(input: BrowserReconciliationCondition): string {
   const origin = validateCondition(input)
-  const boundedText = `(element) => {
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    let value = '', nodes = 0, node;
-    while ((node = walker.nextNode())) {
-      if (++nodes > 1024 || value.length + node.data.length > 512) return null;
-      value += node.data;
-    }
-    return new TextEncoder().encode(value).length <= 512 ? value : null;
-  }`
-  return `(() => {
-    try {
-      if (location.origin !== ${JSON.stringify(origin.origin)}) return 'context-changed';
-      const read = ${boundedText};
-      const accounts = document.querySelectorAll(${JSON.stringify(input.accountSelector)});
-      if (accounts.length !== 1) return 'context-changed';
-      const account = read(accounts[0]);
-      if (account === null || account !== ${JSON.stringify(input.expectedAccount)}) return 'context-changed';
-      const targets = document.querySelectorAll(${JSON.stringify(input.stateSelector)});
-      if (targets.length === 0) return 'missing';
-      if (targets.length !== 1) return 'ambiguous';
-      const value = read(targets[0]);
-      if (value === null) return 'unavailable';
-      if (value === ${JSON.stringify(input.expectedText)}) return 'matches';
-      ${input.expectedCurrentText === undefined
-        ? "return 'differs';"
-        : `return value === ${JSON.stringify(input.expectedCurrentText)} ? 'differs' : 'precondition-changed';`}
-    } catch { return 'unavailable'; }
-  })()`
+  return pageScript(
+    reconciliationEvidenceInPage, origin.origin, input.accountSelector, input.expectedAccount, input.stateSelector, input.expectedText,
+    input.expectedCurrentText
+  )
 }
 
 export function classifyBrowserReconciliation(

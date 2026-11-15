@@ -1,9 +1,9 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
+import { firstLoadStarts, holdUntilFirstLoad, RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { ensureDialogMonitoring } from '../src/main/browser/website-dialogs/website-dialogs.js'
 import { guardPageCallsDuringPrintDialog } from '../src/main/browser/print-dialog-guard.js'
-import { PAGE_PRINT_DIALOG_CHANNEL } from '../src/shared/page-print-dialog.js'
+import { PAGE_IPC } from '../src/shared/ipc/page.js'
 
 function fixture() {
   const state = { crashed: true, attached: false }
@@ -24,14 +24,14 @@ function fixture() {
   })
   const tab = { id: 'tab-1', webContents, networkDebuggerEnabled: false } as never as { webContents: typeof webContents; networkDebuggerEnabled: boolean; mainFrameId?: string }
   const attachments = new Map<number, Promise<void>>()
-  const access = {
-    isDestroyed: () => false,
-    isDevToolsOpening: () => false,
-    dialogMonitorAttachPromises: () => attachments,
+  const browser = {
+    destroyed: false,
+    devToolsOpening: new Set<number>(),
+    dialogMonitorAttachPromises: attachments,
     isHumanInteractionLocked: () => false,
-    isAgentInput: () => false
+    agentInputWebContents: new Map<number, number>()
   } as never
-  return { state, commands, webContents, tab, access, attachments }
+  return { state, commands, webContents, tab, browser, attachments }
 }
 
 describe('dialog monitoring on a page whose renderer exited', () => {
@@ -39,8 +39,8 @@ describe('dialog monitoring on a page whose renderer exited', () => {
     const f = fixture()
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      await ensureDialogMonitoring(f.access, f.tab as never)
-      await ensureDialogMonitoring(f.access, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
       expect(f.tab.networkDebuggerEnabled).toBe(false)
       expect(f.webContents.listenerCount('dom-ready')).toBe(1)
       expect(error).not.toHaveBeenCalled()
@@ -61,7 +61,7 @@ describe('dialog monitoring on a page whose renderer exited', () => {
     f.webContents.debugger.sendCommand.mockRejectedValueOnce(new Error('Protocol error'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      await ensureDialogMonitoring(f.access, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
       expect(error).toHaveBeenCalledOnce()
       expect(f.webContents.listenerCount('dom-ready')).toBe(0)
     } finally {
@@ -80,11 +80,11 @@ describe('dialog monitoring on a page its print dialog holds', () => {
       executeJavaScript: vi.fn(), executeJavaScriptInIsolatedWorld: vi.fn(), capturePage: vi.fn(), printToPDF: vi.fn()
     })
     guardPageCallsDuringPrintDialog(page as never)
-    const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_PRINT_DIALOG_CHANNEL, open) }
+    const print = (open: boolean): void => { page.emit('ipc-message', { senderFrame: page.mainFrame }, PAGE_IPC.printDialog, open) }
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
       print(true)
-      await ensureDialogMonitoring(f.access, f.tab as never)
+      await ensureDialogMonitoring(f.browser, f.tab as never)
       expect(f.tab.networkDebuggerEnabled).toBe(false)
       expect(f.commands).toEqual([])
 
@@ -95,5 +95,56 @@ describe('dialog monitoring on a page its print dialog holds', () => {
     } finally {
       error.mockRestore()
     }
+  })
+})
+
+describe('dialog monitoring on a page that has not loaded yet', () => {
+  // A tab restored asleep has no renderer until it wakes: its monitoring waited for one until then, and locking input
+  // or any debugger operation on the tab waited with it.
+  it('leaves the page alone until its first load starts, and is not waited for meanwhile', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    holdUntilFirstLoad(f.webContents)
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.state.attached).toBe(false)
+    expect(f.commands).toEqual([])
+    expect(f.attachments.size).toBe(0)
+    expect(f.webContents.listenerCount('dom-ready')).toBe(0)
+
+    firstLoadStarts(f.webContents)
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.state.attached).toBe(true)
+    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+  })
+})
+
+describe('dialog monitoring that is already in place', () => {
+  // An agent's network or issues tool set monitoring up again while a website dialog held the page. Enabling the page's
+  // domains waited for the page, and every debugger operation waited for that, the agent's dialog answer included.
+  it('enables nothing again until the debugger detaches', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.tab.networkDebuggerEnabled).toBe(true)
+    f.commands.length = 0
+
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.commands).toEqual([])
+    expect(f.attachments.size).toBe(0)
+
+    // The debugger detached, as for Developer Tools, which forgets the page's monitoring.
+    f.state.attached = false
+    f.tab.networkDebuggerEnabled = false
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+  })
+
+  it('sets monitoring up in full on a debugger another operation attached', async () => {
+    const f = fixture()
+    f.state.crashed = false
+    f.state.attached = true
+    await ensureDialogMonitoring(f.browser, f.tab as never)
+    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+    expect(f.tab.networkDebuggerEnabled).toBe(true)
   })
 })

@@ -1,11 +1,14 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
+import { homeStatus } from './home-status.js'
 
 type RightGate = { held: boolean; commands: string[]; release: () => void; restore: () => void }
 type RightScope = typeof globalThis & { rightClickGate?: RightGate }
 
-for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'pause-aba', 'global-pause-aba', 'access-aba', 'route', 'close', 'cancel', 'frame', 'global-lock-requests', 'cleanup-zoom-aba'] as const) {
+// The page's viewport is read twice in the click's debugger turn: before the pointer moves, for a pinch, and after it,
+// for the right-click's point. Each change lands during the second read, or for before-move-pause-aba during the first.
+for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'pause-aba', 'global-pause-aba', 'access-aba', 'route', 'close', 'cancel', 'frame', 'global-lock-requests', 'cleanup-zoom-aba', 'before-move-pause-aba'] as const) {
   test(`right-click revalidates after viewport await: ${change}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
     const { client, tabId, fixtureUrl } = capabilities
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, true), tabId)
@@ -19,7 +22,9 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       ;(globalThis as RightScope).rightClickGate = gate
       page.debugger.sendCommand = async (method, ...args) => {
         if (method === 'Input.dispatchMouseEvent') gate.commands.push(String((args[0] as Record<string, unknown>)?.type))
-        if (method === (change === 'cleanup-zoom-aba' ? 'Runtime.releaseObjectGroup' : 'Page.getLayoutMetrics') && !gate.held) {
+        const held = change === 'cleanup-zoom-aba' ? method === 'Runtime.releaseObjectGroup'
+          : method === 'Page.getLayoutMetrics' && (change === 'before-move-pause-aba' || gate.commands.includes('mouseMoved'))
+        if (held && !gate.held) {
           const result = await original.call(page.debugger, method, ...args)
           gate.held = true
           await hold
@@ -52,7 +57,7 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
         await api.selectTab(other.id)
         await api.selectTab(id)
       }, tabId)
-      if (change === 'pause-aba') await appWindow.evaluate(async id => {
+      if (change === 'pause-aba' || change === 'before-move-pause-aba') await appWindow.evaluate(async id => {
         const api = (window as unknown as { hronaut: HronautApi }).hronaut
         await api.setTabAgentPaused(id, true)
         await api.setTabAgentPaused(id, false)
@@ -78,12 +83,14 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       }, { url: fixtureUrl, change })
       if (change === 'close') await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.closeTab(id), tabId)
       if (change === 'global-lock-requests') {
-        const rejected = await appWindow.evaluate(async () => {
-          const api = (window as unknown as { hronaut: HronautApi }).hronaut
-          const results = await Promise.allSettled([api.setAllHumanInteractionLocked(true), api.setAllHumanInteractionLocked(false)])
-          return results.map(result => result.status)
+        // Both changes wait for the held click instead of failing: the first shows at once, the second waits its turn.
+        await appWindow.evaluate(() => {
+          const scope = window as unknown as { hronaut: HronautApi; globalLockResults?: Promise<string[]> }
+          scope.globalLockResults = Promise.allSettled([scope.hronaut.setAllHumanInteractionLocked(true), scope.hronaut.setAllHumanInteractionLocked(false)])
+            .then(results => results.map(result => result.status))
         })
-        expect(rejected).toEqual(['rejected', 'rejected'])
+        await expect.poll(() => appWindow.evaluate(async () => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).allHumanInteractionLocked))
+          .toBe(true)
       }
       if (change === 'cancel') {
         if (requestId === undefined) throw new Error('Missing rightClick request ID')
@@ -92,22 +99,25 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       }
       await electronApp.evaluate(() => (globalThis as RightScope).rightClickGate!.release())
       const result = await pending
+      if (change === 'global-lock-requests') {
+        expect(await appWindow.evaluate(() => (window as unknown as { globalLockResults?: Promise<string[]> }).globalLockResults)).toEqual(['fulfilled', 'fulfilled'])
+        expect((await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())).allHumanInteractionLocked).toBe(false)
+      }
       // Cancellation can settle the transport before the server. Observe the
       // terminal activity from the trusted Home endpoint before checking input.
-      await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(p => p.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string }> }
-        return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === id).length
-      }, tabId)).toBe(1)
-      if (change === 'cancel') await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
-        const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }
-        return state.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === id)?.result
-      }, tabId)).toMatchObject({ outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', effects: 'possible' })
+      await expect.poll(async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string }> }>(electronApp)
+        return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === tabId).length
+      }).toBe(1)
+      if (change === 'cancel') await expect.poll(async () => {
+        const state = await homeStatus<{ recentActivity: Array<{ toolName: string; tabId: string; result: unknown }> }>(electronApp)
+        return state.recentActivity.find(row => row.toolName === 'browser_click' && row.tabId === tabId)?.result
+      }).toMatchObject({ outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', effects: 'possible' })
       const commands = await electronApp.evaluate(() => (globalThis as RightScope).rightClickGate!.commands)
       await testInfo.attach('rightClick-authority', { body: JSON.stringify({ change, result, commands }), contentType: 'application/json' })
       expect(result.isError === true, text(result)).toBe(change !== 'unchanged')
-      expect(commands).toEqual(change === 'unchanged' || change === 'cleanup-zoom-aba' ? ['mouseMoved', 'mousePressed', 'mouseReleased'] : ['mouseMoved'])
+      expect(commands).toEqual(change === 'unchanged' || change === 'cleanup-zoom-aba' ? ['mouseMoved', 'mousePressed', 'mouseReleased']
+        : change === 'before-move-pause-aba' ? [] : ['mouseMoved'])
     } finally {
       transport.send = send
       await electronApp.evaluate(() => { (globalThis as RightScope).rightClickGate?.restore(); delete (globalThis as RightScope).rightClickGate }).catch(() => undefined)

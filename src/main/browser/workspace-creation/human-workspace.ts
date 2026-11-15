@@ -2,23 +2,24 @@ import { randomUUID } from 'node:crypto'
 import { defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { suggestWorkspaceName } from '../../../shared/workspace-names.js'
 import { uuidV7 } from '../../uuid-v7.js'
-import type { WorkspaceCreationAccess } from './workspace-creation-access.js'
+import type { Browser } from '../browser.js'
+import { assertActiveWorkspaceCapacity } from './workspace-capacity.js'
 
 /**
  * The workspace a tab the person opens joins: the active tab's, else the
  * first open one, else a new empty workspace with a suggested name.
  */
-export function ensureHumanWorkspace(access: WorkspaceCreationAccess): string {
-  const activeGroupId = access.activeTabId() ? access.tabs().get(access.activeTabId()!)?.mcpGroupId : undefined
-  if (activeGroupId && access.mcpTabGroups().has(activeGroupId)) return activeGroupId
-  const existing = access.mcpTabGroups().keys().next().value as string | undefined
+export function ensureHumanWorkspace(browser: Browser): string {
+  const activeGroupId = browser.activeTabId ? browser.tabs.get(browser.activeTabId)?.mcpGroupId : undefined
+  if (activeGroupId && browser.mcpTabGroups.has(activeGroupId)) return activeGroupId
+  const existing = browser.mcpTabGroups.keys().next().value as string | undefined
   if (existing) return existing
-  access.assertActiveWorkspaceCapacity()
+  assertActiveWorkspaceCapacity(browser)
   const now = new Date().toISOString()
   const id = uuidV7()
-  access.mcpTabGroups().set(id, {
+  browser.mcpTabGroups.set(id, {
     id,
-    name: suggestWorkspaceName([...access.mcpTabGroups().values(), ...access.savedTabGroups().values()].map(group => group.name)),
+    name: suggestWorkspaceName([...browser.mcpTabGroups.values(), ...browser.savedTabGroups.values()].map(group => group.name)),
     description: '',
     color: defaultTabGroupColor(id),
     storageId: randomUUID(),

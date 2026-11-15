@@ -20,7 +20,7 @@ describe('Linux desktop discovery metadata', () => {
 
     expect(config.linux?.category).toBe('Network')
     expect(entry.GenericName).toBe('Browser MCP')
-    expect(config.linux?.description).toBe('Visible, persistent browser for coding agents')
+    expect(config.linux?.description).toBe('A visible desktop browser for coding agents, with a separate workspace for each project.')
     expect(entry.Comment).toBeUndefined()
 
     const keywords = entry.Keywords

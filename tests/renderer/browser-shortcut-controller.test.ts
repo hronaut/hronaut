@@ -47,18 +47,32 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(canRunAction = (_action: string) => true) {
+function createController(
+  canRunAction = (_action: string) => true,
+  selectedTabIds?: () => readonly string[],
+  foldedWorkspaceIds?: () => ReadonlySet<string> | undefined
+) {
   const state = ref(browserState())
   const activeTab = ref<BrowserTabState | undefined>(state.value.tabs[1])
   const browser = {
     closeTab: vi.fn(async (_tabId: string) => state.value),
+    closeTabs: vi.fn(async (_tabIds: readonly string[]) => state.value),
     reopenClosedTab: vi.fn(async (_closedTabId?: string) => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
     reloadIgnoringCache: vi.fn(async (_tabId?: string) => state.value),
-    newTab: vi.fn(async (_options?: { mcpGroupId?: string; active?: boolean }) => state.value)
+    newTab: vi.fn(async (_options?: { mcpGroupId?: string; active?: boolean }) => state.value),
+    // Main's move, as reorderTab makes it: the tab goes just before or after the target.
+    focusActivePage: vi.fn(async () => undefined),
+    reorderTab: vi.fn(async (tabId: string, targetTabId: string, placement: 'before' | 'after') => {
+      const moving = state.value.tabs.find((candidate) => candidate.id === tabId)!
+      const rest = state.value.tabs.filter((candidate) => candidate.id !== tabId)
+      rest.splice(rest.findIndex((candidate) => candidate.id === targetTabId) + (placement === 'after' ? 1 : 0), 0, moving)
+      state.value = { ...state.value, tabs: rest }
+      return state.value
+    })
   }
-  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
+  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState, _guess?: (state: BrowserState) => BrowserState) => { await operation })
   const settingsOpen = ref(false)
   const settingsTabOpen = ref(false)
   const callbacks = {
@@ -66,17 +80,20 @@ function createController(canRunAction = (_action: string) => true) {
     closeSettingsTab: vi.fn(() => { settingsOpen.value = false; settingsTabOpen.value = false }),
     openNewTab: vi.fn(async () => undefined),
     focusAddress: vi.fn(async () => undefined),
+    openHome: vi.fn(async () => undefined),
     openFind: vi.fn(async () => undefined),
     findAgain: vi.fn(async (_again: 'next' | 'previous') => undefined),
     setZoom: vi.fn(async () => undefined),
     toggleCurrentBookmark: vi.fn(async () => undefined),
     toggleVisitHistory: vi.fn(async () => undefined),
     toggleDownloads: vi.fn(async () => undefined),
-    toggleTabSearch: vi.fn(async () => undefined),
+    toggleTaskManager: vi.fn(async () => undefined),
+    openHomeTabs: vi.fn(async () => undefined),
     openPrivacySettings: vi.fn(async () => undefined),
     toggleCommandPalette: vi.fn(async () => undefined),
     toggleElementPicker: vi.fn(async () => undefined),
     toggleDeveloperTools: vi.fn(async () => undefined),
+    showDeveloperToolsConsole: vi.fn(async () => undefined),
     openAgentCard: vi.fn(async () => undefined),
     toggleFullPageView: vi.fn(async () => undefined),
     takeOverFromAgent: vi.fn(async () => undefined),
@@ -86,6 +103,8 @@ function createController(canRunAction = (_action: string) => true) {
   const controller = useBrowserShortcutController({
     state,
     activeTab,
+    ...(selectedTabIds ? { selectedTabIds } : {}),
+    ...(foldedWorkspaceIds ? { foldedWorkspaceIds } : {}),
     browser,
     syncState,
     settingsOpen,
@@ -96,7 +115,129 @@ function createController(canRunAction = (_action: string) => true) {
   return { state, activeTab, browser, syncState, settingsOpen, settingsTabOpen, callbacks, controller }
 }
 
+// Home, then workspace a with a1, b with b1 and b2, and c with c1.
+function workspaceTabs(): BrowserTabState[] {
+  const inWorkspace = (id: string): BrowserTabState => ({ ...tab(id), mcpGroupId: id.slice(0, 1) })
+  return [{ ...tab('home'), url: 'hronaut://home/' }, inWorkspace('a1'), inWorkspace('b1'), inWorkspace('b2'), inWorkspace('c1')]
+}
+
 describe('browser shortcut controller', () => {
+  it('moves the tab in view one place with Ctrl+Shift+Page Down and Page Up, staying at either end, as Chrome does', async () => {
+    const { state, browser, syncState, controller } = createController()
+    const order = () => state.value.tabs.map((candidate) => candidate.id)
+    // Each press moves the tab from where the one before left it.
+    await Promise.all([controller.run('move-tab-next'), controller.run('move-tab-next')])
+    expect(order()).toEqual(['first', 'third', 'second'])
+    expect(browser.reorderTab).toHaveBeenCalledTimes(1)
+    expect(browser.reorderTab).toHaveBeenCalledWith('second', 'third', 'after')
+    await controller.run('move-tab-previous')
+    await controller.run('move-tab-previous')
+    expect(order()).toEqual(['second', 'first', 'third'])
+    expect(browser.reorderTab).toHaveBeenLastCalledWith('second', 'first', 'before')
+    await controller.run('move-tab-previous')
+    expect(browser.reorderTab).toHaveBeenCalledTimes(3)
+    expect(syncState).toHaveBeenCalledTimes(3)
+    // The tab never leaves the selection: it stays the one in view.
+    expect(browser.selectTab).not.toHaveBeenCalled()
+  })
+
+  it('moves a tab only among its own workspace\'s tabs on its side of the pinned ones', async () => {
+    const { state, activeTab, browser, controller } = createController()
+    const at = (id: string, changes: Partial<BrowserTabState>) => ({ ...state.value.tabs.find((candidate) => candidate.id === id)!, ...changes })
+    state.value = {
+      ...state.value,
+      tabs: [
+        { ...tab('home'), url: 'hronaut://home/' },
+        at('first', { pinned: true, mcpGroupId: 'work' }),
+        at('second', { mcpGroupId: 'work' }),
+        { ...tab('other'), mcpGroupId: 'personal' },
+        at('third', { mcpGroupId: 'work' })
+      ]
+    }
+    activeTab.value = state.value.tabs.find((candidate) => candidate.id === 'second')
+    // Past the pinned tab before it there is nowhere to go; the next one of its workspace is past the other workspace's.
+    await controller.run('move-tab-previous')
+    expect(browser.reorderTab).not.toHaveBeenCalled()
+    await controller.run('move-tab-next')
+    expect(browser.reorderTab).toHaveBeenCalledExactlyOnceWith('second', 'third', 'after')
+    // Hronaut Home stays where it is.
+    activeTab.value = state.value.tabs[0]
+    await controller.run('move-tab-next')
+    expect(browser.reorderTab).toHaveBeenCalledOnce()
+  })
+
+  it('gives the keyboard to the page with F6 from Hronaut\'s window, but not while Settings covers it', async () => {
+    const { browser, settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('focus-next-pane')).toBe(true)
+    expect(browser.focusActivePage).toHaveBeenCalledOnce()
+    expect(callbacks.focusAddress).not.toHaveBeenCalled()
+    settingsOpen.value = true
+    expect(await controller.run('focus-next-pane')).toBe(false)
+    expect(browser.focusActivePage).toHaveBeenCalledOnce()
+  })
+
+  // Alt+Home did nothing, where Chrome opens the home page. It opens Hronaut Home as the Home button does, which also
+  // closes Settings.
+  it('opens Home from Alt+Home, also from Settings', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('open-home')).toBe(true)
+    settingsOpen.value = true
+    expect(await controller.run('open-home')).toBe(true)
+    expect(callbacks.openHome).toHaveBeenCalledTimes(2)
+    expect(callbacks.focusAddress).not.toHaveBeenCalled()
+  })
+
+  it('opens Home\'s Tabs view from Search tabs (Ctrl/Cmd+Shift+A), also from Settings', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('search-tabs')).toBe(true)
+    settingsOpen.value = true
+    expect(await controller.run('search-tabs')).toBe(true)
+    expect(callbacks.openHomeTabs).toHaveBeenCalledTimes(2)
+    expect(callbacks.openHome).not.toHaveBeenCalled()
+  })
+
+  // Ctrl+Shift+J went to the website, where Chrome opens Developer Tools on its Console.
+  it('opens the Console of Developer Tools for the website in view, but not while Settings covers it', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('open-console')).toBe(true)
+    expect(callbacks.showDeveloperToolsConsole).toHaveBeenCalledOnce()
+    expect(callbacks.toggleDeveloperTools).not.toHaveBeenCalled()
+    settingsOpen.value = true
+    expect(await controller.run('open-console')).toBe(false)
+    expect(callbacks.showDeveloperToolsConsole).toHaveBeenCalledOnce()
+  })
+
+  // The zoom keys, and the View menu's zoom that runs here, zoom the page in view, but not the one Settings covers.
+  it('zooms the page in view, but not while Settings covers it', async () => {
+    const { settingsOpen, callbacks, controller } = createController()
+    expect(await controller.run('zoom-in')).toBe(true)
+    expect(callbacks.setZoom).toHaveBeenCalledExactlyOnceWith('in')
+    settingsOpen.value = true
+    for (const action of ['zoom-in', 'zoom-out', 'zoom-reset'] as const) expect(await controller.run(action)).toBe(false)
+    expect(callbacks.setZoom).toHaveBeenCalledOnce()
+  })
+
+  it('moves no tab while Settings is in view', async () => {
+    const { browser, settingsOpen, controller } = createController()
+    settingsOpen.value = true
+    expect(await controller.run('move-tab-next')).toBe(false)
+    expect(browser.reorderTab).not.toHaveBeenCalled()
+  })
+
+  it('moves no tab when Settings comes into view while earlier tab changes run', async () => {
+    const { browser, settingsOpen, controller } = createController()
+    const selection = deferred<BrowserState>()
+    browser.selectTab.mockReturnValueOnce(selection.promise)
+    const selecting = controller.run('next-tab')
+    const moving = controller.run('move-tab-next')
+    // The press was for the website in view; Settings now covers it.
+    settingsOpen.value = true
+    selection.resolve(browserState('third'))
+    await selecting
+    await moving
+    expect(browser.reorderTab).not.toHaveBeenCalled()
+  })
+
   it('closes Settings without closing the underlying website', async () => {
     const harness = createController()
     harness.settingsOpen.value = true
@@ -127,6 +268,14 @@ describe('browser shortcut controller', () => {
     harness.settingsOpen.value = true
     await expect(harness.controller.run('downloads')).resolves.toBe(true)
     expect(harness.callbacks.toggleDownloads).toHaveBeenCalledTimes(2)
+  })
+
+  // Shift+Esc, and View → Task manager, now open and close the Task manager, as in Chrome.
+  it('opens or closes the Task manager', async () => {
+    const harness = createController()
+    await expect(harness.controller.run('task-manager')).resolves.toBe(true)
+    await expect(harness.controller.run('task-manager')).resolves.toBe(true)
+    expect(harness.callbacks.toggleTaskManager).toHaveBeenCalledTimes(2)
   })
 
   it('does not reload the hidden website while Settings is active', async () => {
@@ -234,6 +383,24 @@ describe('browser shortcut controller', () => {
     harness.controller.dispose()
   })
 
+  // The shell shows these at once, before main answers; main's state replaces the guess once the action settles.
+  it('hands the store a guess of the tab a tab key selects or of the move it makes', async () => {
+    const harness = createController()
+    const before = harness.state.value
+    const guessed = () => {
+      const guess = harness.syncState.mock.lastCall?.[1]
+      expect(guess).toBeTypeOf('function')
+      return guess!(before)
+    }
+    await harness.controller.selectRelativeTab(1)
+    expect(guessed().activeTabId).toBe('third')
+    await harness.controller.run('select-tab-1')
+    expect(guessed().activeTabId).toBe('first')
+    await harness.controller.run('move-tab-next')
+    expect(guessed().tabs.map((candidate) => candidate.id)).toEqual(['first', 'third', 'second'])
+    harness.controller.dispose()
+  })
+
   it('selects numbered website tabs without counting Home and uses 9 for the last tab', async () => {
     const harness = createController()
     const home = { ...tab('home'), url: 'hronaut://home/' }
@@ -257,6 +424,62 @@ describe('browser shortcut controller', () => {
     await expect(harness.controller.run('select-tab-8')).resolves.toBe(true)
     await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
     expect(harness.browser.selectTab).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('passes over the tabs of a folded workspace with Ctrl+Tab and Ctrl+Shift+Tab, as Chrome skips a collapsed group', async () => {
+    // Workspace b is folded, so the strip shows Home, a1 and c1.
+    const harness = createController(undefined, undefined, () => new Set(['b']))
+    const showing = (activeTabId: string) => {
+      harness.state.value = { ...browserState(activeTabId), tabs: workspaceTabs() }
+    }
+
+    showing('a1')
+    await harness.controller.selectRelativeTab(1)
+    await harness.controller.selectRelativeTab(-1)
+    showing('c1')
+    await harness.controller.selectRelativeTab(1)
+    await harness.controller.selectRelativeTab(-1)
+    // The tab in view stays where it is when its own workspace is folded, and the keys go on from its place.
+    showing('b1')
+    await harness.controller.selectRelativeTab(1)
+    await harness.controller.selectRelativeTab(-1)
+
+    expect(harness.browser.selectTab.mock.calls.map(([tabId]) => tabId)).toEqual(['c1', 'home', 'home', 'a1', 'c1', 'a1'])
+    harness.controller.dispose()
+  })
+
+  it('keeps Settings in the tab keys while they pass over a folded workspace', async () => {
+    const harness = createController(undefined, undefined, () => new Set(['b']))
+    harness.settingsTabOpen.value = true
+    harness.state.value = { ...browserState('c1'), tabs: workspaceTabs() }
+    await harness.controller.selectRelativeTab(1)
+    expect(harness.browser.selectTab).toHaveBeenLastCalledWith('home')
+    harness.state.value = { ...browserState('a1'), tabs: workspaceTabs() }
+    await harness.controller.selectRelativeTab(-1)
+    expect(harness.callbacks.openSettings).toHaveBeenCalledOnce()
+    harness.controller.dispose()
+  })
+
+  it('counts only the website tabs the strip shows for Ctrl+1 to Ctrl+8 and Ctrl+9, as Chrome does', async () => {
+    const harness = createController(undefined, undefined, () => new Set(['b']))
+    harness.state.value = { ...browserState('a1'), tabs: workspaceTabs() }
+
+    await expect(harness.controller.run('select-tab-2')).resolves.toBe(true)
+    await expect(harness.controller.run('select-tab-3')).resolves.toBe(true)
+    await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
+
+    expect(harness.browser.selectTab.mock.calls.map(([tabId]) => tabId)).toEqual(['c1', 'c1'])
+    harness.controller.dispose()
+  })
+
+  it('goes to every tab while no tab strip says which workspaces it folds', async () => {
+    const harness = createController(undefined, undefined, () => undefined)
+
+    await harness.controller.selectRelativeTab(1)
+    await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
+
+    expect(harness.browser.selectTab.mock.calls.map(([tabId]) => tabId)).toEqual(['third', 'third'])
     harness.controller.dispose()
   })
 
@@ -331,6 +554,24 @@ describe('browser shortcut controller', () => {
 
     expect(harness.browser.closeTab).toHaveBeenCalledWith('second')
     expect(harness.callbacks.onError).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  // Ctrl/Cmd+W on one of several tabs selected with Ctrl or Shift and a click closed only the shown tab; as in Chrome,
+  // it closes them all.
+  it('closes every selected tab when the shown tab is one of them', async () => {
+    let selected: readonly string[] = ['first', 'second']
+    const harness = createController(undefined, () => selected)
+
+    await expect(harness.controller.run('close-tab')).resolves.toBe(true)
+    expect(harness.browser.closeTabs).toHaveBeenCalledExactlyOnceWith(['first', 'second'])
+    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+
+    // A selection the shown tab is not part of leaves the key to the shown tab.
+    selected = ['first', 'third']
+    await harness.controller.run('close-tab')
+    expect(harness.browser.closeTab).toHaveBeenCalledExactlyOnceWith('second')
+    expect(harness.browser.closeTabs).toHaveBeenCalledOnce()
     harness.controller.dispose()
   })
 

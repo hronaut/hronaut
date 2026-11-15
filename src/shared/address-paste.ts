@@ -12,6 +12,17 @@ function breaksLine(run: string): boolean {
  * Any leading javascript: scheme is dropped, so pasted script never runs from the address bar.
  */
 export function addressPasteText(text: string): string {
+  const { collapsed, schemeEnd } = readPaste(text)
+  return collapsed.slice(schemeEnd)
+}
+
+/** Whether the text, read as the address bar reads a paste, starts with the javascript: scheme addressPasteText drops. */
+export function pastesJavascriptScheme(text: string): boolean {
+  return readPaste(text).schemeEnd > 0
+}
+
+/** The text with its white space read as a paste, and where any leading javascript: schemes end in it (0 for none). */
+function readPaste(text: string): { collapsed: string; schemeEnd: number } {
   const trimmed = text.trim()
   const joiner = (trimmed.match(/\s+/gu) ?? []).some((run) => !breaksLine(run)) ? ' ' : ''
   const collapsed = trimmed.replace(/\s+/gu, (run) => breaksLine(run) ? joiner : run)
@@ -28,5 +39,5 @@ export function addressPasteText(text: string): string {
       break
     }
   }
-  return scheme ? collapsed.slice(index) : collapsed
+  return { collapsed, schemeEnd: scheme ? index : 0 }
 }

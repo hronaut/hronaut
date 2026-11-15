@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { formValiditySettlementScript, formValiditySource } from '../src/main/browser/form-validity.js'
+import { formValiditySettlementScript } from '../src/main/browser/form-validity.js'
+import { elementInspectionScript } from '../src/main/browser/page-scripts.js'
+
+const formValiditySource = (token: string): string => elementInspectionScript({ selector: '#field', includeValidity: true }, token)
 
 describe('internal form-validity token contract', () => {
   it.each(['', 'token', "');globalThis.injected=true;//", '";alert(1)//', '</script>',
@@ -18,7 +21,7 @@ describe('internal form-validity token contract', () => {
     const context = { __hronautFormValidity: new Map([[token, {
       settle: () => { settled++; return true }, cleanup: () => { cleaned++ }
     }]]) }
-    expect(formValiditySource(token)).toContain(`const token='${token}'`)
+    expect(formValiditySource(token)).toContain(`"token":"${token}"`)
     expect(runInNewContext(formValiditySettlementScript(token), context)).toBe(true)
     expect(runInNewContext(formValiditySettlementScript(randomUUID()), context)).toBe(false)
     expect(runInNewContext(formValiditySettlementScript(token, true), context)).toBe(false)

@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WorkspaceContinuityPanel from '../../src/renderer/src/components/WorkspaceContinuityPanel.vue'
+import WorkspaceContinuityPanel from '../../src/renderer/src/features/workspaces/WorkspaceContinuityPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { WorkspaceContinuityReport } from '../../src/shared/workspace-continuity.js'
 

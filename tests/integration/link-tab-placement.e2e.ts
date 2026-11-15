@@ -33,6 +33,10 @@ test('opens tabs from a page\'s links beside that page, in the order they were o
     const order = async () => (await appWindow.evaluate(`window.hronaut.getState()`) as { tabs: Array<{ url: string, active: boolean, mcpGroupId?: string }> })
       .tabs.filter(tab => tab.mcpGroupId === workspace && tab.url.startsWith(origin)).map(tab => `${new URL(tab.url).pathname}${tab.active ? '*' : ''}`)
     await expect.poll(order).toEqual(['/app*', '/mail'])
+    // A new tab carries its address from the start, before its page loads, so the order above can hold before the app
+    // page is there to click.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some(contents => contents.getURL() === url && !contents.isLoading()), `${origin}/app`)).toBe(true)
 
     const press = (selector: string, input: Press) => electronApp.evaluate(async ({ webContents }, { url, selector, input }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
@@ -71,6 +75,43 @@ test('opens tabs from a page\'s links beside that page, in the order they were o
     // A target="_blank" link opens in front, right after the page.
     await press('#three', { button: 'left' })
     await expect.poll(order).toEqual(['/app', '/three*', '/one', '/two', '/four', '/mail'])
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('opens a window behind when the page that opens it is out of view', async ({ appWindow, electronApp }) => {
+  // A window that a page in a tab behind opened, such as on a timer, was shown in place of the page in view, which
+  // lost the keys being typed into it.
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>${request.url}</title>`)
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const origin = `http://127.0.0.1:${address.port}`
+  try {
+    const created = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Behind', storage: 'scratch' })`) as { mcpTabGroups: Array<{ id: string, name: string }> }
+    const workspace = created.mcpTabGroups.find(group => group.name === 'Behind')!.id
+    const open = (path: string) => appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(origin + path)}, mcpGroupId: ${JSON.stringify(workspace)}, active: true })`)
+    await open('/opener')
+    await open('/front')
+    const order = async () => (await appWindow.evaluate(`window.hronaut.getState()`) as { tabs: Array<{ url: string, active: boolean, mcpGroupId?: string }> })
+      .tabs.filter(tab => tab.mcpGroupId === workspace && tab.url.startsWith(origin)).map(tab => `${new URL(tab.url).pathname}${tab.active ? '*' : ''}`)
+    await expect.poll(order).toEqual(['/opener', '/front*'])
+
+    // The page still gets its window, without a click or key press, as Hronaut has no pop-up blocker.
+    // The page itself has a URL only once its load commits, which tab records have from the start.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some(contents => contents.getURL() === url), `${origin}/opener`)).toBe(true)
+    const opened = await electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('Opener page web contents was not found')
+      return await page.executeJavaScript(`window.open('/popup', 'popup', 'width=480,height=360') !== null`) as boolean
+    }, `${origin}/opener`)
+    expect(opened).toBe(true)
+    await expect.poll(order).toEqual(['/opener', '/popup', '/front*'])
   } finally {
     await closeFixtureServer(server)
   }

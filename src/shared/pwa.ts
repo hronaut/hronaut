@@ -2,6 +2,8 @@ import type { BrowserPwaOptions } from './types.js'
 import type { BrowserPwaManifest } from './types.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkHeaders, redactNetworkUrl } from './network-details.js'
+import { pageScript } from './page-script.js'
+import { pwaRegistrationsInPage } from './pwa.page.js'
 
 /** The English caveats an offline app report carries; MCP results keep them and the panel names them in the interface language. */
 export const PWA_INSPECTION_CAVEATS = {
@@ -63,34 +65,7 @@ export function normalizeBrowserPwaOptions(options: BrowserPwaOptions = {}): Nor
 }
 
 export function pwaRegistrationsPageScript(): string {
-  return `(async () => {
-    const maxRegistrations = ${PWA_INSPECTION_LIMITS.maxRegistrations};
-    const maxNameChars = ${PWA_INSPECTION_LIMITS.maxNameChars};
-    if (!('serviceWorker' in navigator)) return { controlled: false, registrations: [], supported: false };
-    const worker = (value) => value ? {
-      scriptUrl: String(value.scriptURL || '').slice(0, 4096),
-      state: String(value.state || 'parsed')
-    } : undefined;
-    const allRegistrations = await navigator.serviceWorker.getRegistrations();
-    const registrations = allRegistrations
-      .slice(0, maxRegistrations)
-      .map((registration) => ({
-        scope: String(registration.scope || '').slice(0, 4096),
-        updateViaCache: String(registration.updateViaCache || 'imports'),
-        installing: worker(registration.installing),
-        waiting: worker(registration.waiting),
-        active: worker(registration.active),
-        navigationPreload: registration.navigationPreload ? { supported: true } : undefined
-      }));
-    return {
-      controlled: Boolean(navigator.serviceWorker.controller),
-      controller: worker(navigator.serviceWorker.controller),
-      registrations,
-      supported: true,
-      truncated: allRegistrations.length > maxRegistrations,
-      maxNameChars
-    };
-  })()`
+  return pageScript(pwaRegistrationsInPage, PWA_INSPECTION_LIMITS.maxRegistrations, PWA_INSPECTION_LIMITS.maxNameChars)
 }
 
 export interface CdpAppManifestResult {

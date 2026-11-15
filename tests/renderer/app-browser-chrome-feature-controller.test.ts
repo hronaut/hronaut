@@ -10,51 +10,39 @@ function createHarness() {
   const browserChromeLayer = ref<{ expandTabGroupForTab: (tab: BrowserTabState) => void } | null>({
     expandTabGroupForTab
   })
-  const pageToolsOpen = ref(false)
-  const closeTransientPanels = vi.fn()
   const syncTitleBarGeometry = vi.fn()
   const updateViewportWidth = vi.fn()
   const reportShellHeight = vi.fn()
   const resizeAddressSuggestions = vi.fn()
   const openHome = vi.fn()
+  const togglePageTools = vi.fn()
   const controller = useAppBrowserChromeFeatureController({
     browserChromeLayer,
-    pageToolsOpen,
-    closeTransientPanels,
     resize: {
       syncTitleBarGeometry,
       updateViewportWidth,
       reportShellHeight,
       resizeAddressSuggestions
     },
-    actions: { openHome }
+    actions: { openHome, togglePageTools }
   })
 
   return {
     controller,
     browserChromeLayer,
-    pageToolsOpen,
-    closeTransientPanels,
     syncTitleBarGeometry,
     updateViewportWidth,
     reportShellHeight,
     resizeAddressSuggestions,
     expandTabGroupForTab,
-    openHome
+    openHome,
+    togglePageTools
   }
 }
 
 describe('useAppBrowserChromeFeatureController', () => {
-  it('keeps page-tools toggling and tab-rail forwarding outside App.vue', () => {
+  it('keeps tab-rail forwarding outside App.vue', () => {
     const harness = createHarness()
-
-    harness.controller.togglePageTools()
-    expect(harness.closeTransientPanels).toHaveBeenCalledOnce()
-    expect(harness.pageToolsOpen.value).toBe(true)
-
-    harness.controller.togglePageTools()
-    expect(harness.closeTransientPanels).toHaveBeenCalledOnce()
-    expect(harness.pageToolsOpen.value).toBe(false)
 
     harness.controller.expandTabGroupForTab(tab)
     expect(harness.expandTabGroupForTab).toHaveBeenCalledWith(tab)
@@ -62,7 +50,7 @@ describe('useAppBrowserChromeFeatureController', () => {
     harness.browserChromeLayer.value = null
     expect(() => harness.controller.expandTabGroupForTab(tab)).not.toThrow()
     expect(harness.controller.browserChromeActions.openHome).toBe(harness.openHome)
-    expect(harness.controller.browserChromeActions.togglePageTools).toBe(harness.controller.togglePageTools)
+    expect(harness.controller.browserChromeActions.togglePageTools).toBe(harness.togglePageTools)
   })
 
   it('coordinates every window-resize consumer exactly once', () => {

@@ -67,7 +67,6 @@ function createController() {
   const browser = { newTab: vi.fn(async (_options?: NewTabOptions) => state.value) }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
   const settingsOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const focusAddress = vi.fn(async (_expectedActiveTabId: string): Promise<void> => undefined)
   const beginAddressFocus = vi.fn(() => focusAddress)
   const expandTabGroup = vi.fn()
@@ -77,7 +76,6 @@ function createController() {
     browser,
     syncState,
     settingsOpen,
-    tabSearchOpen,
     beginAddressFocus,
     expandTabGroup,
     onWorkspaceError
@@ -87,7 +85,6 @@ function createController() {
     browser,
     syncState,
     settingsOpen,
-    tabSearchOpen,
     focusAddress,
     expandTabGroup,
     onWorkspaceError,
@@ -104,7 +101,6 @@ describe('useNewTabShellController', () => {
     expect(harness.focusAddress).toHaveBeenCalledWith('current')
     expect(harness.expandTabGroup).not.toHaveBeenCalled()
     expect(harness.settingsOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
   })
 
   it('focuses and reveals a newly created workspace tab while closing conflicting overlays', async () => {
@@ -125,7 +121,6 @@ describe('useNewTabShellController', () => {
     expect(harness.expandTabGroup).toHaveBeenCalledWith('workspace')
     expect(harness.focusAddress).toHaveBeenCalledWith('created')
     expect(harness.settingsOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
   })
 
   it('does not steal focus or reopen a group when a newer tab selection wins a delayed creation race', async () => {

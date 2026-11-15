@@ -7,7 +7,9 @@ import type {
   BrowserVisualCompareScope
 } from '../../../shared/types.js'
 import { compareBgraBitmaps, normalizeVisualCompareClip, normalizeVisualCompareThreshold } from '../../../shared/visual-compare.js'
-import type { VisualCompareAccess, VisualCompareTab } from './visual-compare-access.js'
+import type { Browser } from '../browser.js'
+import { findTab, getTab } from '../browser-core.js'
+import { captureVisual } from './visual-capture.js'
 
 const MAX_VISUAL_COMPARE_SETTLE_MS = 2_000
 
@@ -34,8 +36,8 @@ function visualCompareCaveats(threshold: number, urlsDiffer = false, scope?: Bro
  * baseline and the latest diff stay on the tab, so the tab manager's
  * navigation and close handling stay authoritative for discarding them.
  */
-export async function visualCompare<Tab extends VisualCompareTab>(access: VisualCompareAccess<Tab>, options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
-  const tab = access.getTab(options.tabId)
+export async function visualCompare(browser: Browser, options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
+  const tab = getTab(browser, options.tabId)
   const action: BrowserVisualCompareAction = options.action
   const requestedClip = normalizeVisualCompareClip(options.clip)
   if (requestedClip && action !== 'set-baseline') throw new Error('Provide clip only when setting a new visual baseline')
@@ -96,11 +98,11 @@ export async function visualCompare<Tab extends VisualCompareTab>(access: Visual
   const retained = tab.visualComparison?.baseline
   if (action === 'compare' && !retained) throw new Error('Set a visual baseline before comparing the page')
   const clip = action === 'set-baseline' ? requestedClip : retained?.snapshot.scope?.kind === 'region' ? retained.snapshot.scope.clip : undefined
-  const current = await access.captureVisual(tab, settleMs, clip)
-  if (access.findTab(tab.id) !== tab || tab.visualComparisonGeneration !== operationGeneration) {
+  const current = await captureVisual(browser, tab, settleMs, clip)
+  if (findTab(browser, tab.id) !== tab || tab.visualComparisonGeneration !== operationGeneration) {
     throw new Error('Visual comparison changed while the page capture was pending. Run the requested action again.')
   }
-  if (snapshotDeltaInvalidationReason(current.observationContext, access.snapshotDeltaContext(tab))) throw new Error('The page changed while the visual capture was pending. Capture it again.')
+  if (snapshotDeltaInvalidationReason(current.observationContext, browser.snapshotDeltaContext(tab))) throw new Error('The page changed while the visual capture was pending. Capture it again.')
   // MCP supplies its existing live authority checks before retaining image state.
   validateCapture?.()
   if (action === 'set-baseline') {
@@ -166,8 +168,8 @@ export async function visualCompare<Tab extends VisualCompareTab>(access: Visual
 }
 
 /** The diff PNG from the tab's latest visual comparison. */
-export function visualDiff<Tab extends VisualCompareTab>(access: VisualCompareAccess<Tab>, tabId?: string): Buffer {
-  const diff = access.getTab(tabId).visualComparison?.diffPng
+export function visualDiff(browser: Browser, tabId?: string): Buffer {
+  const diff = getTab(browser, tabId).visualComparison?.diffPng
   if (!diff) throw new Error('Compare the current page with a visual baseline first')
   return diff
 }

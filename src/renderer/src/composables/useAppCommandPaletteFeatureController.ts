@@ -4,8 +4,8 @@ import {
   useCommandPaletteShellController,
   type CommandPalettePanel,
   type CommandPaletteView
-} from './useCommandPaletteShellController.js'
-import type { SettingsSection } from './useSettingsDialogController.js'
+} from '../features/command-palette/useCommandPaletteShellController.js'
+import type { SettingsSection } from '../features/settings/useSettingsDialogController.js'
 import type { AppBrowserCollectionsFeatureController } from './useAppBrowserCollectionsFeatureController.js'
 import type { AppEmulationFeatureController } from './useAppEmulationFeatureController.js'
 import type { AppPageToolsFeatureController } from './useAppPageToolsFeatureController.js'
@@ -57,7 +57,7 @@ type SiteCommands = Pick<
 export interface AppCommandPaletteBrowserCommands {
   openHome: () => unknown
   runShortcut: (action: BrowserShortcutAction) => unknown
-  toggleTabSearch: () => unknown
+  openHomeTabs: () => unknown
   openFind: () => unknown
   togglePageTools: () => unknown
   toggleDeveloperTools: () => unknown
@@ -66,6 +66,7 @@ export interface AppCommandPaletteBrowserCommands {
 export interface AppCommandPaletteSettingsCommands {
   openSection: (section: SettingsSection) => unknown
   openHelp: (tab: 'shortcuts') => unknown
+  openTaskManager: () => unknown
   toggleMcpPaused: () => unknown
 }
 
@@ -98,11 +99,13 @@ export function useAppCommandPaletteFeatureController<
     actions: {
       home: options.browser.openHome,
       'new-tab': () => options.browser.runShortcut('new-tab'),
-      'search-tabs': options.browser.toggleTabSearch,
+      'search-tabs': options.browser.openHomeTabs,
       'switch-workspace': () => options.browser.runShortcut('switch-workspace'),
       downloads: options.collections.toggleDownloads,
       bookmarks: options.collections.toggleBookmarks,
+      'bookmark-all-tabs': () => options.browser.runShortcut('bookmark-all-tabs'),
       history: options.collections.toggleVisitHistory,
+      'task-manager': options.settings.openTaskManager,
       find: options.browser.openFind,
       reload: () => options.browser.runShortcut('reload'),
       'reload-ignoring-cache': () => options.browser.runShortcut('reload-ignoring-cache'),

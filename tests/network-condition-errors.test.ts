@@ -1,8 +1,23 @@
 import { EventEmitter } from 'node:events'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
+// The browser below stubs withDebugger and changed, which request conditions run through and publish with; the
+// network emulation they reapply is a stub of its own.
+const { applyNetworkEmulation } = vi.hoisted(() => ({
+  applyNetworkEmulation: vi.fn<(contents: unknown, network: unknown, routes: unknown, send?: (method: string) => Promise<unknown>) => Promise<void>>()
+}))
+vi.mock('../src/main/browser/emulation/network-emulation.js', () => ({ applyNetworkEmulation }))
+vi.mock('../src/main/browser/debugger-lease/debugger-lease.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/debugger-lease/debugger-lease.js')>(),
+  withDebugger: (browser: { withDebugger: (...args: unknown[]) => unknown }, ...args: unknown[]) => browser.withDebugger(...args)
+}))
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist)
+}))
 import type { WebContents } from 'electron'
 import { addNetworkRoute, moveNetworkRoute, removeNetworkRoute, setNetworkRouteEnabled } from '../src/main/browser/network-conditions/network-conditions.js'
-import type { NetworkConditionsAccess, NetworkConditionsTab } from '../src/main/browser/network-conditions/network-conditions-access.js'
+import type { Browser } from '../src/main/browser/browser.js'
+import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import { isNetworkRouteRefusal, normalizeNetworkRouteInput } from '../src/main/browser/network-route-input.js'
 import { LocalizedError } from '../src/main/localized-error.js'
 import { translate } from '../src/shared/i18n.js'
@@ -14,7 +29,7 @@ function conditions(routeCount = 0) {
     isAttached: () => true
   })
   const contents = Object.assign(new EventEmitter(), { id: 7, debugger: debuggerEvents, isDestroyed: () => false }) as unknown as WebContents
-  const tab: NetworkConditionsTab = {
+  const tab = {
     id: 'tab-1',
     url: 'https://app.test/page',
     webContents: contents,
@@ -28,19 +43,19 @@ function conditions(routeCount = 0) {
     networkDebuggerEpoch: 0,
     mainFrameId: 'main',
     emulation: { network: 'none' as never }
-  }
-  const access: NetworkConditionsAccess<NetworkConditionsTab> = {
-    getTab: () => tab,
-    findTab: id => id === tab.id ? tab : undefined,
-    isDestroyed: () => false,
-    withDebugger: async (_contents, operation, admission) => { admission?.(); return operation() },
-    applyNetworkEmulation: async () => {},
-    networkRouteQueues: () => new Map(),
-    networkRouteRefreshTimers: () => new Map(),
-    heldNetworkResponses: () => new Map(),
+  } as unknown as BrowserTab
+  applyNetworkEmulation.mockImplementation(async () => {})
+  const browser = {
+    tabs: new Map([[tab.id, tab]]),
+    activeTabId: tab.id,
+    destroyed: false,
+    withDebugger: async <T>(_contents: unknown, operation: () => Promise<T>, admission?: () => void): Promise<T> => { admission?.(); return operation() },
+    networkRouteQueues: new Map(),
+    networkRouteRefreshTimers: new Map(),
+    heldNetworkResponseStates: new Map(),
     changed: () => {}
-  }
-  return { access, tab }
+  } as unknown as Browser
+  return { browser, tab }
 }
 
 async function failure(operation: Promise<unknown>): Promise<LocalizedError> {
@@ -53,8 +68,8 @@ async function failure(operation: Promise<unknown>): Promise<LocalizedError> {
 
 // Request conditions showed these in English in every interface language, in words written for agents.
 it('names a full tab for the Network panel and keeps its English message', async () => {
-  const { access, tab } = conditions(50)
-  const error = await failure(addNetworkRoute(access, 'tab-1', { urlPattern: 'https://app.test/over-limit', abort: 'Failed' }))
+  const { browser, tab } = conditions(50)
+  const error = await failure(addNetworkRoute(browser, 'tab-1', { urlPattern: 'https://app.test/over-limit', abort: 'Failed' }))
   expect(error.key).toBe('appErrors.networkConditions.limitReached')
   expect(error.parameters).toEqual({ max: 50 })
   expect(error.message).toBe('Network route limit reached (50)')
@@ -63,11 +78,11 @@ it('names a full tab for the Network panel and keeps its English message', async
 })
 
 it('names a condition removed meanwhile for the Network panel and keeps its English message', async () => {
-  const { access } = conditions(1)
+  const { browser } = conditions(1)
   for (const change of [
-    setNetworkRouteEnabled(access, 'tab-1', 'missing', false),
-    removeNetworkRoute(access, 'tab-1', 'missing'),
-    moveNetworkRoute(access, 'tab-1', 'missing', 'up')
+    setNetworkRouteEnabled(browser, 'tab-1', 'missing', false),
+    removeNetworkRoute(browser, 'tab-1', 'missing'),
+    moveNetworkRoute(browser, 'tab-1', 'missing', 'up')
   ]) {
     const error = await failure(change)
     expect(error.key).toBe('appErrors.networkConditions.conditionGone')
@@ -76,22 +91,22 @@ it('names a condition removed meanwhile for the Network panel and keeps its Engl
 })
 
 it('names Hronaut Home for the Network panel and keeps its English message', async () => {
-  const { access, tab } = conditions()
+  const { browser, tab } = conditions()
   tab.url = 'hronaut://home/'
-  const error = await failure(addNetworkRoute(access, 'tab-1', { urlPattern: 'https://app.test/*', abort: 'Failed' }))
+  const error = await failure(addNetworkRoute(browser, 'tab-1', { urlPattern: 'https://app.test/*', abort: 'Failed' }))
   expect(error.key).toBe('appErrors.networkConditions.websiteTab')
   expect(error.message).toBe('Open a website tab before adding a network route')
   expect(tab.networkRoutes).toEqual([])
 })
 
 it('refuses a fifth held request with a message agents read', async () => {
-  const { access, tab } = conditions()
+  const { browser, tab } = conditions()
   tab.networkRoutes = Array.from({ length: 4 }, (_, index) => ({
     ...normalizeNetworkRouteInput({ urlPattern: `https://app.test/held/${index}`, response: {}, holdUntilReleased: true }),
     id: `held-${index}`,
     createdAt: '2026-10-20T12:00:00.000Z'
   }))
-  const error = await addNetworkRoute(access, 'tab-1', { urlPattern: 'https://app.test/held/more', response: {}, holdUntilReleased: true })
+  const error = await addNetworkRoute(browser, 'tab-1', { urlPattern: 'https://app.test/held/more', response: {}, holdUntilReleased: true })
     .then(() => undefined, (cause: unknown) => cause)
   expect(isNetworkRouteRefusal(error)).toBe(true)
   expect((error as Error).message).toBe('A tab can hold at most 4 requests, counting hold rules not matched yet. Release or cancel one first.')

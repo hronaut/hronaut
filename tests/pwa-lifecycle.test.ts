@@ -2,7 +2,7 @@ import { runInNewContext } from 'node:vm'
 import { EventEmitter } from 'node:events'
 import type { WebContents } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BrowserPwaLifecycle } from '../src/main/browser/pwa-lifecycle.js'
+import { BrowserPwaLifecycle } from '../src/main/browser/pwa-inspection/pwa-lifecycle.js'
 import { PWA_LIFECYCLE_LIMITS, pwaLifecyclePageScript, type PwaLifecyclePageSnapshot } from '../src/shared/pwa-lifecycle.js'
 
 const managers: Array<{ dispose(): void }> = []

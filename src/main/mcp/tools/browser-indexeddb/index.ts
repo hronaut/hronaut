@@ -4,6 +4,7 @@ import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import { type StorageInspectionSettlement, storageInspectionSettlement } from '../storage-inspection-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { inspectIndexedDb } from '../../../browser/site-storage/storage-inspection.js'
 
 export function registerBrowserIndexeddb(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -41,7 +42,7 @@ export function registerBrowserIndexeddb(context: McpToolContext): void {
         readStarted: call.settlement.markStarted,
         retainPublication: call.settlement.retainPublication
       } satisfies StorageInspectionHooks
-      return textResult(await manager.inspectIndexedDb({ tabId, database, objectStore, offset, limit, includeValues }, storageInspectionHooks))
+      return textResult(await inspectIndexedDb(manager, { tabId, database, objectStore, offset, limit, includeValues }, storageInspectionHooks))
     }),
     { settlement: () => storageInspectionSettlement() }
   )

@@ -2,7 +2,21 @@ import type { WebContents } from 'electron'
 import { translate, type MessageKey } from '../../../shared/i18n.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserPageProblem } from '../../../shared/types.js'
-import type { RendererHealthEventsAccess, RendererHealthEventsTab } from './renderer-health-events-access.js'
+import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
+import { appendConsoleMessage } from '../console-messages/console-messages.js'
+import { setEmulationViewSize } from '../emulation/emulation-view-size.js'
+import { cancelNativeSelectionSessions } from '../native-selections/native-selections.js'
+import { markNetworkConditionsUnknown } from '../network-conditions/network-conditions.js'
+import { invalidateTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
+import { publishChange } from '../browser-state/browser-state.js'
+import { pageScript } from '../../../shared/page-script.js'
+import { ISOLATED_WORLDS } from '../isolated-worlds.js'
+import { answerHangCheckInPage } from './hang-check.page.js'
+import { printDialogHolds } from '../print-dialog-guard.js'
+
+/** How long input may go unanswered before the page shows it is not responding, as long as Chrome's hang monitor waits. */
+export const HANG_DELAY_MS = 15_000
 
 /** The message explaining each reason Electron gives for a renderer exit. */
 const RENDERER_FAILURE_MESSAGES: Record<string, MessageKey> = {
@@ -34,51 +48,85 @@ function rendererFailureProblem(locale: SupportedLocale, url: string, reason: st
  * ends network waits and selection sessions, marks a held lifecycle unknown,
  * shows the problem and logs it. A hang shows a problem that responding
  * clears.
+ *
+ * Chromium reports no hang while a debugger is attached to the page, and Hronaut keeps one attached to every tab, so
+ * Electron's `unresponsive` never came for a page stuck in a loop. As Chrome's hang monitor does, input the page has
+ * not answered within HANG_DELAY_MS shows the problem: each input that finds no check under way asks the page to
+ * answer in a world of its own, which a stuck main thread cannot do. A page loading its document, holding an alert or
+ * the print dialog, which keep its main thread waiting, or paused in the person's DevTools, is not checked, and a
+ * check that a navigation overtook shows nothing.
  */
-export function attachRendererHealthEvents<Tab extends RendererHealthEventsTab>(access: RendererHealthEventsAccess<Tab>, tab: Tab, webContents: WebContents): void {
+export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('render-process-gone', (_event, details) => {
-    if (tab.networkConditionApplication === 'pending') access.markNetworkConditionsUnknown(tab)
+    // Ended from the Task manager, the page was terminated as the person asked rather than crashed, as Chrome says.
+    const reason = browser.endedByPerson.take(webContents) ? 'killed' : details.reason
+    if (tab.networkConditionApplication === 'pending') markNetworkConditionsUnknown(tab)
     tab.emulationContextGeneration++
     tab.emulationRevision++
     tab.emulationApplication = 'unknown'
     tab.nativeInputEnvironmentGeneration++
-    access.changed(false)
-    access.setEmulationViewSize(tab, undefined)
-    access.invalidateTabOverviewPreview(tab)
-    access.tabOverviewPreviewCaptures().cancelPending(tab.id)
-    access.tabOverviewPreviewableTabs().delete(tab.id)
-    if (access.rendererRecovery().expectsExit(webContents)) return
-    access.networkWaitController().reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
-    access.cancelNativeSelectionSessions(tab)
+    publishChange(browser, false)
+    setEmulationViewSize(browser, tab, undefined)
+    invalidateTabOverviewPreview(browser, tab)
+    browser.tabOverviewPreviewCaptures.cancelPending(tab.id)
+    if (browser.rendererRecovery.expectsExit(webContents)) return
+    browser.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
+    cancelNativeSelectionSessions(browser, tab)
     if (tab.pageLifecycleState !== 'active') {
       tab.pageLifecycleState = 'unknown'
       tab.pageLifecycleUnknownRequest ??= 'frozen'
     }
     tab.loading = false
-    tab.title = access.text('native.dialog.pageUnavailable')
-    tab.pageProblem = rendererFailureProblem(access.options().getLocale(), tab.url, details.reason, details.exitCode)
-    access.appendConsoleMessage(tab, {
+    // The tab keeps its page's title, as Chrome's crashed tab does: its icon and the problem row say what happened.
+    tab.pageProblem = rendererFailureProblem(browser.options.getLocale(), tab.url, reason, details.exitCode)
+    appendConsoleMessage(tab, {
       timestamp: new Date().toISOString(),
       level: 'error',
-      message: `Renderer process exited: ${details.reason} (exit code ${details.exitCode})`,
+      message: `Renderer process exited: ${reason} (exit code ${details.exitCode})`,
       lineNumber: 0,
       sourceId: tab.url,
       kind: 'lifecycle'
     }, 'lifecycle')
-    access.changed()
+    publishChange(browser)
   })
-  webContents.on('unresponsive', () => {
+  const showUnresponsive = (): void => {
     tab.pageProblem = {
       kind: 'unresponsive',
-      title: access.text('native.dialog.unresponsiveTitle'),
-      message: access.text('native.dialog.unresponsiveMessage'),
+      title: browser.text('native.dialog.unresponsiveTitle'),
+      message: browser.text('native.dialog.unresponsiveMessage'),
       url: tab.url
     }
-    access.changed(false)
-  })
-  webContents.on('responsive', () => {
+    publishChange(browser, false)
+  }
+  const clearUnresponsive = (): void => {
     if (tab.pageProblem?.kind !== 'unresponsive') return
     tab.pageProblem = undefined
-    access.changed(false)
+    publishChange(browser, false)
+  }
+  webContents.on('unresponsive', showUnresponsive)
+  webContents.on('responsive', clearUnresponsive)
+
+  // When the latest check started; a check whose answer never comes, as when the page goes away, gives way to a new
+  // one after HANG_DELAY_MS.
+  let checkStartedAt: number | undefined
+  const waitsOnPurpose = (): boolean => webContents.isDestroyed() || webContents.isCrashed() || webContents.isLoadingMainFrame()
+    || webContents.isDevToolsOpened() || tab.dialog !== undefined || printDialogHolds(webContents)
+  webContents.on('input-event', () => {
+    if (checkStartedAt !== undefined && performance.now() - checkStartedAt < HANG_DELAY_MS) return
+    if (waitsOnPurpose()) return
+    const startedAt = performance.now()
+    const navigation = tab.navigationGeneration
+    checkStartedAt = startedAt
+    const timer = setTimeout(() => {
+      if (!waitsOnPurpose() && !tab.pageProblem && tab.navigationGeneration === navigation) showUnresponsive()
+    }, HANG_DELAY_MS)
+    void webContents.executeJavaScriptInIsolatedWorld(ISOLATED_WORLDS.hangCheck, [{ code: pageScript(answerHangCheckInPage) }])
+      .then(() => {
+        if (!webContents.isDestroyed()) clearUnresponsive()
+      }, () => undefined)
+      .finally(() => {
+        clearTimeout(timer)
+        if (checkStartedAt === startedAt) checkStartedAt = undefined
+      })
   })
 }

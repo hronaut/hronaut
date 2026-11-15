@@ -4,6 +4,7 @@ import { McpActionTracker } from '../../action-tracker.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { getMcpGroupState } from '../../../browser/workspace-scope/workspace-scope.js'
 
 export function auditEvidenceExpiredReason(
   state: { runtimeId?: string; controlRevision?: number; navigationGeneration: number; observationGeneration?: number },
@@ -77,7 +78,7 @@ export function registerBrowserAuditReceipts(context: McpToolContext): void {
         } else {
           let tab: BrowserState['tabs'][number] | undefined
           try {
-            tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === evidence.state!.tabId)
+            tab = getMcpGroupState(manager, workspaceId).tabs.find(candidate => candidate.id === evidence.state!.tabId)
           } catch {
             tab = undefined
           }

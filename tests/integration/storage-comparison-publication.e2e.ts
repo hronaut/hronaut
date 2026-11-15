@@ -19,6 +19,11 @@ for (const scenario of ['get', 'baseline', 'compare', 'clear', 'clear empty', 'm
       await webContents.getAllWebContents().find(p => p.getURL() === url)!.executeJavaScript("localStorage.setItem('synthetic-comparison-key', 'synthetic-before-canary');true")
     }, fixtureUrl)
     const pageId = await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(p => p.getURL() === url)!.id, fixtureUrl)
+    await appWindow.evaluate(tool => {
+      const scope = window as unknown as { hronaut: HronautApi; comparisonActivities: McpTabActivity[]; stopComparison(): void }
+      scope.comparisonActivities = []
+      scope.stopComparison = scope.hronaut.onMcpTabActivity(activity => { if (activity.toolName === tool) scope.comparisonActivities.push(activity) })
+    }, tool)
     const baseline = await client.callTool({ name: tool, arguments: { tabId, action: 'baseline' } }) as CallToolResult
     expect(baseline.isError, text(baseline)).not.toBe(true)
     await electronApp.evaluate(async ({ webContents }, url) => {
@@ -27,11 +32,11 @@ for (const scenario of ['get', 'baseline', 'compare', 'clear', 'clear empty', 'm
     const comparison = await client.callTool({ name: tool, arguments: { tabId, action: 'compare', includeValues: true } }) as CallToolResult
     expect(comparison.isError, text(comparison)).not.toBe(true)
     expect(text(comparison)).toContain('synthetic-after-canary')
-    await appWindow.evaluate(tool => {
-      const scope = window as unknown as { hronaut: HronautApi; comparisonActivities: McpTabActivity[]; stopComparison(): void }
-      scope.comparisonActivities = []
-      scope.stopComparison = scope.hronaut.onMcpTabActivity(activity => { if (activity.toolName === tool) scope.comparisonActivities.push(activity) })
-    }, tool)
+    // The window learns of a call's activity over IPC, which can arrive after the MCP response. Only the gated call
+    // below is counted: once the baseline's and comparison's ends have arrived, nothing of them is still on the way,
+    // and the list restarts.
+    await expect.poll(() => appWindow.evaluate(() => (window as unknown as { comparisonActivities: McpTabActivity[] }).comparisonActivities.filter(a => a.phase !== 'started').length)).toBe(2)
+    await appWindow.evaluate(() => { (window as unknown as { comparisonActivities: McpTabActivity[] }).comparisonActivities = [] })
     const abort = new AbortController()
     const transport = client.transport!, send = transport.send.bind(transport)
     let cancelled = false
@@ -57,11 +62,13 @@ for (const scenario of ['get', 'baseline', 'compare', 'clear', 'clear empty', 'm
         const gate: PublicationGate = { reads: { dom: 0, cookies: 0 }, listenerCount: page.listenerCount('did-navigate'), pageId: page.id, held: false, release, restore: () => { page.executeJavaScript = execute; cookies.get = get; fs.open = open; syncBuiltinESMExports() } }
         page.executeJavaScript = async (code, userGesture) => {
           const result = await execute(code, userGesture)
-          if (code.includes('const fingerprint = (value) =>')) { gate.reads.dom++; if (stage === 'dom') { gate.held = true; await barrier } }
+          if (code.includes('function storageSnapshotInPage(')) { gate.reads.dom++; if (stage === 'dom') { gate.held = true; await barrier } }
           return result
         }
         cookies.get = async filter => {
           const result = await get(filter)
+          // In this test only the comparison reads one address's cookies; the session cookie saver, a second after a page sets one, reads all.
+          if (!filter.url) return result
           gate.reads.cookies++
           if (stage === 'cookies') { gate.held = true; await barrier; if (change === 'native error') throw new Error('synthetic-native-error-canary') }
           return result

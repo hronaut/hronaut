@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { TrackedScreenshot } from '../src/main/browser/screenshot-observations/tracked-screenshot.js'
 import { SCREENSHOT_OBSERVATION_LIMITS, ScreenshotObservations } from '../src/main/mcp/tools/browser-screenshot/screenshot-observations.js'
 
@@ -48,6 +48,23 @@ describe('ScreenshotObservations', () => {
     // Using an observation keeps it; ten idle minutes after that use it is gone.
     advance(SCREENSHOT_OBSERVATION_LIMITS.idleMs + 1)
     expect(published('workspace-1', capture('a'), id)).toEqual(unknown)
+  })
+
+  it('times ten idle minutes on the monotonic clock, whatever the wall clock does', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] })
+    try {
+      const store = new ScreenshotObservations()
+      const kept = store.observe('workspace-1', capture('a'))
+      kept.commit()
+      const id = (kept.report as { observationId: string }).observationId
+      vi.setSystemTime(Date.now() + 60 * 60_000)
+      expect(store.observe('workspace-1', capture('a'), id).report.status).toBe('UNCHANGED')
+      vi.setSystemTime(Date.now() - 2 * 60 * 60_000)
+      vi.advanceTimersByTime(SCREENSHOT_OBSERVATION_LIMITS.idleMs + 1)
+      expect(store.observe('workspace-1', capture('a'), id).report).toMatchObject({ status: 'NEW', reason: 'unknown-or-expired' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('never compares captures of another page state, geometry or capture option, even with the same pixels', () => {

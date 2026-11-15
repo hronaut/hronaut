@@ -10,10 +10,10 @@ const sourceFiles = [
   'src/**/*.{ts,vue}', 'tests/**/*.ts', 'scripts/**/*.ts', 'website/**/*.ts', '*.config.ts'
 ]
 const newBoundaryFiles = [
-  'src/shared/{locale,i18n}.ts',
+  'src/shared/{locale,i18n,translate}.ts',
   'src/shared/locales/**/*.ts',
-  'src/main/settings-store.ts',
-  'src/renderer/src/i18n.ts',
+  'src/main/settings/settings-store.ts',
+  'src/renderer/src/{i18n,locale-messages}.ts',
   'src/renderer/src/stores/**/*.ts',
   'src/renderer/src/composables/**/*.ts',
   'src/renderer/src/components/**/*.vue',
@@ -125,11 +125,6 @@ export default defineConfig(
     rules: { 'no-useless-escape': 'off' }
   },
   {
-    // A before-unload close confirmation starts out false before it is awaited.
-    files: ['src/main/browser/tabs-manager.ts'],
-    rules: { 'no-useless-assignment': 'off' }
-  },
-  {
     // These files' cleanup deliberately reports a failed restoration or release
     // from inside finally.
     files: [
@@ -141,7 +136,7 @@ export default defineConfig(
     rules: { 'no-unsafe-finally': 'off' }
   },
   {
-    // Moved out of tabs-manager.ts with that file's exemption: the submitted
+    // Moved out of browser.ts with that file's exemption: the submitted
     // origin starts out null before it is parsed.
     files: ['src/main/browser/credential-capture/credential-capture.ts'],
     rules: { 'no-useless-assignment': 'off' }

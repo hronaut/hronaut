@@ -7,7 +7,8 @@ import type { BrowserState } from '../../src/shared/types.js'
 import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
-import { launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
+import { openTabsView } from './home-tabs-view.js'
+import { hronautWindowCount, launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
 import { evaluateInSidebarOverlay, sidebarOverlayShown, sidebarOverlayView } from './sidebar-overlay-view.js'
 
 const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -1165,10 +1166,14 @@ test('restores workspace identity and tabs after an application restart', async 
       arguments: { workspaceId, url: 'data:text/html,<title>Persistent grouped tab</title><h1>Still here</h1>' }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    // The page opens at its address in place of the workspace's blank tab. Playwright emulates focus in every page it
+    // attaches to, and Chromium's renderer can crash (FocusController::FocusHasChanged) when that emulation ends as an
+    // unfocused page swaps out its blank document for the first address it navigates to.
     const defaultGroupId = await instance.window.evaluate(`(async () => {
       const state = await window.hronaut.createWorkspace({ name: 'Persistent human workspace', storage: 'scratch' });
       const group = state.mcpTabGroups.find((workspace) => workspace.name === 'Persistent human workspace');
-      await window.hronaut.navigate({ tabId: state.activeTabId, url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>' });
+      await window.hronaut.newTab({ url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>', active: true, mcpGroupId: group.id });
+      await window.hronaut.closeTab(state.activeTabId);
       return group.id;
     })()`) as string
     // Navigation completion and Chromium's title notification are separate IPC
@@ -1207,8 +1212,8 @@ test('restores workspace identity and tabs after an application restart', async 
     await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
     await restoredGroupControl.press('Space')
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'false')
-    await instance.window.getByRole('button', { name: 'Search tabs' }).click()
-    await instance.window.getByRole('dialog', { name: 'Tabs' }).locator('.tab-overview-open', { hasText: 'Persistent grouped tab' }).click()
+    const { results } = await openTabsView(instance.window, instance.app)
+    await results.locator('.tab-card-open', { hasText: 'Persistent grouped tab' }).click()
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
     await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
     const listed = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
@@ -1302,7 +1307,7 @@ test('preserves legacy tab state and storage for recovery instead of creating a 
     expect(notice.detail).toContain('tabs.json')
     expect(JSON.stringify(notice)).not.toContain('Legacy agent workspace')
     expect(JSON.stringify(notice)).not.toContain('data:text/html')
-    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0)
+    expect(await hronautWindowCount(app)).toBe(0)
     await expect(fetch(`http://127.0.0.1:${mcpPort}/mcp`)).rejects.toThrow()
     expect(await readFile(metadata, 'utf8')).toBe(original)
     for (const marker of markers) expect(await readFile(marker, 'utf8')).toBe('synthetic-legacy-storage')

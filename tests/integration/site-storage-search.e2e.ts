@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { closeFixtureServer, expect, test } from './fixtures.js'
-import { answerConfirmations } from './confirmation-fixture.js'
+import { answerTrustedDialog, trustedDialog, trustedDialogHeadline } from './trusted-dialog-fixture.js'
 import type { BrowserState } from '../../src/shared/types.js'
 
 test('filters retained storage across keys, values and cookie domains without changing hidden entries', async ({ appWindow }) => {
@@ -58,7 +58,7 @@ test('filters retained storage across keys, values and cookie domains without ch
   }
 })
 
-test('deletes only the cookie row chosen and keeps HttpOnly cookies when clearing cookies', async ({ appWindow, electronApp }) => {
+test('deletes only the cookie row chosen and keeps HttpOnly cookies when clearing cookies', async ({ appWindow }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, {
       'content-type': 'text/html',
@@ -88,14 +88,18 @@ test('deletes only the cookie row chosen and keeps HttpOnly cookies when clearin
     await expect.poll(cookies).toEqual(['pref/', 'sid/ HttpOnly', 'sid/app'])
     await panel.getByRole('searchbox', { name: 'Filter site storage', exact: true }).fill('')
     await expect(panel.locator('.site-storage-item')).toHaveCount(3)
-    // Clear asks natively with Cancel as the button Enter presses; choosing Cancel keeps every cookie.
-    let asked = await answerConfirmations(electronApp, 'cancel')
+    // Clear asks in Hronaut's dialog with Cancel as the button Enter presses; choosing Cancel keeps every cookie.
     await panel.getByRole('button', { name: 'Clear cookies', exact: true }).click()
-    await expect.poll(asked).toEqual([expect.objectContaining({ buttons: ['Cancel', 'OK'], defaultId: 0, cancelId: 0 })])
+    const footer = trustedDialog(appWindow).locator('.ui-dialog__footer')
+    await expect(footer.getByRole('button')).toHaveText(['Cancel', 'OK'])
+    await expect(footer.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused()
+    expect(await trustedDialogHeadline(appWindow)).toBe('Clear cookies for 127.0.0.1?')
+    await expect(trustedDialog(appWindow)).toContainText('HttpOnly cookies will remain protected.')
+    await answerTrustedDialog(appWindow, 'Cancel')
+    await expect(trustedDialog(appWindow)).toBeHidden()
     expect(await cookies()).toEqual(['pref/', 'sid/ HttpOnly', 'sid/app'])
-    asked = await answerConfirmations(electronApp, 'ok')
     await panel.getByRole('button', { name: 'Clear cookies', exact: true }).click()
-    await expect.poll(asked).toHaveLength(1)
+    await answerTrustedDialog(appWindow, 'OK')
     await expect.poll(cookies).toEqual(['sid/ HttpOnly'])
     await expect(panel.locator('.site-storage-item')).toHaveCount(1)
   } finally {

@@ -1,4 +1,6 @@
 import type { SearchEngineName } from '../search-engine.js'
+import type { SiteSearch } from '../site-search.js'
+import type { SecureDnsMode } from '../secure-dns.js'
 import type { MemorySaverTimeoutMinutes } from '../memory-saver.js'
 import type { InterfaceScale } from '../interface-scale.js'
 import type { LanguagePreference, SupportedLocale } from '../locale.js'
@@ -42,6 +44,8 @@ export interface AppSettings {
   tabPosition: TabPosition
   useSystemTitleBar: boolean
   searchEngine: SearchEngineName
+  /** Shortcuts that search a site from the address bar, as Chrome's site search does; see site-search.ts. */
+  siteSearches: SiteSearch[]
   hideInTray: boolean
   launchAtStartup: boolean
   launchMinimized: boolean
@@ -55,6 +59,15 @@ export interface AppSettings {
    * picked in their Save dialog. Off by default: Electron cannot tell such a file from one a rename would replace.
    */
   allowWebsiteFileSaving: boolean
+  /**
+   * The permissions the person blocked, or muted for Sound, for every website in Settings → Site permissions, in the
+   * order Settings lists them. A decision saved for a website still wins; the others keep their built-in default.
+   */
+  sitePermissionsBlockedByDefault: string[]
+  /** How website addresses are looked up: secure DNS when the DNS service offers it, through one provider only, or plain. */
+  secureDnsMode: SecureDnsMode
+  /** The chosen provider's DNS over HTTPS address, kept while another mode is on; empty until one is chosen. */
+  secureDnsTemplate: string
   followAgentActivity: boolean
   /** Draw each agent's named cursor on the page where it clicks, points or drags. */
   showAgentCursor: boolean
@@ -66,10 +79,35 @@ export interface AppSettings {
   mcpToolSet: import('../mcp-tool-sets.js').McpToolSet
   downloadDirectory: string | null
   askWhereToSaveDownloads: boolean
+  /**
+   * The folder the last save dialog saved into, where the next one starts, as Chrome's; not shown in Settings. None
+   * until a save dialog saved, and none again once the person picks a download folder.
+   */
+  saveDialogDirectory: string | null
   memorySaverEnabled: boolean
   memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
+  /**
+   * Use graphics acceleration when available, as in Chrome: Chromium draws with the graphics card. Read at startup, so a
+   * change applies at the next start.
+   */
+  graphicsAcceleration: boolean
   checkForUpdatesOnStartup: boolean
   languagePreference: LanguagePreference
+  /** Check spelling in websites' text fields, as in Chrome: misspelled words are underlined and the menu suggests fixes. */
+  spellCheck: boolean
+  /**
+   * The languages spell checking checks, as Chrome's spell check languages; none chosen means the one for Hronaut's
+   * locale. Not on macOS, where the system's spell checker picks the language.
+   */
+  spellCheckLanguages: string[]
+}
+
+/** The spell check languages Settings offers. */
+export interface SpellCheckLanguages {
+  /** The languages Chromium has dictionaries for, as codes such as `en-US`; none on macOS. */
+  available: string[]
+  /** The language checked while none is chosen. */
+  automatic: string[]
 }
 
 export interface RendererSettingsState {

@@ -1,8 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WorkspaceEditor from '../../src/renderer/src/components/WorkspaceEditor.vue'
-import WorkspaceTemplatePanel from '../../src/renderer/src/components/WorkspaceTemplatePanel.vue'
+import WorkspaceEditor from '../../src/renderer/src/features/workspaces/WorkspaceEditor.vue'
+import WorkspaceTemplatePanel from '../../src/renderer/src/features/workspaces/WorkspaceTemplatePanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { localeMessages } from '../../src/shared/i18n.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
@@ -33,7 +33,7 @@ describe('workspace colors in the interface language', () => {
     const wrapper = mount(WorkspaceEditor, {
       attachTo: document.body,
       global: { plugins: [createHronautI18n('de-DE')] },
-      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      props: { open: false, readState: () => state, canPresent: true, formatNumber: String, syncState: async () => undefined,
         'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
     })
     unmounts.push(() => wrapper.unmount())

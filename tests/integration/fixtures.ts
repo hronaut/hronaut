@@ -16,6 +16,9 @@ import { integrationMcpPort } from './port-allocation.js'
 import { ElectronTraceRecorder } from './electron-tracing.js'
 import { startWorkerDisplay } from './worker-display.js'
 import { activityDiagnostics, attachActivityDiagnostics } from './activity-failure-diagnostics.js'
+import { collectsNativeCrashStacks, readNativeCrashStacks, trackNativeCrashStacks, untrackNativeCrashStacks, type TeardownAbort } from './native-crash-stacks.js'
+import { readMainUncaughtExceptions, trackMainUncaughtExceptions, untrackMainUncaughtExceptions } from './main-uncaught-exceptions.js'
+import { mainProcessEnd, mainProcessExit, trackMainProcessEnd, type MainProcessEnd } from './main-process-end.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
@@ -29,6 +32,8 @@ export function expectFixtureSuccess(result: CallToolResult, operation: string):
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 const testTraces = new WeakMap<TestInfo, ElectronTraceRecorder>()
 const applicationTraces = new WeakMap<ElectronApplication, ElectronTraceRecorder>()
+// Launches whose processes print their native stack when a fatal signal reaches them.
+const stackDumpingApps = new WeakMap<ElectronApplication, TeardownAbort>()
 
 export interface HronautInstance {
   app: ElectronApplication
@@ -54,6 +59,19 @@ export async function closeFixtureServer(server: FixtureServer): Promise<void> {
     // sockets so teardown cannot consume the test's global timeout.
     server.closeAllConnections?.()
   })
+}
+
+/**
+ * The website page Playwright knows at this address. Playwright learns a page's address from its own connection to the
+ * app, which can lag behind an MCP result saying the page loaded, so it is waited for.
+ */
+export async function pageAt(electronApp: ElectronApplication, url: string): Promise<Page> {
+  let found: Page | undefined
+  await expect.poll(() => {
+    found = electronApp.context().pages().find((page) => page.url() === url)
+    return found !== undefined
+  }, { message: `Playwright knows no page at ${url}` }).toBe(true)
+  return found!
 }
 
 export async function blockFileDestination(path: string): Promise<() => Promise<void>> {
@@ -82,6 +100,10 @@ export interface HronautFixtures {
    * and font settings. A case that launches Hronaut again passes `standInHomeEnvironment` to `launchHronaut` itself.
    */
   standInHome: boolean
+  /** Collects the native stack traces of the processes the test's launches crash, for a failure to attach. */
+  nativeCrashStacks: void
+  /** Fails the test when one of its launches logged an uncaught exception or unhandled rejection in main, with that error. */
+  mainUncaughtExceptions: void
 }
 
 /** An empty home folder inside the test profile, with no agent's settings in it, as `launchHronaut` overrides. */
@@ -92,6 +114,11 @@ export async function standInHomeEnvironment(profileDirectory: string): Promise<
   const authority = process.env.XAUTHORITY ?? (process.env.HOME ? join(process.env.HOME, '.Xauthority') : undefined)
   const keepAuthority = authority !== undefined && await access(authority).then(() => true, () => false)
   return { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: undefined, ...(keepAuthority ? { XAUTHORITY: authority } : {}) }
+}
+
+/** The test this code runs in, or none, as when a unit test drives the launch. */
+function runningTestInfo(): TestInfo | undefined {
+  try { return base.info() } catch { return undefined }
 }
 
 export async function launchHronaut(
@@ -117,6 +144,9 @@ export async function launchHronaut(
     await writeFile(settingsPath, `${JSON.stringify({ theme: 'system', interfaceScale, tabPosition: 'top', mcpToolSet: 'complete', mcpAuthentication: false }, null, 2)}\n`, 'utf8')
   }
   const environment = { ...process.env }
+  // Each process that crashes prints its native stack trace, which a failed test attaches.
+  const testInfo = runningTestInfo()
+  if (testInfo && collectsNativeCrashStacks(testInfo)) environment.ELECTRON_ENABLE_STACK_DUMPING = '1'
   for (const [name, value] of Object.entries(environmentOverrides)) {
     if (value === undefined) delete environment[name]
     else environment[name] = value
@@ -139,6 +169,12 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
+  trackMainProcessEnd(app)
+  const teardownAbort: TeardownAbort = { requested: false }
+  if (testInfo) readNativeCrashStacks(testInfo, app.process().stderr, teardownAbort)
+  if (testInfo) readMainUncaughtExceptions(testInfo, app.process().stderr)
+  // Electron dumps stacks whenever the variable is set, even to nothing.
+  if (environment.ELECTRON_ENABLE_STACK_DUMPING !== undefined) stackDumpingApps.set(app, teardownAbort)
   try {
     await app.evaluate(({ app }) => {
       const exits: { reason: string; exitCode: number; webContentsId: number; type: string; surface: string; occurredAt: number }[] = []
@@ -168,11 +204,13 @@ export async function launchHronaut(
     // Electron exposes its context before the first Page is fully initialized.
     // Starting earlier can miss installing Playwright's DOM snapshot streamer
     // in that page for its entire lifetime, despite recording screenshots.
-    const traces = testTraces.get(base.info())
+    const traces = testInfo && testTraces.get(testInfo)
     if (traces) {
       applicationTraces.set(app, traces)
       await traces.start(app)
     }
+    // As the appWindow fixture does, so a test's first tab change does not meet "still initializing".
+    await waitForSavedWorkspaces(window)
     return { app, window }
   } catch (error) {
     // Ownership has not reached the caller yet, so its teardown cannot close
@@ -203,31 +241,55 @@ export async function waitForSavedWorkspaces(window: Page): Promise<void> {
   ]).then(() => undefined)`)
 }
 
+/**
+ * What the main process knows of each renderer when a test fails: its exits, and how each page met a script that does
+ * nothing. 'silent' tells a busy shell or page from a busy main process, which answers nothing at all; 'refused' is a
+ * call Hronaut turned down before it reached the page, as on a page still loading or with a print dialog open. A main
+ * process that ended or does not answer is described instead by how it ended and what it last logged.
+ */
 export async function collectRendererDiagnostics(app: ElectronApplication): Promise<unknown> {
-  const pending = app.evaluate(({ webContents }) => {
+  const pending = app.evaluate(async ({ webContents }) => {
     const scope = globalThis as typeof globalThis & {
       __hronautQaRendererExits?: { exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] }
     }
-    const nativeContents = webContents.getAllWebContents().slice(0, 32).map(contents => {
+    const scriptAnswer = (contents: Electron.WebContents): Promise<'answered' | 'refused' | 'silent'> => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      return Promise.race([
+        contents.executeJavaScript('0').then(() => 'answered' as const, () => 'refused' as const),
+        new Promise<'silent'>(resolve => { timer = setTimeout(() => resolve('silent'), 400) })
+      ]).finally(() => clearTimeout(timer))
+    }
+    const nativeContents = await Promise.all(webContents.getAllWebContents().slice(0, 32).map(async contents => {
       try {
         const url = contents.getURL()
+        const crashed = contents.isCrashed()
         return {
           id: contents.id,
           type: contents.getType(),
           surface: url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : !url || url === 'about:blank' ? 'blank' : 'page',
           loading: contents.isLoadingMainFrame(),
-          crashed: contents.isCrashed(),
-          processId: contents.getOSProcessId()
+          crashed,
+          processId: contents.getOSProcessId(),
+          script: crashed ? 'crashed' : await scriptAnswer(contents)
         }
       } catch {
         return { id: contents.id, unavailable: true }
       }
-    })
+    }))
     return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
-  }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
-  let diagnostics: unknown = { unavailable: 'Main process did not respond to diagnostics within 1000ms' }
-  await settleWithin(pending.then(result => { diagnostics = result }), 1_000)
-  return diagnostics
+  }).catch(async () => {
+    // The connection closes just before the process exits, and its exit code is what says how it ended.
+    await mainProcessExit(app, 500)
+    return { unavailable: 'Main process closed before diagnostics could be collected', ...mainProcessDiagnostics(app) }
+  })
+  let diagnostics: unknown
+  await settleWithin(pending.then(result => { diagnostics = result }), 2_000)
+  return diagnostics ?? { unavailable: 'Main process did not respond to diagnostics within 2000ms', ...mainProcessDiagnostics(app) }
+}
+
+function mainProcessDiagnostics(app: ElectronApplication): { mainProcess?: MainProcessEnd } {
+  const mainProcess = mainProcessEnd(app)
+  return mainProcess ? { mainProcess } : {}
 }
 
 export async function closeHronaut(app: ElectronApplication): Promise<void> {
@@ -248,11 +310,19 @@ export async function closeHronaut(app: ElectronApplication): Promise<void> {
   }).catch(() => undefined), 1_000)
   const closePromise = app.close().catch(() => undefined)
   await settleWithin(closePromise, 3_000)
-  if (child.exitCode === null) {
+  if (!exited(child)) {
     child.kill('SIGTERM')
     await waitForExit(child, 2_000)
   }
-  if (child.exitCode === null) {
+  const teardownAbort = stackDumpingApps.get(app)
+  if (!exited(child) && teardownAbort) {
+    // A main process that neither app.close() nor SIGTERM ended within 5 s is stuck, or slow to quit. SIGABRT has its
+    // main thread print where it is, which a failed test attaches with the crash traces, marked as asked for.
+    teardownAbort.requested = true
+    child.kill('SIGABRT')
+    await waitForExit(child, 2_000)
+  }
+  if (!exited(child)) {
     child.kill('SIGKILL')
     await waitForExit(child, 2_000)
   }
@@ -270,11 +340,16 @@ async function settleWithin(promise: Promise<unknown>, timeoutMs: number): Promi
   if (timer) clearTimeout(timer)
 }
 
+/** A process a signal ended keeps a null exit code and names the signal instead. */
+function exited(child: ReturnType<ElectronApplication['process']>): boolean {
+  return child.exitCode !== null || Boolean(child.signalCode)
+}
+
 async function waitForExit(
   child: ReturnType<ElectronApplication['process']>,
   timeoutMs: number
 ): Promise<void> {
-  if (child.exitCode !== null) return
+  if (exited(child)) return
   await new Promise<void>((resolve) => {
     const finish = (): void => {
       clearTimeout(timer)
@@ -345,6 +420,26 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
     try { await use(traces) } finally {
       testTraces.delete(testInfo)
       await traces.finish()
+    }
+  }, { auto: true }],
+
+  nativeCrashStacks: [async ({}, use, testInfo) => {
+    const stacks = trackNativeCrashStacks(testInfo)
+    try { await use() } finally {
+      untrackNativeCrashStacks(testInfo)
+      // A failure's only: a test that crashes a page on purpose prints a trace too.
+      if (testInfo.status !== testInfo.expectedStatus && stacks.length > 0) {
+        await testInfo.attach('native-crash-stacks', { body: JSON.stringify(stacks), contentType: 'application/json' })
+      }
+    }
+  }, { auto: true }],
+
+  mainUncaughtExceptions: [async ({}, use, testInfo) => {
+    const exceptions = trackMainUncaughtExceptions(testInfo)
+    try { await use() } finally { untrackMainUncaughtExceptions(testInfo) }
+    if (exceptions.length > 0) {
+      const logged = exceptions.map((exception) => exception.lines.join('\n')).join('\n')
+      throw new Error(`The main process logged ${exceptions.length === 1 ? 'an uncaught error' : 'uncaught errors'}:\n${logged}`)
     }
   }, { auto: true }],
 

@@ -1,6 +1,18 @@
 import { expect, it, vi } from 'vitest'
 vi.mock('electron', () => ({ session: {}, WebContentsView: class {}, nativeImage: {}, shell: {}, app: { getPath: () => '/tmp' } }))
-import { BrowserTabsManager } from '../src/main/browser/tabs-manager.js'
+// The prototype-built browser below stubs changed, getState and persistedState, which saving a label publishes and
+// saves through.
+vi.mock('../src/main/browser/browser-state/browser-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/browser-state.js')>(),
+  publishChange: (browser: { changed: (persist?: boolean) => void }, persist?: boolean) => browser.changed(persist),
+  browserState: (browser: { getState: () => unknown }) => browser.getState()
+}))
+vi.mock('../src/main/browser/browser-state/persisted-state.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/main/browser/browser-state/persisted-state.js')>(),
+  persistedState: (browser: { persistedState: () => unknown }) => browser.persistedState()
+}))
+import { Browser } from '../src/main/browser/browser.js'
+import { withTabLabelLifecycle, saveTabLabel, stopTabLabelEdits } from '../src/main/browser/tab-labels/tab-labels.js'
 import type { PersistedBrowserState } from '../src/main/browser/tab-store.js'
 
 function fixture() {
@@ -17,20 +29,20 @@ function fixture() {
       }
     })
   }) }
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+  const manager = Object.assign(Object.create(Browser.prototype), {
     initialized: true, destroyed: false, tabLabelAdmissionClosed: false, tabLabelLifecycleHolds: 0,
     pendingTabLabels: new Set(), tabs, store, changed: vi.fn(),
-    getTab: () => tab, getState: () => ({ tabs: [...tabs.values()] }),
+    getState: () => ({ tabs: [...tabs.values()] }),
     persistedState: () => ({ version: 3, activeTabId: tab.id, tabs: [{ ...tab }] })
-  }) as BrowserTabsManager
+  }) as Browser
   return { manager, store, tab, tabs, commit: () => commit(), reject: (error: Error) => reject(error) }
 }
 
 it('fences new edits synchronously at shutdown while allowing an admitted save to settle', async () => {
   const { manager, store, tab, commit } = fixture()
-  const admitted = manager.setTabLabel(tab.id, 'Admitted role')
-  manager.stopTabLabelEdits()
-  await expect(manager.setTabLabel(tab.id, 'Late role')).rejects.toThrow('Wait for the tab operation')
+  const admitted = saveTabLabel(manager, tab.id, 'Admitted role')
+  stopTabLabelEdits(manager)
+  await expect(saveTabLabel(manager, tab.id, 'Late role')).rejects.toThrow('Wait for the tab operation')
   expect(store.save).toHaveBeenCalledOnce()
   expect(tab.label).toBe('Previous')
   commit()
@@ -40,7 +52,7 @@ it('fences new edits synchronously at shutdown while allowing an admitted save t
 
 it('rejects a stale tab before replacement without acknowledging or changing its prior label', async () => {
   const { manager, tab, tabs, commit } = fixture()
-  const pending = manager.setTabLabel(tab.id, 'Stale role')
+  const pending = saveTabLabel(manager, tab.id, 'Stale role')
   const rejected = expect(pending).rejects.toThrow('no longer available')
   tabs.delete(tab.id)
   commit()
@@ -50,12 +62,12 @@ it('rejects a stale tab before replacement without acknowledging or changing its
 
 it('holds lifecycle copies until rejected edits settle and rejects new edits during the hold', async () => {
   const { manager, tab, reject } = fixture()
-  const edit = manager.setTabLabel(tab.id, 'Rejected role')
+  const edit = saveTabLabel(manager, tab.id, 'Rejected role')
   const rejected = expect(edit).rejects.toThrow('synthetic write failure')
   const copy = vi.fn(async () => tab.label)
-  const lifecycle = (manager as unknown as { withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T> }).withTabLabelLifecycle(copy)
+  const lifecycle = withTabLabelLifecycle(manager, copy)
   expect(copy).not.toHaveBeenCalled()
-  await expect(manager.setTabLabel(tab.id, 'During close')).rejects.toThrow('Wait for the tab operation')
+  await expect(saveTabLabel(manager, tab.id, 'During close')).rejects.toThrow('Wait for the tab operation')
   reject(new Error('synthetic write failure'))
   await rejected
   expect(await lifecycle).toBe('Previous')

@@ -1,739 +1,85 @@
-import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
-import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
-import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
-import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
-import type { HronautToastOverlayApi, ToastOverlayEvent } from '../shared/toast-overlay.js'
-import type { HronautSidebarOverlayApi, SidebarOverlayEvent } from '../shared/sidebar-overlay.js'
-import { TRUSTED_DIALOG_CHANNELS, type HronautTrustedDialogsApi, type TrustedDialogRequest } from '../shared/trusted-dialogs.js'
-import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
-import { contextBridge, ipcRenderer } from 'electron'
-import { createPanelRequestBuffer } from './panel-requests.js'
-import type {
-  AppSettings,
-  BrowserOcclusionSnapshot,
-  LanguagePreference,
-  RendererSettingsState,
-  InterfaceScale,
-  TabPosition,
-  AppUpdateState,
-  HronautApi,
-  HronautBookmarksApi,
-  HronautBrowsingDataApi,
-  HronautHistoryApi,
-  HronautShellApi,
-  HronautLicenseApi,
-  HronautPermissionsApi,
-  HronautSettingsApi,
-  HronautUpdatesApi,
-  BrowserActionFailure,
-  BrowserState,
-  UserAttentionRequest,
-  BrowserTabGroupUpdate,
-  BrowserWorkspaceCreateOptions,
-  BrowserWorkspaceStorageTransferOptions,
-  BrowserFindOptions,
-  BrowserPageCaptureOptions,
-  BrowserElementInspectionOptions,
-  BrowserAccessibilityAuditOptions,
-  BrowserPerformanceOptions,
-  BrowserCodeCoverageOptions,
-  BrowserCpuProfileOptions,
-  BrowserMemoryOptions,
-  BrowserDebugReportOptions,
-  BrowserDomChangesAction,
-  BrowserVisualCompareOptions,
-  BrowserNetworkHarOptions,
-  BrowserNetworkHarSaveOptions,
-  BrowserNetworkSearchOptions,
-  BrowserNetworkRouteInput,
-  BrowserNetworkRouteMoveDirection,
-  BrowserStorageOptions,
-  BrowserStorageChangesOptions,
-  BrowserIndexedDbOptions,
-  BrowserPwaOptions,
-  BrowserEnvironmentSettings,
-  BrowserViewportEmulation,
-  BrowserZoomOptions,
-  BrowserPdfOptions,
-  HronautPanelWindowApi,
-  DetachablePanelId,
-  PanelDock,
-  PanelRedockRequest,
-  HronautMcpApi,
-  HronautWalletsApi,
-  HronautCredentialsApi,
-  HronautDownloadsApi,
-  BrowsingDataClearOptions,
-  McpTabActivity,
-  NavigateOptions,
-  NewTabOptions,
-  SitePermissionDecision,
-  SitePermissionEntry,
-  SitePermissionScope,
-  CredentialSummary,
-  HelpMenuAction,
-  McpControlState,
-  AttentionSoundCue,
-  SearchEngineName,
-  ThemeName,
-  MemorySaverTimeoutMinutes,
-  McpCapabilityProfileCreateInput
-} from '../shared/types.js'
-import type {
-  WalletCreateInput,
-  WalletDescriptor,
-  WalletImportDetails,
-  WalletPolicy,
-  WalletRequestSummary,
-  WalletSecretFormat,
-  WalletServiceStatus,
-  WalletUpdateInput,
-  WalletWatchOnlyInput
-} from '../shared/wallet.js'
-import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
-import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions.js'
-import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
-import type { UndoOffer } from '../shared/undo.js'
+import { contextBridge } from 'electron'
+import { addressBarStopsApi } from './bridges/address-bar-stops.js'
+import { addressOverlayApi } from './bridges/address-overlay.js'
+import { agentCardApi } from './bridges/agent-card.js'
+import { agentPresenceApi } from './bridges/agent-presence.js'
+import { attentionApi } from './bridges/attention.js'
+import { bookmarksApi } from './bridges/bookmarks.js'
+import { browsingDataApi } from './bridges/browsing-data.js'
+import { credentialsApi } from './bridges/credentials.js'
+import { debugReportApi, pageAuditsApi, profilingApi, recordingApi, visualCompareApi } from './bridges/diagnostics.js'
+import { downloadsApi } from './bridges/downloads.js'
+import { emulationApi } from './bridges/emulation.js'
+import { historyApi } from './bridges/history.js'
+import { incidentsApi } from './bridges/incidents.js'
+import { licenseApi } from './bridges/license.js'
+import { mcpApi } from './bridges/mcp.js'
+import { navigationApi } from './bridges/navigation.js'
+import { networkRoutesApi } from './bridges/network-routes.js'
+import { emulationFrameApi, pageCardApi, splitDividerApi } from './bridges/page-geometry.js'
+import { consoleNetworkApi, pageCaptureApi, pageStorageApi } from './bridges/page-inspection.js'
+import { panelWindowApi } from './bridges/panel-window.js'
+import { permissionsApi } from './bridges/permissions.js'
+import { qrCodeApi } from './bridges/qr-code.js'
+import { settingsApi } from './bridges/settings.js'
+import { appApi, shellApi, shellRequestsApi } from './bridges/shell.js'
+import { sidebarOverlayApi } from './bridges/sidebar-overlay.js'
+import { tabsApi } from './bridges/tabs.js'
+import { taskManagerApi } from './bridges/task-manager.js'
+import { toastOverlayApi } from './bridges/toast-overlay.js'
+import { trustedDialogsApi } from './bridges/trusted-dialogs.js'
+import { undoApi } from './bridges/undo.js'
+import { updatesApi } from './bridges/updates.js'
+import { walletsApi } from './bridges/wallets.js'
+import { workspacesApi } from './bridges/workspaces.js'
+import type { HronautApi } from '../shared/types.js'
 
 const api: HronautApi = {
-  getState: () => ipcRenderer.invoke('browser:get-state'),
-  getUserAttention: () => ipcRenderer.invoke('attention:get'),
-  answerUserAttention: (id, answer) => ipcRenderer.invoke('attention:answer', id, answer),
-  onUndoOffered: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, offer: UndoOffer): void => listener(offer)
-    ipcRenderer.on('undo:offered', handler)
-    return () => ipcRenderer.removeListener('undo:offered', handler)
-  },
-  onUndoEnded: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, token: string): void => listener(token)
-    ipcRenderer.on('undo:ended', handler)
-    return () => ipcRenderer.removeListener('undo:ended', handler)
-  },
-  undo: (token) => ipcRenderer.invoke('undo:run', token),
-  holdUndo: (token) => ipcRenderer.invoke('undo:hold', token),
-  finishUndo: (token) => ipcRenderer.invoke('undo:finish', token),
-  onUserAttentionChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: UserAttentionRequest | null): void => listener(request)
-    ipcRenderer.on('attention:changed', handler)
-    return () => ipcRenderer.removeListener('attention:changed', handler)
-  },
-  getTabOverviewPreviews: (tabIds: string[]) => ipcRenderer.invoke('browser:get-tab-overview-previews', tabIds),
-  getTabOverviewPagePreview: (tabId: string) => ipcRenderer.invoke('browser:get-tab-overview-page-preview', tabId),
-  copyText: (text: string) => ipcRenderer.invoke('browser:copy-text', text),
-  openHome: () => ipcRenderer.invoke('browser:open-home'),
-  newTab: (options: NewTabOptions = {}) => ipcRenderer.invoke('browser:new-tab', options),
-  reopenClosedTab: (closedTabId?: string) => ipcRenderer.invoke('browser:reopen-closed-tab', closedTabId),
-  selectTab: (tabId: string) => ipcRenderer.invoke('browser:select-tab', tabId),
-  closeTab: (tabId: string) => ipcRenderer.invoke('browser:close-tab', tabId),
-  openSplitView: (tabId: string) => ipcRenderer.invoke('browser:open-split-view', tabId),
-  updateSplitView: (updates) => ipcRenderer.invoke('browser:update-split-view', updates),
-  closeSplitView: () => ipcRenderer.invoke('browser:close-split-view'),
-  setTabLabel: (tabId: string, label: string) => ipcRenderer.invoke('browser:set-tab-label', tabId, label),
-  setTabPinned: (tabId: string, pinned: boolean) => ipcRenderer.invoke('browser:set-tab-pinned', tabId, pinned),
-  setTabSleeping: (tabId: string, sleeping: boolean) => ipcRenderer.invoke('browser:set-tab-sleeping', tabId, sleeping),
-  setTabAgentPaused: (tabId: string, paused: boolean, options?: { takeOver?: boolean }) => ipcRenderer.invoke('browser:set-tab-agent-paused', tabId, paused, options),
-  clearCssStatePreview: (tabId: string) => ipcRenderer.invoke('browser:clear-css-state-preview', tabId),
-  stopVirtualPasskey: (tabId: string) => ipcRenderer.invoke('browser:stop-virtual-passkey', tabId),
-  stopLogpoints: (tabId: string) => ipcRenderer.invoke('browser:stop-logpoints', tabId),
-  setTabPageLifecycle: (tabId: string, state: 'active' | 'frozen') => ipcRenderer.invoke('browser:set-tab-page-lifecycle', tabId, state),
-  sleepInactiveTabs: () => ipcRenderer.invoke('browser:sleep-inactive-tabs'),
-  reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') =>
-    ipcRenderer.invoke('browser:reorder-tab', tabId, targetTabId, placement),
-  createWorkspace: (options: BrowserWorkspaceCreateOptions) => ipcRenderer.invoke('browser:create-workspace', options),
-  openWorkspaceTemplateFile: () => ipcRenderer.invoke('browser:open-workspace-template-file'),
-  saveWorkspaceTemplateFile: (reviewedText: string) => ipcRenderer.invoke('browser:save-workspace-template-file', reviewedText),
-  importWorkspaceTemplate: (text: string) => ipcRenderer.invoke('browser:import-workspace-template', text),
-  renameTabGroup: (groupId: string, name: string) => ipcRenderer.invoke('browser:rename-tab-group', groupId, name),
-  updateTabGroup: (groupId: string, updates: BrowserTabGroupUpdate) => ipcRenderer.invoke('browser:update-tab-group', groupId, updates),
-  reviewWorkspaceContinuity: (id) => ipcRenderer.invoke('browser:review-workspace-continuity', id),
-  listHumanWaiting: (id) => ipcRenderer.invoke('browser:list-human-waiting', id),
-  changeHumanWaiting: (workspaceId, id, revision, action, confirmation, note) => ipcRenderer.invoke('browser:change-human-waiting', workspaceId, id, revision, action, confirmation, note),
-  checkpointWorkspaceContinuity: (id, selector) => ipcRenderer.invoke('browser:checkpoint-workspace-continuity', id, selector),
-  reconcileWorkspaceContinuity: (id, reviewId, acknowledge) => ipcRenderer.invoke('browser:reconcile-workspace-continuity', id, reviewId, acknowledge),
-  updateWorkspaceNavigationPolicy: (groupId, policy) => ipcRenderer.invoke('browser:update-workspace-navigation-policy', groupId, policy),
-  listWorkspaceNavigationAudit: (groupId) => ipcRenderer.invoke('browser:list-workspace-navigation-audit', groupId),
-  browserImport: {
-    list: (id: string) => ipcRenderer.invoke('browser-import:list', id),
-    preview: (id: string, profile: string) => ipcRenderer.invoke('browser-import:preview', id, profile),
-    commit: (id: string, domains: string[]) => ipcRenderer.invoke('browser-import:commit', id, domains),
-    cancel: () => ipcRenderer.invoke('browser-import:cancel')
-  },
-  listWorkspaceStorageOrigins: (workspaceId: string) => ipcRenderer.invoke('browser:list-workspace-storage-origins', workspaceId),
-  transferWorkspaceStorage: (options: BrowserWorkspaceStorageTransferOptions) => ipcRenderer.invoke('browser:transfer-workspace-storage', options),
-  closeWorkspace: (workspaceId: string, options?: { undoable?: boolean }) => ipcRenderer.invoke('browser:close-workspace', workspaceId, options),
-  saveAndCloseTabGroup: (groupId: string) => ipcRenderer.invoke('browser:save-and-close-tab-group', groupId),
-  restoreSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:restore-saved-tab-group', savedGroupId),
-  deleteSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:delete-saved-tab-group', savedGroupId),
-  showWorkspaceContextMenu: (workspaceId: string) => ipcRenderer.invoke('browser:show-workspace-context-menu', workspaceId),
-  showTabContextMenu: (tabId: string) => ipcRenderer.invoke('browser:show-tab-context-menu', tabId),
-  toggleDevTools: (tabId?: string) => ipcRenderer.invoke('browser:toggle-devtools', tabId),
-  setTabViewport: (tabId: string, viewport: BrowserViewportEmulation | null) =>
-    ipcRenderer.invoke('browser:set-tab-viewport', tabId, viewport),
-  setTabEnvironment: (tabId: string, environment: BrowserEnvironmentSettings) =>
-    ipcRenderer.invoke('browser:set-tab-environment', tabId, environment),
-  resetTabEmulation: (tabId: string) => ipcRenderer.invoke('browser:reset-tab-emulation', tabId),
-  recoverTabEmulation: (tabId: string) => ipcRenderer.invoke('browser:recover-tab-emulation', tabId),
-  listNetworkRoutes: (tabId: string) => ipcRenderer.invoke('browser:list-network-routes', tabId),
-  addNetworkRoute: (tabId: string, input: BrowserNetworkRouteInput) =>
-    ipcRenderer.invoke('browser:add-network-route', tabId, input),
-  setNetworkRouteEnabled: (tabId: string, routeId: string, enabled: boolean) =>
-    ipcRenderer.invoke('browser:set-network-route-enabled', tabId, routeId, enabled),
-  moveNetworkRoute: (tabId: string, routeId: string, direction: BrowserNetworkRouteMoveDirection) =>
-    ipcRenderer.invoke('browser:move-network-route', tabId, routeId, direction),
-  removeNetworkRoute: (tabId: string, routeId: string) =>
-    ipcRenderer.invoke('browser:remove-network-route', tabId, routeId),
-  clearNetworkRoutes: (tabId: string) => ipcRenderer.invoke('browser:clear-network-routes', tabId),
-  manageStorage: (options: BrowserStorageOptions) => ipcRenderer.invoke('browser:manage-storage', options),
-  inspectStorageUsage: (tabId?: string) => ipcRenderer.invoke('browser:storage-usage', tabId),
-  storageChanges: (options: BrowserStorageChangesOptions = {}) => ipcRenderer.invoke('browser:storage-changes', options),
-  inspectIndexedDb: (options: BrowserIndexedDbOptions = {}) => ipcRenderer.invoke('browser:indexeddb', options),
-  pwaLifecycle: options => ipcRenderer.invoke('browser:pwa-lifecycle', options),
-  inspectPwa: (options: BrowserPwaOptions = {}) => ipcRenderer.invoke('browser:pwa', options),
-  navigate: (options: NavigateOptions) => ipcRenderer.invoke('browser:navigate', options),
-  back: (tabId?: string) => ipcRenderer.invoke('browser:back', tabId),
-  forward: (tabId?: string) => ipcRenderer.invoke('browser:forward', tabId),
-  showHistoryMenu: (options: { tabId: string; direction: 'back' | 'forward'; anchor?: { x: number; y: number } }) => ipcRenderer.invoke('browser:show-history-menu', options),
-  openNavigationInNewTab: (options: { tabId: string; target: 'back' | 'forward' | 'reload'; active: boolean }) => ipcRenderer.invoke('browser:open-navigation-in-new-tab', options),
-  reload: (tabId?: string) => ipcRenderer.invoke('browser:reload', tabId),
-  reloadIgnoringCache: (tabId?: string) => ipcRenderer.invoke('browser:reload-ignoring-cache', tabId),
-  stop: (tabId?: string) => ipcRenderer.invoke('browser:stop', tabId),
-  findInPage: (options: BrowserFindOptions) => ipcRenderer.invoke('browser:find-in-page', options),
-  stopFindInPage: (tabId?: string) => ipcRenderer.invoke('browser:stop-find-in-page', tabId),
-  setZoom: (options: BrowserZoomOptions) => ipcRenderer.invoke('browser:set-zoom', options),
-  setTabMuted: (tabId: string, muted: boolean) => ipcRenderer.invoke('browser:set-tab-muted', tabId, muted),
-  setAllTabsMuted: (muted: boolean) => ipcRenderer.invoke('browser:set-all-tabs-muted', muted),
-  savePdf: (options: BrowserPdfOptions = {}) => ipcRenderer.invoke('browser:save-pdf', options),
-  setTabHumanInteractionLocked: (tabId: string, locked: boolean) =>
-    ipcRenderer.invoke('browser:set-tab-human-interaction-locked', tabId, locked),
-  setAllHumanInteractionLocked: (locked: boolean) =>
-    ipcRenderer.invoke('browser:set-all-human-interaction-locked', locked),
-  copySnapshot: (tabId?: string) => ipcRenderer.invoke('browser:copy-snapshot', tabId),
-  pickElement: (tabId?: string) => ipcRenderer.invoke('browser:pick-element', tabId),
-  captureElement: (tabId?: string) => ipcRenderer.invoke('browser:capture-element', tabId),
-  capturePage: (options: BrowserPageCaptureOptions = {}) => ipcRenderer.invoke('browser:capture-page', options),
-  inspectElement: (options: BrowserElementInspectionOptions) => ipcRenderer.invoke('browser:element-inspection', options),
-  cancelElementPicker: (tabId?: string) => ipcRenderer.invoke('browser:cancel-element-picker', tabId),
-  runAccessibilityAudit: (options: BrowserAccessibilityAuditOptions = {}) =>
-    ipcRenderer.invoke('browser:accessibility-audit', options),
-  runQualityAudit: (tabId?: string) => ipcRenderer.invoke('browser:quality-audit', tabId),
-  measurePerformance: (options: BrowserPerformanceOptions = {}) =>
-    ipcRenderer.invoke('browser:performance', options),
-  inspectDesign: (tabId?: string) => ipcRenderer.invoke('browser:design-overview', tabId),
-  inspectPageMetadata: (tabId?: string) => ipcRenderer.invoke('browser:page-metadata', tabId),
-  inspectSecurity: (tabId?: string) => ipcRenderer.invoke('browser:security', tabId),
-  manageCodeCoverage: (options: BrowserCodeCoverageOptions = {}) =>
-    ipcRenderer.invoke('browser:code-coverage', options),
-  manageCpuProfile: (options: BrowserCpuProfileOptions = {}) =>
-    ipcRenderer.invoke('browser:cpu-profile', options),
-  measureMemory: (options: BrowserMemoryOptions = {}) =>
-    ipcRenderer.invoke('browser:memory', options),
-  createDebugReport: (options: BrowserDebugReportOptions = {}) =>
-    ipcRenderer.invoke('browser:debug-report', options),
-  setDiagnosticLogPreservation: (tabId: string, preserve: boolean) =>
-    ipcRenderer.invoke('browser:set-diagnostic-log-preservation', tabId, preserve),
-  manageVideo: options => ipcRenderer.invoke('browser:video', options),
-  importVideoAudio: (tabId, provenance) => ipcRenderer.invoke('browser:video-import-audio', tabId, provenance),
-  videoPreview: tabId => ipcRenderer.invoke('browser:video-preview', tabId),
-  captureIncident: input => ipcRenderer.invoke('browser:incident-capture', input),
-  reviewIncident: input => ipcRenderer.invoke('browser:incident-review', input),
-  invalidateIncidentPreview: draftId => ipcRenderer.invoke('browser:incident-invalidate-preview', draftId),
-  discardIncident: () => ipcRenderer.invoke('browser:incident-discard'),
-  saveIncident: input => ipcRenderer.invoke('browser:incident-save', input),
-  manageRepro: (action, tabId, checkpoint) =>
-    ipcRenderer.invoke('browser:repro-recording', { action, tabId, ...(checkpoint ? { checkpoint } : {}) }),
-  manageDomChanges: (action: BrowserDomChangesAction, tabId?: string) =>
-    ipcRenderer.invoke('browser:dom-changes', { action, tabId }),
-  visualCompare: (options: BrowserVisualCompareOptions) =>
-    ipcRenderer.invoke('browser:visual-compare', options),
-  copyVisualDiff: (tabId?: string) => ipcRenderer.invoke('browser:copy-visual-diff', tabId),
-  listInspectorIssues: (tabId?: string, clear = false) =>
-    ipcRenderer.invoke('browser:inspector-issues', { tabId, clear }),
-  listConsoleMessages: (tabId?: string, clear = false) =>
-    ipcRenderer.invoke('browser:console', { tabId, clear }),
-  listNetworkRequests: (tabId?: string, clear = false) =>
-    ipcRenderer.invoke('browser:network', { tabId, clear }),
-  getNetworkRequestDetails: (tabId: string, requestId: string, maxChars?: number) =>
-    ipcRenderer.invoke('browser:network-request', { tabId, requestId, maxChars }),
-  replayNetworkRequest: (tabId: string, requestId: string, confirmSideEffects = false) =>
-    ipcRenderer.invoke('browser:network-replay', { tabId, requestId, confirmSideEffects }),
-  searchNetwork: (options: BrowserNetworkSearchOptions) =>
-    ipcRenderer.invoke('browser:network-search', options),
-  createNetworkHar: (options: BrowserNetworkHarOptions = {}) =>
-    ipcRenderer.invoke('browser:network-har', options),
-  saveNetworkHar: (options: BrowserNetworkHarSaveOptions = {}) =>
-    ipcRenderer.invoke('browser:save-network-har', options),
-  captureArea: (tabId?: string) => ipcRenderer.invoke('browser:capture-area', tabId),
-  cancelAreaCapture: (tabId?: string) => ipcRenderer.invoke('browser:cancel-area-capture', tabId),
-  show: () => ipcRenderer.invoke('browser:show'),
-  quit: () => ipcRenderer.invoke('browser:quit'),
-  onStateChanged: (listener: (state: BrowserState) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: BrowserState): void => listener(state)
-    ipcRenderer.on('browser:state-changed', handler)
-    return () => ipcRenderer.removeListener('browser:state-changed', handler)
-  },
-  onMcpTabActivity: (listener: (activity: McpTabActivity) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, activity: McpTabActivity): void => listener(activity)
-    ipcRenderer.on('browser:mcp-tab-activity', handler)
-    return () => ipcRenderer.removeListener('browser:mcp-tab-activity', handler)
-  },
-  onUserAttentionRequested: (listener: () => void) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('attention:requested', handler)
-    return () => ipcRenderer.removeListener('attention:requested', handler)
-  },
-  onShortcutRequested: (listener: (action: BrowserShortcutAction) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, action: BrowserShortcutAction): void => listener(action)
-    ipcRenderer.on('browser:shortcut-requested', handler)
-    return () => ipcRenderer.removeListener('browser:shortcut-requested', handler)
-  },
-  onHomeWorkspaceEditorRequested: (listener: (request: import('../shared/home-workspaces.js').HomeWorkspaceEditorRequest) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: import('../shared/home-workspaces.js').HomeWorkspaceEditorRequest): void => listener(request)
-    ipcRenderer.on('browser:home-workspace-editor', handler)
-    return () => ipcRenderer.removeListener('browser:home-workspace-editor', handler)
-  },
-  onTabGroupEditRequested: (listener: (groupId: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, groupId: string): void => listener(groupId)
-    ipcRenderer.on('browser:edit-tab-group', handler)
-    return () => ipcRenderer.removeListener('browser:edit-tab-group', handler)
-  },
-  onNewTabRequested: (listener: (workspaceId: string | undefined) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, workspaceId: unknown): void => listener(typeof workspaceId === 'string' ? workspaceId : undefined)
-    ipcRenderer.on('browser:new-tab-requested', handler)
-    return () => ipcRenderer.removeListener('browser:new-tab-requested', handler)
-  },
-  onVisitHistoryRequested: (listener: () => void) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('browser:visit-history-requested', handler)
-    return () => ipcRenderer.removeListener('browser:visit-history-requested', handler)
-  },
-  onAddressPasteAndGo: (listener: (text: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, text: unknown): void => {
-      if (typeof text === 'string') listener(text)
-    }
-    ipcRenderer.on('browser:address-paste-and-go', handler)
-    return () => ipcRenderer.removeListener('browser:address-paste-and-go', handler)
-  }
+  ...tabsApi,
+  ...navigationApi,
+  ...undoApi,
+  ...attentionApi,
+  ...qrCodeApi,
+  ...appApi,
+  ...shellRequestsApi,
+  ...workspacesApi,
+  ...emulationApi,
+  ...networkRoutesApi,
+  ...addressBarStopsApi,
+  ...incidentsApi,
+  ...pageStorageApi,
+  ...pageCaptureApi,
+  ...consoleNetworkApi,
+  ...pageAuditsApi,
+  ...profilingApi,
+  ...debugReportApi,
+  ...recordingApi,
+  ...visualCompareApi
 }
 
 contextBridge.exposeInMainWorld('hronaut', api)
-const downloadsApi: HronautDownloadsApi = {
-  list: () => ipcRenderer.invoke('downloads:list'),
-  pause: (downloadId: string) => ipcRenderer.invoke('downloads:pause', downloadId),
-  resume: (downloadId: string) => ipcRenderer.invoke('downloads:resume', downloadId),
-  cancel: (downloadId: string) => ipcRenderer.invoke('downloads:cancel', downloadId),
-  removeFinished: (downloadId: string) => ipcRenderer.invoke('downloads:remove-finished', downloadId),
-  clearFinished: () => ipcRenderer.invoke('downloads:clear-finished'),
-  showInFolder: (downloadId: string) => ipcRenderer.invoke('downloads:show-in-folder', downloadId),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, downloads: import('../shared/types.js').BrowserDownloadState[]): void => listener(downloads)
-    ipcRenderer.on('browser:downloads-changed', handler)
-    return () => ipcRenderer.removeListener('browser:downloads-changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautDownloads', downloadsApi)
-const bookmarksApi: HronautBookmarksApi = {
-  collections: {
-    list: () => ipcRenderer.invoke('bookmark-collections:list'),
-    create: (name) => ipcRenderer.invoke('bookmark-collections:create', name),
-    rename: (id, name) => ipcRenderer.invoke('bookmark-collections:rename', id, name),
-    remove: (id) => ipcRenderer.invoke('bookmark-collections:remove', id),
-    assign: (bookmarkId, collectionId) => ipcRenderer.invoke('bookmark-collections:assign', bookmarkId, collectionId),
-    onChanged: (listener) => {
-      const handler = (_event: Electron.IpcRendererEvent, snapshot: import('../shared/types.js').BookmarkCollectionSnapshot): void => listener(snapshot)
-      ipcRenderer.on('bookmark-collections:changed', handler)
-      return () => ipcRenderer.removeListener('bookmark-collections:changed', handler)
-    }
-  },
-  list: () => ipcRenderer.invoke('bookmarks:list'),
-  add: (url: string, title: string) => ipcRenderer.invoke('bookmarks:add', url, title),
-  addIfMissing: (url: string, title: string) => ipcRenderer.invoke('bookmarks:add-if-missing', url, title),
-  rename: (id: string, title: string) => ipcRenderer.invoke('bookmarks:rename', id, title),
-  updateDestination: (id: string, url: string) => ipcRenderer.invoke('bookmarks:update-destination', id, url),
-  remove: (id: string) => ipcRenderer.invoke('bookmarks:remove', id),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, bookmarks: import('../shared/types.js').BrowserBookmark[]): void => listener(bookmarks)
-    ipcRenderer.on('bookmarks:changed', handler)
-    return () => ipcRenderer.removeListener('bookmarks:changed', handler)
-  }
-}
+contextBridge.exposeInMainWorld('hronautTaskManager', taskManagerApi)
 contextBridge.exposeInMainWorld('hronautBookmarks', bookmarksApi)
-const historyApi: HronautHistoryApi = {
-  list: () => ipcRenderer.invoke('visit-history:list'),
-  remove: (id: string) => ipcRenderer.invoke('visit-history:remove', id),
-  clear: () => ipcRenderer.invoke('visit-history:clear'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, entries: import('../shared/types.js').BrowserHistoryEntry[]): void => listener(entries)
-    ipcRenderer.on('visit-history:changed', handler)
-    return () => ipcRenderer.removeListener('visit-history:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautHistory', historyApi)
-const browsingDataApi: HronautBrowsingDataApi = {
-  summary: () => ipcRenderer.invoke('browsing-data:summary'),
-  siteSummary: (url: string, tabId: string) => ipcRenderer.invoke('browsing-data:site-summary', url, tabId),
-  websites: () => ipcRenderer.invoke('browsing-data:websites'),
-  clear: (options: BrowsingDataClearOptions) => ipcRenderer.invoke('browsing-data:clear', options)
-}
 contextBridge.exposeInMainWorld('hronautBrowsingData', browsingDataApi)
-const mcpApi: HronautMcpApi = {
-  getState: () => ipcRenderer.invoke('mcp:get-state'),
-  setPaused: (paused: boolean) => ipcRenderer.invoke('mcp:set-paused', paused),
-  moveToSuggestedPort: (port: number) => ipcRenderer.invoke('mcp:move-to-suggested-port', port),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: McpControlState): void => listener(state)
-    ipcRenderer.on('mcp:changed', handler)
-    return () => ipcRenderer.removeListener('mcp:changed', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautMcp', mcpApi)
-const walletsApi: HronautWalletsApi = {
-  status: () => ipcRenderer.invoke('wallets:status'),
-  list: () => ipcRenderer.invoke('wallets:list'),
-  setupPassphrase: (passphrase: string) => ipcRenderer.invoke('wallets:setup-passphrase', passphrase),
-  unlock: (passphrase: string) => ipcRenderer.invoke('wallets:unlock', passphrase),
-  lock: () => ipcRenderer.invoke('wallets:lock'),
-  generate: (input: WalletCreateInput) => ipcRenderer.invoke('wallets:generate', input),
-  prepareImport: (chainFamily: WalletDescriptor['chainFamily'], format: WalletSecretFormat, recoveryMaterial: string) =>
-    ipcRenderer.invoke('wallets:prepare-import', chainFamily, format, recoveryMaterial),
-  confirmImport: (token: string, details: WalletImportDetails) => ipcRenderer.invoke('wallets:confirm-import', token, details),
-  cancelImport: (token: string) => ipcRenderer.invoke('wallets:cancel-import', token),
-  addWatchOnly: (input: WalletWatchOnlyInput) => ipcRenderer.invoke('wallets:add-watch-only', input),
-  update: (walletId: string, changes: WalletUpdateInput) => ipcRenderer.invoke('wallets:update', walletId, changes),
-  remove: (walletId: string) => ipcRenderer.invoke('wallets:remove', walletId),
-  listPolicies: (walletId?: string) => ipcRenderer.invoke('wallets:list-policies', walletId),
-  setPolicy: (policy: WalletPolicy) => ipcRenderer.invoke('wallets:set-policy', policy),
-  removePolicy: (policyId: string) => ipcRenderer.invoke('wallets:remove-policy', policyId),
-  listPermissions: () => ipcRenderer.invoke('wallets:list-permissions'),
-  revokePermission: (permissionId: string) => ipcRenderer.invoke('wallets:revoke-permission', permissionId),
-  listRequests: () => ipcRenderer.invoke('wallets:list-requests'),
-  approveRequest: (requestId: string) => ipcRenderer.invoke('wallets:approve-request', requestId),
-  rejectRequest: (requestId: string) => ipcRenderer.invoke('wallets:reject-request', requestId),
-  auditHistory: () => ipcRenderer.invoke('wallets:audit-history'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, wallets: WalletDescriptor[]): void => listener(wallets)
-    ipcRenderer.on('wallets:changed', handler)
-    return () => ipcRenderer.removeListener('wallets:changed', handler)
-  },
-  onStatusChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, status: WalletServiceStatus): void => listener(status)
-    ipcRenderer.on('wallets:status-changed', handler)
-    return () => ipcRenderer.removeListener('wallets:status-changed', handler)
-  },
-  onRequestsChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, requests: WalletRequestSummary[]): void => listener(requests)
-    ipcRenderer.on('wallets:requests-changed', handler)
-    return () => ipcRenderer.removeListener('wallets:requests-changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautWallets', walletsApi)
-const settingsApi: HronautSettingsApi = {
-  get: () => ipcRenderer.invoke('settings:get'),
-  getRendererState: () => ipcRenderer.invoke('settings:get-renderer-state'),
-  getSystemTheme: () => ipcRenderer.invoke('settings:get-system-theme'),
-  resetAppearance: () => ipcRenderer.invoke('settings:reset-appearance'),
-  resetGeneral: () => ipcRenderer.invoke('settings:reset-general'),
-  setTheme: (theme: ThemeName) => ipcRenderer.invoke('settings:set-theme', theme),
-  setInterfaceScale: (scale: InterfaceScale) => ipcRenderer.invoke('settings:set-interface-scale', scale),
-  setTabPosition: (position: TabPosition) => ipcRenderer.invoke('settings:set-tab-position', position),
-  setUseSystemTitleBar: (enabled: boolean) => ipcRenderer.invoke('settings:set-use-system-title-bar', enabled),
-  setSearchEngine: (searchEngine: SearchEngineName) => ipcRenderer.invoke('settings:set-search-engine', searchEngine),
-  setHideInTray: (enabled: boolean) => ipcRenderer.invoke('settings:set-hide-in-tray', enabled),
-  setLaunchAtStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-at-startup', enabled),
-  setLaunchMinimized: (enabled: boolean) => ipcRenderer.invoke('settings:set-launch-minimized', enabled),
-  setAttentionSound: (enabled: boolean) => ipcRenderer.invoke('settings:set-attention-sound', enabled),
-  setAttentionSoundCue: (cue: AttentionSoundCue) => ipcRenderer.invoke('settings:set-attention-sound-cue', cue),
-  setFollowAgentActivity: (enabled: boolean) => ipcRenderer.invoke('settings:set-follow-agent-activity', enabled),
-  setShowAgentCursor: (enabled: boolean) => ipcRenderer.invoke('settings:set-show-agent-cursor', enabled),
-  setPinAgentLiveStatus: (enabled: boolean) => ipcRenderer.invoke('settings:set-pin-agent-live-status', enabled),
-  setChallengeDetectionEnabled: (enabled) => ipcRenderer.invoke('settings:set-challenge-detection', enabled),
-  setOmitAgentUrlDetail: (enabled: boolean) => ipcRenderer.invoke('settings:set-omit-agent-url-detail', enabled),
-  setAllowWebsiteFileSaving: (enabled: boolean) => ipcRenderer.invoke('settings:set-allow-website-file-saving', enabled),
-  setMcpRemoteAccess: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-remote-access', enabled),
-  setMcpAuthentication: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-authentication', enabled),
-  setMcpPort: (port: number) => ipcRenderer.invoke('settings:set-mcp-port', port),
-  setMcpToolSet: (toolSet) => ipcRenderer.invoke('settings:set-mcp-tool-set', toolSet),
-  resetMcp: () => ipcRenderer.invoke('settings:reset-mcp'),
-  listMcpCapabilityProfiles: () => ipcRenderer.invoke('settings:list-mcp-capability-profiles'),
-  createMcpCapabilityProfile: (input: McpCapabilityProfileCreateInput) => ipcRenderer.invoke('settings:create-mcp-capability-profile', input),
-  updateMcpCapabilityProfile: (id: string, input: McpCapabilityProfileCreateInput) => ipcRenderer.invoke('settings:update-mcp-capability-profile', id, input),
-  rotateMcpCapabilityProfile: (id: string) => ipcRenderer.invoke('settings:rotate-mcp-capability-profile', id),
-  revokeMcpCapabilityProfile: (id: string) => ipcRenderer.invoke('settings:revoke-mcp-capability-profile', id),
-  getDefaultDownloadDirectory: () => ipcRenderer.invoke('settings:get-default-download-directory'),
-  chooseDownloadDirectory: () => ipcRenderer.invoke('settings:choose-download-directory'),
-  setAskWhereToSaveDownloads: (enabled: boolean) => ipcRenderer.invoke('settings:set-ask-where-to-save-downloads', enabled),
-  resetDownloads: () => ipcRenderer.invoke('settings:reset-downloads'),
-  openDownloadDirectory: () => ipcRenderer.invoke('settings:open-download-directory'),
-  setMemorySaverEnabled: (enabled: boolean) => ipcRenderer.invoke('settings:set-memory-saver-enabled', enabled),
-  setMemorySaverTimeoutMinutes: (timeoutMinutes: MemorySaverTimeoutMinutes) =>
-    ipcRenderer.invoke('settings:set-memory-saver-timeout', timeoutMinutes),
-  resetMemorySaver: () => ipcRenderer.invoke('settings:reset-memory-saver'),
-  setCheckForUpdatesOnStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-check-on-startup', enabled),
-  setLanguagePreference: (preference: LanguagePreference) => ipcRenderer.invoke('settings:set-language-preference', preference),
-  onChanged: (listener: (settings: AppSettings) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings): void => listener(settings)
-    ipcRenderer.on('settings:changed', handler)
-    return () => ipcRenderer.removeListener('settings:changed', handler)
-  },
-  onSystemThemeChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark'): void => listener(theme)
-    ipcRenderer.on('settings:system-theme-changed', handler)
-    return () => ipcRenderer.removeListener('settings:system-theme-changed', handler)
-  },
-  onRendererStateChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: RendererSettingsState): void => listener(state)
-    ipcRenderer.on('settings:renderer-state-changed', handler)
-    return () => ipcRenderer.removeListener('settings:renderer-state-changed', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautSettings', settingsApi)
-const permissionsApi: HronautPermissionsApi = {
-  list: () => ipcRenderer.invoke('permissions:list'),
-  set: (origin: string, permission: string, decision: SitePermissionDecision, scope: SitePermissionScope) =>
-    ipcRenderer.invoke('permissions:set', origin, permission, decision, scope),
-  remove: (origin: string, permission: string, scope: SitePermissionScope) =>
-    ipcRenderer.invoke('permissions:remove', origin, permission, scope),
-  clear: () => ipcRenderer.invoke('permissions:clear'),
-  onChanged: (listener: (permissions: SitePermissionEntry[]) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, permissions: SitePermissionEntry[]): void => listener(permissions)
-    ipcRenderer.on('permissions:changed', handler)
-    return () => ipcRenderer.removeListener('permissions:changed', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautPermissions', permissionsApi)
-const credentialsApi: HronautCredentialsApi = {
-  status: () => ipcRenderer.invoke('credentials:status'),
-  list: () => ipcRenderer.invoke('credentials:list'),
-  importFromCsv: () => ipcRenderer.invoke('credentials:import-csv'),
-  fill: (tabId: string, credentialId: string) => ipcRenderer.invoke('credentials:fill', tabId, credentialId),
-  remove: (id: string) => ipcRenderer.invoke('credentials:remove', id),
-  clear: () => ipcRenderer.invoke('credentials:clear'),
-  onChanged: (listener: (credentials: CredentialSummary[]) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, credentials: CredentialSummary[]): void => listener(credentials)
-    ipcRenderer.on('credentials:changed', handler)
-    return () => ipcRenderer.removeListener('credentials:changed', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautCredentials', credentialsApi)
-const licenseApi: HronautLicenseApi = {
-  getState: () => ipcRenderer.invoke('license:get-state'),
-  activate: (licenseKey: string) => ipcRenderer.invoke('license:activate', licenseKey),
-  refresh: () => ipcRenderer.invoke('license:refresh'),
-  deactivate: () => ipcRenderer.invoke('license:deactivate'),
-  openPurchase: () => ipcRenderer.invoke('license:open-purchase'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: import('../shared/types.js').CommercialLicenseState): void => listener(state)
-    ipcRenderer.on('license:changed', handler)
-    return () => ipcRenderer.removeListener('license:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautLicense', licenseApi)
-const updatesApi: HronautUpdatesApi = {
-  getState: () => ipcRenderer.invoke('updates:get-state'),
-  getReleaseHistory: (page: number, bypassCache: boolean) =>
-    ipcRenderer.invoke('updates:get-release-history', page, bypassCache),
-  check: () => ipcRenderer.invoke('updates:check'),
-  download: () => ipcRenderer.invoke('updates:download'),
-  install: () => ipcRenderer.invoke('updates:install'),
-  onChanged: (listener: (state: AppUpdateState) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, state: AppUpdateState): void => listener(state)
-    ipcRenderer.on('updates:changed', handler)
-    return () => ipcRenderer.removeListener('updates:changed', handler)
-  },
-  onOpenRequested: (listener: () => void) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('updates:open', handler)
-    return () => ipcRenderer.removeListener('updates:open', handler)
-  }
-}
-
 contextBridge.exposeInMainWorld('hronautUpdates', updatesApi)
-const panelRequests = createPanelRequestBuffer()
-ipcRenderer.on('panel-window:show-panel', (_event, panel: DetachablePanelId) => panelRequests.receive(panel))
-const panelWindowApi: HronautPanelWindowApi = {
-  open: (panel: DetachablePanelId) => ipcRenderer.invoke('panel-window:open', panel),
-  close: () => ipcRenderer.invoke('panel-window:close'),
-  setActive: (panel: DetachablePanelId) => ipcRenderer.invoke('panel-window:set-active', panel),
-  redock: (panel: DetachablePanelId, dock: Exclude<PanelDock, 'window'>) =>
-    ipcRenderer.invoke('panel-window:redock', panel, dock),
-  onPanelRequested: panelRequests.subscribe,
-  onActivePanelChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, panel: DetachablePanelId): void => listener(panel)
-    ipcRenderer.on('panel-window:active-panel', handler)
-    return () => ipcRenderer.removeListener('panel-window:active-panel', handler)
-  },
-  onRedockRequested: (listener: (request: PanelRedockRequest) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: PanelRedockRequest): void => listener(request)
-    ipcRenderer.on('panel-window:redock-requested', handler)
-    return () => ipcRenderer.removeListener('panel-window:redock-requested', handler)
-  },
-  onClosed: (listener) => {
-    const handler = (): void => listener()
-    ipcRenderer.on('panel-window:closed', handler)
-    return () => ipcRenderer.removeListener('panel-window:closed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautPanelWindow', panelWindowApi)
-contextBridge.exposeInMainWorld('hronautAddressOverlay', {
-  show: (request: AddressSuggestionOverlayRequest) => ipcRenderer.send('address-overlay:show', request),
-  hide: () => ipcRenderer.send('address-overlay:hide'),
-  returnFocus: () => ipcRenderer.send('address-overlay:return-focus'),
-  onSelected: (listener: (selection: AddressSuggestionSelection) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, selection: AddressSuggestionSelection): void => listener(selection)
-    ipcRenderer.on('address-overlay:selected', handler)
-    return () => ipcRenderer.removeListener('address-overlay:selected', handler)
-  },
-  onDismissed: (listener: (sessionId: number) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, sessionId: number): void => listener(sessionId)
-    ipcRenderer.on('address-overlay:dismissed', handler)
-    return () => ipcRenderer.removeListener('address-overlay:dismissed', handler)
-  }
-})
-const desktopPlatform = process.platform === 'darwin' || process.platform === 'win32'
-  ? process.platform
-  : 'linux'
-const shellApi: HronautShellApi = {
-  windowChrome: {
-    platform: desktopPlatform,
-    mode: process.argv.includes('--hronaut-window-chrome=overlay') ? 'overlay' : 'system',
-    mainWindow: process.argv.includes('--hronaut-window-kind=main')
-  },
-  isWindowFocused: () => ipcRenderer.invoke('shell:is-window-focused'),
-  confirm: (message: string) => ipcRenderer.sendSync('shell:confirm', message) === true,
-  setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
-  setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
-    ipcRenderer.send('browser:content-insets', insets),
-  setBrowserContentOccluded: (occluded: boolean, request: number) => ipcRenderer.send('browser:content-occluded', occluded, request),
-  onOcclusionSnapshot: (listener: (snapshot: BrowserOcclusionSnapshot | null) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, snapshot: BrowserOcclusionSnapshot | null): void => listener(snapshot)
-    ipcRenderer.on('browser:occlusion-snapshot', handler)
-    return () => ipcRenderer.removeListener('browser:occlusion-snapshot', handler)
-  },
-  presentOcclusionSnapshot: (id: number) => ipcRenderer.send('browser:occlusion-snapshot-presented', id),
-  setWindowControlsScrim: (color: string | null) => ipcRenderer.send('shell:window-controls-scrim', color),
-  onOcclusionPagesHidden: (listener: (request: number) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: unknown): void => {
-      if (typeof request === 'number') listener(request)
-    }
-    ipcRenderer.on('browser:occlusion-pages-hidden', handler)
-    return () => ipcRenderer.removeListener('browser:occlusion-pages-hidden', handler)
-  },
-  showTooltip: (request: ShellTooltipRequest) => ipcRenderer.send('shell-tooltip:show', request),
-  hideTooltip: (id?: number) => ipcRenderer.send('shell-tooltip:hide', id),
-  setFollowAgentActivitySuspended: (suspended: boolean) =>
-    ipcRenderer.send('browser:follow-agent-activity-suspended', suspended),
-  onHelpRequested: (listener: (action: HelpMenuAction) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, action: HelpMenuAction): void => listener(action)
-    ipcRenderer.on('help:open', handler)
-    return () => ipcRenderer.removeListener('help:open', handler)
-  },
-  onClipboardFailed: (listener: (message: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, message: string): void => listener(message)
-    ipcRenderer.on('clipboard:failed', handler)
-    return () => ipcRenderer.removeListener('clipboard:failed', handler)
-  },
-  onActionFailed: (listener: (failure: BrowserActionFailure) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, failure: BrowserActionFailure): void => listener(failure)
-    ipcRenderer.on('browser:action-failed', handler)
-    return () => ipcRenderer.removeListener('browser:action-failed', handler)
-  }
-}
+contextBridge.exposeInMainWorld('hronautAddressOverlay', addressOverlayApi)
 contextBridge.exposeInMainWorld('hronautShell', shellApi)
-
-const splitDividerApi: HronautSplitDividerApi = {
-  get: () => ipcRenderer.invoke('split-divider:get'),
-  begin: (revision) => ipcRenderer.invoke('split-divider:begin', revision),
-  update: (token, ratio) => ipcRenderer.invoke('split-divider:update', token, ratio),
-  finish: (token, commit, ratio) => ipcRenderer.invoke('split-divider:finish', token, commit, ratio),
-  setRatio: (revision, ratio) => ipcRenderer.invoke('split-divider:set-ratio', revision, ratio),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, geometry: SplitDividerGeometry | null): void => listener(geometry)
-    ipcRenderer.on('split-divider:changed', handler)
-    return () => ipcRenderer.removeListener('split-divider:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautSplitDivider', splitDividerApi)
-
-const emulationFrameApi: HronautEmulationFrameApi = {
-  get: () => ipcRenderer.invoke('emulation-frame:get'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, frames: EmulationFrameGeometry[]): void => listener(frames)
-    ipcRenderer.on('emulation-frame:changed', handler)
-    return () => ipcRenderer.removeListener('emulation-frame:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautEmulationFrame', emulationFrameApi)
-
-const pageCardApi: HronautPageCardApi = {
-  get: () => ipcRenderer.invoke('page-card:get'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, cards: PageCardGeometry[]): void => listener(cards)
-    ipcRenderer.on('page-card:changed', handler)
-    return () => ipcRenderer.removeListener('page-card:changed', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautPageCard', pageCardApi)
-
-const agentPresenceApi: HronautAgentPresenceApi = {
-  get: () => ipcRenderer.invoke('agent-presence:get'),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, snapshot: AgentPresenceSnapshot): void => listener(snapshot)
-    ipcRenderer.on('agent-presence:changed', handler)
-    return () => ipcRenderer.removeListener('agent-presence:changed', handler)
-  },
-  onTakeOverOffer: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, offer: AgentTakeOverOffer): void => listener(offer)
-    ipcRenderer.on('agent-presence:take-over-offer', handler)
-    return () => ipcRenderer.removeListener('agent-presence:take-over-offer', handler)
-  },
-  steps: (request) => ipcRenderer.invoke('agent-presence:steps', request)
-}
 contextBridge.exposeInMainWorld('hronautAgentPresence', agentPresenceApi)
-
-const agentCardApi: HronautAgentCardApi = {
-  show: (request) => ipcRenderer.send('agent-card:show', request),
-  hide: (cardId) => ipcRenderer.send('agent-card:hide', cardId),
-  onEvent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, event: AgentCardEvent): void => listener(event)
-    ipcRenderer.on('agent-card:event', handler)
-    return () => ipcRenderer.removeListener('agent-card:event', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautAgentCard', agentCardApi)
-
-// Hronaut's own dialogs, such as a website's permission request; main checks that this shell document answers.
-const trustedDialogsApi: HronautTrustedDialogsApi = {
-  ready: () => ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.ready),
-  respond: (id, response) => ipcRenderer.send(TRUSTED_DIALOG_CHANNELS.respond, id, response),
-  onChanged: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, request: TrustedDialogRequest | null): void => listener(request)
-    ipcRenderer.on(TRUSTED_DIALOG_CHANNELS.changed, handler)
-    return () => ipcRenderer.removeListener(TRUSTED_DIALOG_CHANNELS.changed, handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautTrustedDialogs', trustedDialogsApi)
-
-const toastOverlayApi: HronautToastOverlayApi = {
-  show: (request) => ipcRenderer.send('toast-overlay:show', request),
-  onEvent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, event: ToastOverlayEvent): void => listener(event)
-    ipcRenderer.on('toast-overlay:event', handler)
-    return () => ipcRenderer.removeListener('toast-overlay:event', handler)
-  }
-}
 contextBridge.exposeInMainWorld('hronautToastOverlay', toastOverlayApi)
 
-const sidebarOverlayApi: HronautSidebarOverlayApi = {
-  show: (request) => ipcRenderer.send('sidebar-overlay:show', request),
-  hide: (id) => ipcRenderer.send('sidebar-overlay:hide', id),
-  onEvent: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, event: SidebarOverlayEvent): void => listener(event)
-    ipcRenderer.on('sidebar-overlay:event', handler)
-    return () => ipcRenderer.removeListener('sidebar-overlay:event', handler)
-  }
-}
 // Only the main window's shell opens its tab rail over the page; a detached panel's window has no rail.
 if (process.argv.includes('--hronaut-window-kind=main')) contextBridge.exposeInMainWorld('hronautSidebarOverlay', sidebarOverlayApi)

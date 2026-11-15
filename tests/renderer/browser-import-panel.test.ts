@@ -8,10 +8,11 @@ const state = { tabs: [], mcpTabGroups: [], savedTabGroups: [{ id: 'chosen', nam
 function setup(current = state, profiles: BrowserImportProfile[] = [{ id: 'source', browser: 'Chrome', name: 'Work' }]) {
   const browserImport = { list: vi.fn(async () => ({ ok: true, value: profiles })), preview: vi.fn(async () => ({ ok: true, value: { id: 'preview', expiresAt: Date.now() + 10000, skipped: 3, sites: [{ domain: 'first.test', count: 2, includesSubdomains: true }, { domain: 'second.test', count: 1, includesSubdomains: false }] } })), cancel: vi.fn(async () => {}), commit: vi.fn<BrowserImportApi['commit']>(async () => ({ ok: true, value: { imported: 3, skipped: 0, failed: 0, recoveryRequired: false } })) }
   const archive = vi.fn(async () => current)
-  const browser = { browserImport, getState: vi.fn(async () => current), saveAndCloseTabGroup: archive, restoreSavedTabGroup: vi.fn(async () => current) } as unknown as HronautApi
+  const copyText = vi.fn<(text: string) => Promise<void>>(async () => {})
+  const browser = { browserImport, copyText, getState: vi.fn(async () => current), saveAndCloseTabGroup: archive, restoreSavedTabGroup: vi.fn(async () => current) } as unknown as HronautApi
   const wrapper = mount(BrowserImportPanel, { props: { workspaceId: 'chosen', state: current, browser, syncState: async value => { await value } }, global: { plugins: [createHronautI18n('en-US')] } })
   const button = (text: string) => wrapper.findAll('button').find(b => b.text() === text)!
-  return { wrapper, browserImport, button, archive }
+  return { wrapper, browserImport, button, archive, copyText }
 }
 describe('browser import picker', () => {
   it('keeps the destination visible and does not read cookies until Continue', async () => {
@@ -225,5 +226,98 @@ describe('browser import picker', () => {
     finish({ ok: false, error: 'expired' } as never); await flushPromises()
     expect(browserImport.list).toHaveBeenCalledTimes(1)
     if (ending === 'Cancel') wrapper.unmount()
+  })
+})
+describe('browser key fix steps', () => {
+  const commands = (wrapper: ReturnType<typeof setup>['wrapper']) => wrapper.findAll('.browser-import-commands li').map(row => [row.get('span').text(), row.get('code').text()])
+  it('says how to install secret-tool, copies its command and goes away when Continue works', async () => {
+    const { wrapper, browserImport, button, copyText } = setup()
+    try {
+      await flushPromises()
+      browserImport.preview.mockResolvedValueOnce({ ok: false, error: 'secretToolMissing' } as never)
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(wrapper.get('[role=alert]').text()).toBe('Reading the browser’s key needs secret-tool, which is not installed on this computer.')
+      const fix = wrapper.get('[data-testid=browser-import-fix]')
+      expect(fix.get('h4').text()).toBe('How to fix it')
+      expect(fix.findAll('ol > li').map(step => step.element.firstChild?.textContent?.trim())).toEqual([
+        'Install secret-tool. Open a terminal and run the command for your system:',
+        'Click Continue again. If your system asks for the keyring or wallet password, enter it.'
+      ])
+      expect(commands(wrapper)).toEqual([
+        ['Ubuntu, Debian', 'sudo apt install libsecret-tools'],
+        ['Fedora', 'sudo dnf install libsecret'],
+        ['Arch', 'sudo pacman -S libsecret']
+      ])
+      const copy = fix.findAll('button').find(b => b.attributes('aria-describedby') === fix.findAll('code')[1].attributes('id'))!
+      expect(copy.text()).toBe('Copy')
+      await copy.trigger('click'); await flushPromises()
+      expect(copyText).toHaveBeenCalledExactlyOnceWith('sudo dnf install libsecret')
+      expect(copy.text()).toBe('Copied')
+      expect(fix.findAll('button').filter(b => b.text() === 'Copied')).toHaveLength(1)
+
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(wrapper.find('[data-testid=browser-import-fix]').exists()).toBe(false)
+      expect(wrapper.find('[role=alert]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('0 of 2 sites selected')
+    } finally { wrapper.unmount() }
+  })
+  it('lists the packages that ship kwallet-query', async () => {
+    const { wrapper, browserImport, button } = setup()
+    try {
+      await flushPromises()
+      browserImport.preview.mockResolvedValueOnce({ ok: false, error: 'kwalletQueryMissing' } as never)
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(wrapper.get('[data-testid=browser-import-fix]').text()).toContain('Install kwallet-query.')
+      expect(commands(wrapper)).toEqual([
+        ['Ubuntu 25.04+, Debian 13+', 'sudo apt install kwallet6'],
+        ['Ubuntu 24.04, Debian 12', 'sudo apt install libkf5wallet-bin'],
+        ['Fedora', 'sudo dnf install kf6-kwallet'],
+        ['Arch', 'sudo pacman -S kwallet']
+      ])
+    } finally { wrapper.unmount() }
+  })
+  it('says how to unlock the keyring or wallet when the key could not be read', async () => {
+    const { wrapper, browserImport, button } = setup()
+    try {
+      await flushPromises()
+      browserImport.preview.mockResolvedValueOnce({ ok: false, error: 'keyUnavailable' } as never)
+      await button('Continue').trigger('click'); await flushPromises()
+      const steps = wrapper.findAll('[data-testid=browser-import-fix] ol > li').map(step => step.text())
+      expect(steps).toEqual([
+        'Unlock the keyring or wallet. On GNOME, open Passwords and Keys, right-click the Login keyring and choose Unlock. On KDE, open KDE Wallet Manager and open your wallet.',
+        'Click Continue again. If your system asks for the keyring or wallet password, enter it.'
+      ])
+      expect(wrapper.find('.browser-import-commands').exists()).toBe(false)
+    } finally { wrapper.unmount() }
+  })
+  it('says when a command could not be copied, and a copy that ends after Continue changes nothing', async () => {
+    const { wrapper, browserImport, button, copyText } = setup()
+    try {
+      await flushPromises()
+      browserImport.preview.mockResolvedValue({ ok: false, error: 'secretToolMissing' } as never)
+      await button('Continue').trigger('click'); await flushPromises()
+      copyText.mockRejectedValueOnce(new Error('clipboard unavailable'))
+      await wrapper.get('.browser-import-commands button').trigger('click'); await flushPromises()
+      expect(wrapper.get('[data-testid=browser-import-fix] [role=alert]').text()).toBe('The command could not be copied. Select it and copy it yourself.')
+      expect(wrapper.text()).not.toContain('clipboard unavailable')
+
+      let finish!: () => void
+      copyText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+      await wrapper.get('.browser-import-commands button').trigger('click')
+      expect(wrapper.find('[data-testid=browser-import-fix] [role=alert]').exists()).toBe(false)
+      await button('Continue').trigger('click'); await flushPromises()
+      finish(); await flushPromises()
+      expect(wrapper.findAll('.browser-import-commands button').map(b => b.text())).toEqual(['Copy', 'Copy', 'Copy'])
+    } finally { wrapper.unmount() }
+  })
+  it('shows no fix steps for other failures', async () => {
+    const { wrapper, browserImport, button } = setup()
+    try {
+      await flushPromises()
+      browserImport.preview.mockResolvedValueOnce({ ok: false, error: 'readFailed' } as never)
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(wrapper.get('[role=alert]').text()).toBe('The profile could not be read. Close the source browser and try again.')
+      expect(wrapper.find('[data-testid=browser-import-fix]').exists()).toBe(false)
+    } finally { wrapper.unmount() }
   })
 })

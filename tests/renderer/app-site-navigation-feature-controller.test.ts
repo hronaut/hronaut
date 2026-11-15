@@ -1,5 +1,5 @@
 import { render } from '@testing-library/vue'
-import { computed, defineComponent, ref } from 'vue'
+import { computed, defineComponent, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useAppSiteNavigationFeatureController } from '../../src/renderer/src/composables/useAppSiteNavigationFeatureController.js'
 import type { BrowserState, BrowserTabState, BrowsingDataSiteSummary } from '../../src/shared/types.js'
@@ -56,15 +56,18 @@ function createHarness() {
   const downloadsOpen = ref(true)
   const bookmarksOpen = ref(true)
   const historyOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const zoomOpen = ref(true)
   const findOpen = ref(true)
+  const findFocused = ref(false)
   const browser = {
     closeTab: vi.fn(async () => browserState.value),
+    focusActivePage: vi.fn(async () => undefined),
     navigate: vi.fn(async () => browserState.value),
     newTab: vi.fn(async () => browserState.value),
     reload: vi.fn(async () => browserState.value),
+    proceedPastCertificateError: vi.fn(async () => browserState.value),
     reorderTab: vi.fn(async () => browserState.value),
+    reorderTabs: vi.fn(async () => browserState.value),
     selectTab: vi.fn(async () => browserState.value),
     setAllTabsMuted: vi.fn(async () => browserState.value),
     setAllHumanInteractionLocked: vi.fn(async () => browserState.value),
@@ -73,7 +76,8 @@ function createHarness() {
     setTabPageLifecycle: vi.fn(async () => browserState.value),
     setTabMuted: vi.fn(async () => browserState.value),
     showWorkspaceContextMenu: vi.fn(async () => undefined),
-    toggleDevTools: vi.fn(async () => true)
+    toggleDevTools: vi.fn(async () => true),
+    showDevToolsConsole: vi.fn(async () => true)
   }
   const siteSummary: BrowsingDataSiteSummary = {
     origin: 'https://example.test',
@@ -82,8 +86,9 @@ function createHarness() {
     historyVisits: 5
   }
   const loadSiteSummary = vi.fn(async () => siteSummary)
+  const clearSiteData = vi.fn(async () => siteSummary)
   const closeFind = vi.fn(async () => { findOpen.value = false })
-  const onNavigateError = vi.fn()
+  const showToast = vi.fn()
   const setFollowAgentActivitySuspended = vi.fn()
   let controller!: ReturnType<typeof useAppSiteNavigationFeatureController>
   const view = render(defineComponent({
@@ -93,7 +98,6 @@ function createHarness() {
         activeTab: computed(() => browserState.value.tabs[0]),
         browser,
         syncState: async (operation) => { browserState.value = await operation },
-        isHome: () => false,
         collections: {
           bookmarks: ref([]),
           history: ref([]),
@@ -107,9 +111,9 @@ function createHarness() {
           settingsOpen,
           settingsSection: ref('appearance'),
           updateNoticeOpen,
-          tabSearchOpen,
           zoomOpen,
-          findOpen
+          findOpen,
+          findFocused
         },
         site: {
           keepsSeparatePanelOpen: () => false,
@@ -118,6 +122,7 @@ function createHarness() {
           settingsEntryBlocked: () => false
         },
         address: {
+          siteSearches: () => [],
           theme: () => 'dark',
           locale: () => 'en-US',
           translate: (key) => key,
@@ -131,11 +136,12 @@ function createHarness() {
           closeTransientPanels: vi.fn(),
           closeHelp: vi.fn(),
           closeFind,
+          returnFindFocus: vi.fn(() => false),
           openSettingsSection: vi.fn(),
           loadSiteSummary,
+          clearSiteData,
           onActionError: vi.fn(),
-          onSelectError: vi.fn(),
-          onNavigateError
+          showToast
         }
       })
       return {}
@@ -145,18 +151,19 @@ function createHarness() {
   return {
     controller,
     view,
+    browserState,
     browser,
     settingsOpen,
     updateNoticeOpen,
     downloadsOpen,
     bookmarksOpen,
     historyOpen,
-    tabSearchOpen,
     zoomOpen,
     findOpen,
+    findFocused,
     closeFind,
     loadSiteSummary,
-    onNavigateError,
+    showToast,
     setFollowAgentActivitySuspended
   }
 }
@@ -175,7 +182,6 @@ describe('app site navigation feature controller', () => {
     expect(harness.downloadsOpen.value).toBe(false)
     expect(harness.bookmarksOpen.value).toBe(false)
     expect(harness.historyOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.zoomOpen.value).toBe(false)
     expect(harness.closeFind).toHaveBeenCalledOnce()
     expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(true)
@@ -185,6 +191,30 @@ describe('app site navigation feature controller', () => {
     })
     harness.view.unmount()
     expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+  })
+
+  // Following the agents' activity showed another tab while the person read the matches of Find, which closed Find.
+  it('holds following the agents while the keyboard is in Find, as in the address bar', async () => {
+    const harness = createHarness()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+    harness.findFocused.value = true
+    await nextTick()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(true)
+    harness.findFocused.value = false
+    await nextTick()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
+    harness.findFocused.value = true
+    await nextTick()
+
+    // The keyboard going from Find to the address bar leaves one and enters the other in the same turn, and following
+    // must not resume in between: it could show another tab under the address the person is about to type.
+    harness.setFollowAgentActivitySuspended.mockClear()
+    harness.findFocused.value = false
+    harness.controller.addressBarController.handleFocus()
+    await nextTick()
+    expect(harness.setFollowAgentActivitySuspended).not.toHaveBeenCalled()
+    harness.view.unmount()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenCalledExactlyOnceWith(false)
   })
 
   it('disposes tab actions so late navigation failures cannot escape app teardown', async () => {
@@ -197,7 +227,33 @@ describe('app site navigation feature controller', () => {
     pending.reject(new Error('late navigation failure'))
     await navigation
 
-    expect(harness.onNavigateError).not.toHaveBeenCalled()
+    expect(harness.showToast).not.toHaveBeenCalled()
+  })
+
+  it('locks a website tab\'s input, and leaves Home alone', async () => {
+    const harness = createHarness()
+    harness.browserState.value = { ...state(), tabs: [{ ...tab(), url: 'hronaut://home/' }] }
+
+    await harness.controller.browserTabActionsController.toggleTabHumanInteraction()
+    expect(harness.browser.setTabHumanInteractionLocked).not.toHaveBeenCalled()
+
+    harness.browserState.value = state()
+    await harness.controller.browserTabActionsController.toggleTabHumanInteraction()
+    expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledExactlyOnceWith('active', true)
+    harness.view.unmount()
+  })
+
+  it('says when an address or a tab could not be opened', async () => {
+    const harness = createHarness()
+    harness.browser.navigate.mockRejectedValueOnce(new Error(''))
+    await harness.controller.browserTabActionsController.navigateAddress('https://refused.test/')
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.navigation.failed', 'runtime.navigation.failedDescription')
+
+    harness.browser.selectTab.mockRejectedValueOnce(new Error(''))
+    await expect(harness.controller.browserTabActionsController.selectBrowserTab('active')).resolves.toBe(false)
+    expect(harness.showToast).toHaveBeenLastCalledWith('error', 'runtime.workspace.openFailed', 'runtime.workspace.openDescription')
+    expect(harness.showToast).toHaveBeenCalledTimes(2)
+    harness.view.unmount()
   })
 
   it('invalidates a pending site summary when the app is torn down', async () => {

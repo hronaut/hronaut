@@ -61,6 +61,16 @@ test('closing a new tab right away shows the tab the person was on, as in Chrome
     await expect.poll(order).toEqual(['/one', '/two', '/three', '/typed*'])
     await close(typed)
     await expect.poll(order).toEqual(['/one', '/two*', '/three'])
+
+    // A second address typed into it starts another task, so it closes as any tab does, as in Chrome, not back to /two.
+    const again = await newTab()
+    const go = (path: string) => appWindow.evaluate(`window.hronaut.navigate({ url: ${JSON.stringify(origin + path)}, tabId: ${JSON.stringify(again)} })`)
+    await go('/first-look')
+    await expect.poll(order).toEqual(['/one', '/two', '/three', '/first-look*'])
+    await go('/second-look')
+    await expect.poll(order).toEqual(['/one', '/two', '/three', '/second-look*'])
+    await close(again)
+    await expect.poll(order).toEqual(['/one', '/two', '/three*'])
   } finally {
     await closeFixtureServer(server)
   }

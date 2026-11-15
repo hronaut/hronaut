@@ -3,12 +3,18 @@ import { statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import { FRESH_CONSENT_PERMISSIONS, normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
+import {
+  ALLOWED_WITHOUT_ASKING_PERMISSIONS, FRESH_CONSENT_PERMISSIONS, mediaDevicePermission, normalizeSitePermissionOrigin, SitePermissionStore,
+  TOP_LEVEL_ONLY_PERMISSIONS
+} from './site-data/site-permission-store.js'
+import { createPermissionDismissals } from './site-data/permission-dismissals.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { sitePermissionName } from '../shared/site-permission-names.js'
-import type { SitePermissionDecision } from '../shared/types.js'
+import type { AppSettings, SitePermissionDecision } from '../shared/types.js'
 import type { SitePermissionDialogVariant } from '../shared/trusted-dialogs.js'
 import type { TrustedDialogOptions } from './trusted-dialogs/trusted-dialogs.js'
+import type { EventSender } from '../shared/ipc/channel.js'
+import { PERMISSIONS_IPC } from '../shared/ipc/permissions.js'
 
 /**
  * The profile's persistent browser session and the site permissions the person chose, created once by index.ts and
@@ -29,18 +35,22 @@ interface BrowserSessionHost {
   effectiveDownloadDirectory(): string
   /**
    * Asks the person in Hronaut's own dialog over the main window's pages, where every tab is shown, or in the system
-   * dialog while that window cannot show it; resolves with the chosen button as `dialog.showMessageBox` does.
+   * dialog while that window cannot show it; resolves with the chosen button as `dialog.showMessageBox` does,
+   * `unanswered` when it closed with its cancel answer because nobody could answer it, as when Hronaut quits meanwhile,
+   * and `dismissed` when the person closed it with Escape or its close button.
    */
-  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number }>
+  showDialog(options: Omit<TrustedDialogOptions, 'window'>): Promise<{ response: number, unanswered?: true, dismissed?: true }>
   /** The open and archived workspaces, read when a permission prompt names the one it asks in. */
   workspaces(): ReadonlyArray<{ id: string, name: string }>
   /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
   state: BrowserSessionState
-  sendToShellWindows(channel: string, ...args: unknown[]): void
+  sendToShellWindows: EventSender
   /** The partition of the profile's persistent browser session. */
   partition: string
-  /** Whether the person turned on letting websites save to any single file they hold; read on every check. */
-  websitesMaySaveFiles(): boolean
+  /** Whether websites may save to any single file they hold, and what the person blocked for every website; read on every use. */
+  settings(): Pick<AppSettings, 'allowWebsiteFileSaving' | 'sitePermissionsBlockedByDefault'>
+  /** Has the session check spelling as the spell check setting says, now and after every change. */
+  trackSpellCheck(browserSession: Session): void
 }
 
 /**
@@ -120,8 +130,8 @@ function namedEmbeddingSite(embeddingOrigin: string | undefined, origin: string)
  * A prompt waiting or showing gives its answer to every identical request from the same frame's document. A Deny for a
  * permission Hronaut never remembers holds for the page's document: the same request from any of its frames that runs
  * as the same website, including a frame that loads again or a new one, is refused without asking until the main frame
- * loads another document. An Allow for one also holds for that document, but only for what Chromium checks: the page's
- * camera and microphone devices, and writing a file or folder the website holds. Every request still asks.
+ * loads another document. An Allow for one also holds for that document, but only for what Chromium checks: writing a
+ * file or folder the website holds. Every request still asks.
  */
 interface PagePermissionRequests {
   /** The number of the main frame's document; every Deny holds until it is renewed. */
@@ -134,6 +144,17 @@ interface PagePermissionRequests {
   denied: Set<string>
   /** What the person allowed for the page's document, by page document, website, permission and scope. */
   allowed: Set<string>
+  /**
+   * The prompts the person closed without an answer for the page's document, by the same key, with when: the requests
+   * that waited meanwhile are refused too, as several frames asking at once are, but a later one asks again.
+   */
+  dismissed: Map<string, number>
+  /**
+   * Whether the page asked to open a link in another app since the person last clicked, pressed a key or touched it,
+   * in any of its frames. As in Chrome, a page then asks no more until they do, so it cannot ask over and over, a new
+   * scheme each time.
+   */
+  appLinkAsked: boolean
 }
 
 /** How long after a website's Save dialog empties the file the person picked Hronaut still takes it for that file. */
@@ -158,7 +179,7 @@ function emptiedBySaveDialogAt(path: string, now: number): number | undefined {
   }
 }
 
-/** The key a Deny or an Allow for a permission Hronaut never remembers holds under for the page's document. */
+/** The key a Deny, an Allow or a closed prompt holds under for the page's document. */
 function permissionHold(page: PagePermissionRequests, origin: string, permission: string, scope: string): string {
   return [page.pageDocument, origin, permission, scope].join('\u0000')
 }
@@ -168,10 +189,13 @@ function permissionHold(page: PagePermissionRequests, origin: string, permission
  * person allowed for the site, and a permission prompt that asks one request at a time, shows identical requests one
  * prompt and refuses a request whose frame loaded another document meanwhile. A decision belongs to the workspace whose
  * session the page runs in and, for a website embedded in a page of another website, to that page's website, as
- * `SitePermissionStore.decisionFor` looks it up; a session no workspace claimed gets no permission. Camera, microphone,
- * file system access and every link to another app always ask again, unless the person denied the same request for the
- * same page document, and a check finds them allowed only as `freshConsentAllows` says. Screen sharing is refused
- * without asking. Home never gets a permission.
+ * `SitePermissionStore.effectiveDecisionFor` looks it up, falling back to a Block the person chose for every website; a
+ * session no workspace claimed gets no permission. As in Chrome, full screen is every page's, what Chrome gives every
+ * website is allowed without asking unless blocked, and the camera and the microphone each have their own decision.
+ * File system access and every link to another app always ask again, unless the person denied the same request for
+ * the same page document, and a check finds them allowed only as
+ * `freshConsentAllows` says. Screen sharing, storage access for a whole page, and notifications for a website embedded in
+ * another's page, are refused without asking. Home never gets a permission.
  * `configurePersistentSession` opens the remembered site permissions and the profile's own session,
  * `publishSitePermissions` tells both shell windows the remembered permissions, `forgetWorkspaceSitePermissions` forgets
  * the decisions of a workspace that is gone for good, `forgetRemovedWorkspacesSitePermissions` those of every workspace
@@ -198,7 +222,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
    * website asked to write that same empty file; and `held` for any other file, such as one you opened in the website.
    */
   const fileUses = new WeakMap<Session, Map<string, number | 'saved' | 'held'>>()
+  /** The prompts the person closed without an answer, which refuse a website without asking after three. */
+  const dismissals = createPermissionDismissals()
   let documentCount = 0
+  /** Orders the requests and the prompts closed without an answer. */
+  let promptSequence = 0
 
   function queuePermissionRequest(operation: () => Promise<void>): void {
     const pending = permissionRequestQueue.then(operation)
@@ -209,8 +237,22 @@ export function createBrowserSession(host: BrowserSessionHost): {
   function permissionRequestsOf(webContents: WebContents): PagePermissionRequests {
     const known = pagePermissionRequests.get(webContents)
     if (known) return known
-    const page: PagePermissionRequests = { pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set() }
+    const page: PagePermissionRequests = {
+      pageDocument: ++documentCount, frameDocuments: new Map(), prompts: new Map(), denied: new Set(), allowed: new Set(), dismissed: new Map(),
+      appLinkAsked: false
+    }
     pagePermissionRequests.set(webContents, page)
+    // Electron reports a click or key in any of the page's frames before the page gets it, and a touch only on the page
+    // itself, which is enough for a computer without a touch screen.
+    webContents.on('before-mouse-event', (_event, mouse) => {
+      if (mouse.type === 'mouseDown') page.appLinkAsked = false
+    })
+    webContents.on('before-input-event', (_event, input) => {
+      if (input.type === 'keyDown') page.appLinkAsked = false
+    })
+    webContents.on('input-event', (_event, input) => {
+      if (input.type === 'touchStart') page.appLinkAsked = false
+    })
     webContents.on('did-frame-navigate', (_event, _url, _httpResponseCode, _httpStatusText, isMainFrame, frameProcessId, frameRoutingId) => {
       if (webContents.isDestroyed()) return
       const mainFrame = webContents.mainFrame
@@ -223,6 +265,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         page.frameDocuments.clear()
         page.denied.clear()
         page.allowed.clear()
+        page.dismissed.clear()
         return
       }
       // Electron also reports the main frame of a page that is not the one shown, such as one loading in the background.
@@ -243,26 +286,19 @@ export function createBrowserSession(host: BrowserSessionHost): {
 
   /**
    * Whether a check for a permission Hronaut never remembers finds it allowed. Chromium asks the check, not what the
-   * request answered, whether a page may still use what the person gave it: a page that got its camera or microphone
-   * learns the devices' names and that access is allowed while it keeps its document. A file or folder the website
-   * holds can be read, since only the person's pick or drop, or an Allow, hands one to it, and that includes a handle the
-   * website stored and restores after a restart, unless the person denied reading it on a page of the website that keeps
-   * that document; it can be written only while a page of the website keeps the document the person allowed writing it
-   * for, and a single file also with the person's switch on, or as the file its Save dialog emptied, as below. A link to
+   * request answered, whether a page may still use what the person gave it. A file or folder the website holds can be
+   * read, since only the person's pick or drop, or an Allow, hands one to it, and that includes a handle the website
+   * stored and restores after a restart, unless the person denied reading it on a page of the website that keeps that
+   * document; it can be written only while a page of the website keeps the document the person allowed writing it for,
+   * and a single file also with the person's switch on, or as the file its Save dialog emptied, as below. A link to
    * another app is never allowed by a check.
    */
   function freshConsentAllows(
     browserSession: Session,
-    webContents: WebContents | null,
     origin: string,
     permission: string,
     details: Electron.PermissionCheckHandlerHandlerDetails
   ): boolean {
-    if (permission === 'media') {
-      const page = webContents ? pagePermissionRequests.get(webContents) : undefined
-      const { mediaType } = details
-      return Boolean(page && (mediaType === 'video' || mediaType === 'audio') && page.allowed.has(permissionHold(page, origin, permission, mediaType)))
-    }
     if (permission !== 'fileSystem' || !('fileAccessType' in details) || !('filePath' in details)) return false
     const access = details.fileAccessType
     if (access !== 'readable' && access !== 'writable') return false
@@ -290,7 +326,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
     // its first save replaces the file only when it is done. Any other file can be written only while it is empty, as
     // one that another program saves in place is for a moment, before it holds the person's text again.
     if (!singleFile) return false
-    if (host.websitesMaySaveFiles()) return true
+    if (host.settings().allowWebsiteFileSaving) return true
     const use = uses.get(fileUse)
     if (use === 'saved') return true
     const emptiedAt = emptiedBySaveDialogAt(filePath, Date.now())
@@ -300,9 +336,9 @@ export function createBrowserSession(host: BrowserSessionHost): {
   }
 
   /**
-   * Gives a browser session its download folder and permission handlers once. A tab's session also names the workspace
-   * it belongs to, the one whose decisions its pages get; each workspace has its own session, so a session that two
-   * workspaces claim gets no permission at all.
+   * Gives a browser session its download folder, spell checking and permission handlers once. A tab's session also
+   * names the workspace it belongs to, the one whose decisions its pages get; each workspace has its own session, so a
+   * session that two workspaces claim gets no permission at all.
    */
   function configureBrowserSession(browserSession: Session, workspaceId?: string): void {
     if (workspaceId !== undefined) {
@@ -315,6 +351,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
     browserSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
       const workspaceId = sessionWorkspaces.get(browserSession)
       if (!workspaceId) return false
+      // Full screen is every page's, as in Chrome.
+      if (permission === 'fullscreen') return true
       // Electron gives the checking document's real origin, so an about:blank, about:srcdoc or blob: document resolves
       // to the same website here as its requests do.
       const documentOrigin = requestingOrigin || details.securityOrigin || ''
@@ -326,9 +364,17 @@ export function createBrowserSession(host: BrowserSessionHost): {
       const embeddedIn = webContents
         ? embeddingSiteOf(webContents, origin, details.isMainFrame)
         : namedEmbeddingSite(details.embeddingOrigin, origin)
-      if (embeddedIn === null) return false
-      if (FRESH_CONSENT_PERMISSIONS.has(permission)) return freshConsentAllows(browserSession, webContents, origin, permission, details)
-      return host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn) === 'allow'
+      // Screen capture and storage access for a whole page are never asked for, so they are never allowed.
+      if (embeddedIn === null || permission === 'display-capture' || permission === 'top-level-storage-access') return false
+      if (FRESH_CONSENT_PERMISSIONS.has(permission)) return freshConsentAllows(browserSession, origin, permission, details)
+      const decisionFor = (name: string) => host.state.sitePermissionStore?.effectiveDecisionFor(origin, name, workspaceId, embeddedIn)
+      if (ALLOWED_WITHOUT_ASKING_PERMISSIONS.has(permission)) return decisionFor(permission) !== 'deny'
+      // Chromium checks the camera and the microphone one at a time, each against its own decision.
+      if (permission === 'media') {
+        const device = mediaDevicePermission(details.mediaType)
+        return device !== null && decisionFor(device) === 'allow'
+      }
+      return decisionFor(permission) === 'allow'
     })
     browserSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
       let responded = false
@@ -350,6 +396,12 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(false)
         return
       }
+      // Full screen is every page's, as in Chrome. Chromium has already told the page it was granted, so a refusal would
+      // leave every later request of that document waiting.
+      if (permission === 'fullscreen') {
+        respond(true)
+        return
+      }
       // Electron names a requesting frame only by the address it shows, which several frames can share, such as two
       // about:blank frames. Their website is known when they all run as one origin; a prompt also needs the one frame.
       const mainFrame = webContents.mainFrame
@@ -369,11 +421,13 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       const decisionScope = { workspaceId, ...(embeddedIn ? { embeddedIn } : {}) }
-      // A camera or microphone request lists its devices. One that lists neither asks to capture the screen, a window
-      // or a tab, through getDisplayMedia or getUserMedia's chromeMediaSource, and the prompt could only call it
-      // "Camera and microphone": an allowed desktop source shared the whole screen. Refuse it without asking.
+      // Capturing the screen, a window or a tab, through getDisplayMedia or getUserMedia's chromeMediaSource, asks for
+      // display-capture, and an allowed desktop source shares the whole screen. Refuse it without asking, and storage
+      // access for a whole page, which Chrome gives only to related websites and never asks for. A camera or microphone
+      // request lists its devices; one that lists neither has nothing to ask about.
       const mediaTypes = permission === 'media' && 'mediaTypes' in details ? details.mediaTypes ?? [] : []
-      if (permission === 'media' && mediaTypes.length === 0) {
+      const devices = [...new Set(mediaTypes.flatMap((type) => mediaDevicePermission(type) ?? []))]
+      if (permission === 'display-capture' || permission === 'top-level-storage-access' || (permission === 'media' && devices.length === 0)) {
         respond(false)
         return
       }
@@ -390,12 +444,35 @@ export function createBrowserSession(host: BrowserSessionHost): {
         respond(false)
         return
       }
+      // A website embedded in another's page may not ask to show notifications, as in Chrome: an ad or a widget could ask
+      // on every page that embeds it.
+      if (embeddedIn && TOP_LEVEL_ONLY_PERMISSIONS.has(permission)) {
+        respond(false)
+        return
+      }
+      if (ALLOWED_WITHOUT_ASKING_PERMISSIONS.has(permission)) {
+        respond(host.state.sitePermissionStore?.effectiveDecisionFor(origin, permission, workspaceId, embeddedIn) !== 'deny')
+        return
+      }
       const requiresFreshConsent = FRESH_CONSENT_PERMISSIONS.has(permission)
-      const remembered = requiresFreshConsent
-        ? undefined
-        : host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn)
-      if (remembered) {
-        respond(remembered === 'allow')
+      const asked = (name: string) => ({ workspaceId, origin, permission: name, ...(embeddedIn ? { embeddedIn } : {}) })
+      /**
+       * The answer the person's saved decisions give, a Block for anything the request asks or an Allow for all of it, or
+       * what to ask: what they never decided, each device of a camera or microphone request on its own, so a website
+       * allowed the microphone asks only for the camera. One whose prompt for it was closed three times is not asked again.
+       */
+      const toAsk = (): boolean | string[] => {
+        if (requiresFreshConsent) return [permission]
+        const remembers = permission === 'media' ? devices : [permission]
+        const decisions = remembers.map((name) => host.state.sitePermissionStore?.effectiveDecisionFor(origin, name, workspaceId, embeddedIn))
+        if (decisions.includes('deny')) return false
+        const open = remembers.filter((_name, index) => decisions[index] === undefined)
+        if (open.length === 0) return true
+        return open.some((name) => dismissals.embargoed(asked(name))) ? false : open
+      }
+      const settled = toAsk()
+      if (typeof settled === 'boolean') {
+        respond(settled)
         return
       }
       const requestingFrame = requestingFrames.length === 1 ? requestingFrames[0]! : null
@@ -425,12 +502,20 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       // One prompt answers identical requests from the same frame's document. Electron opens the link each answer
-      // belongs to, so only the same link shares a prompt: one Allow must not open several different links.
+      // belongs to, so a link to another app shares no prompt: one Allow must not open it, or other links, several times.
       const request = [frameTreeNodeId, document, origin, permission, externalLink?.url ?? scope].join('\u0000')
       const waiting = page.prompts.get(request)
       if (waiting) {
-        void waiting.then(respond)
+        if (externalLink) respond(false)
+        else void waiting.then(respond)
         return
+      }
+      if (permission === 'openExternal') {
+        if (page.appLinkAsked) {
+          respond(false)
+          return
+        }
+        page.appLinkAsked = true
       }
       const requestIsCurrent = (): boolean => {
         if (webContents.isDestroyed() || (page.frameDocuments.get(frameTreeNodeId) ?? page.pageDocument) !== document) return false
@@ -443,10 +528,6 @@ export function createBrowserSession(host: BrowserSessionHost): {
       }
       // What a request Hronaut never remembers asks for, or null when its permission says it all.
       const requestedDetail = (() => {
-        if (permission === 'media') {
-          const types = mediaTypes.map((type) => host.text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone'))
-          return host.text('native.dialog.requestedDevices', { devices: types.join(host.text('native.dialog.and')) })
-        }
         if (permission === 'fileSystem' && 'filePath' in details) {
           const access = host.text(details.fileAccessType === 'readable'
             ? 'native.dialog.fileReadAccess'
@@ -463,19 +544,16 @@ export function createBrowserSession(host: BrowserSessionHost): {
         }
         return null
       })()
+      const queuedAt = ++promptSequence
       const askPerson = async (): Promise<boolean> => {
-        // A Deny the person chose while this request waited holds for it too.
-        if (!requestIsCurrent() || page.denied.has(hold)) return false
-        const currentRemembered = requiresFreshConsent
-          ? undefined
-          : host.state.sitePermissionStore?.decisionFor(origin, permission, workspaceId, embeddedIn)
-        if (currentRemembered) return currentRemembered === 'allow'
+        // A Deny the person chose, or a prompt they closed, while this request waited holds for it too.
+        if (!requestIsCurrent() || page.denied.has(hold) || (page.dismissed.get(hold) ?? 0) > queuedAt) return false
+        // A decision the person saved, or a prompt they closed a third time, while this request waited settles it too.
+        const asking = toAsk()
+        if (typeof asking === 'boolean') return asking
+        const askedTypes = mediaTypes.filter((type) => asking.includes(mediaDevicePermission(type) ?? ''))
         // A camera-only or microphone-only request names just that device, not both.
-        const permissionName = mediaTypes.length > 0 && mediaTypes.every((type) => type === 'video')
-          ? host.text('runtime.permissions.camera')
-          : mediaTypes.length > 0 && mediaTypes.every((type) => type === 'audio')
-            ? host.text('runtime.permissions.microphone')
-            : sitePermissionName(permission, (key) => host.text(key))
+        const permissionName = sitePermissionName(asking.length === 1 ? asking[0]! : permission, (key) => host.text(key))
         // The decision belongs to the tab's workspace, and that tab may be in a workspace that is not shown, such as one
         // an agent works in, so the prompt names it. The name is read now, since the person can rename it meanwhile.
         const workspace = promptWorkspaceName(workspaceId, host.workspaces())
@@ -505,7 +583,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
           origin,
           ...(embeddedIn ? { embeddedIn } : {}),
           permission,
-          ...(permission === 'media' ? { mediaTypes: [...mediaTypes] } : {}),
+          ...(permission === 'media' ? { mediaTypes: askedTypes } : {}),
           ...(workspace ? { workspaceName: workspace } : {}),
           freshConsent: requiresFreshConsent,
           ...(permission === 'fileSystem' && 'filePath' in details
@@ -514,8 +592,10 @@ export function createBrowserSession(host: BrowserSessionHost): {
           ...(externalLink ? { externalScheme: shownScheme(externalLink.scheme) } : {})
         }
         let response: number
+        let unanswered: true | undefined
+        let dismissed: true | undefined
         try {
-          ({ response } = await host.showDialog({
+          ({ response, unanswered, dismissed } = await host.showDialog({
             variant,
             signal: promptClosing.signal,
             type: 'question',
@@ -538,24 +618,32 @@ export function createBrowserSession(host: BrowserSessionHost): {
           webContents.removeListener('did-fail-load', closeWhenStale)
           webContents.removeListener('destroyed', closeWhenStale)
         }
-        if (promptClosing.signal.aborted || !requestIsCurrent()) return false
+        // A prompt nobody answered, as when Hronaut quits while it shows, refuses this request and keeps no Deny.
+        if (unanswered || promptClosing.signal.aborted || !requestIsCurrent()) return false
         const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
         if (requiresFreshConsent) {
           // Allow is never reused, but Deny holds for the page's document: a page that asks again at once, or many
           // times, is refused without another prompt until the main frame loads another document, such as on reload.
-          // An Allow holds for what Chromium checks afterwards: each device it gave and the file access.
-          const answered = permission === 'media' ? mediaTypes.map((type) => permissionHold(page, origin, permission, type)) : [hold]
+          // An Allow holds for what Chromium checks afterwards: the file access.
           if (decision === 'deny') {
             page.denied.add(hold)
-            for (const allowed of answered) page.allowed.delete(allowed)
+            page.allowed.delete(hold)
           } else if (permission !== 'openExternal') {
-            for (const allowed of answered) page.allowed.add(allowed)
+            page.allowed.add(hold)
           }
           if (permission === 'fileSystem') fileAccessPages.add(webContents)
           return decision === 'allow'
         }
+        // Closed with Escape or its close button instead, the prompt refuses this request and keeps nothing, as in Chrome:
+        // the website may ask again, until it was closed three times, and Settings lists no Deny the person never chose.
+        if (dismissed) {
+          page.dismissed.set(hold, ++promptSequence)
+          for (const name of asking) dismissals.dismissed(asked(name))
+          return false
+        }
+        for (const name of asking) dismissals.answered(asked(name))
         try {
-          await host.state.sitePermissionStore?.set(origin, permission, decision, decisionScope)
+          for (const name of asking) await host.state.sitePermissionStore?.set(origin, name, decision, decisionScope)
           publishSitePermissions()
         } catch (error) {
           console.error('[permissions] Failed to persist site permission:', error)
@@ -574,6 +662,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
     browserSession.on('file-system-access-restricted', (_event, details, callback) => {
       answerProtectedLocation(browserSession, details, callback)
     })
+    // After the permission handlers, so a session is never left configured without them.
+    host.trackSpellCheck(browserSession)
   }
 
   /**
@@ -647,7 +737,8 @@ export function createBrowserSession(host: BrowserSessionHost): {
   }
 
   async function configurePersistentSession(): Promise<void> {
-    host.state.sitePermissionStore = new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json'))
+    const blockedByDefault = () => host.settings().sitePermissionsBlockedByDefault
+    host.state.sitePermissionStore = new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json'), blockedByDefault)
     await host.state.sitePermissionStore!.load()
     host.state.persistentSession = session.fromPartition(host.partition, { cache: true })
     configureBrowserSession(host.state.persistentSession!)
@@ -655,7 +746,11 @@ export function createBrowserSession(host: BrowserSessionHost): {
 
   /** Tells both shell windows the site permissions the person chose. */
   function publishSitePermissions(): void {
-    host.sendToShellWindows('permissions:changed', host.state.sitePermissionStore?.list() ?? [])
+    const permissions = host.state.sitePermissionStore?.list() ?? []
+    // A decision the person saved, as in Site controls or Settings, ends the website's prompts closed before it, as in
+    // Chrome: forgetting it later asks again.
+    dismissals.forgetDecided(permissions)
+    host.sendToShellWindows(PERMISSIONS_IPC.changed, permissions)
   }
 
   /**
@@ -663,6 +758,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
    * the shell windows.
    */
   async function forgetWorkspaceSitePermissions(workspaceId: string): Promise<void> {
+    dismissals.forgetWorkspace(workspaceId)
     const store = host.state.sitePermissionStore
     if (!store) return
     try {
