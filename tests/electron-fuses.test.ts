@@ -12,7 +12,7 @@ async function sourceFiles(directory: string): Promise<string[]> {
 }
 
 describe('Electron Fuses in packaged builds', () => {
-  it('turns off running as Node, NODE_OPTIONS and the inspector, and loads only a checked app.asar', async () => {
+  it('turns off running as Node, NODE_OPTIONS and the inspector, loads only a checked app.asar, and encrypts cookies', async () => {
     const config = parse(await readFile('electron-builder.yml', 'utf8')) as { asar?: boolean; electronFuses?: Record<string, boolean> }
     expect(config.asar).toBe(true)
     expect(config.electronFuses).toEqual({
@@ -21,6 +21,8 @@ describe('Electron Fuses in packaged builds', () => {
       enableNodeCliInspectArguments: false,
       enableEmbeddedAsarIntegrityValidation: true,
       onlyLoadAppFromAsar: true,
+      // One-way: Chromium reads the earlier plain-text cookies and encrypts them as it writes them again.
+      enableCookieEncryption: true,
       // Unsigned local and preflight builds: the Apple Silicon binary needs a fresh ad-hoc signature after its bytes change.
       resetAdHocDarwinSignature: true
     })
