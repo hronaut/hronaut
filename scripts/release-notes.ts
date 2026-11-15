@@ -21,8 +21,8 @@ export function changelogReleaseNotes(changelog: string, version: string): strin
 
 const RELEASE_NOTES_MARKER = '<!-- hronaut-release-notes -->'
 const GENERATED_NOTES_MARKER = '<!-- hronaut-generated-notes -->'
-const UNSIGNED_WARNING_MARKER = '<!-- unsigned-release-warning -->'
-const UNSIGNED_WARNING = '> [!WARNING]\n> The Windows artifacts are not code-signed, so Windows SmartScreen may warn before first launch. [Verify the download with SHA-256 and GitHub artifact attestations](https://hronaut.dev/security#verify-release) before overriding that warning. The macOS packages are signed with the Hronaut Developer ID certificate and notarized by Apple.'
+const VERIFY_NOTE_MARKER = '<!-- release-verification-note -->'
+const VERIFY_NOTE = '> [!NOTE]\n> Every package is built by the public release workflow. [Verify a download with SHA-256 and GitHub artifact attestations](https://hronaut.dev/security#verify-release).'
 
 function withoutLegacyOnboarding(notes: string): string {
   const lines = notes.split(/\r?\n/)
@@ -55,7 +55,7 @@ function comparisonNotes(currentNotes: string): string {
 
 export function completeReleaseNotes(changelog: string, version: string, currentNotes: string): string {
   const sections = [
-    `${RELEASE_NOTES_MARKER}\n${UNSIGNED_WARNING_MARKER}\n${UNSIGNED_WARNING}`,
+    `${RELEASE_NOTES_MARKER}\n${VERIFY_NOTE_MARKER}\n${VERIFY_NOTE}`,
     "## What's changed",
     changelogReleaseNotes(changelog, version)
   ]

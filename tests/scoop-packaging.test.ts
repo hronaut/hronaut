@@ -73,7 +73,7 @@ describe('Scoop package QA', () => {
     expect(readme).toContain('Windows x64')
     expect(readme).toContain('verified portable build and Start Menu shortcut')
     expect(readme).toContain(command)
-    expect(readme).toMatch(/Windows binary remains unsigned/i)
+    expect(readme).not.toMatch(/unsigned|not code-signed/i)
     expect(command).not.toMatch(/v\d+\.\d+\.\d+/)
   })
 
@@ -99,7 +99,7 @@ describe('Scoop package QA', () => {
     )
     expect(manifest.architecture['64bit'].hash).toMatch(/^[a-f0-9]{64}$/)
     expect(manifest.shortcuts).toEqual([[filename, 'Hronaut']])
-    expect(manifest.notes).toMatch(/not code-signed/i)
+    expect(manifest.notes).toContain('https://hronaut.dev/security#verify-release')
   })
 
   it('retains local-build smoke coverage for development runs', async () => {

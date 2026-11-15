@@ -13,7 +13,7 @@ function release(overrides: Partial<AppReleaseHistoryEntry> = {}): AppReleaseHis
     title: 'Hronaut 1.11.4',
     publishedAt: '2026-08-31T14:19:08.000Z',
     url: 'https://github.com/hronaut/hronaut/releases/tag/v1.11.4',
-    notes: '<!-- hronaut-release-notes -->\n<!-- unsigned-release-warning -->\n\n### Fixed\n\n- **Reliable** wallet actions.\n\n[Guide](https://hronaut.dev/setup)\n\n<script>window.__unsafe = 1</script>',
+    notes: '<!-- hronaut-release-notes -->\n<!-- release-verification-note -->\n\n### Fixed\n\n- **Reliable** wallet actions.\n\n[Guide](https://hronaut.dev/setup)\n\n<script>window.__unsafe = 1</script>',
     ...overrides
   }
 }
