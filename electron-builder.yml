@@ -21,13 +21,17 @@ npmRebuild: false
 # its code only from app.asar, which macOS and Windows now check against the hash electron-builder records. Release
 # builds for macOS are signed after the flip; unsigned local and preflight builds still need the Apple Silicon binary's
 # fresh ad-hoc signature. The manual native preflights turn the inspector back on for their own candidate, because
-# Playwright drives the packaged app through it.
+# Playwright drives the packaged app through it. Cookies are encrypted on disk with the same OS key that protects saved
+# passwords (Keychain, DPAPI or the Secret Service), which on macOS is tied to the Developer ID signature; Chromium
+# still reads cookies written before, in plain text, and encrypts them when it writes them again. This cannot be undone:
+# turning it off would lose every encrypted cookie.
 electronFuses:
   runAsNode: false
   enableNodeOptionsEnvironmentVariable: false
   enableNodeCliInspectArguments: false
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
+  enableCookieEncryption: true
   resetAdHocDarwinSignature: true
 
 win:

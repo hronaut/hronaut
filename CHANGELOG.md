@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- Hronaut now encrypts its cookies on disk with the operating system's key store, the macOS Keychain, Windows DPAPI or the Linux Secret Service, as it already did for saved passwords and wallets. Sign-ins survive the update: cookies saved by an earlier version stay readable and are encrypted the next time they are written. It was held back until the macOS packages were signed, because the Keychain ties the key to the app's signature.
+
 ## [3.14.32] - 2026-11-15
 
 ### Changed
