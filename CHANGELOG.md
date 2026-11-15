@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.32] - 2026-11-15
+
 ### Changed
 
 - The macOS packages are now signed by Hronaut with a Developer ID certificate and the hardened runtime, and notarized by Apple. macOS no longer blocks them as coming from an unidentified developer, so no right-click Open is needed. A release is never published with unsigned macOS packages. The release and its rehearsal stop when a signing secret is missing or the certificate is not a Developer ID Application one. They check each app's and disk image's signature, signing team and notarization ticket, and that Gatekeeper accepts it as notarized. The signing secrets reach only the step that packages and signs, never the dependency install or the app build. A Mac running an earlier, unsigned Hronaut cannot install this update by itself; download it once from the release page. After that, macOS may ask once to let Hronaut use "Hronaut Safe Storage" in the Keychain, where it keeps the key to your saved passwords and wallets. Windows packages are still unsigned.
