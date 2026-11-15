@@ -4,15 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.33] - 2026-11-15
+
 ### Security
 
-- Hronaut now encrypts its cookies on disk with the operating system's key store, the macOS Keychain, Windows DPAPI or the Linux Secret Service, as it already did for saved passwords and wallets. Sign-ins survive the update: cookies saved by an earlier version stay readable and are encrypted the next time they are written. It was held back until the macOS packages were signed, because the Keychain ties the key to the app's signature.
+- Hronaut now encrypts its cookies on disk with the system's key store (the macOS Keychain, Windows DPAPI or the Linux Secret Service), as it already did for saved passwords and wallets. You stay signed in to websites: cookies saved by an earlier version are still read, and are encrypted the next time a website updates them.
 
 ## [3.14.32] - 2026-11-15
 
 ### Changed
 
-- The macOS packages are now signed by Hronaut with a Developer ID certificate and the hardened runtime, and notarized by Apple. macOS no longer blocks them as coming from an unidentified developer, so no right-click Open is needed. A release is never published with unsigned macOS packages. The release and its rehearsal stop when a signing secret is missing or the certificate is not a Developer ID Application one. They check each app's and disk image's signature, signing team and notarization ticket, and that Gatekeeper accepts it as notarized. The signing secrets reach only the step that packages and signs, never the dependency install or the app build. A Mac running an earlier, unsigned Hronaut cannot install this update by itself; download it once from the release page. After that, macOS may ask once to let Hronaut use "Hronaut Safe Storage" in the Keychain, where it keeps the key to your saved passwords and wallets. Windows packages are still unsigned.
+- The macOS packages are now signed with Hronaut's Developer ID and notarized by Apple, so macOS opens them without the "unidentified developer" warning and no right-click Open is needed. If you use an earlier Hronaut on a Mac, download this version once: an unsigned install cannot update itself to a signed one. After that, macOS may ask once to let Hronaut use "Hronaut Safe Storage" in the Keychain, where it keeps the key to your saved passwords and wallets.
 
 ## [3.14.31] - 2026-11-14
 

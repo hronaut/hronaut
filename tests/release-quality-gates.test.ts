@@ -427,14 +427,14 @@ describe('release quality gates', () => {
     expect(autoTag).not.toContain('-f tag="$TAG"')
   })
 
-  it('keeps published release notes focused on changes and the artifact warning', async () => {
+  it('keeps published release notes focused on changes and the verification note', async () => {
     const [workflow, generator] = await Promise.all([
       readFile('.github/workflows/release.yml', 'utf8'),
       readFile('scripts/release-notes.ts', 'utf8')
     ])
-    const warningStart = generator.indexOf('<!-- unsigned-release-warning -->')
+    const warningStart = generator.indexOf('<!-- release-verification-note -->')
     const changesStart = generator.indexOf("## What's changed")
-    const unsignedWarning = generator.slice(warningStart, changesStart)
+    const verifyNote = generator.slice(warningStart, changesStart)
 
     expect(workflow).toContain('node scripts/release-notes.ts "$VERSION" "$RUNNER_TEMP/hronaut-release-CHANGELOG.md" current-release-notes.md')
     for (const source of [workflow, generator]) {
@@ -445,7 +445,8 @@ describe('release quality gates', () => {
       expect(source).not.toContain('Permitted noncommercial use is free')
     }
     expect(warningStart).toBeGreaterThanOrEqual(0)
-    expect(unsignedWarning).toContain('https://hronaut.dev/security#verify-release')
+    expect(verifyNote).toContain('https://hronaut.dev/security#verify-release')
+    expect(verifyNote).not.toMatch(/unsigned|not code-signed/i)
     expect(warningStart).toBeLessThan(changesStart)
   })
 

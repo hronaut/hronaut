@@ -133,7 +133,7 @@ On Windows x64, install the verified portable build and Start Menu shortcut with
 scoop install https://raw.githubusercontent.com/hronaut/hronaut/main/packaging/scoop/hronaut.json
 ```
 
-The macOS packages are signed with Hronaut's Developer ID and notarized by Apple, so macOS no longer blocks them as coming from an unidentified developer. The Windows binary remains unsigned, so Windows SmartScreen may show a warning. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
+The macOS packages are signed with Hronaut's Developer ID and notarized by Apple, so macOS no longer blocks them as coming from an unidentified developer. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
 
 ### Verify a download
 
@@ -160,7 +160,7 @@ shasum -a 256 "./PACKAGE_FILENAME"
 Get-FileHash .\PACKAGE_FILENAME -Algorithm SHA256
 ```
 
-Compare the result with the matching filename in `hashes.txt`. Attestations and hashes establish release-workflow provenance and file integrity; they do not make the Windows packages code-signed. The [release trust guide](https://hronaut.dev/security#verify-release) explains the boundary and additional checks.
+Compare the result with the matching filename in `hashes.txt`. Attestations and hashes establish release-workflow provenance and file integrity. The [release trust guide](https://hronaut.dev/security#verify-release) explains the boundary and additional checks.
 
 Each release also carries `hronaut-sbom.cdx.json`, a CycloneDX software bill of materials listing the npm packages the app ships and the bundled Electron runtime, so a vulnerability scanner can check them. It is in `hashes.txt` and attested like the packages.
 
