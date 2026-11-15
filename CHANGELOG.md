@@ -14,7 +14,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- The macOS packages are now signed with Hronaut's Developer ID and notarized by Apple, so macOS opens them without the "unidentified developer" warning and no right-click Open is needed. If you use an earlier Hronaut on a Mac, download this version once: an unsigned install cannot update itself to a signed one. After that, macOS may ask once to let Hronaut use "Hronaut Safe Storage" in the Keychain, where it keeps the key to your saved passwords and wallets.
+- The macOS packages are now signed with Hronaut's Developer ID and notarized by Apple, so macOS opens them without the "unidentified developer" warning and no right-click Open is needed. If you use Hronaut 3.14.31 or earlier on a Mac, download this version once: an earlier install cannot update itself to a signed one. After that, macOS may ask once to let Hronaut use "Hronaut Safe Storage" in the Keychain, where it keeps the key to your saved passwords and wallets.
 
 ## [3.14.31] - 2026-11-14
 
