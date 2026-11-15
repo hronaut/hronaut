@@ -519,12 +519,14 @@ describe('WalletBroker', () => {
     const chain = adapter()
     // An error that names the account, which an agent sees only once it has account permission.
     chain.normalizeTransaction = async () => { throw new Error(`EVM transaction from ${wallet.publicAddress.toLowerCase()} is not supported here`) }
-    const broker = new WalletBroker(service, { adapters: { evm: chain }, now: () => new Date('2026-10-15T20:00:00.000Z') })
+    // The account permission's expiry is checked against the real clock, so the broker's clock is today's.
+    const failedAt = new Date()
+    const broker = new WalletBroker(service, { adapters: { evm: chain }, now: () => failedAt })
     const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
     const call = (method: string, params?: unknown, overrides: Partial<WalletBrokerContext> = {}) => settle(broker.providerRequest(context(overrides), {
       family: 'evm', method, ...(params === undefined ? {} : { params })
     } as never))
-    const failure = (method: string, error: string) => ({ family: 'evm', method, error, failedAt: '2026-10-15T20:00:00.000Z' })
+    const failure = (method: string, error: string) => ({ family: 'evm', method, error, failedAt: failedAt.toISOString() })
 
     await call('eth_signTypedData', [wallet.publicAddress, 'page-secret-typed-data'])
     await call('bad method name!')
