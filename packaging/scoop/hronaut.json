@@ -1,18 +1,18 @@
 {
-  "version": "3.14.32",
+  "version": "3.14.33",
   "description": "A visible desktop browser for coding agents, with a separate workspace for each project.",
   "homepage": "https://hronaut.dev",
   "license": "SEE LICENSE IN LICENSE",
   "notes": "Verify the release hash before running Hronaut: https://hronaut.dev/security#verify-release",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/hronaut/hronaut/releases/download/v3.14.32/hronaut-3.14.32-x64-windows-portable.exe",
-      "hash": "00275d3a24bb9f0bd2b0d403025a36558ac4979961c6d2b98582ef1c3c431a18"
+      "url": "https://github.com/hronaut/hronaut/releases/download/v3.14.33/hronaut-3.14.33-x64-windows-portable.exe",
+      "hash": "ee24dfde8c917c5d4a9919109ee8c68319575613a511e0a168ca4edfe9c95111"
     }
   },
   "shortcuts": [
     [
-      "hronaut-3.14.32-x64-windows-portable.exe",
+      "hronaut-3.14.33-x64-windows-portable.exe",
       "Hronaut"
     ]
   ],
