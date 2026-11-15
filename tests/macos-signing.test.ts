@@ -96,7 +96,7 @@ describe('signed and notarized macOS packages', () => {
     expect(script).toContain('(umask 077 && printf \'%s\\n\' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY")')
     // The disk image's blockmap described it before stapling and is no longer written or published.
     const config = await readFile('electron-builder.yml', 'utf8')
-    expect(config).toMatch(/^dmg:\n(?:  .*\n)*  writeUpdateInfo: false$/m)
+    expect(config).toMatch(/^dmg:\n(?: {2}.*\n)* {2}writeUpdateInfo: false$/m)
     // Windows packages stay unsigned.
     const windows = release.jobs['build-windows']!.steps.find(step => step.name?.startsWith('Build unsigned Windows'))
     expect(windows?.env?.CSC_IDENTITY_AUTO_DISCOVERY).toBe('false')
