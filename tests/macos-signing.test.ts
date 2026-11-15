@@ -82,7 +82,7 @@ describe('signed and notarized macOS packages', () => {
     const check = stepRunning(job, 'bash scripts/sign-check-macos.sh')
     const install = stepRunning(job, 'npm ci')
     const build = stepRunning(job, 'npm run build:app')
-    const packaging = stepRunning(job, 'npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never -c.mac.forceCodeSigning=true')
+    const packaging = stepRunning(job, 'npx electron-builder --mac dmg zip --x64 --arm64 --publish never -c.mac.forceCodeSigning=true')
     const verify = stepRunning(job, 'bash scripts/notarize-and-verify-macos.sh')
     expect(check.index).toBeLessThan(install.index)
     expect(build.index).toBeLessThan(packaging.index)
@@ -95,7 +95,8 @@ describe('signed and notarized macOS packages', () => {
     expect(script).toContain('trap \'rm -f "$APPLE_API_KEY"\' EXIT')
     expect(script).toContain('(umask 077 && printf \'%s\\n\' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY")')
     // The disk image's blockmap described it before stapling and is no longer written or published.
-    expect(job.strategy?.matrix?.include).toEqual(expect.arrayContaining([expect.objectContaining({ target: 'dmg', files: 'dist/*.dmg\n' })]))
+    const config = await readFile('electron-builder.yml', 'utf8')
+    expect(config).toMatch(/^dmg:\n(?:  .*\n)*  writeUpdateInfo: false$/m)
     // Windows packages stay unsigned.
     const windows = release.jobs['build-windows']!.steps.find(step => step.name?.startsWith('Build unsigned Windows'))
     expect(windows?.env?.CSC_IDENTITY_AUTO_DISCOVERY).toBe('false')
