@@ -79,6 +79,23 @@ describe('wallet provider bootstrap', () => {
     await expect(target.ethereum!.request({ method: 'eth_call', params: [{}] })).rejects.toMatchObject({ code: 3, data: '0x08c379a0' })
   })
 
+  it('gives the page the wallet message without the Electron IPC prefix', async () => {
+    installHronautWalletProviders()
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(new Error(
+      "Error invoking remote method 'wallet-provider:request': Error: Wallet request was rejected by the user"
+    ))
+    await expect(target.ethereum!.request({ method: 'eth_sendTransaction', params: [{}] }))
+      .rejects.toMatchObject({ code: 4001, message: 'Wallet request was rejected by the user' })
+    // An unreachable RPC endpoint reads as a disconnected chain, as EIP-1193 names it.
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(new Error(
+      "Error invoking remote method 'wallet-provider:request': Error: Wallet network RPC endpoint is unavailable; try again, or check the wallet's RPC endpoint in Hronaut"
+    ))
+    await expect(target.ethereum!.request({ method: 'eth_estimateGas', params: [{}] })).rejects.toMatchObject({
+      code: 4901,
+      message: "Wallet network RPC endpoint is unavailable; try again, or check the wallet's RPC endpoint in Hronaut"
+    })
+  })
+
   it('keeps the legacy EVM provider helpers that older dApps call', async () => {
     installHronautWalletProviders()
     const ethereum = target.ethereum!
