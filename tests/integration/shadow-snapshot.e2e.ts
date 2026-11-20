@@ -71,8 +71,11 @@ test('reads one component\'s open shadow content, slots and nested roots once, w
   expect(page.isError, text(page)).not.toBe(true)
   const pageRef = /\[(e\d+)\] button "Outside button"/.exec(text(page))?.[1]
   expect(pageRef, text(page)).toBeTruthy()
-  // The gap this capture fills: a page snapshot sees none of the shadow content.
-  expect(text(page)).not.toMatch(/Save card|SHADOW_TEXT|Docs link/)
+  // A page snapshot gives refs to the controls in open shadow roots, nested ones too, but not their other text, a closed
+  // root, or any field's value; this capture fills in the rest.
+  expect(text(page)).toMatch(/\[e\d+\] button "Save card"/)
+  expect(text(page)).toMatch(/\[e\d+\] a "Docs link" href="https:\/\/example\.test\/docs\?token=%5BREDACTED%5D"/)
+  expect(text(page)).not.toMatch(/SHADOW_TEXT|CLOSED_TEXT|SECRET_VALUE|SECRET_TEXTAREA|OPTION_SECRET/)
   // Watch the page from its own world for any change the capture might make.
   await onPage(electronApp, fixtureUrl, `(() => {
     window.shadowChanges = 0;

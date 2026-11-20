@@ -18,8 +18,25 @@ RUN npm ci \
     && node scripts/docker-dependency-cache-key.ts package-lock.json > node_modules/.hronaut-package-lock.sha256
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends unzip \
+    && apt-get install --yes --no-install-recommends unzip curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Foundry's Anvil, the local EVM node the wallet payment tests run against, checked against its release checksum.
+RUN set -eu; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) arch=amd64; sum=baad3e1b06d6f310d210c93e95258a03d923fe610f8d0742138f2245f94abd7c ;; \
+      arm64) arch=arm64; sum=ac5f88c0f6c1e5ed09c035a9f4405f74b996ea8a701d7150dc0184c18dd09f11 ;; \
+      *) echo "No Anvil build for $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/foundry.tgz "https://github.com/foundry-rs/foundry/releases/download/v1.3.1/foundry_v1.3.1_linux_${arch}.tar.gz"; \
+    echo "${sum}  /tmp/foundry.tgz" | sha256sum -c -; \
+    tar -xzf /tmp/foundry.tgz -C /usr/local/bin anvil; \
+    rm /tmp/foundry.tgz; \
+    anvil --version
+
+# The Reown AppKit shop the wallet tests serve has its own pinned dependencies, kept out of the app's.
+COPY tests/fixtures/reown-appkit-shop/package.json tests/fixtures/reown-appkit-shop/package-lock.json tests/fixtures/reown-appkit-shop/.npmrc ./tests/fixtures/reown-appkit-shop/
+RUN cd tests/fixtures/reown-appkit-shop && npm ci --no-audit --no-fund
 
 FROM dependencies AS integration
 

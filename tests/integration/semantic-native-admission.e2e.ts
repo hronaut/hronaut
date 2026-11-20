@@ -54,7 +54,9 @@ for (const target of ['selector','ref'] as const) for (const doubleClick of [fal
     ])
     expect(result.structuredContent).toMatchObject({reason:'TARGET_CHANGED',progress:{moveAttempted:1,moveAcknowledged:1,downAttempted:0,upAttempted:0}})
    }
-   const blocked=['fixed','hover','replace','closed','open','frame','flag-replace','user-agent','second-block'].includes(mode)
+   // A control in an open shadow root inside the target is hit-tested through the root, as one in light DOM is; a closed
+   // root, whose receiver cannot be seen, is still refused.
+   const blocked=['fixed','hover','replace','closed','frame','flag-replace','user-agent','second-block'].includes(mode)
    expect(result.isError===true).toBe(blocked)
    expect(JSON.stringify(result)).not.toMatch(/private-blocker-canary|private-shadow-canary|private-input-canary/)
    if(blocked){expect(result.structuredContent).toMatchObject({status:'OUTCOME_UNKNOWN',effects:'possible',retrySafe:false,progress:{downAttempted:mode==='second-block'?1:0,downAcknowledged:mode==='second-block'?1:0,upAcknowledged:mode==='second-block'?1:0,targetCleanup:'confirmed'}})}

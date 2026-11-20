@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Agents can use controls inside web components' open shadow roots. A page snapshot now gives such a button or link a ref, named by the text it shows (a form field only by its label), and clicks, including native clicks, reach it. An agent can now open a Reown AppKit (WalletConnect) wallet modal, choose Hronaut and pay, where before the modal's buttons were missing from the snapshot.
+
 ### Changed
 
 - Wallet approvals show amounts as people read them: a token payment reads `5 USDC` instead of `5000000`, using the decimals and symbol the token contract reports, with the smallest-unit amount below it, and native amounts and fees name the network's currency, such as `0.01 ETH`.
@@ -11,6 +15,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - A bounded wallet policy's **Max token amount** is now in whole tokens, as the approval dialog shows them. Before, it was compared with the amount in the token's smallest units, so a limit of 10 let an agent pay at most 0.00001 USDC without asking and sent a 5 USDC payment to a person. A token call whose contract reports no decimals now asks a person when the policy has a token limit. If you wrote a limit in smallest units, such as `5000000` for 5 USDC, change it to `5` after updating, or it now allows that many whole tokens.
+- Sites built on Reown AppKit (the WalletConnect modal) or wagmi no longer say "Connection declined" when they start on a network the wallet is not on, such as Ethereum mainnet for a wallet on a testnet. Asking to switch to or add a network no workspace wallet is on now fails with code 4901 instead of 4902 or 4001 (the person declined), so the site connects on the wallet's network.
+- A page's wallet errors read as Hronaut's own message, without Electron's `Error invoking remote method ...` prefix, and an unreachable wallet RPC endpoint now says so (`Wallet network RPC endpoint is unavailable; try again, or check the wallet's RPC endpoint in Hronaut`, code 4901) instead of a generic failure.
 
 ## [3.14.33] - 2026-11-15
 

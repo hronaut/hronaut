@@ -259,3 +259,6 @@ tests/.mcpb-output/
 ci-artifacts/
 .DS_Store
 design
+
+# The Reown AppKit shop fixture's install lock, held while a test worker installs its dependencies.
+tests/fixtures/reown-appkit-shop/.install-lock/

@@ -46,13 +46,14 @@ for (const state of ['unlocked', 'zoom', 'emulation', 'background', 'sleeping', 
   })
 }
 
+// A closed shadow root hides the element a press would reach; an open one is hit-tested through, as light DOM is.
 for (const target of ['missing', 'ambiguous', 'disabled', 'covered', 'detached', 'replaced', 'late-overlay', 'shadow'] as const) {
   test(`right-click samples ${target} target without a press`, async ({ capabilities, electronApp, appWindow }) => {
     const { client, tabId, fixtureUrl } = capabilities
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, true), tabId)
     await electronApp.evaluate(async ({ webContents }, { url, target }) => {
       const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
-      await page.executeJavaScript(`document.body.innerHTML='<button id="target" style="position:fixed;left:100px;top:100px;width:180px;height:80px">Menu</button>';${target === 'missing' ? "document.querySelector('#target').remove();" : target === 'ambiguous' ? "document.body.appendChild(document.querySelector('#target').cloneNode(true));" : target === 'disabled' ? "document.querySelector('#target').disabled=true;" : target === 'covered' ? "document.body.insertAdjacentHTML('beforeend','<div style=\"position:fixed;inset:0;z-index:100\">Cover</div>');" : target === 'shadow' ? "document.querySelector('#target').outerHTML='<div id=target style=\"position:fixed;left:100px;top:100px;width:180px;height:80px\"></div>';document.querySelector('#target').attachShadow({mode:'open'}).innerHTML='<button style=\"width:100%;height:100%\">Shadow</button>';" : ''}void 0`)
+      await page.executeJavaScript(`document.body.innerHTML='<button id="target" style="position:fixed;left:100px;top:100px;width:180px;height:80px">Menu</button>';${target === 'missing' ? "document.querySelector('#target').remove();" : target === 'ambiguous' ? "document.body.appendChild(document.querySelector('#target').cloneNode(true));" : target === 'disabled' ? "document.querySelector('#target').disabled=true;" : target === 'covered' ? "document.body.insertAdjacentHTML('beforeend','<div style=\"position:fixed;inset:0;z-index:100\">Cover</div>');" : target === 'shadow' ? "document.querySelector('#target').outerHTML='<div id=target style=\"position:fixed;left:100px;top:100px;width:180px;height:80px\"></div>';document.querySelector('#target').attachShadow({mode:'closed'}).innerHTML='<button style=\"width:100%;height:100%\">Shadow</button>';" : ''}void 0`)
       const send = page.debugger.sendCommand
       const probe: Probe = { commands: [], restore: () => { page.debugger.sendCommand = send } }
       ;(globalThis as Scope).rightAdmission = probe

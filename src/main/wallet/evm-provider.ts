@@ -203,12 +203,15 @@ function activeEvmWallets(access: EvmProviderAccess, context: WalletBrokerContex
   return active
 }
 
+// Neither refusal names the person or says "rejected": the page gets code 4901, not 4001 (user rejected) or
+// 4902 (add the chain first). wagmi, and AppKit through it, then keeps the wallet's network on connect instead of
+// asking to add one Hronaut would refuse and calling the whole connection declined.
 function addEvmChain(access: EvmProviderAccess, context: WalletBrokerContext, wallets: WalletDescriptor[], requestedChainId: unknown): null {
   try {
     return switchEvmChain(access, context, wallets, requestedChainId)
   } catch (error) {
     if (error instanceof Error && error.message === 'Requested EVM chain is not configured for this workspace wallet') {
-      throw new Error('Requested EVM chain was rejected: websites cannot add networks, configure the network on a workspace wallet in Hronaut')
+      throw new Error('Requested EVM chain cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut')
     }
     throw error
   }

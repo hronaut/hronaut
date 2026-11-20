@@ -87,7 +87,10 @@ export function installHronautWalletProviders(): void {
       return await bridge.request({ family, method: request.method, ...(request.params === undefined ? {} : { params: request.params }) })
     } catch (cause) {
       const incoming = cause as { code?: unknown; message?: unknown }
-      const message = typeof incoming?.message === 'string' ? incoming.message : 'Wallet request failed'
+      // Electron prefixes an IPC handler's error with the channel name; the page gets only the wallet's own message.
+      const message = typeof incoming?.message === 'string'
+        ? incoming.message.replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, '')
+        : 'Wallet request failed'
       const rpcError = /EVM RPC error \(code (-?\d{1,9})(?:, data (0x[0-9a-fA-F]*))?\)/.exec(message)
       if (rpcError) {
         throw Object.assign(new Error(message), { code: Number(rpcError[1]), ...(rpcError[2] ? { data: rpcError[2] } : {}) })
@@ -102,11 +105,9 @@ export function installHronautWalletProviders(): void {
               ? 4200
               : /no wallet is attached/i.test(message)
                 ? 4900
-                : /chain is not configured/i.test(message)
-                  ? family === 'evm' ? 4902 : 4901
-                  : /chain|network/i.test(message)
-                    ? 4901
-                    : -32603
+                : /chain|network/i.test(message)
+                  ? 4901
+                  : -32603
       throw Object.assign(new Error(message), { code })
     }
   }

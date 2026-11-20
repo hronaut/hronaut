@@ -1,0 +1,14 @@
+{
+  "name": "hronaut-reown-appkit-shop-fixture",
+  "private": true,
+  "description": "A small shop page built on Reown AppKit (the WalletConnect modal) with its wagmi adapter, for Hronaut wallet integration tests.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@reown/appkit": "1.8.2",
+    "@reown/appkit-adapter-wagmi": "1.8.2",
+    "@wagmi/core": "2.22.1",
+    "esbuild": "0.28.2",
+    "viem": "2.58.2"
+  }
+}

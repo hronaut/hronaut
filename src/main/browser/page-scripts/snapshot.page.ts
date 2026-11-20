@@ -33,7 +33,8 @@ type SnapshotPage = typeof globalThis & { __hronautSnapshotIdentity?: { next: nu
 /**
  * Runs in the snapshot's isolated world: the page's URL, title, visible headings and controls, each control with a ref
  * the agent can act on, and the rendered text, within `maxChars`. Editor content and form field values are never read.
- * With a root selector, only that one visible light-DOM component is captured.
+ * Controls inside open shadow roots get refs too, named by the text they show. With a root selector, only that one
+ * visible light-DOM component is captured.
  */
 export function snapshotInPage(
   config: SnapshotPageConfig,
@@ -97,7 +98,15 @@ export function snapshotInPage(
   const identity = page.__hronautSnapshotIdentity
     || (page.__hronautSnapshotIdentity = { next: 0, refs: new WeakMap() })
   if (identity.next > config.refLimit - 500) { identity.next = 0; identity.refs = new WeakMap() }
-  for (const element of document.querySelectorAll('[data-hronaut-ref]')) element.removeAttribute('data-hronaut-ref')
+  // Open shadow roots, outermost first, at most 2,000; a ref is cleared in each and controls are read in the first 200.
+  const shadowRoots: ShadowRoot[] = []
+  for (let index = -1; index < shadowRoots.length && shadowRoots.length < 2000; index++) {
+    const scope: Document | ShadowRoot = index < 0 ? document : shadowRoots[index]!
+    for (const element of scope.querySelectorAll('*')) if (element.shadowRoot && shadowRoots.length < 2000) shadowRoots.push(element.shadowRoot)
+  }
+  for (const scope of [document, ...shadowRoots]) {
+    for (const element of scope.querySelectorAll('[data-hronaut-ref]')) element.removeAttribute('data-hronaut-ref')
+  }
   const lines: string[] = []
   // The name of each control the agent was shown, for the shell's plain-words steps such as Clicking "Review order".
   // A form field is named only by its label, never by its value, its text or its options.
@@ -122,7 +131,8 @@ export function snapshotInPage(
     const aria = element.getAttribute('aria-label')
     if (aria && aria.trim()) return aria
     const labelledBy = String(element.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).slice(0, 5)
-      .map((id) => document.getElementById(id)).filter((labelElement): labelElement is HTMLElement => Boolean(labelElement)).map(stepLabelText).join(' ')
+      .map((id) => (element.getRootNode() as Document | ShadowRoot).getElementById(id))
+      .filter((labelElement): labelElement is HTMLElement => Boolean(labelElement)).map(stepLabelText).join(' ')
     if (labelledBy.trim()) return labelledBy
     const fieldLabels = (element as HTMLInputElement).labels
     const labels = fieldLabels ? [...fieldLabels].slice(0, 2).map(stepLabelText).join(' ') : ''
@@ -145,15 +155,52 @@ export function snapshotInPage(
     if (text.length > 300) omitted.headings = true
     if (text) add(heading.tagName.toLowerCase() + ': ' + text.slice(0, 300))
   }
-  const visibleElements = select(interactive).filter(element => visible(element) && !snapshotText.editingContext(element.parentElement))
-  omitted.controls = visibleElements.length > 500
+  // Controls in open shadow roots, such as the buttons of a web component wallet modal, get refs in their host's place.
+  // Closed roots and frames stay unread, and so does text in a shadow root other than a control's name.
+  const readRoots = new Set(shadowRoots.slice(0, 200))
+  if (shadowRoots.length > 200) omitted.controls = true
+  const controlsIn = (light: Element[], scope: Document | ShadowRoot): Element[] => {
+    const hosts = (scope === document ? select('*') : [...scope.querySelectorAll('*')])
+      .filter(element => element.shadowRoot && readRoots.has(element.shadowRoot))
+    if (!hosts.length) return light
+    const controls = new Set(light)
+    const ordered = [...new Set([...light, ...hosts])]
+      .sort((left, right) => left === right ? 0 : left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)
+    return ordered.flatMap(element => [
+      ...(controls.has(element) ? [element] : []),
+      ...(element.shadowRoot && readRoots.has(element.shadowRoot)
+        ? controlsIn([...element.shadowRoot.querySelectorAll(interactive)], element.shadowRoot) : [])
+    ])
+  }
+  // A control in a shadow root is often named by text a slot shows, which its own text leaves out.
+  const shownText = (element: Element): string => {
+    let text = ''
+    let visits = 200
+    const walk = (node: Node): void => {
+      if (--visits < 0 || text.length > 300) return
+      if (node.nodeType === Node.TEXT_NODE) { text += node.textContent + ' '; return }
+      if (!(node instanceof Element) || node.matches('input,textarea,select,script,style,[contenteditable]')) return
+      if (getComputedStyle(node).display === 'none') return
+      const children = node instanceof HTMLSlotElement ? node.assignedNodes({ flatten: true })
+        : node.shadowRoot ? [...node.shadowRoot.childNodes] : [...node.childNodes]
+      for (const child of children) walk(child)
+    }
+    walk(element)
+    return text
+  }
+  const visibleElements = controlsIn(select(interactive), document).filter(element => visible(element) && !snapshotText.editingContext(element.parentElement))
+  omitted.controls ||= visibleElements.length > 500
   const elements = visibleElements.slice(0, 500)
   for (const element of elements) {
     let ref = identity.refs.get(element)
     if (!ref) { ref = 'e' + (++identity.next); identity.refs.set(element, ref) }
     element.setAttribute('data-hronaut-ref', ref)
     const role = element.getAttribute('role') || element.tagName.toLowerCase()
-    const label = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || snapshotText.safeText(element)
+    // In a shadow root, a form field is named only by its label, never by its text or options, as a component capture.
+    const inShadow = element.getRootNode() instanceof ShadowRoot
+    const label = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder')
+      || (inShadow && element.matches('input,textarea,select') ? stepTargetName(element, '')
+        : snapshotText.safeText(element) || (inShadow ? shownText(element) : ''))
     if (String(label).replace(/\s+/g, ' ').trim().length > 300) omitted.controls = true
     const href = element instanceof HTMLAnchorElement ? ' href=' + JSON.stringify(safeUrl(element.href)) : ''
     const state = (element.matches(':disabled') ? ' disabled' : '') + ((element as HTMLInputElement).checked ? ' checked' : '')

@@ -24,11 +24,20 @@ type DialogName = 'alert' | 'confirm' | 'prompt'
 type DialogsPage = Window & typeof globalThis & Record<DialogName | symbol, unknown>
 interface EvaluationDialogs { active: { id: string; accept: boolean }[]; originals: Record<string, PropertyDescriptor | undefined> }
 
-/** Runs in the page: the element the target names, or null. */
+/**
+ * Runs in the page: the element the target names, or null. A ref can name a control in an open shadow root, as a
+ * snapshot gives refs there; roots are searched outermost first, as the snapshot found them.
+ */
 export function targetElementInPage(target: ActionTarget): Element | null {
-  return target.ref
-    ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
-    : target.selector ? document.querySelector(target.selector) : null
+  if (!target.ref) return target.selector ? document.querySelector(target.selector) : null
+  const selector = '[data-hronaut-ref="' + CSS.escape(target.ref) + '"]'
+  const scopes: Array<Document | ShadowRoot> = [document]
+  for (let index = 0; index < scopes.length && index <= 2000; index++) {
+    const found = scopes[index]!.querySelector(selector)
+    if (found) return found
+    for (const element of scopes[index]!.querySelectorAll('*')) if (element.shadowRoot) scopes.push(element.shadowRoot)
+  }
+  return null
 }
 
 /**
