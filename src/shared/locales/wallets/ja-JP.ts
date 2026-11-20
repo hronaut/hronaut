@@ -195,7 +195,7 @@ export const jaJPWallets = {
   methodInstruction: 'メソッド / 命令',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'ネイティブの最大金額',
-  maxTokenAmount: 'トークンの最大金額',
+  maxTokenAmount: 'トークンの最大金額（トークン単位）',
   maxFee: '最大手数料',
   sessionSpend: 'セッションのネイティブ支出',
   dailySpend: '1 日のネイティブ支出',

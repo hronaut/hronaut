@@ -146,6 +146,10 @@ function appText(domain: { name?: string; version?: string }): string {
   return domain.name || t('wallets.approval.typedData.versionOnly', { version: domain.version })
 }
 
+function withSymbol(amount: string, symbol: string | undefined): string {
+  return symbol ? `${amount} ${symbol}` : amount
+}
+
 function rawDetails(): string {
   return JSON.stringify(request.value?.details?.raw ?? {}, null, 2)
 }
@@ -183,9 +187,9 @@ function rawDetails(): string {
           <div v-if="request.details?.contract"><dt>{{ t('wallets.approval.contract') }}</dt><dd><code>{{ request.details.contract }}</code></dd></div>
           <div v-if="request.details?.source"><dt>{{ t('wallets.approval.source') }}</dt><dd><code>{{ request.details.source }}</code></dd></div>
           <div v-if="request.details?.destination"><dt>{{ destinationLabel }}</dt><dd><code>{{ request.details.destination }}</code></dd></div>
-          <div v-if="request.details?.nativeAmount"><dt>{{ t('wallets.approval.nativeAmount') }}</dt><dd>{{ request.details.nativeAmount }}</dd></div>
-          <div v-if="request.details?.tokenAmount"><dt>{{ t('wallets.approval.tokenAmount') }}</dt><dd>{{ request.details.tokenAmount }}</dd></div>
-          <div v-if="request.details?.estimatedFee"><dt>{{ t('wallets.approval.estimatedFee') }}</dt><dd>{{ request.details.estimatedFee }}</dd></div>
+          <div v-if="request.details?.nativeAmount"><dt>{{ t('wallets.approval.nativeAmount') }}</dt><dd>{{ withSymbol(request.details.nativeAmount, request.details.nativeSymbol) }}</dd></div>
+          <div v-if="request.details?.tokenAmount"><dt>{{ t('wallets.approval.tokenAmount') }}</dt><dd v-if="request.details.tokenWholeAmount !== undefined" class="wallet-approval-token-amount"><strong>{{ withSymbol(request.details.tokenWholeAmount, request.details.tokenSymbol) }}</strong><small>{{ t('wallets.approval.typedData.baseUnits', { amount: request.details.tokenAmount }) }}</small></dd><dd v-else>{{ t('wallets.approval.typedData.baseUnits', { amount: request.details.tokenAmount }) }}</dd></div>
+          <div v-if="request.details?.estimatedFee"><dt>{{ t('wallets.approval.estimatedFee') }}</dt><dd>{{ withSymbol(request.details.estimatedFee, request.details.nativeSymbol) }}</dd></div>
           <div><dt>{{ t('wallets.approval.simulation') }}</dt><dd>{{ request.details?.simulationSuccess ? t('wallets.approval.successful') : request.details?.simulationAttempted ? t('wallets.approval.failed') : t('wallets.approval.unavailable') }}</dd></div>
           <div v-if="revertMessage || revertReason">
             <dt>{{ t('wallets.approval.revertReason') }}</dt>

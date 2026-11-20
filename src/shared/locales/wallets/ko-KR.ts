@@ -195,7 +195,7 @@ export const koKRWallets = {
   methodInstruction: '메서드 / 명령',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: '최대 네이티브 금액',
-  maxTokenAmount: '최대 토큰 금액',
+  maxTokenAmount: '최대 토큰 금액(토큰 단위)',
   maxFee: '최대 수수료',
   sessionSpend: '세션 네이티브 지출',
   dailySpend: '일일 네이티브 지출',

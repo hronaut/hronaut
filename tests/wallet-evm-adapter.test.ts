@@ -116,6 +116,34 @@ describe('EvmWalletAdapter', () => {
     expect(await decode(invalidBool)).toMatchObject({ understood: false, method: 'contract-call:0xa22cb465', newContractOrProgram: true })
   })
 
+  it('reads the token decimals and symbol so a token amount can be shown in whole tokens', async () => {
+    const client = rpc()
+    const adapter = new EvmWalletAdapter(() => client as never)
+    const token = '0x00000000000000000000000000000000000000aa'
+    const spender = '0x0000000000000000000000000000000000000003'
+    const transfer = await adapter.normalizeTransaction(wallet(), {
+      to: token, data: encodeFunctionData({ abi: TOKEN_ABI, functionName: 'transfer', args: [spender, 5_000_000n] })
+    })
+    expect(transfer.decoded).toMatchObject({ method: 'erc20.transfer', tokenAmount: '5000000', tokenDecimals: 6, tokenSymbol: 'USDC' })
+    // An NFT contract shares the transfer and approve shapes but reports no decimals, so its token ID stays as it is.
+    client.readContract.mockImplementation(async () => { throw new Error('execution reverted') })
+    const nftApprove = await adapter.normalizeTransaction(wallet(), {
+      to: token, data: encodeFunctionData({ abi: TOKEN_ABI, functionName: 'approve', args: [spender, 7n] })
+    })
+    expect(nftApprove.decoded).toMatchObject({ method: 'erc20.approve', tokenAmount: '7' })
+    expect(nftApprove.decoded).not.toHaveProperty('tokenDecimals')
+    expect(nftApprove.decoded).not.toHaveProperty('tokenSymbol')
+    // Decimals no uint256 amount could use are not trusted.
+    client.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => functionName === 'decimals' ? 200 : 'BIG')
+    expect((await adapter.normalizeTransaction(wallet(), {
+      to: token, data: encodeFunctionData({ abi: TOKEN_ABI, functionName: 'transfer', args: [spender, 1n] })
+    })).decoded).not.toHaveProperty('tokenDecimals')
+    // A native transfer reads no token contract.
+    client.readContract.mockClear()
+    await adapter.normalizeTransaction(wallet(), { to: spender, value: '1' })
+    expect(client.readContract).not.toHaveBeenCalled()
+  })
+
   it('shows the token source and requires manual review for third-party transferFrom calls', async () => {
     const adapter = new EvmWalletAdapter(() => rpc() as never)
     const signer = wallet().publicAddress as `0x${string}`

@@ -195,7 +195,7 @@ export const frFRWallets = {
   methodInstruction: 'Méthode / instruction',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Montant natif maximal',
-  maxTokenAmount: 'Montant de jetons maximal',
+  maxTokenAmount: 'Montant de jetons maximal (en jetons)',
   maxFee: 'Frais maximaux',
   sessionSpend: 'Dépense native par session',
   dailySpend: 'Dépense native quotidienne',

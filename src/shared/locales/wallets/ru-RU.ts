@@ -195,7 +195,7 @@ export const ruRUWallets = {
   methodInstruction: 'Метод / инструкция',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Макс. сумма нативной монеты',
-  maxTokenAmount: 'Макс. сумма токена',
+  maxTokenAmount: 'Макс. сумма токена (в токенах)',
   maxFee: 'Макс. комиссия',
   sessionSpend: 'Расход нативной монеты за сеанс',
   dailySpend: 'Расход нативной монеты за день',

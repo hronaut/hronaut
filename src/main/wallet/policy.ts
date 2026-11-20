@@ -7,6 +7,7 @@ import {
   type WalletOperationRequest,
   type WalletPolicy
 } from '../../shared/wallet.js'
+import { wholeTokenAmount } from './transaction-display.js'
 import { typedDataHashWithinBudget } from './typed-data-cost.js'
 import { typedDataDisplay, typedDataSignedChainId } from './typed-data-display.js'
 
@@ -18,7 +19,12 @@ export interface WalletDecodedOperation {
   destination?: string
   method?: string
   nativeAmount?: string
+  /** The token amount in the token's smallest units, as the call encodes it. */
   tokenAmount?: string
+  /** Decimals the token contract reports, so `tokenAmount` can be read in whole tokens. */
+  tokenDecimals?: number
+  /** Symbol the token contract reports. A contract chooses its own symbol, so it never identifies the token alone. */
+  tokenSymbol?: string
   estimatedFee?: string
   unlimitedAllowance: boolean
   newContractOrProgram: boolean
@@ -401,7 +407,9 @@ export class WalletPolicyEngine {
         && !walletPolicyDestinationMatches(wallet.chainFamily, policy.contracts ?? [], decoded.contract)) continue
       if (request.operation === 'sign-message' && !policy.allowMessageSigning) continue
       if (policy.maxNativeAmount && walletDecimalCompare(decoded.nativeAmount, policy.maxNativeAmount) > 0) continue
-      if (policy.maxTokenAmount && walletDecimalCompare(decoded.tokenAmount, policy.maxTokenAmount) > 0) continue
+      // The limit is in whole tokens, as the approval dialog shows them; without the token's decimals it cannot be checked.
+      if (policy.maxTokenAmount && decoded.tokenAmount !== undefined && (wholeTokenAmount(decoded) === undefined
+        || walletDecimalCompare(wholeTokenAmount(decoded), policy.maxTokenAmount) > 0)) continue
       if (policy.maxFee && walletDecimalCompare(decoded.estimatedFee, policy.maxFee) > 0) continue
       if (policy.sessionSpendLimit && walletDecimalCompare(walletDecimalAdd(usage.sessionSpend, decoded.nativeAmount), policy.sessionSpendLimit) > 0) continue
       if (policy.dailySpendLimit && walletDecimalCompare(walletDecimalAdd(usage.dailySpend, decoded.nativeAmount), policy.dailySpendLimit) > 0) continue

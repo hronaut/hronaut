@@ -195,7 +195,7 @@ export const ukUAWallets = {
   methodInstruction: 'Метод / інструкція',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Максимальна сума в нативній монеті',
-  maxTokenAmount: 'Максимальна сума токена',
+  maxTokenAmount: 'Максимальна сума токена (у токенах)',
   maxFee: 'Максимальна комісія',
   sessionSpend: 'Витрати нативної монети за сеанс',
   dailySpend: 'Витрати нативної монети за день',
