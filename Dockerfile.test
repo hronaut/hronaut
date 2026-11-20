@@ -12,8 +12,11 @@ WORKDIR /workspace
 
 COPY --from=install-inputs /install/package.json /install/package-lock.json ./
 COPY scripts/docker-dependency-cache-key.ts ./scripts/
+# GitHub release downloads sometimes drop mid-transfer, so the Electron binary gets two more tries.
 RUN npm ci \
-    && node node_modules/electron/install.js \
+    && { node node_modules/electron/install.js \
+      || { sleep 10 && node node_modules/electron/install.js; } \
+      || { sleep 30 && node node_modules/electron/install.js; }; } \
     && ./node_modules/.bin/electron-builder install-app-deps \
     && node scripts/docker-dependency-cache-key.ts package-lock.json > node_modules/.hronaut-package-lock.sha256
 
@@ -28,7 +31,7 @@ RUN set -eu; \
       arm64) arch=arm64; sum=ac5f88c0f6c1e5ed09c035a9f4405f74b996ea8a701d7150dc0184c18dd09f11 ;; \
       *) echo "No Anvil build for $(dpkg --print-architecture)" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL -o /tmp/foundry.tgz "https://github.com/foundry-rs/foundry/releases/download/v1.3.1/foundry_v1.3.1_linux_${arch}.tar.gz"; \
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o /tmp/foundry.tgz "https://github.com/foundry-rs/foundry/releases/download/v1.3.1/foundry_v1.3.1_linux_${arch}.tar.gz"; \
     echo "${sum}  /tmp/foundry.tgz" | sha256sum -c -; \
     tar -xzf /tmp/foundry.tgz -C /usr/local/bin anvil; \
     rm /tmp/foundry.tgz; \
