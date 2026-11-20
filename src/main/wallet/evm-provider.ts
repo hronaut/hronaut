@@ -203,6 +203,17 @@ function activeEvmWallets(access: EvmProviderAccess, context: WalletBrokerContex
   return active
 }
 
+// The message names the chain the site asked for, so an agent reading failedCalls knows which network to configure.
+class UnconfiguredEvmChainError extends Error {
+  readonly chain: string
+
+  constructor(chainId: bigint) {
+    const chain = `0x${chainId.toString(16)} (${chainId})`
+    super(`Requested EVM chain ${chain} is not configured for this workspace wallet`)
+    this.chain = chain
+  }
+}
+
 // Neither refusal names the person or says "rejected": the page gets code 4901, not 4001 (user rejected) or
 // 4902 (add the chain first). wagmi, and AppKit through it, then keeps the wallet's network on connect instead of
 // asking to add one Hronaut would refuse and calling the whole connection declined.
@@ -210,8 +221,8 @@ function addEvmChain(access: EvmProviderAccess, context: WalletBrokerContext, wa
   try {
     return switchEvmChain(access, context, wallets, requestedChainId)
   } catch (error) {
-    if (error instanceof Error && error.message === 'Requested EVM chain is not configured for this workspace wallet') {
-      throw new Error('Requested EVM chain cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut')
+    if (error instanceof UnconfiguredEvmChainError) {
+      throw new Error(`Requested EVM chain ${error.chain} cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut`)
     }
     throw error
   }
@@ -250,7 +261,7 @@ function switchEvmChain(
     throw new Error('Requested EVM chain is invalid')
   }
   const matching = wallets.filter((wallet) => BigInt(wallet.network.id) === numericChainId)
-  if (!matching.length) throw new Error('Requested EVM chain is not configured for this workspace wallet')
+  if (!matching.length) throw new UnconfiguredEvmChainError(numericChainId)
   const current = activeEvmWallets(access, context, wallets)
   const nextNetworkId = matching[0]!.network.id
   if (current[0]?.network.id === nextNetworkId) return null

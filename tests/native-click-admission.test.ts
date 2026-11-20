@@ -44,6 +44,12 @@ describe('operation-owned native click admission', () => {
       expect(f.calls.filter(([m, p]) => m === 'Runtime.callFunctionOn' && String(p?.functionDeclaration).includes('this.sample'))).toHaveLength(1)
     })
   }
+  it('admits a receiver that hosts an open shadow root, since the page sample already looked inside it', async () => {
+    const f = fixture({ node: { nodeName: 'WUI-TEXT', localName: 'wui-text', shadowRoots: [{ shadowRootType: 'open' }] } })
+    const guard = await acquireNativeClickAdmission(f.api, { ref: 'e1' }, () => {}, f.progress, () => {})
+    await guard.sample(1, 2); await guard.dispose()
+    expect(f.calls.filter(([m, p]) => m === 'Runtime.callFunctionOn' && String(p?.functionDeclaration).includes('this.sample'))).toHaveLength(2)
+  })
   it('fails closed and releases exception object group without exposing page exception content', async () => {
     const f = fixture({ acquisitionFails: true })
     await expect(acquireNativeClickAdmission(f.api, { selector: '#one' }, () => {}, f.progress, () => {})).rejects.toMatchObject({ reason: 'TARGET_UNAVAILABLE' })

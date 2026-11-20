@@ -7,9 +7,9 @@ type Probe = { commands: Array<Record<string, unknown>>; cleanup: number; finals
 type Scope = typeof globalThis & { __admissionProbe?: Probe }
 const setup = (mode: string) => `(() => {
  document.body.innerHTML='<button id="target" data-hronaut-ref="e987" style="position:fixed;left:120.125px;top:120.375px;width:200.5px;height:100.5px"><span id="child" style="display:block;width:100%;height:100%">Target</span></button>';
- const member=Node.prototype.contains;window.events=[];window.original=document.getElementById('target');window.overrides=0;
+ const path=Event.prototype.composedPath;window.events=[];window.original=document.getElementById('target');window.overrides=0;
  const overlay=()=>{const n=document.createElement('button');n.id='overlay';n.textContent='private-blocker-canary';n.style='position:fixed;inset:0;z-index:999999';document.body.append(n)};window.overlay=overlay;
- for(const type of ['mousedown','mouseup','click','dblclick'])document.addEventListener(type,e=>{if(window.events.length<30)window.events.push({type,target:e.target.id,original:member.call(window.original,e.target),trusted:e.isTrusted})},true);
+ for(const type of ['mousedown','mouseup','click','dblclick'])document.addEventListener(type,e=>{if(window.events.length<30)window.events.push({type,target:e.target.id,original:path.call(e).includes(window.original),trusted:e.isTrusted})},true);
  if('${mode}'==='plain')window.original.textContent='Target';
  if('${mode}'==='fixed'||'${mode}'==='pass-through'){overlay();if('${mode}'==='pass-through')document.getElementById('overlay').style.pointerEvents='none'}
  if('${mode}'==='hover')document.addEventListener('mousemove',overlay,{once:true});
@@ -17,20 +17,24 @@ const setup = (mode: string) => `(() => {
  if('${mode}'==='user-agent')document.getElementById('child').innerHTML='<input style="width:100%;height:100%" value="private-input-canary">';
  if('${mode}'==='second-block')window.original.addEventListener('click',overlay,{once:true});
  if('${mode}'==='closed'||'${mode}'==='open'){document.getElementById('child').attachShadow({mode:'${mode}' }).innerHTML='<button style="width:100%;height:100%">private-shadow-canary</button>'}
+ if('${mode}'==='open-slot'){const child=document.getElementById('child');child.style.font='80px/100px sans-serif';child.textContent='Target';child.attachShadow({mode:'open'}).innerHTML='<slot></slot>'}
+ if('${mode}'==='slotted-label'){const host=document.createElement('x-label');host.style='display:block;position:fixed;left:120.125px;top:120.375px;width:200.5px;height:100.5px';host.textContent='Target';host.attachShadow({mode:'open'}).innerHTML='<button id="target" style="width:100%;height:100%;padding:0;font:80px/100px sans-serif;text-align:left"><slot></slot></button>';document.body.replaceChildren(host);window.original=host.shadowRoot.getElementById('target')}
  if('${mode}'==='frame')document.getElementById('child').innerHTML='<iframe style="width:100%;height:100%;border:0" srcdoc="<button>Frame</button>"></iframe>';
  window.installOverrides=()=>{const bad=()=>{window.overrides++;throw Error('page override')};Document.prototype.elementFromPoint=bad;Document.prototype.querySelectorAll=bad;Node.prototype.contains=bad;Object.defineProperty(Node.prototype,'isConnected',{get:bad})};
  return true;
 })()`
 for (const target of ['selector','ref'] as const) for (const doubleClick of [false,true]) {
- for (const mode of ['plain','fixed','hover','descendant','pass-through','replace','closed','open','frame','hostile','flag-replace','user-agent','second-block']) {
+ for (const mode of ['plain','fixed','hover','descendant','pass-through','replace','closed','open','open-slot','slotted-label','frame','hostile','flag-replace','user-agent','second-block']) {
   if (mode === 'second-block' && !doubleClick) continue
+  // The label's button is in a shadow root, which a selector does not reach.
+  if (mode === 'slotted-label' && target === 'selector') continue
   test(`semantic admission ${target} double=${doubleClick} ${mode}`, async({capabilities,electronApp}, info)=>{
    const {client,tabId,fixtureUrl}=capabilities
    await electronApp.evaluate(async({webContents},{url,script})=>{await webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript(script)}, {url:fixtureUrl,script:setup(mode)})
    let ref: string | undefined
    if(target==='ref'){
     expect((await client.callTool({name:'browser_snapshot',arguments:{tabId}})).isError).not.toBe(true)
-    ref=await electronApp.evaluate(async({webContents},url)=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript("document.getElementById('target').getAttribute('data-hronaut-ref')"),fixtureUrl)
+    ref=await electronApp.evaluate(async({webContents},url)=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript("window.original.getAttribute('data-hronaut-ref')"),fixtureUrl)
     expect(ref).toBeTruthy()
    }
    if(mode==='hostile')await electronApp.evaluate(async({webContents},url)=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript('window.installOverrides();true'),fixtureUrl)
@@ -54,8 +58,9 @@ for (const target of ['selector','ref'] as const) for (const doubleClick of [fal
     ])
     expect(result.structuredContent).toMatchObject({reason:'TARGET_CHANGED',progress:{moveAttempted:1,moveAcknowledged:1,downAttempted:0,upAttempted:0}})
    }
-   // A control in an open shadow root inside the target is hit-tested through the root, as one in light DOM is; a closed
-   // root, whose receiver cannot be seen, is still refused.
+   // A control in an open shadow root inside the target is hit-tested through the root, as one in light DOM is, and so
+   // is text a host shows through a slot, inside the target or in a shadow-root button that is the target (an AppKit
+   // button's label); a closed root, whose receiver cannot be seen, is still refused.
    const blocked=['fixed','hover','replace','closed','frame','flag-replace','user-agent','second-block'].includes(mode)
    expect(result.isError===true).toBe(blocked)
    expect(JSON.stringify(result)).not.toMatch(/private-blocker-canary|private-shadow-canary|private-input-canary/)

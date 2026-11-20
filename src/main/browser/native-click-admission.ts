@@ -113,11 +113,15 @@ export async function acquireNativeClickAdmission(api: AttachedDebugger, target:
       // CDP can transport attributes/text even at depth zero. Consume only
       // receiver kind/root/frame metadata; never publish the raw descriptor.
       const description = await api.sendCommand('DOM.describeNode', { objectId: receiver.result.objectId, depth: 0, pierce: false }) as {
-        node?: { localName?: string; shadowRoots?: unknown[]; contentDocument?: unknown; frameId?: string }
+        node?: { localName?: string; shadowRoots?: Array<{ shadowRootType?: string }>; contentDocument?: unknown; frameId?: string }
       }
       validate()
       const node = description.node
-      if (!node?.localName || node.shadowRoots?.length || node.contentDocument || node.frameId
+      // The page sample already looked through an open shadow root, so a receiver that hosts one was hit on its own
+      // slotted content (AppKit 2's wui-text inside its Connect Wallet button). A closed or user-agent root could
+      // still take the press somewhere the sample cannot see.
+      const hiddenShadow = node?.shadowRoots?.some((shadow) => shadow?.shadowRootType !== 'open')
+      if (!node?.localName || hiddenShadow || node.contentDocument || node.frameId
         || ['iframe', 'frame', 'object', 'embed'].includes(node.localName.toLowerCase())) {
         throw new NativeClickAdmissionError('EMBEDDED_HIT_UNSUPPORTED', { ...progress })
       }

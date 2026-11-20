@@ -1901,7 +1901,10 @@ describe('WalletBroker', () => {
     await expect(broker.providerRequest(context(), {
       family: 'evm', method: 'wallet_addEthereumChain',
       params: [{ chainId: '0x89', chainName: 'Polygon', rpcUrls: ['https://attacker.example'] }]
-    })).rejects.toThrow('Requested EVM chain cannot be added: websites cannot add networks')
+    })).rejects.toThrow('Requested EVM chain 0x89 (137) cannot be added: websites cannot add networks')
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_switchEthereumChain', params: [{ chainId: '0x89' }]
+    })).rejects.toThrow('Requested EVM chain 0x89 (137) is not configured for this workspace wallet')
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_chainId' })).resolves.toBe('0xaa36a7')
     expect(service.list().map((entry) => entry.network.rpcUrl)).toEqual(['http://127.0.0.1:8545'])
 

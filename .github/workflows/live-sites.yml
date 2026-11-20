@@ -1,0 +1,47 @@
+name: Live wallet sites
+
+# An agent uses Hronaut's wallet on Reown's own live AppKit sites (tests/integration/reown-live-sites.live.ts), which run
+# the AppKit releases the pinned test shop in CI does not. The sites change without notice and the checks need the
+# internet, so they run weekly and on demand, apart from CI and the release gate.
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-sites
+  cancel-in-progress: true
+
+jobs:
+  reown:
+    name: Reown AppKit sites
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run the live site checks in Docker
+        run: |
+          docker compose --file compose.test.ci.yaml run --build --name hronaut-live-sites integration \
+            bash -c 'npm run build:app && npm run test:live:headless'
+
+      - name: Collect failure diagnostics
+        if: failure()
+        run: |
+          mkdir -p ci-artifacts
+          for directory in test-results playwright-report; do
+            docker cp "hronaut-live-sites:/workspace/$directory" ci-artifacts/ || true
+          done
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-sites-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
