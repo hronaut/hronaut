@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- A bounded wallet policy's **Max token amount** is now in whole tokens, as the approval dialog shows them. Before, it was compared with the amount in the token's smallest units, so a limit of 10 let an agent pay at most 0.00001 USDC without asking and sent a 5 USDC payment to a person. A token call whose contract reports no decimals now asks a person when the policy has a token limit.
+- A bounded wallet policy's **Max token amount** is now in whole tokens, as the approval dialog shows them. Before, it was compared with the amount in the token's smallest units, so a limit of 10 let an agent pay at most 0.00001 USDC without asking and sent a 5 USDC payment to a person. A token call whose contract reports no decimals now asks a person when the policy has a token limit. If you wrote a limit in smallest units, such as `5000000` for 5 USDC, change it to `5` after updating, or it now allows that many whole tokens.
 
 ## [3.14.33] - 2026-11-15
 
