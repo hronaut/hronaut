@@ -40,7 +40,7 @@ export default defineConfig({
           environment: 'node',
           sequence: { groupOrder: 0 },
           include: ['tests/**/*.test.ts'],
-          exclude: ['tests/renderer/**'],
+          exclude: ['tests/renderer/**', '**/node_modules/**'],
           maxWorkers: process.env.CI ? ciMaxWorkers : undefined
         }
       },

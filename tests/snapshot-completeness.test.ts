@@ -36,13 +36,14 @@ it.each(['headings', 'controls'])('reports the %s cap even below the character l
     tagName: kind === 'headings' ? 'H1' : 'BUTTON', innerText: 'x',
     getBoundingClientRect: () => ({ width: 1, height: 1 }),
     getAttribute: () => null, setAttribute: () => undefined, closest: () => null, querySelector: () => null,
-    matches: () => false
+    matches: () => false, getRootNode: () => document
   }))
+  const document = { title: 'Caps', body: { innerText: '', closest: () => null, querySelector: () => null }, querySelectorAll: (selector: string) =>
+    selector === '[data-hronaut-ref]' ? [] : (selector === 'h1,h2,h3') === (kind === 'headings') ? elements : [] }
   const result = runInNewContext(snapshotScript(100000), {
-    URL, location: { href: 'https://example.test/' }, HTMLAnchorElement: class {},
+    URL, location: { href: 'https://example.test/' }, HTMLAnchorElement: class {}, ShadowRoot: class {},
     getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
-    document: { title: 'Caps', body: { innerText: '', closest: () => null, querySelector: () => null }, querySelectorAll: (selector: string) =>
-      selector === '[data-hronaut-ref]' ? [] : (selector === 'h1,h2,h3') === (kind === 'headings') ? elements : [] }
+    document
   })
   expect(result.returnedChars).toBeLessThan(100000)
   expect(result).toMatchObject({ truncated: true, omitted: { [kind]: true, characters: false } })
