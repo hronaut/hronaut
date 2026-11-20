@@ -451,6 +451,12 @@ export const WalletRequestSummarySchema = z.object({
     method: z.string().max(512).optional(),
     nativeAmount: z.string().max(256).optional(),
     tokenAmount: z.string().max(256).optional(),
+    /** The token amount in whole tokens, read with the decimals the token contract reports. */
+    tokenWholeAmount: z.string().max(256).optional(),
+    /** The symbol the token contract reports for itself; any contract can claim any symbol. */
+    tokenSymbol: z.string().max(64).optional(),
+    /** The network's own currency, in which the native amount and fee are shown. */
+    nativeSymbol: z.string().max(32).optional(),
     estimatedFee: z.string().max(256).optional(),
     transactionWarnings: z.array(WalletTransactionWarningSchema).max(WalletTransactionWarningSchema.options.length).optional(),
     message: z.object({

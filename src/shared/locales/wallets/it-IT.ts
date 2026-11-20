@@ -195,7 +195,7 @@ export const itITWallets = {
   methodInstruction: 'Metodo / istruzione',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Importo nativo massimo',
-  maxTokenAmount: 'Importo massimo di token',
+  maxTokenAmount: 'Importo massimo di token (in token)',
   maxFee: 'Commissione massima',
   sessionSpend: 'Spesa nativa per sessione',
   dailySpend: 'Spesa nativa giornaliera',

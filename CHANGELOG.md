@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Wallet approvals show amounts as people read them: a token payment reads `5 USDC` instead of `5000000`, using the decimals and symbol the token contract reports, with the smallest-unit amount below it, and native amounts and fees name the network's currency, such as `0.01 ETH`.
+
+### Fixed
+
+- A bounded wallet policy's **Max token amount** is now in whole tokens, as the approval dialog shows them. Before, it was compared with the amount in the token's smallest units, so a limit of 10 let an agent pay at most 0.00001 USDC without asking and sent a 5 USDC payment to a person. A token call whose contract reports no decimals now asks a person when the policy has a token limit.
+
 ## [3.14.33] - 2026-11-15
 
 ### Security

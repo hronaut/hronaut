@@ -195,7 +195,7 @@ export const hiINWallets = {
   methodInstruction: 'मेथड / इंस्ट्रक्शन',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'ज़्यादा से ज़्यादा नेटिव रकम',
-  maxTokenAmount: 'ज़्यादा से ज़्यादा टोकन रकम',
+  maxTokenAmount: 'ज़्यादा से ज़्यादा टोकन रकम (टोकन में)',
   maxFee: 'ज़्यादा से ज़्यादा फ़ीस',
   sessionSpend: 'सेशन का नेटिव खर्च',
   dailySpend: 'रोज़ का नेटिव खर्च',

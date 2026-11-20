@@ -1,6 +1,8 @@
 import type { WalletDecodedOperation, WalletSimulationResult } from '../policy.js'
 import type { WalletDescriptor, WalletSimulationRevert } from '../../../shared/wallet.js'
-import { isUnlimitedTokenAmount } from '../transaction-display.js'
+import { formatTokenUnits, isUnlimitedTokenAmount } from '../transaction-display.js'
+
+export { formatTokenUnits }
 import type { WalletSecret } from '../vault.js'
 
 export interface WalletNormalizedTransaction {
@@ -43,15 +45,6 @@ export interface WalletTokenBalance {
   symbol?: string
   /** What `spender` may still move from the wallet with `transferFrom`, when one was asked for. */
   allowance?: WalletTokenAllowance
-}
-
-/** Formats an integer token amount with the token's decimals, trimming trailing zeros. */
-export function formatTokenUnits(amount: bigint, decimals: number): string {
-  if (decimals === 0) return amount.toString()
-  const scale = 10n ** BigInt(decimals)
-  const whole = amount / scale
-  const fraction = (amount % scale).toString().padStart(decimals, '0').replace(/0+$/, '')
-  return fraction ? `${whole}.${fraction}` : whole.toString()
 }
 
 /** An allowance read from an ERC-20 style `allowance(owner, spender)` call. */

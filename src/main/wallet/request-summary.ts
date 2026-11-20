@@ -5,7 +5,7 @@ import type { WalletApprovalRecord } from './approvals.js'
 import { simulationRevertFromStored, storedSimulationRevert } from './evm-revert.js'
 import type { WalletNormalizedTransaction, WalletTransactionSimulation } from './adapters/types.js'
 import { hasHiddenMessageCharacters, revealHiddenMessageCharacters } from './hidden-characters.js'
-import { transactionWarnings } from './transaction-display.js'
+import { transactionWarnings, walletNativeSymbol, wholeTokenAmount } from './transaction-display.js'
 import { restoreWalletJson, walletJsonInspectable } from './json-safe.js'
 import { isSignInText, signInTextWarningIssue, walletPolicyDestinationMatches, type WalletSignInTextIssue } from './policy.js'
 
@@ -87,6 +87,11 @@ export function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor)
         ...(normalized?.decoded.method ? { method: normalized.decoded.method } : {}),
         ...(normalized?.decoded.nativeAmount ? { nativeAmount: normalized.decoded.nativeAmount } : {}),
         ...(normalized?.decoded.tokenAmount ? { tokenAmount: normalized.decoded.tokenAmount } : {}),
+        ...(normalized && wholeTokenAmount(normalized.decoded) !== undefined ? {
+          tokenWholeAmount: wholeTokenAmount(normalized.decoded),
+          ...(normalized.decoded.tokenSymbol ? { tokenSymbol: normalized.decoded.tokenSymbol } : {})
+        } : {}),
+        ...(walletNativeSymbol(wallet) ? { nativeSymbol: walletNativeSymbol(wallet) } : {}),
         ...((record.simulation?.estimatedFee ?? normalized?.decoded.estimatedFee) ? {
           estimatedFee: record.simulation?.estimatedFee ?? normalized?.decoded.estimatedFee
         } : {}),

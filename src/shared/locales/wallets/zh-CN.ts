@@ -195,7 +195,7 @@ export const zhCNWallets = {
   methodInstruction: '方法/指令',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: '原生代币最大金额',
-  maxTokenAmount: '代币最大金额',
+  maxTokenAmount: '代币最大金额（以代币计）',
   maxFee: '最高手续费',
   sessionSpend: '会话原生代币支出',
   dailySpend: '每日原生代币支出',

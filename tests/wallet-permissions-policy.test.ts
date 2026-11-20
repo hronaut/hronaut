@@ -151,6 +151,7 @@ describe('WalletPolicyEngine', () => {
     method: 'transfer',
     nativeAmount: '0.5',
     tokenAmount: '10',
+    tokenDecimals: 0,
     estimatedFee: '0.001',
     unlimitedAllowance: false,
     newContractOrProgram: false,
@@ -273,6 +274,38 @@ describe('WalletPolicyEngine', () => {
       ...override
     })
     expect(decision).toEqual({ outcome: 'awaiting-human', reason })
+  })
+
+  it('limits token amounts in whole tokens, as the approval dialog shows them', () => {
+    const token = '0x00000000000000000000000000000000000000Aa'
+    const evaluate = (tokenCall: Partial<typeof decoded> & { tokenDecimals?: number }, maxTokenAmount = '10') => new WalletPolicyEngine().evaluate({
+      request: request(), wallet,
+      policies: [{ ...policy, methods: ['erc20.transfer'], contracts: [token], maxTokenAmount }],
+      decoded: { ...decoded, method: 'erc20.transfer', contract: token, ...tokenCall }, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })
+    const approved = { outcome: 'approved', reason: 'bounded-policy', policyId: 'policy-1' }
+    const asks = { outcome: 'awaiting-human', reason: 'no-matching-policy' }
+    // 5 USDC is 5000000 in its smallest units, within a limit of 10.
+    expect(evaluate({ tokenAmount: '5000000', tokenDecimals: 6 })).toEqual(approved)
+    expect(evaluate({ tokenAmount: '10000000', tokenDecimals: 6 })).toEqual(approved)
+    expect(evaluate({ tokenAmount: '10000001', tokenDecimals: 6 })).toEqual(asks)
+    expect(evaluate({ tokenAmount: '2500000', tokenDecimals: 6 }, '2.5')).toEqual(approved)
+    // Without the token's decimals the amount cannot be checked against the limit.
+    const { tokenDecimals: _decimals, ...withoutDecimals } = decoded
+    expect(new WalletPolicyEngine().evaluate({
+      request: request(), wallet,
+      policies: [{ ...policy, methods: ['erc20.transfer'], contracts: [token], maxTokenAmount: '10' }],
+      decoded: { ...withoutDecimals, method: 'erc20.transfer', contract: token, tokenAmount: '5' }, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })).toEqual(asks)
+    // A call with no token amount is not held back by the token limit.
+    const { tokenAmount: _amount, tokenDecimals: _unused, ...native } = decoded
+    expect(new WalletPolicyEngine().evaluate({
+      request: request(), wallet, policies: [{ ...policy, maxTokenAmount: '1' }],
+      decoded: native, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })).toEqual(approved)
   })
 
   it('signs a token call only on a token contract the policy lists', () => {

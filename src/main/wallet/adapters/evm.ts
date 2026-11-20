@@ -32,7 +32,7 @@ import type {
   WalletTransactionSimulation
 } from './types.js'
 import { formatTokenUnits, tokenAllowance } from './types.js'
-import { isUnlimitedTokenAmount } from '../transaction-display.js'
+import { isUnlimitedTokenAmount, MAX_TOKEN_DECIMALS } from '../transaction-display.js'
 
 const HexSchema = z.string().regex(/^0x(?:[a-fA-F0-9]{2})*$/).max(2_000_002)
 const QuantitySchema = z.union([
@@ -437,8 +437,24 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       raw: raw as Record<string, unknown>,
       decoded: decodeOperation(to, data, value, getAddress(wallet.publicAddress))
     }
+    await this.addTokenDetails(wallet, normalized.decoded)
     if (estimationRevert) this.estimationReverts.set(normalized, estimationRevert)
     return normalized
+  }
+
+  /**
+   * Reads the decimals and symbol of the token a recognized ERC-20 call moves
+   * or approves, so the person approves "5 USDC" rather than "5000000". An NFT
+   * contract shares those call shapes but has no decimals, so its amount stays
+   * a token ID; a contract that answers neither leaves the amount as it is.
+   */
+  private async addTokenDetails(wallet: WalletDescriptor, decoded: WalletNormalizedTransaction['decoded']): Promise<void> {
+    if (!decoded.contract || decoded.tokenAmount === undefined || !decoded.method?.startsWith('erc20.')) return
+    const details = await this.tokenContractDetails(wallet, decoded.contract).catch(() => ({} as { symbol?: string; decimals?: number }))
+    if (details.decimals !== undefined && Number.isInteger(details.decimals) && details.decimals >= 0 && details.decimals <= MAX_TOKEN_DECIMALS) {
+      decoded.tokenDecimals = details.decimals
+      if (details.symbol) decoded.tokenSymbol = details.symbol
+    }
   }
 
   async simulate(wallet: WalletDescriptor, transaction: WalletNormalizedTransaction): Promise<WalletTransactionSimulation> {

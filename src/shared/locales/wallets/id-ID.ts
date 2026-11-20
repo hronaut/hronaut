@@ -195,7 +195,7 @@ export const idIDWallets = {
   methodInstruction: 'Metode / instruksi',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Jumlah native maks.',
-  maxTokenAmount: 'Jumlah token maks.',
+  maxTokenAmount: 'Jumlah token maks. (dalam token)',
   maxFee: 'Biaya maks.',
   sessionSpend: 'Pengeluaran native per sesi',
   dailySpend: 'Pengeluaran native harian',

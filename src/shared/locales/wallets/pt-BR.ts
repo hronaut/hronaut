@@ -195,7 +195,7 @@ export const ptBRWallets = {
   methodInstruction: 'Método / instrução',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Valor nativo máximo',
-  maxTokenAmount: 'Valor máximo de token',
+  maxTokenAmount: 'Valor máximo de token (em tokens)',
   maxFee: 'Taxa máxima',
   sessionSpend: 'Gasto nativo por sessão',
   dailySpend: 'Gasto nativo diário',

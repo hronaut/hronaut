@@ -195,7 +195,7 @@ export const deDEWallets = {
   methodInstruction: 'Methode / Anweisung',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Max. nativer Betrag',
-  maxTokenAmount: 'Max. Token-Betrag',
+  maxTokenAmount: 'Max. Token-Betrag (in Token)',
   maxFee: 'Max. Gebühr',
   sessionSpend: 'Native Ausgaben pro Sitzung',
   dailySpend: 'Native Ausgaben pro Tag',

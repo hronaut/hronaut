@@ -195,7 +195,7 @@ export const zhTWWallets = {
   methodInstruction: '方法 / 指令',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: '原生代幣金額上限',
-  maxTokenAmount: '代幣金額上限',
+  maxTokenAmount: '代幣金額上限（以代幣計）',
   maxFee: '手續費上限',
   sessionSpend: '工作階段原生代幣支出',
   dailySpend: '每日原生代幣支出',

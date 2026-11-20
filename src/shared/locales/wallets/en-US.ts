@@ -195,7 +195,7 @@ export const enUSWallets = {
   methodInstruction: 'Method / instruction',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Max native amount',
-  maxTokenAmount: 'Max token amount',
+  maxTokenAmount: 'Max token amount (in tokens)',
   maxFee: 'Max fee',
   sessionSpend: 'Session native spend',
   dailySpend: 'Daily native spend',

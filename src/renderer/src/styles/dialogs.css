@@ -17,6 +17,8 @@
 .wallet-approval-grid > div { @apply min-w-0 [padding:10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface-muted; }
 .wallet-approval-grid dt { @apply text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }
 .wallet-approval-grid dd { @apply [margin:4px_0_0] [overflow-wrap:anywhere]; }
+.wallet-approval-token-amount { @apply grid [gap:2px]; }
+.wallet-approval-token-amount small { @apply text-muted [font-size:var(--type-small-size)]; }
 .wallet-approval-warning { @apply [padding:11px_13px] [border:1px_solid_#d97706] [border-radius:var(--corner-2)] [background:rgba(217,_119,_6,_.12)]; }
 .wallet-approval-message { @apply grid [gap:8px]; }
 .wallet-approval-message h3 { @apply m-0 text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }

@@ -195,7 +195,7 @@ export const viVNWallets = {
   methodInstruction: 'Phương thức / lệnh',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Số lượng tài sản gốc tối đa',
-  maxTokenAmount: 'Số lượng token tối đa',
+  maxTokenAmount: 'Số lượng token tối đa (tính bằng token)',
   maxFee: 'Phí tối đa',
   sessionSpend: 'Chi tiêu tài sản gốc trong phiên',
   dailySpend: 'Chi tiêu tài sản gốc hằng ngày',

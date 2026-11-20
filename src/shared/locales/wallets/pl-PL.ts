@@ -195,7 +195,7 @@ export const plPLWallets = {
   methodInstruction: 'Metoda / instrukcja',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Maks. kwota natywna',
-  maxTokenAmount: 'Maks. kwota tokenu',
+  maxTokenAmount: 'Maks. kwota tokenu (w tokenach)',
   maxFee: 'Maks. opłata',
   sessionSpend: 'Wydatki natywne w sesji',
   dailySpend: 'Dzienne wydatki natywne',

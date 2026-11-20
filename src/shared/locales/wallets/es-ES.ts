@@ -195,7 +195,7 @@ export const esESWallets = {
   methodInstruction: 'Método / instrucción',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Importe nativo máximo',
-  maxTokenAmount: 'Importe máximo de tokens',
+  maxTokenAmount: 'Importe máximo de tokens (en tokens)',
   maxFee: 'Comisión máxima',
   sessionSpend: 'Gasto nativo por sesión',
   dailySpend: 'Gasto nativo diario',

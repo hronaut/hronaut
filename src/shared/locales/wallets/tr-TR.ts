@@ -195,7 +195,7 @@ export const trTRWallets = {
   methodInstruction: 'Yöntem / talimat',
   methodPlaceholder: 'native-transfer',
   maxNativeAmount: 'Maks. yerel tutar',
-  maxTokenAmount: 'Maks. token tutarı',
+  maxTokenAmount: 'Maks. token tutarı (token cinsinden)',
   maxFee: 'Maks. ücret',
   sessionSpend: 'Oturum başına yerel harcama',
   dailySpend: 'Günlük yerel harcama',
