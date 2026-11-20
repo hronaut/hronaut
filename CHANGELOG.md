@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- When a site asks to switch to a network no workspace wallet is on, the error names it, such as `Requested EVM chain 0x1 (1) is not configured for this workspace wallet`. An agent reads it in `wallet_page_requests` and knows which network the site needs: Reown's AppKit demo, whose ethers adapter insists on Ethereum, otherwise only says "Connection declined".
+
+### Fixed
+
+- Agents' trusted (native) clicks reach buttons in web components whose label is text the component shows through a slot, such as the **Connect Wallet** and network buttons of Reown AppKit 2. Before, the click was refused as covered or unsupported and nothing was pressed.
+
 ## [3.14.34] - 2026-11-20
 
 ### Added

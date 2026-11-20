@@ -24,8 +24,28 @@ export function nativeClickTargetInPage(request: { ref?: string; selector?: stri
   const localName = Object.getOwnPropertyDescriptor(Element.prototype, 'localName')!.get!
   const openShadowRoot = Object.getOwnPropertyDescriptor(Element.prototype, 'shadowRoot')!.get!
   const shadowHost = Object.getOwnPropertyDescriptor(ShadowRoot.prototype, 'host')!.get!
-  const root = Node.prototype.getRootNode, contains = Node.prototype.contains
+  const root = Node.prototype.getRootNode
   const hit = Document.prototype.elementFromPoint, hitShadow = ShadowRoot.prototype.elementFromPoint, matches = Element.prototype.matches
+  const nodeType = Object.getOwnPropertyDescriptor(Node.prototype, 'nodeType')!.get!
+  const elementSlot = Object.getOwnPropertyDescriptor(Element.prototype, 'assignedSlot')!.get!
+  const textSlot = Object.getOwnPropertyDescriptor(Text.prototype, 'assignedSlot')!.get!
+  // What finding slotted text at a point reads, from the same isolated realm, on the first host that needs it.
+  let textAtPoint: {
+    childNodes: (this: Node) => NodeList; createRange: (this: Document) => Range; selectNodeContents: (this: Range, node: Node) => void
+    rects: (this: Range) => DOMRectList; rectCount: (this: DOMRectList) => number; rectAt: (this: DOMRectList, index: number) => DOMRect | null
+    left: Edge; right: Edge; top: Edge; bottom: Edge
+    style: (element: Element) => CSSStyleDeclaration; styleValue: (this: CSSStyleDeclaration, name: string) => string
+  } | undefined
+  type Edge = (this: DOMRectReadOnly) => number
+  const edge = (name: 'left' | 'right' | 'top' | 'bottom'): Edge => Object.getOwnPropertyDescriptor(DOMRectReadOnly.prototype, name)!.get!
+  const textIntrinsics = () => textAtPoint ??= {
+    childNodes: Object.getOwnPropertyDescriptor(Node.prototype, 'childNodes')!.get!,
+    createRange: Document.prototype.createRange, selectNodeContents: Range.prototype.selectNodeContents,
+    rects: Range.prototype.getClientRects, rectAt: DOMRectList.prototype.item,
+    rectCount: Object.getOwnPropertyDescriptor(DOMRectList.prototype, 'length')!.get!,
+    left: edge('left'), right: edge('right'), top: edge('top'), bottom: edge('bottom'),
+    style: window.getComputedStyle, styleValue: CSSStyleDeclaration.prototype.getPropertyValue
+  }
   const selector = request.ref ? '[data-hronaut-ref="' + CSS.escape(request.ref) + '"]' : request.selector as string
   // A selector names one element of the document; a ref can also name a control in an open shadow root.
   const resolve = (): Node | null => {
@@ -54,24 +74,50 @@ export function nativeClickTargetInPage(request: { ref?: string; selector?: stri
     for (let depth = 0; current instanceof ShadowRoot && depth < 64; depth++) current = root.call(shadowHost.call(current) as Node)
     return current
   }
+  // Text a host shows through a slot of its open shadow root is hit on the host itself, since a text node is never an
+  // element at a point; the slot showing the text under the point stands in for it (an AppKit button's label). Text
+  // that takes no pointer input lets the press through to the host, so its slot stands in only when the text takes it.
+  const slotShowingText = (host: Element, x: number, y: number): Element | null => {
+    const read = textIntrinsics()
+    const nodes = read.childNodes.call(host)
+    for (let index = 0; index < length.call(nodes) && index < 500; index++) {
+      const node = item.call(nodes, index) as Node
+      const slot = nodeType.call(node) === Node.TEXT_NODE ? textSlot.call(node as Text) as Element | null : null
+      if (!slot) continue
+      const range = read.createRange.call(doc)
+      read.selectNodeContents.call(range, node)
+      const rects = read.rects.call(range)
+      for (let at = 0; at < read.rectCount.call(rects) && at < 500; at++) {
+        const rect = read.rectAt.call(rects, at)!
+        if (x < read.left.call(rect) || x >= read.right.call(rect) || y < read.top.call(rect) || y >= read.bottom.call(rect)) continue
+        const style = read.style.call(window, slot)
+        return read.styleValue.call(style, 'pointer-events') !== 'none' && read.styleValue.call(style, 'visibility') === 'visible' ? slot : null
+      }
+    }
+    return null
+  }
   // The innermost element at the point, through open shadow roots.
   const deepHit = (x: number, y: number): Element | null => {
     let current = hit.call(doc, x, y)
     for (let depth = 0; current && depth < 64; depth++) {
       const shadow = openShadowRoot.call(current) as ShadowRoot | null
       const inner = shadow ? hitShadow.call(shadow, x, y) : null
-      if (!inner || inner === current) break
-      current = inner
+      if (inner && inner !== current) { current = inner; continue }
+      if (shadow) current = slotShowingText(current, x, y) ?? current
+      break
     }
     return current
   }
-  // Whether the target holds the node, across the shadow roots between them.
+  // Whether the target holds the node on the path a press there takes: up through the slot a node is shown in, a
+  // shadow root's host, or the parent.
   const holds = (target: Node, node: Node): boolean => {
     let current: Node | null = node
-    for (let depth = 0; current && depth < 64; depth++) {
-      if (contains.call(target, current)) return true
-      const scopeRoot: Node = root.call(current)
-      current = scopeRoot instanceof ShadowRoot ? shadowHost.call(scopeRoot) as Node : null
+    for (let depth = 0; current && depth < 10_000; depth++) {
+      if (current === target) return true
+      const slot: Node | null = current instanceof Element ? elementSlot.call(current) as Node | null
+        : nodeType.call(current) === Node.TEXT_NODE ? textSlot.call(current as Text) as Node | null : null
+      const up: Node | null = slot ?? parent.call(current) as Node | null
+      current = up instanceof ShadowRoot ? shadowHost.call(up) as Node : up
     }
     return false
   }

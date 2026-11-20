@@ -74,8 +74,9 @@ test('lets an agent connect through a Reown AppKit modal and pay a shop in token
     const agent = agentOnPage(client, tabId)
     await agent.call('browser_navigate', { url: run.shop.url })
 
-    // AppKit's button and modal are web components; the agent reaches their controls through the snapshot.
-    await agent.click(/button "Connect Wallet"/)
+    // AppKit's button and modal are web components; the agent reaches their controls through the snapshot, and a
+    // trusted click reaches the button's label through the open shadow roots around it.
+    await agent.click(/button "Connect Wallet"/, { native: true })
     await agent.click(/button "Hronaut INSTALLED"/, { native: true })
     const connect = appWindow.getByRole('alertdialog', { name: /Connect account/i })
     await expect(connect).toBeVisible()

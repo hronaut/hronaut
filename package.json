@@ -77,6 +77,8 @@
     "test:integration:dialogs:headless": "xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run test:integration:dialogs",
     "test:performance:run": "playwright test --config playwright.performance.config.ts",
     "test:performance:headless": "xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run test:performance:run",
+    "test:live:run": "playwright test --config playwright.live.config.ts",
+    "test:live:headless": "xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run test:live:run",
     "test:unit:docker:focused": "node scripts/run-focused-docker.ts unit",
     "test:integration:docker:focused": "node scripts/run-focused-docker.ts integration",
     "test:integration:docker:fast": "node scripts/run-focused-docker.ts integration-all",

@@ -298,14 +298,14 @@ describe('wallet provider bootstrap', () => {
   it('refuses an unconfigured EVM chain with 4901, never as an add-it-first 4902 or a user rejection', async () => {
     installHronautWalletProviders()
     target.__hronautWalletBridge!.request.mockRejectedValueOnce(
-      new Error("Error invoking remote method 'wallet-provider:request': Error: Requested EVM chain is not configured for this workspace wallet")
+      new Error("Error invoking remote method 'wallet-provider:request': Error: Requested EVM chain 0x1 (1) is not configured for this workspace wallet")
     )
     await expect(target.ethereum?.request({
       method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }]
-    })).rejects.toMatchObject({ code: 4901, message: 'Requested EVM chain is not configured for this workspace wallet' })
+    })).rejects.toMatchObject({ code: 4901, message: 'Requested EVM chain 0x1 (1) is not configured for this workspace wallet' })
 
     target.__hronautWalletBridge!.request.mockRejectedValueOnce(new Error(
-      "Error invoking remote method 'wallet-provider:request': Error: Requested EVM chain cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut"
+      "Error invoking remote method 'wallet-provider:request': Error: Requested EVM chain 0x89 (137) cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut"
     ))
     await expect(target.ethereum?.request({
       method: 'wallet_addEthereumChain', params: [{ chainId: '0x89', chainName: 'Polygon', rpcUrls: ['https://polygon.example'] }]

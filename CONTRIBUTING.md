@@ -71,6 +71,18 @@ npm run test:performance:headless
 npm run test:integration:docker:focused -- --config playwright.performance.config.ts
 ```
 
+Agents also use the wallet on Reown's own live AppKit sites,
+`tests/integration/reown-live-sites.live.ts`: the AppKit lab, on releases the
+pinned test shop cannot move to, and the AppKit demo. The wallet's network is a
+local Anvil node with the chain ID each site expects. The sites change without
+notice and the checks need the internet, so they run weekly and on demand in
+`.github/workflows/live-sites.yml`, never in CI or the release gate. To run them
+after `npm run build:app`, with Anvil on `PATH` or named by `HRONAUT_ANVIL`:
+
+```bash
+npm run test:live:headless
+```
+
 When investigating a release regression, run a single Electron Playwright file or
 named case in the same pinned Docker/Xvfb environment:
 
