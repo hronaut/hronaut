@@ -17,20 +17,70 @@ export interface NativeClickTarget {
 export function nativeClickTargetInPage(request: { ref?: string; selector?: string; refusePinch?: boolean }): NativeClickTarget {
   const contentType = Object.getOwnPropertyDescriptor(Document.prototype, 'contentType')!.get!
   if (contentType.call(document) !== 'text/html') throw Error('TARGET_UNAVAILABLE')
-  const query = Document.prototype.querySelectorAll, item = NodeList.prototype.item
+  const query = Document.prototype.querySelectorAll, queryShadow = DocumentFragment.prototype.querySelectorAll, item = NodeList.prototype.item
+  const length = Object.getOwnPropertyDescriptor(NodeList.prototype, 'length')!.get!
   const connected = Object.getOwnPropertyDescriptor(Node.prototype, 'isConnected')!.get!
   const parent = Object.getOwnPropertyDescriptor(Node.prototype, 'parentNode')!.get!
   const localName = Object.getOwnPropertyDescriptor(Element.prototype, 'localName')!.get!
+  const openShadowRoot = Object.getOwnPropertyDescriptor(Element.prototype, 'shadowRoot')!.get!
+  const shadowHost = Object.getOwnPropertyDescriptor(ShadowRoot.prototype, 'host')!.get!
   const root = Node.prototype.getRootNode, contains = Node.prototype.contains
-  const hit = Document.prototype.elementFromPoint, matches = Element.prototype.matches
+  const hit = Document.prototype.elementFromPoint, hitShadow = ShadowRoot.prototype.elementFromPoint, matches = Element.prototype.matches
   const selector = request.ref ? '[data-hronaut-ref="' + CSS.escape(request.ref) + '"]' : request.selector as string
-  const resolve = (): Node | null => { const nodes = query.call(document, selector); return nodes.length === 1 ? item.call(nodes, 0) : null }
+  // A selector names one element of the document; a ref can also name a control in an open shadow root.
+  const resolve = (): Node | null => {
+    const nodes = query.call(document, selector)
+    if (!request.ref || length.call(nodes) > 0) return length.call(nodes) === 1 ? item.call(nodes, 0) : null
+    const scopes: Array<Document | ShadowRoot> = [document]
+    let found: Node | null = null
+    for (let index = 0; index < scopes.length && index <= 2000; index++) {
+      const scope = scopes[index]!
+      const all = scope === document ? query.call(document, '*') : queryShadow.call(scope, '*')
+      if (scope !== document) {
+        const matching = queryShadow.call(scope, selector)
+        if (length.call(matching) > 1 || (length.call(matching) === 1 && found)) return null
+        if (length.call(matching) === 1) found = item.call(matching, 0)
+      }
+      for (let at = 0; at < length.call(all); at++) {
+        const shadow = openShadowRoot.call(item.call(all, at) as Element) as ShadowRoot | null
+        if (shadow) scopes.push(shadow)
+      }
+    }
+    return found
+  }
+  // The document, reached from a node through its shadow hosts.
+  const composedRoot = (node: Node): Node => {
+    let current = root.call(node)
+    for (let depth = 0; current instanceof ShadowRoot && depth < 64; depth++) current = root.call(shadowHost.call(current) as Node)
+    return current
+  }
+  // The innermost element at the point, through open shadow roots.
+  const deepHit = (x: number, y: number): Element | null => {
+    let current = hit.call(doc, x, y)
+    for (let depth = 0; current && depth < 64; depth++) {
+      const shadow = openShadowRoot.call(current) as ShadowRoot | null
+      const inner = shadow ? hitShadow.call(shadow, x, y) : null
+      if (!inner || inner === current) break
+      current = inner
+    }
+    return current
+  }
+  // Whether the target holds the node, across the shadow roots between them.
+  const holds = (target: Node, node: Node): boolean => {
+    let current: Node | null = node
+    for (let depth = 0; current && depth < 64; depth++) {
+      if (contains.call(target, current)) return true
+      const scopeRoot: Node = root.call(current)
+      current = scopeRoot instanceof ShadowRoot ? shadowHost.call(scopeRoot) as Node : null
+    }
+    return false
+  }
   const original = resolve(), doc = document
-  if (!original || root.call(original) !== doc) throw Error('TARGET_UNAVAILABLE')
+  if (!original || composedRoot(original) !== doc) throw Error('TARGET_UNAVAILABLE')
   return {
     receiver: null,
     sample(x, y, final) {
-      if (document !== doc || !connected.call(original) || root.call(original) !== doc || resolve() !== original) return 'TARGET_CHANGED'
+      if (document !== doc || !connected.call(original) || composedRoot(original) !== doc || resolve() !== original) return 'TARGET_CHANGED'
       if (matches.call(original as Element, ':disabled')) return 'TARGET_DISABLED'
       if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return 'POINT_OUTSIDE_VIEWPORT'
       // On a page pinched larger since the point was measured, the input would land somewhere else; a phone viewport
@@ -39,13 +89,13 @@ export function nativeClickTargetInPage(request: { ref?: string; selector?: stri
       const shown = document.compatMode === 'BackCompat' ? document.body : document.documentElement
       if (viewport && (Math.abs(viewport.offsetLeft) > 0.01 || Math.abs(viewport.offsetTop) > 0.01
         || (shown && shown.clientWidth - viewport.width > 1))) return 'PAGE_PINCHED'
-      const current = hit.call(doc, x, y)
-      if (!current || root.call(current) !== doc || !contains.call(original, current)) return 'TARGET_OCCLUDED'
+      const current = deepHit(x, y)
+      if (!current || composedRoot(current) !== doc || !holds(original, current)) return 'TARGET_OCCLUDED'
       let ancestor: Node | null = current, depth = 0
       while (ancestor !== doc) {
         if (!ancestor || ++depth > 64) return 'TARGET_UNVERIFIABLE'
         if (ancestor instanceof Element && ['iframe','frame','object','embed'].includes((localName.call(ancestor) as string).toLowerCase())) return 'EMBEDDED_HIT_UNSUPPORTED'
-        ancestor = parent.call(ancestor) as Node | null
+        ancestor = ancestor instanceof ShadowRoot ? shadowHost.call(ancestor) as Node : parent.call(ancestor) as Node | null
       }
       if (final && current !== this.receiver) return 'HIT_CHANGED'
       if (!final) this.receiver = current

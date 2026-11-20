@@ -105,11 +105,9 @@ export function installHronautWalletProviders(): void {
               ? 4200
               : /no wallet is attached/i.test(message)
                 ? 4900
-                : /chain is not configured/i.test(message)
-                  ? family === 'evm' ? 4902 : 4901
-                  : /chain|network/i.test(message)
-                    ? 4901
-                    : -32603
+                : /chain|network/i.test(message)
+                  ? 4901
+                  : -32603
       throw Object.assign(new Error(message), { code })
     }
   }

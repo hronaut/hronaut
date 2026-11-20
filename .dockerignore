@@ -3,6 +3,7 @@
 .codex
 .agents
 node_modules
+tests/fixtures/*/node_modules
 out
 dist
 docs/*

@@ -293,15 +293,23 @@ describe('wallet provider bootstrap', () => {
     })
   })
 
-  it('maps an unconfigured EVM chain to the wallet-standard 4902 error', async () => {
+  // 4902 would ask the page to add the chain, which Hronaut refuses, and wagmi turns any refused add into a user
+  // rejection that fails the whole connection. 4901 lets wagmi and AppKit stay on the wallet's network.
+  it('refuses an unconfigured EVM chain with 4901, never as an add-it-first 4902 or a user rejection', async () => {
     installHronautWalletProviders()
     target.__hronautWalletBridge!.request.mockRejectedValueOnce(
-      new Error('Requested EVM chain is not configured for this workspace wallet')
+      new Error("Error invoking remote method 'wallet-provider:request': Error: Requested EVM chain is not configured for this workspace wallet")
     )
-
     await expect(target.ethereum?.request({
       method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }]
-    })).rejects.toMatchObject({ code: 4902 })
+    })).rejects.toMatchObject({ code: 4901, message: 'Requested EVM chain is not configured for this workspace wallet' })
+
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(new Error(
+      "Error invoking remote method 'wallet-provider:request': Error: Requested EVM chain cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut"
+    ))
+    await expect(target.ethereum?.request({
+      method: 'wallet_addEthereumChain', params: [{ chainId: '0x89', chainName: 'Polygon', rpcUrls: ['https://polygon.example'] }]
+    })).rejects.toMatchObject({ code: 4901 })
   })
 
   it('publishes legacy Solana connection state after the user selects Hronaut', async () => {
