@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- `browser_webmcp` lists WebMCP tools the way Chrome does: tools that same-origin frames register are included, each with the `frame` it came from (pass it back to `call`), and tools are sorted by name in code-unit order like `getTools()`. A page that turns WebMCP off with `Permissions-Policy: tools=()` is reported as unsupported instead of failing with an error. Tools of cross-origin frames stay out, since site policy and action authority are checked against the tab's own origin.
 - Agents' trusted (native) clicks reach buttons in web components whose label is text the component shows through a slot, such as the **Connect Wallet** and network buttons of Reown AppKit 2. Before, the click was refused as covered or unsupported and nothing was pressed.
 
 ## [3.14.34] - 2026-11-20

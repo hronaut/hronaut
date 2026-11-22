@@ -26,11 +26,13 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
           .describe('Exact descriptor digest returned by action=list; required for call.'),
         toolName: z.string().min(1).max(128).optional()
           .describe('Exact page-provided tool name returned by action=list; required for call.'),
+        frame: z.string().regex(/^\d{1,4}(?:\.\d{1,4}){0,15}$/u).optional()
+          .describe('Frame returned by action=list for a tool of a same-origin frame; omit for a top-level document tool.'),
         arguments: z.record(z.string(), z.unknown()).optional()
           .describe('JSON object passed to the page-provided tool. Page schemas are untrusted metadata, not authorization.')
       }
     },
-    tabTool('browser_webmcp', async ({ workspaceId, action, tabId, expectedOrigin, navigationGeneration, descriptorDigest, toolName, arguments: toolArguments }: {
+    tabTool('browser_webmcp', async ({ workspaceId, action, tabId, expectedOrigin, navigationGeneration, descriptorDigest, toolName, frame, arguments: toolArguments }: {
       workspaceId: string
       action: 'status' | 'list' | 'call'
       tabId?: string
@@ -38,6 +40,7 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
       navigationGeneration?: number
       descriptorDigest?: string
       toolName?: string
+      frame?: string
       arguments?: Record<string, unknown>
     }) => {
       if (action === 'status') {
@@ -60,6 +63,7 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
           navigationGeneration,
           descriptorDigest,
           toolName,
+          ...(frame ? { frame } : {}),
           arguments: toolArguments ?? {}
         })
       }

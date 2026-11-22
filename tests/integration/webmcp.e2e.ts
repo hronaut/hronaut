@@ -10,15 +10,27 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-test('binds native top-level WebMCP tools to the listed origin, navigation, and descriptor', async ({
+test('binds native WebMCP tools of the page and its same-origin frames to the listed origin, navigation, and descriptor', async ({
   appWindow,
   electronApp,
   mcpToken,
   mcpPort
 }) => {
-  const fixture = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+  const fixture = createServer((request, response) => {
+    const requestUrl = new URL(request.url ?? '/', 'http://fixture.invalid')
+    if (requestUrl.pathname === '/foreign') {
+      // Another origin (localhost against 127.0.0.1) that the page delegates WebMCP to and that exposes its tool to it.
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end(`<!doctype html><script>document.modelContext.registerTool({name:'foreign-tool',description:'cross-origin frame',execute(){return 'foreign'}},{exposedTo:[${JSON.stringify(requestUrl.searchParams.get('top'))}]})</script>`)
+      return
+    }
+    response.writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      ...(requestUrl.searchParams.has('policy-off') ? { 'permissions-policy': 'tools=()' } : {})
+    })
+    const port = (fixture.address() as { port: number }).port
     response.end(`<!doctype html><html><body>
+      <iframe allow="tools" src="http://localhost:${port}/foreign?top=${encodeURIComponent(`http://127.0.0.1:${port}`)}"></iframe>
       <main><h1>WebMCP fixture</h1><output id="count">0</output></main><div contenteditable="true" aria-label="Private editor">private-rich-webmcp-canary</div>
       <iframe srcdoc="<script>document.modelContext.registerTool({name:'shadow-tool',description:'iframe only',execute(){return 'shadow'}})<\/script>"></iframe>
       <script>
@@ -97,17 +109,32 @@ test('binds native top-level WebMCP tools to the listed origin, navigation, and 
       origin: string
       navigationGeneration: number
       descriptorDigest: string
-      tools: Array<{ name: string; annotations?: Record<string, boolean> }>
+      tools: Array<{ name: string; frame?: string; annotations?: Record<string, boolean> }>
     }
+    // As Chrome's getTools() lists them: by name, with the same-origin frame's tool and its frame, and no tool of the
+    // cross-origin frame.
     expect(listed.tools).toEqual([
       expect.objectContaining({
         name: 'increment-count',
         inputSchema: expect.objectContaining({ type: 'object' })
       }),
       expect.objectContaining({ name: 'read-count', annotations: expect.objectContaining({ readOnlyHint: true }) }),
+      expect.objectContaining({ name: 'shadow-tool', frame: '1' }),
       expect.objectContaining({ name: 'throw-error' })
     ])
-    expect(listed.tools.map(tool => tool.name)).not.toContain('shadow-tool')
+    expect(listed.tools.filter(tool => tool.name !== 'shadow-tool').every(tool => tool.frame === undefined)).toBe(true)
+    expect(listed.tools.map(tool => tool.name)).not.toContain('foreign-tool')
+    const frameCall = await client.callTool({
+      name: 'browser_webmcp',
+      arguments: {
+        action: 'call', tabId, expectedOrigin: listed.origin,
+        navigationGeneration: listed.navigationGeneration,
+        descriptorDigest: listed.descriptorDigest,
+        toolName: 'shadow-tool', frame: '1', arguments: {}
+      }
+    }) as CallToolResult
+    expect(frameCall.isError, text(frameCall)).not.toBe(true)
+    expect(JSON.parse(text(frameCall))).toMatchObject({ status: 'TOOL_RETURNED', result: { value: 'shadow' } })
 
     await electronApp.evaluate(async ({ webContents }, targetUrl) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === targetUrl)
@@ -211,6 +238,13 @@ test('binds native top-level WebMCP tools to the listed origin, navigation, and 
     expect(withoutDetail.isError, text(withoutDetail)).not.toBe(true)
     expect(text(withoutDetail)).not.toContain('next=1')
     expect(JSON.parse(text(withoutDetail))).toMatchObject({ observation: { urlBefore: url, urlAfter: url, urlDetail: 'omitted' } })
+
+    // A page that turns WebMCP off with its Permissions-Policy has none, as in Chrome.
+    await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: `${url}?policy-off=1` } })
+    await client.callTool({ name: 'browser_wait', arguments: { tabId } })
+    expect(JSON.parse(text(await client.callTool({
+      name: 'browser_webmcp', arguments: { action: 'status', tabId }
+    }) as CallToolResult))).toMatchObject({ supported: false, reason: expect.stringContaining('Permissions-Policy') })
   } finally {
     await appWindow.evaluate('window.hronautSettings.setOmitAgentUrlDetail(false)').catch(() => undefined)
     await client.close().catch(() => undefined)

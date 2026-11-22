@@ -40,10 +40,12 @@ export type WebMcpToolCall = {
   navigationGeneration: number
   descriptorDigest: string
   toolName: string
+  /** The tool's frame as action=list gave it; absent for a tool of the top-level document. */
+  frame?: string
   arguments: Record<string, unknown>
 }
 
-/** Reports whether the tab's top-level HTTP(S) document exposes WebMCP. */
+/** Reports whether the tab's top-level HTTP(S) document exposes WebMCP and its Permissions-Policy leaves it on. */
 export async function webMcpStatus(browser: Browser, tabId?: string): Promise<WebMcpStatus> {
   const tab = getTab(browser, tabId)
   const origin = webMcpHttpOrigin(tab.url)
@@ -130,6 +132,7 @@ export async function callWebMcpTool(browser: Browser, input: WebMcpToolCall): P
     result = webMcpCallFromPage(await tab.webContents.executeJavaScript(webMcpCallScript({
       descriptorJson,
       toolName: input.toolName,
+      ...(input.frame ? { frame: input.frame } : {}),
       arguments: input.arguments
     }), false))
   } catch (error) {
