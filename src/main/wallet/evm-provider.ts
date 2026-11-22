@@ -222,7 +222,9 @@ function addEvmChain(access: EvmProviderAccess, context: WalletBrokerContext, wa
     return switchEvmChain(access, context, wallets, requestedChainId)
   } catch (error) {
     if (error instanceof UnconfiguredEvmChainError) {
-      throw new Error(`Requested EVM chain ${error.chain} cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut`)
+      throw new Error(
+        `Requested EVM chain ${error.chain} cannot be added: websites cannot add networks, configure the network on a workspace wallet in Hronaut`
+      )
     }
     throw error
   }
