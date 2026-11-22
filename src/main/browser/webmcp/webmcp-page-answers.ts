@@ -13,7 +13,9 @@ const MAX_DESCRIPTOR_JSON_CHARS = WEBMCP_LIMITS.maxTools * (
 const MAX_RESULT_STRING_CHARS = 20_000
 const MAX_RESULT_ENTRIES = 100
 const MAX_RESULT_DEPTH = 8
-const DESCRIPTOR_KEYS = new Set(['name', 'title', 'description', 'inputSchema', 'annotations'])
+const DESCRIPTOR_KEYS = new Set(['name', 'frame', 'title', 'description', 'inputSchema', 'annotations'])
+// Frame indexes from the top-level document, as the bridge writes them: at most 16 levels of up to four digits.
+const FRAME_PATH = /^\d{1,4}(?:\.\d{1,4}){0,15}$/u
 const ANNOTATION_KEYS = new Set(['readOnlyHint', 'untrustedContentHint', 'consequentialHint', 'debugging'])
 const LIST_STATUSES = new Set(['WEBMCP_TIMEOUT', 'WEBMCP_ERROR'])
 // Each status the bridge gives for a call, with whether it had called the page's tool by then.
@@ -118,7 +120,7 @@ function descriptorsOf(json: string): WebMcpToolDescriptor[] | undefined {
   if (!Array.isArray(parsed) || parsed.length > WEBMCP_LIMITS.maxTools) return undefined
   const tools = parsed.map(descriptorOf)
   if (!tools.every((tool): tool is WebMcpToolDescriptor => tool !== undefined)) return undefined
-  if (new Set(tools.map(tool => tool.name)).size !== tools.length) return undefined
+  if (new Set(tools.map(tool => `${tool.frame ?? ''}\0${tool.name}`)).size !== tools.length) return undefined
   // The bridge writes its descriptor in one form, so the JSON main keeps and digests is no larger than the tools in it.
   return canonical(tools) === json ? tools : undefined
 }
@@ -126,8 +128,9 @@ function descriptorsOf(json: string): WebMcpToolDescriptor[] | undefined {
 function descriptorOf(value: unknown): WebMcpToolDescriptor | undefined {
   const tool = recordOf(value)
   if (value !== tool || Object.keys(tool).some(key => !DESCRIPTOR_KEYS.has(key))) return undefined
-  const { name, title, description, inputSchema, annotations } = tool
+  const { name, frame, title, description, inputSchema, annotations } = tool
   if (typeof name !== 'string' || name.length < 1 || name.length > WEBMCP_LIMITS.maxNameChars) return undefined
+  if (frame !== undefined && (typeof frame !== 'string' || !FRAME_PATH.test(frame))) return undefined
   if (title !== undefined && (typeof title !== 'string' || title.length > WEBMCP_LIMITS.maxTitleChars)) return undefined
   if (description !== undefined && (typeof description !== 'string' || description.length > WEBMCP_LIMITS.maxDescriptionChars)) return undefined
   if (inputSchema !== undefined && (nestedDeeperThan(inputSchema, WEBMCP_LIMITS.maxSchemaDepth)

@@ -42,12 +42,12 @@ describe('WebMCP page bridge', () => {
     expect('modelContext' in document).toBe(false)
   })
 
-  it('bounds top-level metadata, normalizes legacy schemas, and rejects descriptor drift before dispatch', async () => {
+  it('bounds metadata, leaves out windows outside the page, and rejects descriptor drift before dispatch', async () => {
     let executions = 0
     const topLevel: TestTool = {
       name: 'increment',
       description: 'Increment a synthetic value.',
-      inputSchema: JSON.stringify({ type: 'object', properties: { amount: { type: 'number' } } }),
+      inputSchema: { type: 'object', properties: { amount: { type: 'number' } } },
       annotations: { readOnlyHint: false },
       window,
       origin: location.origin,
@@ -86,7 +86,7 @@ describe('WebMCP page bridge', () => {
   it('returns a bounded structured result for the exact descriptor', async () => {
     const tool: TestTool = {
       name: 'read',
-      inputSchema: JSON.stringify({ type: 'object' }),
+      inputSchema: { type: 'object' },
       window,
       origin: location.origin,
       execute: ({ marker }) => ({ marker })
@@ -111,7 +111,7 @@ describe('WebMCP page bridge', () => {
     const tool: TestTool = {
       name: 'read',
       title: 'Quotes " and \\ slashes\u0001',
-      inputSchema: JSON.stringify({ type: 'object' }),
+      inputSchema: { type: 'object' },
       window,
       origin: location.origin,
       execute: () => ({ parts: Array.from({ length: 10 }, () => 'y'.repeat(19_000)) })
@@ -246,6 +246,54 @@ describe('WebMCP page bridge', () => {
     await expect(pending).resolves.toMatchObject({
       status: 'WEBMCP_TIMEOUT', dispatch: 'not-dispatched', effects: 'none',
       reason: 'tool-enumeration-timeout'
+    })
+  })
+
+  it('lists same-origin frame tools with their frame, sorted by name in code unit order, and calls the one named', async () => {
+    const iframe = document.createElement('iframe')
+    document.body.append(iframe)
+    const frameWindow = iframe.contentWindow!
+    const calls: string[] = []
+    const tools: TestTool[] = [
+      { name: 'save', window: frameWindow, origin: location.origin, execute: () => { calls.push('frame'); return 'frame' } },
+      { name: 'save', window, origin: location.origin, execute: () => { calls.push('top'); return 'top' } },
+      { name: 'Archive', window, origin: location.origin, execute: () => 'archive' },
+      { name: 'foreign', window: frameWindow, origin: 'https://widget.example', execute: () => 'foreign' }
+    ]
+    installModelContext(tools)
+    try {
+      const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+      const listing = webMcpListingFromPage(listed)
+      expect(listing).toMatchObject({ listed: true, tools: [{ name: 'Archive' }, { name: 'save' }, { name: 'save', frame: '0' }] })
+      const called = await window.eval(webMcpCallScript({
+        descriptorJson: listed.descriptorJson!,
+        toolName: 'save',
+        frame: '0',
+        arguments: {}
+      })) as Record<string, unknown>
+      expect(called).toMatchObject({ status: 'TOOL_RETURNED', result: { value: 'frame' } })
+      expect(calls).toEqual(['frame'])
+    } finally {
+      iframe.remove()
+    }
+  })
+
+  it('reports WebMCP that the page turns off with its Permissions-Policy as unsupported', async () => {
+    const disabled = (): Promise<never> => Promise.reject(new DOMException('Access to the feature "tools" is disallowed by permissions policy.', 'NotAllowedError'))
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: { getTools: disabled, executeTool: disabled }
+    })
+    const reason = 'The page turns WebMCP off with its Permissions-Policy (tools=())'
+    expect(await window.eval(webMcpStatusScript())).toEqual({ supported: false, reason })
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    expect(webMcpListingFromPage(listed)).toEqual({ listed: false, supported: false, reason })
+  })
+
+  it('refuses a tool whose input schema is not a JSON object', async () => {
+    installModelContext([{ name: 'text', inputSchema: '{"type":"object"}', window, origin: location.origin, execute: () => undefined }])
+    expect(await window.eval(webMcpListScript())).toMatchObject({
+      status: 'WEBMCP_ERROR', error: 'WebMCP tool text has an input schema that is not a JSON object'
     })
   })
 })

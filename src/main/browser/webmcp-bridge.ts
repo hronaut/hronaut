@@ -16,10 +16,10 @@ export const WEBMCP_LIMITS = {
   timeoutMs: 30_000
 } as const
 
-const legacyWebMcpInputEncoding = Number(process.versions.chrome?.split('.')[0] ?? Number.POSITIVE_INFINITY) <= 152
-
 export interface WebMcpToolDescriptor {
   name: string
+  /** Frame indexes from the top-level document to the document that registered the tool; absent for the top itself. */
+  frame?: string
   title?: string
   description?: string
   inputSchema?: unknown
@@ -57,7 +57,8 @@ export function webMcpListScript(): string {
 export function webMcpCallScript(input: {
   descriptorJson: string
   toolName: string
+  frame?: string
   arguments: Record<string, unknown>
 }): string {
-  return pageBridgeSource('call', { ...input, legacyInputEncoding: legacyWebMcpInputEncoding })
+  return pageBridgeSource('call', input)
 }
