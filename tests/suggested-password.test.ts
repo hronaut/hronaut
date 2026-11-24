@@ -12,6 +12,7 @@ import type { BrowserTab } from '../src/main/browser/browser-tab.js'
 import type { CredentialFillPageResult } from '../src/main/browser/credential-fill/credential-fill.page.js'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { LocalizedError } from '../src/main/localized-error.js'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 /** The fill recorder of the harness made last, which records a fill the page took as the person's input. */
 const trustedFill = vi.hoisted(() => ({ record: (..._args: unknown[]): boolean => false }))
@@ -119,7 +120,8 @@ function harness(options: {
       steps.push('agent input')
       return operation()
     },
-    options: { suggestedPasswords: suggestions, onUserInteraction }
+    options: { suggestedPasswords: suggestions, onUserInteraction },
+    personTypedText: new PersonTypedText()
   }
   return { browser: manager as unknown as Browser, manager, tab, expected, steps, suggested, recordTrustedCredentialFill, executeJavaScript: executeJavaScriptInIsolatedWorld, filled: () => filledWith, codes }
 }

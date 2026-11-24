@@ -117,6 +117,7 @@ export async function suggestStrongPassword(
       () => runInPage(tab, pageScript(fillSuggestedPasswordInPage, expectedContext.origin, expectedContext.url, password), true)
     )
     if (!isCredentialFillPageResult(outcome)) return false
+    if (outcome !== 'none') browser.personTypedText.remember(tab.mcpGroupId, [password])
     return recordTrustedCredentialFill(outcome, tab, performance.now(), browser.options.onUserInteraction)
   })
 }

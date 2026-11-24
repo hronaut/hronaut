@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 // A page that kept F11 held the person in full screen: the key never reached the View menu, so it could not leave by
 // the key it came in with. Chrome makes the key the browser's while the window is in full screen.
@@ -36,6 +37,7 @@ function pageWith(state: { fullScreen: boolean, locked?: boolean, occluded?: boo
     shellHeldKeys: new Set<string>(),
     pageShortcutKey: null,
     tabs: new Map(),
+    personTypedText: new PersonTypedText(),
     reproRecorder: { observeReproKeyboard: vi.fn() },
     mcpActivityFollower: { noteHumanInput: vi.fn() },
     options: { onShortcutRequested: vi.fn(), onUserInteraction: vi.fn(), shortcutAvailable: () => true }

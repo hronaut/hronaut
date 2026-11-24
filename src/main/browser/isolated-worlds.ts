@@ -45,7 +45,8 @@ export const ISOLATED_WORLDS = {
   findSelectionText: 1038,
   pageSave: 1039,
   hangCheck: 1040,
-  canvasCopy: 1041
+  canvasCopy: 1041,
+  personTypedText: 1042
 } as const satisfies Record<string, number>
 
 export type IsolatedWorldName = keyof typeof ISOLATED_WORLDS

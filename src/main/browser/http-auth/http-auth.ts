@@ -238,7 +238,8 @@ function originOf(url: string): string | undefined {
  * themselves, for any website or realm, so a page cannot ask over and over, through new tabs either; nor do the tab's
  * pages once its page moved on by itself while one was asked, so a page cannot put one question in place of another.
  * A page the person or an agent opens may ask again, and its own requests too once it shows. What the person types
- * goes only to the website that asked, through Chromium; Hronaut never keeps, logs or shows it.
+ * goes only to the website that asked, through Chromium; Hronaut never logs or shows it, and keeps it in memory only to
+ * hide it from what the workspace's agents read (person-typed-text).
  */
 export function answerHttpAuth(access: HttpAuthAccess, tab: HttpAuthTab, event: Pick<Event, 'preventDefault'>,
   details: AuthenticationResponseDetails, authInfo: AuthInfo, callback: LoginCallback): void {

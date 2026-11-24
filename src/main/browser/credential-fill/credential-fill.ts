@@ -39,5 +39,7 @@ export async function fillCredential(
     () => tab.webContents.executeJavaScript(script, true)
   )
   if (!isCredentialFillPageResult(outcome)) return false
+  // The saved account the person filled in, agents read nowhere in the workspace afterwards.
+  if (outcome !== 'none') browser.personTypedText.remember(tab.mcpGroupId, [username, password])
   return recordTrustedCredentialFill(outcome, tab, performance.now(), browser.options.onUserInteraction)
 }

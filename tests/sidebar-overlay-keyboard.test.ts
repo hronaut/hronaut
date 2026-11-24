@@ -5,6 +5,7 @@ import { Browser } from '../src/main/browser/browser.js'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
 import { createOverlaySurfaces } from '../src/main/windows/overlay-surfaces.js'
 import { noteShellKey } from '../src/main/browser/tab-events/shell-held-keys.js'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 type KeyInput = Partial<Electron.Input> & { type: Electron.Input['type'] }
 
@@ -59,6 +60,7 @@ function page(held: Set<string>) {
     authorizedAgentKeyboardInput: new Map(),
     isHumanInteractionLocked: () => false,
     shellHeldKeys: held,
+    personTypedText: new PersonTypedText(),
     reproRecorder: { observeReproKeyboard: vi.fn() },
     mcpActivityFollower: { noteHumanInput: vi.fn() },
     options: {}

@@ -9,6 +9,7 @@ import type { BrowserTab } from '../browser-tab.js'
 import { certificateRefusal, pageReplaced } from '../certificate-errors/certificate-errors.js'
 import { appendConsoleMessage } from '../console-messages/console-messages.js'
 import { watchCredentialSubmission } from '../credential-capture/credential-capture.js'
+import { watchPersonTypedValues } from '../person-typed-text/person-typed-text.js'
 import { recordAuthChallenge } from '../inspector-issues/inspector-issues.js'
 import { cancelNativeSelectionSessions } from '../native-selections/native-selections.js'
 import { applySiteMuting } from '../site-muting/site-muting.js'
@@ -418,6 +419,7 @@ export function attachNavigationEvents(browser: Browser, tab: BrowserTab, webCon
     // than waiting for did-stop-loading.
     recordPendingHistory()
     watchCredentialSubmission(browser, tab)
+    watchPersonTypedValues(browser, tab)
     watchUnsavedFormEdits(tab)
     void syncHumanInteractionInputGuard(browser, tab).catch((error) => {
       console.error('[browser] Could not synchronize the page interaction lock:', error)

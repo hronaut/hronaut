@@ -15,6 +15,7 @@ import { pageShortcut } from '../take-over.js'
 import { cancelElementPicker } from '../element-picker/element-picker.js'
 import { cancelScreenshotArea } from '../screenshot-area/screenshot-area.js'
 import { noteShellHeldKey } from './shell-held-keys.js'
+import { personHoldsTab } from '../person-typed-text/person-typed-text.js'
 
 /**
  * Whether the key toggles the window's full screen, as the View menu's item does: F11, or Ctrl+Cmd+F on macOS, whose F
@@ -204,6 +205,7 @@ export function attachPageKeyboardEvents(browser: Browser, tab: BrowserTab, webC
     // Home's Tabs view shows the page as it was last seen, after the latest typing settles.
     if (input.type === 'keyUp') scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
     if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
+      browser.personTypedText.key(tab, input, personHoldsTab(browser, tab))
       tab.humanInteractionGeneration += 1
       tab.lastHumanInteractionAt = performance.now()
       tab.lastActiveAt = tab.lastHumanInteractionAt

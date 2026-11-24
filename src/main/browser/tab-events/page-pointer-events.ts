@@ -8,6 +8,7 @@ import { queueScreenshotAreaMouseInput } from '../screenshot-area/screenshot-are
 import { scheduleTabOverviewPreview } from '../tab-overview-previews/tab-overview-previews.js'
 import { publishChange } from '../browser-state/browser-state.js'
 import { markTabActiveInGroup, writeActiveTabId } from '../tab-selection/active-tab.js'
+import { personHoldsTab } from '../person-typed-text/person-typed-text.js'
 
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. The keyboard listener keeps its own copy. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
@@ -79,6 +80,7 @@ export function attachPagePointerEvents(browser: Browser, tab: BrowserTab, webCo
     browser.reproRecorder.observeReproMouse(tab, mouse)
     if (mouse.type === 'mouseUp') scheduleTabOverviewPreview(browser, tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
     if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !browser.agentInputWebContents.has(webContents.id)) {
+      browser.personTypedText.pointer(tab, personHoldsTab(browser, tab))
       tab.humanInteractionGeneration += 1
       tab.lastHumanInteractionAt = performance.now()
       tab.lastActiveAt = tab.lastHumanInteractionAt

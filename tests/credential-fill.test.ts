@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { credentialFillContext } from '../src/main/browser/credential-fill-context.js'
 import { fillCredential } from '../src/main/browser/credential-fill/credential-fill.js'
 import type { Browser } from '../src/main/browser/browser.js'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 vi.mock('../src/main/browser/agent-input-scope/agent-input-scope.js', () => ({
   withAgentInput: (_browser: unknown, _webContents: unknown, operation: () => Promise<unknown>) => operation()
@@ -11,8 +12,12 @@ describe('filling a saved credential', () => {
   it('gives the page function the page\'s origin and address, then the username and password, in the page\'s world with a gesture', async () => {
     const executeJavaScript = vi.fn(async (_code: string, _userGesture?: boolean): Promise<unknown> => 'filled')
     const onUserInteraction = vi.fn()
-    const tab = { id: 'tab', url: 'https://accounts.example/sign-in', navigationGeneration: 4, humanInteractionGeneration: 0, webContents: { executeJavaScript } }
-    const browser = { tabs: new Map([[tab.id, tab]]), activeTabId: tab.id, tabSelectionGeneration: 2, options: { onUserInteraction } } as unknown as Browser
+    const tab = { id: 'tab', mcpGroupId: 'workspace', url: 'https://accounts.example/sign-in', navigationGeneration: 4, humanInteractionGeneration: 0,
+      webContents: { executeJavaScript } }
+    const personTypedText = new PersonTypedText()
+    const browser = {
+      tabs: new Map([[tab.id, tab]]), activeTabId: tab.id, tabSelectionGeneration: 2, options: { onUserInteraction }, personTypedText
+    } as unknown as Browser
     const expected = credentialFillContext(tab.url, 4, 2)!
 
     await expect(fillCredential(browser, tab.id, expected, 'person@example.com', 'p"ss\\word')).resolves.toBe(true)
@@ -22,6 +27,8 @@ describe('filling a saved credential', () => {
       .toBe('"https://accounts.example", "https://accounts.example/sign-in", "person@example.com", "p\\"ss\\\\word"')
     expect(userGesture).toBe(true)
     expect(tab.humanInteractionGeneration).toBe(1)
+    // What the person filled, agents read nowhere in the workspace afterwards.
+    expect(personTypedText.redact('person@example.com p"ss\\word', ['workspace'])).toBe('[redacted] [redacted]')
   })
 
   it('fills nothing for a page the fill was not offered for', async () => {
