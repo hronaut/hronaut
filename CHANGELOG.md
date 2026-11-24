@@ -13,6 +13,8 @@ All notable changes to Hronaut are documented in this file.
 - `browser_logpoint` expressions can use original variable names when the probe is asked for by `source` and its source map has ECMA-426 scopes: Hronaut replaces them with the minified names or expressions the generated code uses there and lists them in `originalNames`.
 - `browser_virtual_passkey` can attach a U2F security key (`kind: "security-key"`) instead of a passkey, to test second-factor flows.
 
+## [3.14.36] - 2026-11-24
+
 ### Changed
 
 - Updated Electron to 45.4.1 (Chromium 156.0.8078.100) and the other dependencies to their latest versions, among them viem 2.58, Vue 3.5.46, Playwright 1.65.1 and Storybook 10.6.8.
