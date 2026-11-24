@@ -319,10 +319,10 @@ export function showContextMenu(browser: Browser, tab: BrowserTab, params: Conte
   }
 
   // A canvas copies the picture it shows, as Chrome's Copy Image does. Electron reports whether there is a picture only
-  // for an image, so the item is offered for every canvas the copy can reach. Chrome leaves it unavailable for a
-  // canvas with another website's picture in it, which the page may not read; Hronaut copies that too, for the person
-  // who asked, as Chrome copies the same picture shown as an image. The copy hit-tests from the page's own frame, which
-  // does not reach into a frame another process runs, such as one of another site, so there the item is unavailable.
+  // for an image, so the item is offered for every canvas the copy can reach. Chromium gives no picture for a canvas
+  // with another website's picture in it, which the page may not read, so that copy is refused and the person told.
+  // The copy hit-tests from the page's own frame, which does not reach into a frame another process runs, such as one
+  // of another site, so there the item is unavailable.
   if (params.mediaType === 'canvas') {
     groups.push([{
       id: 'copy-canvas-image',
