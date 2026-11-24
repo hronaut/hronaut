@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated Electron to 45.4.1 (Chromium 156.0.8078.100) and the other dependencies to their latest versions, among them viem 2.58, Vue 3.5.46, Playwright 1.65.1 and Storybook 10.6.8.
+- A wallet approval for typed data without a declared `EIP712Domain` now shows every domain field the signature covers, such as a chain ID written as text, because viem 2.58 signs every field the domain has. A wallet policy accepts such a request when that chain ID is the wallet's network.
+
 ## [3.14.35] - 2026-11-22
 
 ### Changed

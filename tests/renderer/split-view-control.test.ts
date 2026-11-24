@@ -72,6 +72,7 @@ function renderControl(options: {
   const closeOtherMenus = vi.fn()
   const current = shallowRef(state)
   const setState = async (next: BrowserState) => { current.value = next; await nextTick() }
+  const updateOpen = vi.fn()
   const view = render(SplitViewControl, {
     global: { plugins: [createHronautI18n(options.locale ?? 'en-US')] },
     props: {
@@ -80,10 +81,11 @@ function renderControl(options: {
       activeTab: state.tabs.find((value) => value.id === state.activeTabId),
       browser,
       acceptState,
-      closeOtherMenus
+      closeOtherMenus,
+      'onUpdate:open': updateOpen
     }
   })
-  return { view, browser, acceptState, closeOtherMenus, setState }
+  return { view, browser, acceptState, closeOtherMenus, setState, updateOpen }
 }
 
 describe('SplitViewControl', () => {
@@ -141,9 +143,9 @@ describe('SplitViewControl', () => {
     expect(screen.queryByRole('button', { name: 'Split view' })).not.toBeInTheDocument()
     expect(view.emitted()['update:open']).toEqual([[false]])
 
-    const mounted = renderControl().view
-    mounted.unmount()
-    expect(mounted.emitted()['update:open']).toEqual([[false]])
+    const mounted = renderControl()
+    mounted.view.unmount()
+    expect(mounted.updateOpen.mock.calls).toEqual([[false]])
   })
 
   it('serializes split mutations and reports rejected operations', async () => {
