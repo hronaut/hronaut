@@ -31,6 +31,7 @@ import { createWorkerEvaluations } from './worker-evaluation/browser-worker-eval
 import { createComputedAccessibilityReader } from './computed-accessibility/browser-computed-accessibility.js'
 import { createDomMutationSource } from './dom-mutation-source/browser-dom-mutation-source.js'
 import { createLogpoints } from './logpoints/browser-logpoints.js'
+import { createHeapSnapshots } from './heap-snapshot/browser-heap-snapshots.js'
 import { createLiveRegionRecorder } from './live-region-recorder/browser-live-region-recorder.js'
 import { createReproRecorder } from './repro-recorder/browser-repro-recorder.js'
 import { networkConditionState } from './network-conditions/network-conditions.js'
@@ -295,6 +296,7 @@ export class Browser {
   readonly faviconDecoder = new FaviconDecoder()
   readonly metadata = createPageMetadata(this)
   readonly profiling = createProfilingController(this)
+  readonly heapSnapshots = createHeapSnapshots(this)
   readonly workspaceContinuity = new WorkspaceContinuityStore()
   readonly continuityMarkers = new Map<string, string>()
   readonly workspaceObservationGenerations = new Map<string, number>()
