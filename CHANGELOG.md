@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.36] - 2026-11-24
+
 ### Changed
 
 - Updated Electron to 45.4.1 (Chromium 156.0.8078.100) and the other dependencies to their latest versions, among them viem 2.58, Vue 3.5.46, Playwright 1.65.1 and Storybook 10.6.8.
