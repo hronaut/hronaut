@@ -775,7 +775,7 @@ describe('MCP capability profile authentication', () => {
       isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
       requireWorkspaceContinuityDispatch: () => undefined,
       beginWorkspaceContinuityAction: () => () => undefined,
-      getMcpGroupState: () => ({}),
+      getMcpGroupState: () => ({ tabs: [] }),
       createMcpTabGroup: vi.fn(async () => workspace),
       newAgentTab: vi.fn(async ({ url }: { url: string }) => ({ url })),
       mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`

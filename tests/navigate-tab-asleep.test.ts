@@ -16,6 +16,7 @@ function sleepingTab(options: { pageReady?: Promise<void>; waking?: boolean } = 
   const webContents = Object.assign(new EventEmitter(), {
     isDestroyed: () => false,
     isCrashed: () => false,
+    isLoadingMainFrame: () => false,
     loadURL: vi.fn(async (url: string) => { calls.push(`load ${url}`) }),
     navigationHistory: {
       canGoBack: () => true,
