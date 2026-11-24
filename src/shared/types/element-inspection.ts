@@ -144,7 +144,7 @@ export interface BrowserElementInspection {
 export type BrowserCssStatePreviewAction = 'set' | 'get' | 'clear'
 
 export interface BrowserCssStatePreviewSummary {
-  states: Array<'hover' | 'active'>
+  states: import('../css-state-preview.js').CssStatePreviewState[]
   selector: string
   startedAt: string
   expiresAt: string
@@ -163,7 +163,7 @@ export interface BrowserCssStatePreviewReport {
     clean: boolean
   }
   limits: {
-    states: Array<'hover' | 'active'>
+    states: import('../css-state-preview.js').CssStatePreviewState[]
     maxSelectorChars: number
     minDurationMs: number
     defaultDurationMs: number
