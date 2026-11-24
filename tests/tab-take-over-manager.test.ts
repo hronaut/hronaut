@@ -35,6 +35,7 @@ function fixture() {
     tabs, allAgentsPaused: false, agentPauseOverridesAllowed: true, globallyResumedAgentTabIds: new Set<string>(),
     liveRegionRecorder: { release: vi.fn() }, cssStatePreview: { clear: vi.fn(async () => undefined) }, virtualPasskeys: { stop: vi.fn() },
     logpoints: { stop: vi.fn() },
+    ariaNotify: { stop: vi.fn() },
     changed: vi.fn(), getState: () => ({ tabs: [] })
   }) as Browser
   return { manager, tab }

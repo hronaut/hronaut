@@ -2,6 +2,13 @@
 export const VIRTUAL_PASSKEY_ACTIONS = ['start', 'status', 'configure', 'stop'] as const
 export type VirtualPasskeyAction = typeof VIRTUAL_PASSKEY_ACTIONS[number]
 
+/**
+ * What kind of authenticator start adds: a passkey (CTAP 2.1, platform transport, discoverable credentials and user
+ * verification) or a security key (U2F over USB: non-discoverable credentials only and no user verification).
+ */
+export const VIRTUAL_PASSKEY_KINDS = ['passkey', 'security-key'] as const
+export type VirtualPasskeyKind = typeof VIRTUAL_PASSKEY_KINDS[number]
+
 export const VIRTUAL_PASSKEY_LIMITS = {
   minDurationMs: 60_000,
   defaultDurationMs: 600_000,
@@ -29,7 +36,8 @@ export type VirtualPasskeyEndReason =
   | 'tab-closed'
 
 export interface VirtualPasskeySession {
-  /** Whether the authenticator reports user verification (biometrics or PIN) as passed. */
+  kind: VirtualPasskeyKind
+  /** Whether the authenticator reports user verification (biometrics or PIN) as passed; always false for a security key, which has none. */
   userVerified: boolean
   startedAt: string
   expiresAt: string
@@ -67,6 +75,8 @@ export const VIRTUAL_PASSKEY_CAVEATS = [
   'The authenticator is software held in memory for this tab only. Its credentials are lost when it ends and never persist, export or reach the computer\'s own authenticators; accounts the page registered on its server stay there.',
   'Sign-in works when the page names the credential (allowCredentials), as after a username step. In Hronaut\'s browser, a username-less sign-in that lists no credentials fails with NotAllowedError even though the authenticator signed.',
   'registrations and signIns count what the authenticator did, not what the page accepted; check the page or its server for the outcome.',
+  'A security key (kind security-key) is a U2F authenticator: it makes only non-discoverable credentials and has no user verification, so a registration '
+    + 'asking for a resident key or required user verification fails with NotAllowedError, as with a real U2F key.',
   'Other tabs, popups and workspaces keep the computer\'s own authenticators, and the session ends as soon as any frame of the page starts loading another origin.'
 ]
 

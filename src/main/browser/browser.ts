@@ -31,6 +31,8 @@ import { createWorkerEvaluations } from './worker-evaluation/browser-worker-eval
 import { createComputedAccessibilityReader } from './computed-accessibility/browser-computed-accessibility.js'
 import { createDomMutationSource } from './dom-mutation-source/browser-dom-mutation-source.js'
 import { createLogpoints } from './logpoints/browser-logpoints.js'
+import { createHeapSnapshots } from './heap-snapshot/browser-heap-snapshots.js'
+import { createAriaNotifyRecorder } from './aria-notify/browser-aria-notify.js'
 import { createLiveRegionRecorder } from './live-region-recorder/browser-live-region-recorder.js'
 import { createReproRecorder } from './repro-recorder/browser-repro-recorder.js'
 import { networkConditionState } from './network-conditions/network-conditions.js'
@@ -295,6 +297,7 @@ export class Browser {
   readonly faviconDecoder = new FaviconDecoder()
   readonly metadata = createPageMetadata(this)
   readonly profiling = createProfilingController(this)
+  readonly heapSnapshots = createHeapSnapshots(this)
   readonly workspaceContinuity = new WorkspaceContinuityStore()
   readonly continuityMarkers = new Map<string, string>()
   readonly workspaceObservationGenerations = new Map<string, number>()
@@ -311,6 +314,7 @@ export class Browser {
   readonly computedAccessibilityReader = createComputedAccessibilityReader(this)
   readonly domMutationSource = createDomMutationSource(this)
   readonly logpoints = createLogpoints(this)
+  readonly ariaNotify = createAriaNotifyRecorder(this)
   readonly reproRecorder = createReproRecorder(this)
   readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll(VIDEO_RECORDING_NOTICES.sleep) }
   readonly videoRecorder = createVideoRecorder(this)

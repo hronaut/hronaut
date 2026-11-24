@@ -2,7 +2,9 @@ import type { WebContents } from 'electron'
 import {
   CSS_STATE_PREVIEW_CAVEATS,
   CSS_STATE_PREVIEW_LIMITS,
+  CSS_STATE_PREVIEW_STATES,
   cssStatePreviewDuration,
+  isCssStatePreviewMediaState,
   normalizeCssStatePreviewStates,
   type CssStatePreviewEndReason,
   type CssStatePreviewState
@@ -157,6 +159,16 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
         const { node } = await send<{ node: { nodeType: number; localName?: string } }>('DOM.describeNode', { nodeId, depth: 0, pierce: false })
         if (node.nodeType !== 1 || SPECIAL_ELEMENTS.has(node.localName ?? '')) {
           throw new Error('Select one element inside the page, not the html, head or body element')
+        }
+        if (states.some(isCssStatePreviewMediaState)) {
+          if (node.localName !== 'video' && node.localName !== 'audio') throw new Error('The buffering and stalled states need an audio or video element')
+          // A selector Chromium does not know is refused by the browser itself, with no page script involved.
+          const known = await send('DOM.querySelectorAll', { nodeId: document.root.nodeId, selector: ':buffering, :stalled' }).then(() => true, () => false)
+          assertCurrent()
+          if (!known) {
+            throw new Error(`This Chromium (${process.versions.chrome}) does not support the :buffering and :stalled media pseudo-classes, `
+              + 'so they cannot be forced yet')
+          }
         }
         try {
           await send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states })
@@ -316,7 +328,7 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
       } : {}),
       ...(lastEnded ? { lastEnded: { ...lastEnded } } : {}),
       limits: {
-        states: ['hover', 'active'],
+        states: [...CSS_STATE_PREVIEW_STATES],
         maxSelectorChars: CSS_STATE_PREVIEW_LIMITS.maxSelectorChars,
         minDurationMs: CSS_STATE_PREVIEW_LIMITS.minDurationMs,
         defaultDurationMs: CSS_STATE_PREVIEW_LIMITS.defaultDurationMs,

@@ -1,19 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import type { WebContents } from 'electron'
 import {
-  LOGPOINT_LIMITS,
-  LOGPOINT_SCRIPTS_CAVEATS,
-  logpointDuration,
-  logpointHits,
-  type BrowserLogpointSummary,
-  type LogpointAction,
-  type LogpointEndReason,
-  type LogpointProbe,
-  type LogpointRecord,
-  type LogpointReport,
-  type LogpointRequest,
-  type LogpointResolvedLocation,
-  type LogpointScriptsReport
+  LOGPOINT_LIMITS, LOGPOINT_SCRIPTS_CAVEATS, logpointDuration, logpointHits, type BrowserLogpointSummary, type LogpointAction, type LogpointEndReason,
+  type LogpointProbe, type LogpointRecord, type LogpointReport, type LogpointRequest, type LogpointResolvedLocation, type LogpointScriptsReport
 } from '../../../shared/logpoint.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import {
@@ -28,6 +17,7 @@ import {
 import { httpOrigin, pageFrames, pausedInTopFrame, topFrame, type PageFrames } from './logpoint-frames.js'
 import { logpointReport, type EndedLogpoints } from './logpoint-report.js'
 import { collectScripts, listScripts } from './logpoint-scripts.js'
+import { withOriginalNames } from './logpoint-scopes.js'
 import { resolveTarget, validRequest } from './logpoint-targets.js'
 import { evaluationRecord, failedEvaluationRecord, wrappedExpression, type EvaluationResult } from './logpoint-values.js'
 
@@ -59,6 +49,9 @@ export interface LogpointHost<T> {
 interface ArmedProbe {
   id: string
   expression: string
+  /** The expression as it runs, when original variable names were replaced. */
+  evaluated?: string
+  originalNames?: LogpointProbe['originalNames']
   requested: LogpointProbe['requested']
   resolved: LogpointResolvedLocation
   maxHits: number
@@ -141,6 +134,7 @@ function snapshot(probe: ArmedProbe, ended: boolean): LogpointProbe {
   return {
     id: probe.id,
     expression: probe.expression,
+    ...(probe.originalNames ? { originalNames: probe.originalNames.map(name => ({ ...name })) } : {}),
     requested: { ...probe.requested },
     resolved: { ...probe.resolved },
     maxHits: probe.maxHits,
@@ -399,6 +393,7 @@ export class LogpointSets<T extends LogpointTab> {
             ...(original ? { original } : {}),
             ...(target.generatedMatches !== undefined ? { generatedMatches: target.generatedMatches } : {})
           }
+          Object.assign(probe, withOriginalNames(label, probe.expression, target.scopes, actual.lineNumber, actual.columnNumber))
         }
         // A busy loop may already have used up a logpoint's hits while the others were being set.
         for (const probe of record.probes) {
@@ -611,7 +606,7 @@ export class LogpointSets<T extends LogpointTab> {
         const at = new Date().toISOString()
         const entry = await send<EvaluationResult>('Debugger.evaluateOnCallFrame', {
           callFrameId: frame.callFrameId,
-          expression: wrappedExpression(probe.expression, record.marker),
+          expression: wrappedExpression(probe.evaluated ?? probe.expression, record.marker),
           objectGroup: OBJECT_GROUP,
           includeCommandLineAPI: false,
           silent: true,

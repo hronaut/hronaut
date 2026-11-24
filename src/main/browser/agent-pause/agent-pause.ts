@@ -29,6 +29,7 @@ export function setAllAgentsPaused(browser: Browser, paused: boolean, allowTabOv
       // A virtual passkey an agent's lost authority must not keep, and logpoints whose values a person using the tab may reveal.
       browser.virtualPasskeys.stop(tab, 'authority-changed')
       browser.logpoints.stop(tab, 'authority-changed')
+      browser.ariaNotify.stop(tab, 'authority-changed')
     }
   }
   for (const tab of browser.tabs.values()) settleTakeOver(browser, tab)
@@ -60,6 +61,7 @@ export function setTabAgentPaused(browser: Browser, tabId: string, paused: boole
     // A virtual passkey an agent's lost authority must not keep, and logpoints whose values a person using the tab may reveal.
     browser.virtualPasskeys.stop(tab, 'authority-changed')
     browser.logpoints.stop(tab, 'authority-changed')
+    browser.ariaNotify.stop(tab, 'authority-changed')
     if (options.takeOver && !tab.takeOver) {
       tab.takeOver = takeOverMark(tab)
       tab.handedBack = undefined

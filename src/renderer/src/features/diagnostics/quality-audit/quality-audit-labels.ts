@@ -14,6 +14,10 @@ const STATUSES = new Set(['pass', 'info', 'warning', 'error', 'not-applicable'])
 const SEVERITIES = new Set(['error', 'warning', 'info'])
 const RATINGS = new Set(['good', 'needs-improvement', 'poor'])
 const SECURITY_STATES = new Set(['secure', 'insecure', 'insecure-broken', 'neutral', 'info', 'unknown'])
+// The states agent readiness reports for /llms.txt and the ARD manifest, by the key each is translated under.
+const FILE_STATES: Readonly<Record<string, string>> = {
+  valid: 'valid', invalid: 'invalid', 'not found': 'notFound', unreachable: 'unreachable', 'not checked': 'notChecked'
+}
 const FIXED_TEXT = new Map(Object.entries(QUALITY_AUDIT_FIXED_TEXT).map(([key, value]) => [value as string, key]))
 const CAVEATS = new Map(Object.entries(QUALITY_AUDIT_CAVEATS).map(([key, value]) => [value as string, key]))
 // Page metadata findings carry the messages the Page metadata panel names by code.
@@ -87,7 +91,23 @@ export function createQualityAuditLabels(translate: Translate, formatNumber: For
     [/^(\d+) browser-generated issues?$/, ([, a = '']) => english.browserIssues(Number(a)), ([, a = '']) => plural('browserIssues', a)],
     [/^(\d+) errors$/, ([, a = '']) => english.errors(Number(a)), ([, a = '']) => `${count(a)} ${translate('qualityAudit.errors', {}, Number(a))}`],
     [/^(\d+) warnings$/, ([, a = '']) => english.warnings(Number(a)), ([, a = '']) => `${count(a)} ${translate('qualityAudit.warnings', {}, Number(a))}`],
-    [/^(\d+) informational$/, ([, a = '']) => english.informational(Number(a)), ([, a = '']) => `${count(a)} ${translate('qualityAudit.information', {}, Number(a))}`]
+    [/^(\d+) informational$/, ([, a = '']) => english.informational(Number(a)), ([, a = '']) => `${count(a)} ${translate('qualityAudit.information', {}, Number(a))}`],
+    [/^(\d+) agent readiness issues?$/, ([, a = '']) => english.agentReadinessIssues(Number(a)), ([, a = '']) => plural('agentReadinessIssues', a)],
+    [/^WebMCP tools: (\d+)$/, ([, a = '']) => english.webMcpTools(Number(a)), ([, a = '']) => text('webMcpTools', { count: count(a) }, Number(a))],
+    [/^Forms without WebMCP annotations: (\d+) of (\d+)$/, ([, a = '', b = '']) => english.unannotatedForms(Number(a), Number(b)),
+      ([, a = '', b = '']) => text('unannotatedForms', { count: count(a), total: count(b) }, Number(b))],
+    [/^llms\.txt: (.+)$/, ([, state = '']) => Object.hasOwn(FILE_STATES, state) ? english.llmsTxt(state as never) : '',
+      ([, state = '']) => text('llmsTxt', { state: text(`fileStates.${FILE_STATES[state]}`) })],
+    [/^ARD manifest: (.+)$/, ([, state = '']) => Object.hasOwn(FILE_STATES, state) ? english.ardManifest(state as never) : '',
+      ([, state = '']) => text('ardManifest', { state: text(`fileStates.${FILE_STATES[state]}`) })],
+    [/^Failing accessibility rules agents rely on: (\d+)$/, ([, a = '']) => english.agentAccessibility(Number(a)),
+      ([, a = '']) => text('agentAccessibility', { count: count(a) }, Number(a))],
+    [/^(\d+) WebMCP tools are registered; more than (\d+) is not recommended\.$/, ([, a = '']) => english.tooManyTools(Number(a)),
+      ([, a = '', b = '']) => text('tooManyTools', { count: count(a), max: count(b) }, Number(a))],
+    [/^(\d+) forms? (?:has|have) no WebMCP toolname or tooldescription\.$/, ([, a = '']) => english.formsUnannotated(Number(a)),
+      ([, a = '']) => plural('formsUnannotated', a)],
+    [/^Agents read the page through its accessibility tree, and these rules fail: ([a-z0-9-]+(?:, [a-z0-9-]+)*)\.$/,
+      ([, rules = '']) => english.accessibilityForAgents(rules.split(', ')), ([, rules = '']) => text('accessibilityForAgents', { rules })]
   ]
 
   /** A category summary, an evidence line or a finding message. */

@@ -5,7 +5,8 @@ export const plPLQualityAuditText = {
     metadata: 'Metadane i SEO',
     security: 'Bezpieczeństwo',
     pwa: 'PWA i tryb offline',
-    'browser-issues': 'Problemy Chromium'
+    'browser-issues': 'Problemy Chromium',
+    'agent-readiness': 'Gotowość dla agentów'
   },
   statuses: {
     pass: 'zaliczono',
@@ -31,14 +32,24 @@ export const plPLQualityAuditText = {
     certificateExpired: 'Certyfikat dokumentu głównego wygasł.',
     certificateNotYetValid: 'Certyfikat dokumentu głównego nie jest jeszcze ważny.',
     certificateInvalid: 'Certyfikat dokumentu głównego jest obecnie nieważny.',
-    pwaInspectionPartial: 'Część diagnostyki PWA była niedostępna w tym audycie.'
+    pwaInspectionPartial: 'Część diagnostyki PWA była niedostępna w tym audycie.',
+    agentReadinessClear: 'Nie znaleziono problemów z gotowością dla agentów',
+    llmsTxtMissing: 'Nie znaleziono /llms.txt.',
+    llmsTxtFailed: 'Żądanie /llms.txt nie powiodło się.',
+    llmsTxtNoHeading: '/llms.txt nie ma nagłówka H1 w Markdown.',
+    llmsTxtNoLink: '/llms.txt nie zawiera linku w Markdown.',
+    llmsTxtTooShort: '/llms.txt ma mniej niż 50 znaków.',
+    ardFailed: 'Żądanie /.well-known/ard.json nie powiodło się.',
+    ardInvalid: '/.well-known/ard.json nie jest obiektem JSON.',
+    webMcpUnavailable: 'WebMCP: niedostępne'
   },
   caveats: {
     localDiagnostic: 'To ograniczona lokalna diagnostyka zebrana z danych Hronaut; nie jest to wynik Lighthouse ani certyfikacja.',
     accessibilityAutomation: 'Automatyczne testy dostępności nie zastępują testów z klawiaturą, czytnikiem ekranu, powiększeniem i animacjami ani testów użyteczności z udziałem ludzi.',
     performanceVisit: 'Wydajność odzwierciedla bieżącą lokalną wizytę i środowisko; powtórz ważne pomiary w reprezentatywnych warunkach.',
     pwaOptional: 'PWA nie jest traktowana jako wymóg dla witryn, które nie oferują aplikacji offline.',
-    reloadIssues: 'Odśwież stronę przed odtworzeniem problemów Chromium występujących tylko przy uruchamianiu, a następnie ponownie uruchom ten audyt.'
+    reloadIssues: 'Odśwież stronę przed odtworzeniem problemów Chromium występujących tylko przy uruchamianiu, a następnie ponownie uruchom ten audyt.',
+    agentReadiness: 'Gotowość dla agentów pobiera /llms.txt i /.well-known/ard.json ze źródła strony bez plików cookie oraz sprawdza WebMCP, formularze i reguły dostępności, na których polegają agenci; nie jest to wynik Lighthouse dla przeglądania agentowego.'
   },
   text: {
     violations: '{count} naruszenie | {count} naruszenia | {count} naruszeń',
@@ -77,6 +88,22 @@ export const plPLQualityAuditText = {
     installabilityIssues: 'Problemy z instalowalnością: {count}',
     installabilityFinding: 'Chromium zgłosił problem z instalowalnością PWA: {issue}.',
     installabilityUnknown: 'Chromium zgłosił nieznany problem z instalowalnością PWA.',
-    browserIssues: 'Problemy wygenerowane przez przeglądarkę: {count}'
+    browserIssues: 'Problemy wygenerowane przez przeglądarkę: {count}',
+    agentReadinessIssues: 'Problemy z gotowością dla agentów: {count}',
+    webMcpTools: 'Narzędzia WebMCP: {count}',
+    unannotatedForms: 'Formularze bez adnotacji WebMCP: {count} z {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'Manifest ARD: {state}',
+    agentAccessibility: 'Niespełnione reguły dostępności, na których polegają agenci: {count}',
+    tooManyTools: 'Zarejestrowane narzędzia WebMCP: {count}; nie zaleca się więcej niż {max}.',
+    formsUnannotated: 'Formularze bez toolname ani tooldescription WebMCP: {count}.',
+    accessibilityForAgents: 'Agenci czytają stronę przez jej drzewo dostępności, a te reguły nie są spełnione: {rules}.',
+    fileStates: {
+      valid: 'poprawny',
+      invalid: 'niepoprawny',
+      notFound: 'nie znaleziono',
+      unreachable: 'niedostępny',
+      notChecked: 'nie sprawdzono'
+    }
   }
 }

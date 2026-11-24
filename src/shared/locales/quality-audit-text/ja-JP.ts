@@ -5,7 +5,8 @@ export const jaJPQualityAuditText = {
     metadata: 'メタデータと SEO',
     security: 'セキュリティ',
     pwa: 'PWA とオフライン',
-    'browser-issues': 'Chromium の問題'
+    'browser-issues': 'Chromium の問題',
+    'agent-readiness': 'エージェント対応'
   },
   statuses: {
     pass: '合格',
@@ -31,14 +32,24 @@ export const jaJPQualityAuditText = {
     certificateExpired: 'メイン ドキュメントの証明書の有効期限が切れています。',
     certificateNotYetValid: 'メイン ドキュメントの証明書はまだ有効ではありません。',
     certificateInvalid: 'メイン ドキュメントの証明書は現在有効ではありません。',
-    pwaInspectionPartial: 'この監査では、一部の PWA の診断を利用できませんでした。'
+    pwaInspectionPartial: 'この監査では、一部の PWA の診断を利用できませんでした。',
+    agentReadinessClear: 'エージェント対応の問題は見つかりませんでした',
+    llmsTxtMissing: '/llms.txt が見つかりません。',
+    llmsTxtFailed: '/llms.txt のリクエストに失敗しました。',
+    llmsTxtNoHeading: '/llms.txt に Markdown の H1 見出しがありません。',
+    llmsTxtNoLink: '/llms.txt に Markdown のリンクがありません。',
+    llmsTxtTooShort: '/llms.txt が 50 文字未満です。',
+    ardFailed: '/.well-known/ard.json のリクエストに失敗しました。',
+    ardInvalid: '/.well-known/ard.json は JSON オブジェクトではありません。',
+    webMcpUnavailable: 'WebMCP：利用不可'
   },
   caveats: {
     localDiagnostic: 'これは Hronaut の証拠から作成した範囲限定のローカル診断であり、Lighthouse のスコアや認定ではありません。',
     accessibilityAutomation: 'ユーザー補助の自動チェックは、キーボード、スクリーン リーダー、ズーム、モーション、人によるユーザビリティ テストの代わりにはなりません。',
     performanceVisit: 'パフォーマンスは現在のローカルでのアクセスと環境を反映したものです。重要な測定は、代表的な条件で繰り返してください。',
     pwaOptional: 'オフライン アプリの機能を提供しないウェブサイトでは、PWA は要件として扱われません。',
-    reloadIssues: '起動時にのみ発生する Chromium の問題を再現する前に再読み込みし、この監査を再実行してください。'
+    reloadIssues: '起動時にのみ発生する Chromium の問題を再現する前に再読み込みし、この監査を再実行してください。',
+    agentReadiness: 'エージェント対応では、ページのオリジンから Cookie なしで /llms.txt と /.well-known/ard.json を取得し、WebMCP、フォーム、エージェントが頼るアクセシビリティ規則を確認します。Lighthouse のエージェント ブラウジング スコアではありません。'
   },
   text: {
     violations: '違反 {count} 件',
@@ -77,6 +88,22 @@ export const jaJPQualityAuditText = {
     installabilityIssues: 'インストール可能性の問題：{count}',
     installabilityFinding: 'Chromium が PWA のインストール可能性の問題を報告しました：{issue}。',
     installabilityUnknown: 'Chromium が PWA のインストール可能性の問題を報告しました：不明な問題。',
-    browserIssues: 'ブラウザが生成した問題 {count} 件'
+    browserIssues: 'ブラウザが生成した問題 {count} 件',
+    agentReadinessIssues: 'エージェント対応の問題 {count} 件',
+    webMcpTools: 'WebMCP ツール：{count}',
+    unannotatedForms: 'WebMCP の注釈がないフォーム：{total} 件中 {count} 件',
+    llmsTxt: 'llms.txt：{state}',
+    ardManifest: 'ARD マニフェスト：{state}',
+    agentAccessibility: 'エージェントが頼るアクセシビリティ規則の違反：{count}',
+    tooManyTools: 'WebMCP ツールが {count} 個登録されています。{max} 個を超えることは推奨されません。',
+    formsUnannotated: 'WebMCP の toolname も tooldescription もないフォームが {count} 件あります。',
+    accessibilityForAgents: 'エージェントはアクセシビリティ ツリーからページを読み取ります。次の規則に違反しています：{rules}。',
+    fileStates: {
+      valid: '有効',
+      invalid: '無効',
+      notFound: '見つかりません',
+      unreachable: '到達不可',
+      notChecked: '未確認'
+    }
   }
 }

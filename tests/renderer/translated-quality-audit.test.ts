@@ -150,6 +150,13 @@ function sources(): BrowserQualityAuditSources {
       authChallengesTruncated: false,
       devToolsOpen: false,
       caveats: []
+    },
+    agentReadiness: {
+      webMcpTools: null,
+      forms: 0,
+      unannotatedForms: 0,
+      llmsTxt: { status: 'found', text: '# Example\n\n[Docs](https://example.test/docs) and more text here to pass fifty chars' },
+      ardManifest: { status: 'missing' }
     }
   }
 }
@@ -234,15 +241,17 @@ describe('quality audit in the interface language', () => {
   it('names every part of the audit in German, keeping page and Chromium text as reported', async () => {
     const shown = await renderAudit('de-DE', buildBrowserQualityAudit(troubledSources()))
 
-    expect(shown.categories).toEqual(['Barrierefreiheit', 'Leistung', 'Metadaten & SEO', 'Sicherheit', 'PWA & Offline-Betrieb', 'Chromium-Probleme'])
-    expect(shown.statuses).toEqual(['Fehler', 'Warnung', 'Fehler', 'Fehler', 'Warnung', 'Fehler'])
+    expect(shown.categories).toEqual(['Barrierefreiheit', 'Leistung', 'Metadaten & SEO', 'Sicherheit', 'PWA & Offline-Betrieb', 'Chromium-Probleme',
+      'Bereitschaft für Agenten'])
+    expect(shown.statuses).toEqual(['Fehler', 'Warnung', 'Fehler', 'Fehler', 'Warnung', 'Fehler', 'Fehler'])
     expect(shown.summaries).toEqual([
       '2 Verstöße in 3 betroffenen Knoten',
       'Gut bewertete Web Vitals: 3 von 5',
       '3 Metadatenprobleme',
       'Sicherheitsstatus: nicht sicher',
       '1 Service-Worker-Registrierung · 0 Caches',
-      '2 vom Browser erzeugte Probleme'
+      '2 vom Browser erzeugte Probleme',
+      'Probleme bei der Agentenbereitschaft: 1'
     ])
     expect(shown.evidence).toEqual([
       '20 Regeln bestanden', '4 Prüfungen erfordern eine manuelle Kontrolle', 'axe-core 4.10.0',
@@ -250,7 +259,9 @@ describe('quality audit in the interface language', () => {
       'Sprache: fehlt', 'Kanonische URLs: 1', 'Strukturierte Daten: 0 gültig · 2 ungültig',
       'Transport: nicht sicher', 'Protokoll: nicht verfügbar', 'Zertifikat: ungültig',
       'Manifest: vorhanden', 'Von einem Service Worker gesteuert: nein', 'Probleme bei der Installierbarkeit: 1',
-      '1 Fehler', '1 Warnung', '0 Hinweise'
+      '1 Fehler', '1 Warnung', '0 Hinweise',
+      'WebMCP: nicht verfügbar', 'llms.txt: gültig', 'ARD-Manifest: nicht gefunden',
+      'Fehlschlagende Barrierefreiheitsregeln, auf die Agenten angewiesen sind: 1'
     ])
     expect(shown.severities).toContain('Fehler')
     expect(shown.findingCategories).toContain('Metadaten & SEO')
@@ -270,9 +281,10 @@ describe('quality audit in the interface language', () => {
       'Einige PWA-Diagnosen waren für diese Prüfung nicht verfügbar.',
       'Unsicherer gemischter Inhalt',
       // An issue Hronaut does not know keeps the headline made from its code.
-      'Future Chromium'
+      'Future Chromium',
+      'Agenten lesen die Seite über ihren Barrierefreiheitsbaum, und diese Regeln schlagen fehl: image-alt.'
     ])
-    expect(shown.caveats).toHaveLength(5)
+    expect(shown.caveats).toHaveLength(6)
     expect(shown.caveats[0]).toBe('Dies ist eine begrenzte lokale Diagnose aus Hronaut-Daten, weder eine Lighthouse-Bewertung noch eine Zertifizierung.')
   })
 
@@ -310,14 +322,15 @@ describe('quality audit in the interface language', () => {
   it('names a healthy audit in German and keeps it as recorded in English', async () => {
     const report = buildBrowserQualityAudit(sources())
     const german = await renderAudit('de-DE', report)
-    expect(german.statuses).toEqual(['bestanden', 'bestanden', 'bestanden', 'bestanden', 'nicht zutreffend', 'bestanden'])
+    expect(german.statuses).toEqual(['bestanden', 'bestanden', 'bestanden', 'bestanden', 'nicht zutreffend', 'bestanden', 'bestanden'])
     expect(german.summaries).toEqual([
       'Keine automatisch erkannten WCAG-AA-Verstöße',
       'Gut bewertete Web Vitals: 5 von 5',
       'Keine Metadatenprobleme gefunden',
       'Sicherer Transport des Hauptdokuments',
       'Keine PWA- oder Offline-App-Funktionen erkannt',
-      'Keine gespeicherten Chromium-Probleme gefunden'
+      'Keine gespeicherten Chromium-Probleme gefunden',
+      'Keine Probleme bei der Agentenbereitschaft gefunden'
     ])
     expect(german.evidence).toEqual(expect.arrayContaining(['Sprache: en', 'Transport: sicher', 'Protokoll: TLS 1.3', 'Zertifikat: gültig', 'Manifest: nicht erkannt']))
     cleanup()

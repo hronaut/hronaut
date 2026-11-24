@@ -116,7 +116,7 @@ function browser() {
     wakeTab: vi.fn(async () => ({})), layout: vi.fn(), focusTabOrTrustedChrome: vi.fn(), changed: vi.fn(), getState: () => ({}),
     text: (key: string) => key, options: {},
     // What closing a tab forgets of it.
-    cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), workerEvaluations: forgets(),
+    cssStatePreview: forgets(), virtualPasskeys: forgets(), domMutationSource: forgets(), logpoints: forgets(), ariaNotify: forgets(), workerEvaluations: forgets(),
     tabOverviewSleepPreviews: new Map(), tabOverviewPreviewCaptures: { cancelPending: vi.fn() }, snapshotBaselines: new Map(),
     snapshotBaselineIdsByTab: new Map(), globallyUnlockedTabIds: new Set(), globallyResumedAgentTabIds: new Set(),
     browserSessionAuthorityHooks: new Map(), mcpActivitiesByTab: new Map(), mcpActivityFollower: { removeTab: vi.fn() },

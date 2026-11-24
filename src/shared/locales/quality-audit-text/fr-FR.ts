@@ -5,7 +5,8 @@ export const frFRQualityAuditText = {
     metadata: 'Métadonnées et SEO',
     security: 'Sécurité',
     pwa: 'PWA et hors ligne',
-    'browser-issues': 'Problèmes Chromium'
+    'browser-issues': 'Problèmes Chromium',
+    'agent-readiness': 'Préparation pour les agents'
   },
   statuses: {
     pass: 'réussi',
@@ -31,14 +32,24 @@ export const frFRQualityAuditText = {
     certificateExpired: 'Le certificat du document principal a expiré.',
     certificateNotYetValid: 'Le certificat du document principal n’est pas encore valide.',
     certificateInvalid: 'Le certificat du document principal n’est pas valide actuellement.',
-    pwaInspectionPartial: 'Certains diagnostics PWA n’étaient pas disponibles pour cet audit.'
+    pwaInspectionPartial: 'Certains diagnostics PWA n’étaient pas disponibles pour cet audit.',
+    agentReadinessClear: 'Aucun problème de préparation pour les agents',
+    llmsTxtMissing: 'Aucun /llms.txt trouvé.',
+    llmsTxtFailed: 'La requête /llms.txt a échoué.',
+    llmsTxtNoHeading: '/llms.txt ne contient aucun titre H1 Markdown.',
+    llmsTxtNoLink: '/llms.txt ne contient aucun lien Markdown.',
+    llmsTxtTooShort: '/llms.txt fait moins de 50 caractères.',
+    ardFailed: 'La requête /.well-known/ard.json a échoué.',
+    ardInvalid: "/.well-known/ard.json n'est pas un objet JSON.",
+    webMcpUnavailable: 'WebMCP : indisponible'
   },
   caveats: {
     localDiagnostic: 'Il s’agit d’un diagnostic local limité, assemblé à partir des données de Hronaut ; ce n’est ni un score Lighthouse ni une certification.',
     accessibilityAutomation: 'L’automatisation de l’accessibilité ne remplace pas les tests au clavier, au lecteur d’écran, avec zoom ou mouvements réduits, ni les tests d’utilisabilité avec des personnes.',
     performanceVisit: 'Les performances reflètent la visite locale actuelle et son environnement ; répétez les mesures importantes dans des conditions représentatives.',
     pwaOptional: 'Une PWA n’est pas exigée des sites qui ne proposent pas d’application hors ligne.',
-    reloadIssues: 'Rechargez la page avant de reproduire les problèmes Chromium propres au démarrage, puis relancez cet audit.'
+    reloadIssues: 'Rechargez la page avant de reproduire les problèmes Chromium propres au démarrage, puis relancez cet audit.',
+    agentReadiness: "La préparation pour les agents demande /llms.txt et /.well-known/ard.json à l'origine de la page sans cookies, et vérifie WebMCP, les formulaires et les règles d'accessibilité dont dépendent les agents ; ce n'est pas le score de navigation agentique de Lighthouse."
   },
   text: {
     violations: '{count} infraction | {count} infractions',
@@ -77,6 +88,22 @@ export const frFRQualityAuditText = {
     installabilityIssues: 'Problèmes d’installabilité : {count}',
     installabilityFinding: 'Chromium a signalé un problème d’installabilité PWA : {issue}.',
     installabilityUnknown: 'Chromium a signalé un problème d’installabilité PWA inconnu.',
-    browserIssues: '{count} problème généré par le navigateur | {count} problèmes générés par le navigateur'
+    browserIssues: '{count} problème généré par le navigateur | {count} problèmes générés par le navigateur',
+    agentReadinessIssues: 'Problèmes de préparation pour les agents : {count}',
+    webMcpTools: 'Outils WebMCP : {count}',
+    unannotatedForms: 'Formulaires sans annotations WebMCP : {count} sur {total}',
+    llmsTxt: 'llms.txt : {state}',
+    ardManifest: 'Manifeste ARD : {state}',
+    agentAccessibility: "Règles d'accessibilité dont dépendent les agents en échec : {count}",
+    tooManyTools: 'Outils WebMCP enregistrés : {count} ; plus de {max} est déconseillé.',
+    formsUnannotated: 'Formulaires sans toolname ni tooldescription WebMCP : {count}.',
+    accessibilityForAgents: "Les agents lisent la page par son arbre d'accessibilité, et ces règles échouent : {rules}.",
+    fileStates: {
+      valid: 'valide',
+      invalid: 'non valide',
+      notFound: 'introuvable',
+      unreachable: 'inaccessible',
+      notChecked: 'non vérifié'
+    }
   }
 }

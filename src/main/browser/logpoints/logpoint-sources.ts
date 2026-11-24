@@ -32,7 +32,13 @@ export interface LogpointScriptRecord {
 
 export type CdpSend = <R>(method: string, params?: Record<string, unknown>) => Promise<R>
 
-export type LoadedSourceMap = { map: TraceMap; sources: string[] } | { problem: LogpointSourceMapProblem }
+/** A loaded map, with its ECMA-426 "scopes" string and "names" when it has them, decoded only when a logpoint uses them. */
+export type LoadedSourceMap = { map: TraceMap; sources: string[]; scopes?: RawScopes } | { problem: LogpointSourceMapProblem }
+
+export interface RawScopes {
+  scopes: string
+  names: string[]
+}
 
 /** What one call may still read of source maps, in bytes and time. */
 export interface SourceMapBudget {
@@ -205,11 +211,15 @@ async function fetchText(send: CdpSend, frameId: string, url: string, budget: So
   return Buffer.concat(chunks).toString('utf8')
 }
 
-function parseSourceMap(text: string): TraceMap | undefined {
+function parseSourceMap(text: string): { map: TraceMap; scopes?: RawScopes } | undefined {
   try {
     const raw: unknown = JSON.parse(text.replace(XSSI_PREFIX, ''))
     if (!raw || typeof raw !== 'object') return undefined
-    return new AnyMap(raw as ConstructorParameters<typeof AnyMap>[0])
+    const map = new AnyMap(raw as ConstructorParameters<typeof AnyMap>[0])
+    // Scopes are read from a plain map only, not an index map's sections.
+    const { scopes, names } = raw as { scopes?: unknown; names?: unknown }
+    const nameList = Array.isArray(names) ? names.map(name => (typeof name === 'string' ? name : '')) : []
+    return { map, ...(typeof scopes === 'string' && scopes ? { scopes: { scopes, names: nameList } } : {}) }
   } catch {
     return undefined
   }
@@ -243,8 +253,8 @@ export async function loadSourceMap(send: CdpSend, frameId: string, script: Logp
     text = await fetchText(send, frameId, url.href, budget)
   }
   if (text === 'invalid' || text === 'too-large' || text === 'timeout' || text === 'fetch-failed' || text === 'unsupported-url') return { problem: text }
-  const map = parseSourceMap(text)
-  return map ? { map, sources: mapSources(map) } : { problem: 'invalid' }
+  const parsed = parseSourceMap(text)
+  return parsed ? { ...parsed, sources: mapSources(parsed.map) } : { problem: 'invalid' }
 }
 
 /** One script as scripts reports it: its address and, when its source map loaded, the sources it lists. */

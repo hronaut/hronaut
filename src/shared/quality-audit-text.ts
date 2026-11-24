@@ -1,6 +1,11 @@
 // The English the quality audit writes (src/shared/quality-audit.ts). MCP results and copied audits keep it; the
 // renderer recognizes it to show the audit in the interface language.
 
+/** WebMCP tools a page should register at most, as Lighthouse's agentic-browsing audit recommends. */
+export const AGENT_READINESS_MAX_WEBMCP_TOOLS = 40
+
+export type AgentReadinessFileState = 'valid' | 'invalid' | 'not found' | 'unreachable' | 'not checked'
+
 export const QUALITY_AUDIT_FIXED_TEXT = {
   accessibilityClear: 'No automated WCAG AA violations found',
   performanceNone: 'No Web Vitals observed in this visit',
@@ -13,7 +18,16 @@ export const QUALITY_AUDIT_FIXED_TEXT = {
   certificateExpired: 'The main document certificate has expired.',
   certificateNotYetValid: 'The main document certificate is not valid yet.',
   certificateInvalid: 'The main document certificate is not currently valid.',
-  pwaInspectionPartial: 'Some PWA diagnostics were unavailable for this audit.'
+  pwaInspectionPartial: 'Some PWA diagnostics were unavailable for this audit.',
+  agentReadinessClear: 'No agent readiness issues found',
+  llmsTxtMissing: 'No /llms.txt found.',
+  llmsTxtFailed: 'The /llms.txt request failed.',
+  llmsTxtNoHeading: '/llms.txt has no Markdown H1 heading.',
+  llmsTxtNoLink: '/llms.txt has no Markdown link.',
+  llmsTxtTooShort: '/llms.txt is shorter than 50 characters.',
+  ardFailed: 'The /.well-known/ard.json request failed.',
+  ardInvalid: '/.well-known/ard.json is not a JSON object.',
+  webMcpUnavailable: 'WebMCP: unavailable'
 } as const
 
 export const QUALITY_AUDIT_CAVEATS = {
@@ -21,7 +35,9 @@ export const QUALITY_AUDIT_CAVEATS = {
   accessibilityAutomation: 'Accessibility automation cannot replace keyboard, screen-reader, zoom, motion, and human usability testing.',
   performanceVisit: 'Performance reflects the current local visit and environment; repeat important measurements under representative conditions.',
   pwaOptional: 'PWA is not treated as a requirement for websites that do not present an offline-app surface.',
-  reloadIssues: 'Reload before reproducing startup-only Chromium issues, then rerun this audit.'
+  reloadIssues: 'Reload before reproducing startup-only Chromium issues, then rerun this audit.',
+  agentReadiness: 'Agent readiness requests /llms.txt and /.well-known/ard.json from the page\'s origin without cookies, ' +
+    'and checks WebMCP, forms and the accessibility rules agents rely on; it is not Lighthouse\'s agentic-browsing score.'
 } as const
 
 export const QUALITY_AUDIT_CATEGORY_LABELS = {
@@ -30,7 +46,8 @@ export const QUALITY_AUDIT_CATEGORY_LABELS = {
   metadata: 'Metadata & SEO',
   security: 'Security',
   pwa: 'PWA & offline',
-  'browser-issues': 'Chromium issues'
+  'browser-issues': 'Chromium issues',
+  'agent-readiness': 'Agent readiness'
 } as const
 
 export const qualityAuditText = {
@@ -61,5 +78,14 @@ export const qualityAuditText = {
   browserIssues: (count: number) => `${count} browser-generated ${count === 1 ? 'issue' : 'issues'}`,
   errors: (count: number) => `${count} errors`,
   warnings: (count: number) => `${count} warnings`,
-  informational: (count: number) => `${count} informational`
+  informational: (count: number) => `${count} informational`,
+  agentReadinessIssues: (count: number) => `${count} agent readiness ${count === 1 ? 'issue' : 'issues'}`,
+  webMcpTools: (count: number) => `WebMCP tools: ${count}`,
+  unannotatedForms: (count: number, total: number) => `Forms without WebMCP annotations: ${count} of ${total}`,
+  llmsTxt: (state: AgentReadinessFileState) => `llms.txt: ${state}`,
+  ardManifest: (state: AgentReadinessFileState) => `ARD manifest: ${state}`,
+  agentAccessibility: (count: number) => `Failing accessibility rules agents rely on: ${count}`,
+  tooManyTools: (count: number) => `${count} WebMCP tools are registered; more than ${AGENT_READINESS_MAX_WEBMCP_TOOLS} is not recommended.`,
+  formsUnannotated: (count: number) => `${count} ${count === 1 ? 'form has' : 'forms have'} no WebMCP toolname or tooldescription.`,
+  accessibilityForAgents: (rules: string[]) => `Agents read the page through its accessibility tree, and these rules fail: ${rules.join(', ')}.`
 }

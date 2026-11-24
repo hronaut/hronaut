@@ -95,6 +95,7 @@ export const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabili
   browser_dom_changes: 'browser-state',
   browser_dom_mutation_source: 'browser-state',
   browser_live_region: 'browser-state',
+  browser_aria_notify: 'browser-state',
   browser_css_state_preview: 'browser-state',
   browser_virtual_passkey: 'browser-state',
   browser_pwa_lifecycle: 'browser-state',

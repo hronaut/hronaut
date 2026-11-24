@@ -5,7 +5,8 @@ export const itITQualityAuditText = {
     metadata: 'Metadati e SEO',
     security: 'Sicurezza',
     pwa: 'PWA e offline',
-    'browser-issues': 'Problemi di Chromium'
+    'browser-issues': 'Problemi di Chromium',
+    'agent-readiness': 'Preparazione per gli agenti'
   },
   statuses: {
     pass: 'superato',
@@ -31,14 +32,24 @@ export const itITQualityAuditText = {
     certificateExpired: 'Il certificato del documento principale è scaduto.',
     certificateNotYetValid: 'Il certificato del documento principale non è ancora valido.',
     certificateInvalid: 'Il certificato del documento principale non è valido al momento.',
-    pwaInspectionPartial: 'Alcune diagnostiche PWA non erano disponibili per questo controllo.'
+    pwaInspectionPartial: 'Alcune diagnostiche PWA non erano disponibili per questo controllo.',
+    agentReadinessClear: 'Nessun problema di preparazione per gli agenti',
+    llmsTxtMissing: 'Nessun /llms.txt trovato.',
+    llmsTxtFailed: 'La richiesta di /llms.txt non è riuscita.',
+    llmsTxtNoHeading: '/llms.txt non ha un titolo H1 Markdown.',
+    llmsTxtNoLink: '/llms.txt non ha link Markdown.',
+    llmsTxtTooShort: '/llms.txt è più corto di 50 caratteri.',
+    ardFailed: 'La richiesta di /.well-known/ard.json non è riuscita.',
+    ardInvalid: '/.well-known/ard.json non è un oggetto JSON.',
+    webMcpUnavailable: 'WebMCP: non disponibile'
   },
   caveats: {
     localDiagnostic: 'Questa è una diagnostica locale limitata, composta a partire dalle prove raccolte da Hronaut; non è un punteggio Lighthouse né una certificazione.',
     accessibilityAutomation: 'I controlli automatici di accessibilità non possono sostituire i test con tastiera, screen reader, zoom e movimento né i test di usabilità con persone reali.',
     performanceVisit: 'Le prestazioni riflettono la visita e l’ambiente locali attuali; ripeti le misurazioni importanti in condizioni rappresentative.',
     pwaOptional: 'Le PWA non sono considerate un requisito per i siti web che non offrono funzionalità di app offline.',
-    reloadIssues: 'Ricarica la pagina prima di riprodurre i problemi di Chromium che si verificano solo all’avvio, quindi ripeti questo controllo.'
+    reloadIssues: 'Ricarica la pagina prima di riprodurre i problemi di Chromium che si verificano solo all’avvio, quindi ripeti questo controllo.',
+    agentReadiness: "La preparazione per gli agenti richiede /llms.txt e /.well-known/ard.json all'origine della pagina senza cookie e controlla WebMCP, i moduli e le regole di accessibilità su cui si basano gli agenti; non è il punteggio di navigazione agentica di Lighthouse."
   },
   text: {
     violations: '{count} violazione | {count} violazioni',
@@ -77,6 +88,22 @@ export const itITQualityAuditText = {
     installabilityIssues: 'Problemi di installabilità: {count}',
     installabilityFinding: 'Chromium ha segnalato un problema di installabilità della PWA: {issue}.',
     installabilityUnknown: 'Chromium ha segnalato un problema di installabilità della PWA: problema sconosciuto.',
-    browserIssues: '{count} problema generato dal browser | {count} problemi generati dal browser'
+    browserIssues: '{count} problema generato dal browser | {count} problemi generati dal browser',
+    agentReadinessIssues: 'Problemi di preparazione per gli agenti: {count}',
+    webMcpTools: 'Strumenti WebMCP: {count}',
+    unannotatedForms: 'Moduli senza annotazioni WebMCP: {count} su {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'Manifesto ARD: {state}',
+    agentAccessibility: 'Regole di accessibilità su cui si basano gli agenti non superate: {count}',
+    tooManyTools: 'Strumenti WebMCP registrati: {count}; non se ne consigliano più di {max}.',
+    formsUnannotated: 'Moduli senza toolname né tooldescription WebMCP: {count}.',
+    accessibilityForAgents: 'Gli agenti leggono la pagina tramite il suo albero di accessibilità, e queste regole non sono superate: {rules}.',
+    fileStates: {
+      valid: 'valido',
+      invalid: 'non valido',
+      notFound: 'non trovato',
+      unreachable: 'non raggiungibile',
+      notChecked: 'non controllato'
+    }
   }
 }

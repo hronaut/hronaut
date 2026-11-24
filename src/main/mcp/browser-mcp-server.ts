@@ -6,7 +6,8 @@ import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import type { UserAttentionLifecycle } from '../attention/user-attention-lifecycle.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
-import { BROWSER_SERVER_INSTRUCTIONS, BROWSER_TOOL_CATALOG, mcpToolCatalogForSet, type BrowserToolDefinition } from './tool-catalog.js'
+import { BROWSER_SERVER_INSTRUCTIONS, BROWSER_TOOL_CATALOG, mcpToolCatalogForSet } from './tool-catalog.js'
+import { assertMcpToolRegistrationContract } from './tool-registration-contract.js'
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -108,6 +109,7 @@ import { registerBrowserRepro } from './tools/browser-repro/index.js'
 import { registerBrowserDomChanges } from './tools/browser-dom-changes/index.js'
 import { registerBrowserDomMutationSource } from './tools/browser-dom-mutation-source/index.js'
 import { registerBrowserLiveRegion } from './tools/browser-live-region/index.js'
+import { registerBrowserAriaNotify } from './tools/browser-aria-notify/index.js'
 import { registerBrowserCssStatePreview } from './tools/browser-css-state-preview/index.js'
 import { registerBrowserVirtualPasskey } from './tools/browser-virtual-passkey/index.js'
 import { registerBrowserVisualCompare } from './tools/browser-visual-compare/index.js'
@@ -150,22 +152,6 @@ function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean 
   const expectedBytes = Buffer.from(expected, 'utf8')
   const suppliedBytes = Buffer.from(supplied, 'utf8')
   return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes)
-}
-
-export function assertMcpToolRegistrationContract(catalog: readonly Pick<BrowserToolDefinition, 'name'>[], registeredNames: readonly string[]): void {
-  const duplicates = (names: readonly string[]) => [...new Set(names.filter((name, index) => names.indexOf(name) !== index))].sort()
-  const catalogNames = catalog.map((tool) => tool.name)
-  const catalogSet = new Set(catalogNames)
-  const registeredSet = new Set(registeredNames)
-  const duplicateCatalogNames = duplicates(catalogNames)
-  const duplicateRegisteredNames = duplicates(registeredNames)
-  const issues = [
-    duplicateCatalogNames.length ? `duplicate catalog tools: ${duplicateCatalogNames.join(', ')}` : '',
-    duplicateRegisteredNames.length ? `duplicate registrations: ${duplicateRegisteredNames.join(', ')}` : '',
-    ...[...catalogSet].filter((name) => !registeredSet.has(name)).sort().map((name) => `missing registration: ${name}`),
-    ...[...registeredSet].filter((name) => !catalogSet.has(name)).sort().map((name) => `unadvertised registration: ${name}`)
-  ].filter(Boolean)
-  if (issues.length) throw new Error(`Invalid MCP tool contract (${issues.join('; ')})`)
 }
 
 /**
@@ -760,6 +746,7 @@ export function createBrowserMcpServer(
   registerBrowserDomChanges(toolContext)
   registerBrowserDomMutationSource(toolContext)
   registerBrowserLiveRegion(toolContext)
+  registerBrowserAriaNotify(toolContext)
   registerBrowserCssStatePreview(toolContext)
   registerBrowserVirtualPasskey(toolContext)
   registerBrowserVisualCompare(toolContext)

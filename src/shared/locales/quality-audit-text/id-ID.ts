@@ -5,7 +5,8 @@ export const idIDQualityAuditText = {
     metadata: 'Metadata dan SEO',
     security: 'Keamanan',
     pwa: 'PWA dan offline',
-    'browser-issues': 'Masalah Chromium'
+    'browser-issues': 'Masalah Chromium',
+    'agent-readiness': 'Kesiapan untuk agen'
   },
   statuses: {
     pass: 'lulus',
@@ -31,14 +32,24 @@ export const idIDQualityAuditText = {
     certificateExpired: 'Sertifikat dokumen utama sudah kedaluwarsa.',
     certificateNotYetValid: 'Sertifikat dokumen utama belum berlaku.',
     certificateInvalid: 'Sertifikat dokumen utama saat ini tidak valid.',
-    pwaInspectionPartial: 'Beberapa diagnostik PWA tidak tersedia untuk audit ini.'
+    pwaInspectionPartial: 'Beberapa diagnostik PWA tidak tersedia untuk audit ini.',
+    agentReadinessClear: 'Tidak ada masalah kesiapan untuk agen',
+    llmsTxtMissing: '/llms.txt tidak ditemukan.',
+    llmsTxtFailed: 'Permintaan /llms.txt gagal.',
+    llmsTxtNoHeading: '/llms.txt tidak memiliki judul H1 Markdown.',
+    llmsTxtNoLink: '/llms.txt tidak memiliki tautan Markdown.',
+    llmsTxtTooShort: '/llms.txt kurang dari 50 karakter.',
+    ardFailed: 'Permintaan /.well-known/ard.json gagal.',
+    ardInvalid: '/.well-known/ard.json bukan objek JSON.',
+    webMcpUnavailable: 'WebMCP: tidak tersedia'
   },
   caveats: {
     localDiagnostic: 'Ini adalah diagnostik lokal terbatas yang disusun dari bukti Hronaut; ini bukan skor Lighthouse atau sertifikasi.',
     accessibilityAutomation: 'Otomatisasi aksesibilitas tidak dapat menggantikan pengujian keyboard, pembaca layar, zoom, gerakan, dan kegunaan oleh manusia.',
     performanceVisit: 'Performa mencerminkan kunjungan dan lingkungan lokal saat ini; ulangi pengukuran penting dalam kondisi yang representatif.',
     pwaOptional: 'PWA tidak dianggap sebagai persyaratan untuk situs yang tidak menyediakan fitur aplikasi offline.',
-    reloadIssues: 'Muat ulang sebelum mereproduksi masalah Chromium yang hanya muncul saat startup, lalu jalankan ulang audit ini.'
+    reloadIssues: 'Muat ulang sebelum mereproduksi masalah Chromium yang hanya muncul saat startup, lalu jalankan ulang audit ini.',
+    agentReadiness: 'Kesiapan untuk agen meminta /llms.txt dan /.well-known/ard.json dari origin halaman tanpa cookie, lalu memeriksa WebMCP, formulir, dan aturan aksesibilitas yang diandalkan agen; ini bukan skor penjelajahan agentik Lighthouse.'
   },
   text: {
     violations: '{count} pelanggaran',
@@ -77,6 +88,22 @@ export const idIDQualityAuditText = {
     installabilityIssues: 'Masalah kemampuan instal: {count}',
     installabilityFinding: 'Chromium melaporkan masalah kemampuan instal PWA: {issue}.',
     installabilityUnknown: 'Chromium melaporkan masalah kemampuan instal PWA: masalah tidak diketahui.',
-    browserIssues: '{count} masalah yang dihasilkan browser'
+    browserIssues: '{count} masalah yang dihasilkan browser',
+    agentReadinessIssues: '{count} masalah kesiapan untuk agen',
+    webMcpTools: 'Alat WebMCP: {count}',
+    unannotatedForms: 'Formulir tanpa anotasi WebMCP: {count} dari {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'Manifes ARD: {state}',
+    agentAccessibility: 'Aturan aksesibilitas yang diandalkan agen yang gagal: {count}',
+    tooManyTools: '{count} alat WebMCP terdaftar; lebih dari {max} tidak disarankan.',
+    formsUnannotated: '{count} formulir tidak memiliki toolname atau tooldescription WebMCP.',
+    accessibilityForAgents: 'Agen membaca halaman melalui pohon aksesibilitasnya, dan aturan berikut gagal: {rules}.',
+    fileStates: {
+      valid: 'valid',
+      invalid: 'tidak valid',
+      notFound: 'tidak ditemukan',
+      unreachable: 'tidak terjangkau',
+      notChecked: 'tidak diperiksa'
+    }
   }
 }

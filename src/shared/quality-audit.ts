@@ -12,6 +12,7 @@ import type {
   BrowserQualityAuditFinding,
   BrowserSecurityReport
 } from './types.js'
+import { agentReadinessFindings, type AgentReadinessSources } from './agent-readiness.js'
 import { QUALITY_AUDIT_CATEGORY_LABELS, QUALITY_AUDIT_CAVEATS, QUALITY_AUDIT_FIXED_TEXT, qualityAuditText as text } from './quality-audit-text.js'
 
 const MAX_FINDINGS = 40
@@ -24,6 +25,7 @@ export interface BrowserQualityAuditSources {
   security: BrowserSecurityReport
   pwa: BrowserPwaReport
   browserIssues: BrowserInspectorIssuesReport
+  agentReadiness: AgentReadinessSources
 }
 
 function boundedMessage(value: string): string {
@@ -162,6 +164,8 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
     message: boundedMessage(issue.title)
   }))
 
+  const agentReadiness = agentReadinessFindings(sources.agentReadiness, sources.accessibility)
+
   const categories: BrowserQualityAuditCategory[] = [
     category(
       'accessibility',
@@ -226,6 +230,14 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
         text.informational(sources.browserIssues.infoCount)
       ],
       browserIssueFindings
+    ),
+    category(
+      'agent-readiness',
+      agentReadiness.findings.length
+        ? text.agentReadinessIssues(agentReadiness.findings.length)
+        : QUALITY_AUDIT_FIXED_TEXT.agentReadinessClear,
+      agentReadiness.evidence,
+      agentReadiness.findings
     )
   ]
 
@@ -235,7 +247,8 @@ export function buildBrowserQualityAudit(sources: BrowserQualityAuditSources): B
     ...metadataFindings,
     ...securityFindings,
     ...pwaFindings,
-    ...browserIssueFindings
+    ...browserIssueFindings,
+    ...agentReadiness.findings
   ]
   const totals = {
     errors: allFindings.filter((finding) => finding.severity === 'error').length,

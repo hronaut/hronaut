@@ -8,10 +8,11 @@ import { performanceReport } from './performance-report.js'
 import { securityReport } from './security-report.js'
 import { inspectorIssues } from '../inspector-issues/inspector-issues.js'
 import { inspectPwa } from '../pwa-inspection/pwa-inspection.js'
+import { collectAgentReadiness } from './agent-readiness.js'
 
 /**
- * Combines the accessibility, performance, metadata, connection security, PWA
- * and browser issue findings for the tab's page. It throws when the page's
+ * Combines the accessibility, performance, metadata, connection security, PWA,
+ * browser issue and agent readiness findings for the tab's page. It throws when the page's
  * address changed before every part finished.
  */
 export async function qualityAudit(browser: Browser, tabId?: string): Promise<BrowserQualityAudit> {
@@ -26,8 +27,9 @@ export async function qualityAudit(browser: Browser, tabId?: string): Promise<Br
   const security = securityReport(browser, tab.id)
   const pwa = await inspectPwa(browser, { tabId: tab.id, limit: 1 })
   const browserIssues = await inspectorIssues(browser, tab.id)
+  const agentReadiness = await collectAgentReadiness(browser, tab)
   if (tab.url !== auditedUrl) {
     throw new Error('The page navigated before the quality audit finished; run it again on the current document.')
   }
-  return buildBrowserQualityAudit({ accessibility, performance, metadata, security, pwa, browserIssues })
+  return buildBrowserQualityAudit({ accessibility, performance, metadata, security, pwa, browserIssues, agentReadiness })
 }

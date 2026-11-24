@@ -133,3 +133,32 @@ test('forces hover and active styling on one element without sending input and a
   await setUp()
   expect(await revealColor()).toBe(BLUE)
 })
+
+test('forces focus-visible styling without moving focus, and says when Chromium lacks the media states', async ({ capabilities }) => {
+  const { client, tabId } = capabilities
+  const call = async (name: string, args: Record<string, unknown>) => (
+    await client.callTool({ name, arguments: { tabId, ...args } }) as CallToolResult
+  )
+  const evaluate = async (script: string) => {
+    const result = await call('browser_evaluate', { script })
+    expect(result.isError, text(result)).not.toBe(true)
+    return text(result)
+  }
+  await evaluate(`(() => {
+    const root = document.createElement('section');
+    root.innerHTML = '<style>#ring{outline:none}#ring:focus-visible{outline:3px solid ${RED}}</style><button id="ring" type="button">Ring</button><video id="player"></video>';
+    document.body.append(root);
+    return true;
+  })()`)
+  const forced = await call('browser_css_state_preview', { action: 'set', selector: '#ring', states: ['focus-visible'] })
+  expect(forced.isError, text(forced)).not.toBe(true)
+  expect(await evaluate(`getComputedStyle(document.querySelector('#ring')).outlineColor`)).toBe(RED)
+  expect(await evaluate(`String(document.activeElement === document.querySelector('#ring'))`)).toBe('false')
+  await call('browser_css_state_preview', { action: 'clear' })
+
+  const media = await call('browser_css_state_preview', { action: 'set', selector: '#player', states: ['buffering'] })
+  const chromiumMajor = Number(process.versions.chrome?.split('.')[0] ?? 0)
+  if (media.isError) expect(text(media)).toContain('does not support the :buffering and :stalled media pseudo-classes')
+  // Electron's Chromium 156 has no media pseudo-classes; a later one may.
+  else expect(chromiumMajor === 0 || chromiumMajor > 156).toBe(true)
+})

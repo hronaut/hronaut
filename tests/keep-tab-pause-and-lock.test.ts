@@ -127,7 +127,7 @@ function browser() {
     contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allAgentsPaused: false, agentPauseOverridesAllowed: true, globallyResumedAgentTabIds: new Set(),
     liveRegionRecorder: { release: vi.fn() }, cssStatePreview: { clear: () => Promise.resolve() },
-    virtualPasskeys: { stop: vi.fn() }, logpoints: { stop: vi.fn() },
+    virtualPasskeys: { stop: vi.fn() }, logpoints: { stop: vi.fn() }, ariaNotify: { stop: vi.fn(), forget: vi.fn() },
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), interactionLockTail: Promise.resolve(),
     globalInputLockChanges: 0, debuggerQueue: { pending: () => undefined }, dialogMonitorAttachPromises: new Map(),
     screenshotAreaSessions: new Map(), elementPickerSessions: new Map(), withDebugger: () => Promise.resolve(),

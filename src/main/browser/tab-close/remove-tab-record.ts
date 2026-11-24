@@ -15,6 +15,7 @@ export function removeTabRecord(browser: Browser, tab: BrowserTab): void {
   const browserSession = tab.browserSession
   browser.cssStatePreview.forget(tab)
   browser.virtualPasskeys.forget(tab)
+  browser.ariaNotify.forget(tab)
   browser.domMutationSource.forget(tab)
   browser.logpoints.forget(tab)
   browser.workerEvaluations.forget(tab)

@@ -6,7 +6,8 @@ export const enUSQualityAuditText = {
     metadata: 'Metadata & SEO',
     security: 'Security',
     pwa: 'PWA & offline',
-    'browser-issues': 'Chromium issues'
+    'browser-issues': 'Chromium issues',
+    'agent-readiness': 'Agent readiness'
   },
   statuses: {
     pass: 'pass',
@@ -32,14 +33,24 @@ export const enUSQualityAuditText = {
     certificateExpired: 'The main document certificate has expired.',
     certificateNotYetValid: 'The main document certificate is not valid yet.',
     certificateInvalid: 'The main document certificate is not currently valid.',
-    pwaInspectionPartial: 'Some PWA diagnostics were unavailable for this audit.'
+    pwaInspectionPartial: 'Some PWA diagnostics were unavailable for this audit.',
+    agentReadinessClear: 'No agent readiness issues found',
+    llmsTxtMissing: 'No /llms.txt found.',
+    llmsTxtFailed: 'The /llms.txt request failed.',
+    llmsTxtNoHeading: '/llms.txt has no Markdown H1 heading.',
+    llmsTxtNoLink: '/llms.txt has no Markdown link.',
+    llmsTxtTooShort: '/llms.txt is shorter than 50 characters.',
+    ardFailed: 'The /.well-known/ard.json request failed.',
+    ardInvalid: '/.well-known/ard.json is not a JSON object.',
+    webMcpUnavailable: 'WebMCP: unavailable'
   },
   caveats: {
     localDiagnostic: 'This is a bounded local diagnostic assembled from Hronaut evidence; it is not a Lighthouse score or a certification.',
     accessibilityAutomation: 'Accessibility automation cannot replace keyboard, screen-reader, zoom, motion, and human usability testing.',
     performanceVisit: 'Performance reflects the current local visit and environment; repeat important measurements under representative conditions.',
     pwaOptional: 'PWA is not treated as a requirement for websites that do not present an offline-app surface.',
-    reloadIssues: 'Reload before reproducing startup-only Chromium issues, then rerun this audit.'
+    reloadIssues: 'Reload before reproducing startup-only Chromium issues, then rerun this audit.',
+    agentReadiness: "Agent readiness requests /llms.txt and /.well-known/ard.json from the page's origin without cookies, and checks WebMCP, forms and the accessibility rules agents rely on; it is not Lighthouse's agentic-browsing score."
   },
   text: {
     violations: '{count} violation | {count} violations',
@@ -78,6 +89,22 @@ export const enUSQualityAuditText = {
     installabilityIssues: 'Installability issues: {count}',
     installabilityFinding: 'Chromium reported a PWA installability issue: {issue}.',
     installabilityUnknown: 'Chromium reported a PWA installability issue: unknown issue.',
-    browserIssues: '{count} browser-generated issue | {count} browser-generated issues'
+    browserIssues: '{count} browser-generated issue | {count} browser-generated issues',
+    agentReadinessIssues: '{count} agent readiness issue | {count} agent readiness issues',
+    webMcpTools: 'WebMCP tools: {count}',
+    unannotatedForms: 'Forms without WebMCP annotations: {count} of {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'ARD manifest: {state}',
+    agentAccessibility: 'Failing accessibility rules agents rely on: {count}',
+    tooManyTools: '{count} WebMCP tools are registered; more than {max} is not recommended.',
+    formsUnannotated: '{count} form has no WebMCP toolname or tooldescription. | {count} forms have no WebMCP toolname or tooldescription.',
+    accessibilityForAgents: 'Agents read the page through its accessibility tree, and these rules fail: {rules}.',
+    fileStates: {
+      valid: 'valid',
+      invalid: 'invalid',
+      notFound: 'not found',
+      unreachable: 'unreachable',
+      notChecked: 'not checked'
+    }
   }
 }

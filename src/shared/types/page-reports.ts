@@ -162,6 +162,7 @@ export type BrowserQualityAuditCategoryId =
   | 'security'
   | 'pwa'
   | 'browser-issues'
+  | 'agent-readiness'
 
 export interface BrowserQualityAuditFinding {
   category: BrowserQualityAuditCategoryId

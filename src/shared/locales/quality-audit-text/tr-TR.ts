@@ -5,7 +5,8 @@ export const trTRQualityAuditText = {
     metadata: 'Meta veriler ve SEO',
     security: 'Güvenlik',
     pwa: 'PWA ve çevrimdışı',
-    'browser-issues': 'Chromium sorunları'
+    'browser-issues': 'Chromium sorunları',
+    'agent-readiness': 'Ajanlara hazırlık'
   },
   statuses: {
     pass: 'başarılı',
@@ -31,14 +32,24 @@ export const trTRQualityAuditText = {
     certificateExpired: 'Ana belge sertifikasının süresi doldu.',
     certificateNotYetValid: 'Ana belge sertifikası henüz geçerli değil.',
     certificateInvalid: 'Ana belge sertifikası şu anda geçerli değil.',
-    pwaInspectionPartial: 'Bu denetim için bazı PWA tanılamaları kullanılamadı.'
+    pwaInspectionPartial: 'Bu denetim için bazı PWA tanılamaları kullanılamadı.',
+    agentReadinessClear: 'Ajanlara hazırlık sorunu bulunamadı',
+    llmsTxtMissing: '/llms.txt bulunamadı.',
+    llmsTxtFailed: '/llms.txt isteği başarısız oldu.',
+    llmsTxtNoHeading: "/llms.txt'de Markdown H1 başlığı yok.",
+    llmsTxtNoLink: "/llms.txt'de Markdown bağlantısı yok.",
+    llmsTxtTooShort: '/llms.txt 50 karakterden kısa.',
+    ardFailed: '/.well-known/ard.json isteği başarısız oldu.',
+    ardInvalid: '/.well-known/ard.json bir JSON nesnesi değil.',
+    webMcpUnavailable: 'WebMCP: kullanılamıyor'
   },
   caveats: {
     localDiagnostic: 'Bu, Hronaut kanıtlarından oluşturulan sınırlı bir yerel tanılamadır; Lighthouse puanı veya sertifika değildir.',
     accessibilityAutomation: 'Erişilebilirlik otomasyonu klavye, ekran okuyucu, yakınlaştırma, hareket ve insanlı kullanılabilirlik testlerinin yerini tutamaz.',
     performanceVisit: 'Performans, geçerli yerel ziyareti ve ortamı yansıtır; önemli ölçümleri temsili koşullar altında tekrarlayın.',
     pwaOptional: 'Çevrimdışı uygulama yüzeyi sunmayan web siteleri için PWA bir gereklilik olarak değerlendirilmez.',
-    reloadIssues: 'Yalnızca başlangıçta oluşan Chromium sorunlarını yeniden oluşturmadan önce sayfayı yeniden yükleyin, ardından bu denetimi yeniden çalıştırın.'
+    reloadIssues: 'Yalnızca başlangıçta oluşan Chromium sorunlarını yeniden oluşturmadan önce sayfayı yeniden yükleyin, ardından bu denetimi yeniden çalıştırın.',
+    agentReadiness: "Ajanlara hazırlık denetimi /llms.txt ve /.well-known/ard.json dosyalarını sayfanın kaynağından çerezsiz ister; WebMCP'yi, formları ve ajanların dayandığı erişilebilirlik kurallarını denetler. Bu, Lighthouse'un ajan tabanlı gezinme puanı değildir."
   },
   text: {
     violations: '{count} ihlal | {count} ihlal',
@@ -77,6 +88,22 @@ export const trTRQualityAuditText = {
     installabilityIssues: 'Yüklenebilirlik sorunları: {count}',
     installabilityFinding: 'Chromium bir PWA yüklenebilirlik sorunu bildirdi: {issue}.',
     installabilityUnknown: 'Chromium bir PWA yüklenebilirlik sorunu bildirdi: bilinmeyen sorun.',
-    browserIssues: '{count} tarayıcı kaynaklı sorun | {count} tarayıcı kaynaklı sorun'
+    browserIssues: '{count} tarayıcı kaynaklı sorun | {count} tarayıcı kaynaklı sorun',
+    agentReadinessIssues: 'Ajanlara hazırlık sorunları: {count}',
+    webMcpTools: 'WebMCP araçları: {count}',
+    unannotatedForms: 'WebMCP ek açıklaması olmayan formlar: {count} / {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'ARD bildirimi: {state}',
+    agentAccessibility: 'Ajanların dayandığı başarısız erişilebilirlik kuralları: {count}',
+    tooManyTools: 'Kayıtlı WebMCP araçları: {count}; {max} üzeri önerilmez.',
+    formsUnannotated: 'WebMCP toolname veya tooldescription içermeyen formlar: {count}.',
+    accessibilityForAgents: 'Ajanlar sayfayı erişilebilirlik ağacı üzerinden okur ve şu kurallar başarısız: {rules}.',
+    fileStates: {
+      valid: 'geçerli',
+      invalid: 'geçersiz',
+      notFound: 'bulunamadı',
+      unreachable: 'erişilemiyor',
+      notChecked: 'denetlenmedi'
+    }
   }
 }

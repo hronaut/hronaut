@@ -5,7 +5,8 @@ export const zhCNQualityAuditText = {
     metadata: '元数据和 SEO',
     security: '安全性',
     pwa: 'PWA 和离线',
-    'browser-issues': 'Chromium 问题'
+    'browser-issues': 'Chromium 问题',
+    'agent-readiness': '智能体就绪度'
   },
   statuses: {
     pass: '通过',
@@ -31,14 +32,24 @@ export const zhCNQualityAuditText = {
     certificateExpired: '主文档的证书已过期。',
     certificateNotYetValid: '主文档的证书尚未生效。',
     certificateInvalid: '主文档的证书当前无效。',
-    pwaInspectionPartial: '此次审核中部分 PWA 诊断不可用。'
+    pwaInspectionPartial: '此次审核中部分 PWA 诊断不可用。',
+    agentReadinessClear: '未发现智能体就绪度问题',
+    llmsTxtMissing: '未找到 /llms.txt。',
+    llmsTxtFailed: '/llms.txt 请求失败。',
+    llmsTxtNoHeading: '/llms.txt 没有 Markdown H1 标题。',
+    llmsTxtNoLink: '/llms.txt 没有 Markdown 链接。',
+    llmsTxtTooShort: '/llms.txt 少于 50 个字符。',
+    ardFailed: '/.well-known/ard.json 请求失败。',
+    ardInvalid: '/.well-known/ard.json 不是 JSON 对象。',
+    webMcpUnavailable: 'WebMCP：不可用'
   },
   caveats: {
     localDiagnostic: '这是根据 Hronaut 证据汇总的有限本地诊断，并非 Lighthouse 分数或认证。',
     accessibilityAutomation: '无障碍自动化检测无法取代键盘、屏幕阅读器、缩放、动态效果和真人可用性测试。',
     performanceVisit: '性能反映的是当前的本地访问和环境；请在有代表性的条件下重复进行重要的测量。',
     pwaOptional: '对于不提供离线应用功能的网站，PWA 不被视为必要条件。',
-    reloadIssues: '如需重现仅在启动时出现的 Chromium 问题，请先重新加载，然后重新运行此审核。'
+    reloadIssues: '如需重现仅在启动时出现的 Chromium 问题，请先重新加载，然后重新运行此审核。',
+    agentReadiness: '智能体就绪度会在不带 Cookie 的情况下向页面来源请求 /llms.txt 和 /.well-known/ard.json，并检查 WebMCP、表单以及智能体依赖的无障碍规则；它不是 Lighthouse 的智能体浏览评分。'
   },
   text: {
     violations: '{count} 项违规',
@@ -77,6 +88,22 @@ export const zhCNQualityAuditText = {
     installabilityIssues: '可安装性问题：{count}',
     installabilityFinding: 'Chromium 报告了一个 PWA 可安装性问题：{issue}。',
     installabilityUnknown: 'Chromium 报告了一个 PWA 可安装性问题：未知问题。',
-    browserIssues: '{count} 个浏览器生成的问题'
+    browserIssues: '{count} 个浏览器生成的问题',
+    agentReadinessIssues: '{count} 个智能体就绪度问题',
+    webMcpTools: 'WebMCP 工具：{count}',
+    unannotatedForms: '没有 WebMCP 注解的表单：{count}/{total}',
+    llmsTxt: 'llms.txt：{state}',
+    ardManifest: 'ARD 清单：{state}',
+    agentAccessibility: '智能体依赖的无障碍规则未通过：{count}',
+    tooManyTools: '已注册 {count} 个 WebMCP 工具；不建议超过 {max} 个。',
+    formsUnannotated: '{count} 个表单没有 WebMCP toolname 或 tooldescription。',
+    accessibilityForAgents: '智能体通过无障碍树读取页面，以下规则未通过：{rules}。',
+    fileStates: {
+      valid: '有效',
+      invalid: '无效',
+      notFound: '未找到',
+      unreachable: '无法访问',
+      notChecked: '未检查'
+    }
   }
 }

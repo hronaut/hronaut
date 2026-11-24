@@ -70,6 +70,29 @@ afterEach(() => {
 })
 
 describe('forced CSS state preview', () => {
+  it('forces focus and target states like hover', async () => {
+    const f = fixture()
+    const report = await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['focus-within', 'focus', 'target', 'focus-visible'] })
+    expect(f.forced()).toEqual([{ nodeId: 42, forcedPseudoClasses: ['focus', 'focus-visible', 'focus-within', 'target'] }])
+    expect(report.preview?.states).toEqual(['focus', 'focus-visible', 'focus-within', 'target'])
+  })
+
+  it('forces buffering and stalled only on audio or video, and only where Chromium knows the media pseudo-classes', async () => {
+    const f = fixture()
+    await expect(f.preview.manage(f.tab, 'set', { selector: '#card', states: ['buffering'] })).rejects.toThrow('need an audio or video element')
+    f.handlers['DOM.describeNode'] = () => ({ node: { nodeType: 1, localName: 'video' } })
+    f.handlers['DOM.querySelectorAll'] = (params) => {
+      if (params?.selector === ':buffering, :stalled') throw new Error('DOM Error while querying')
+      return { nodeIds: [42] }
+    }
+    await expect(f.preview.manage(f.tab, 'set', { selector: '#player', states: ['stalled'] })).rejects.toThrow(`This Chromium (${process.versions.chrome}) does not support`)
+    expect(f.forced()).toEqual([])
+    f.handlers['DOM.querySelectorAll'] = (params) => ({ nodeIds: params?.selector === ':buffering, :stalled' ? [] : [42] })
+    const report = await f.preview.manage(f.tab, 'set', { selector: '#player', states: ['stalled', 'buffering'] })
+    expect(f.forced()).toEqual([{ nodeId: 42, forcedPseudoClasses: ['buffering', 'stalled'] }])
+    expect(report.status).toBe('active')
+  })
+
   it('forces the requested states on exactly one element and reports it as a styling preview', async () => {
     const f = fixture()
     const report = await f.preview.manage(f.tab, 'set', { selector: '  #card  ', states: ['active', 'hover'], durationMs: 5_000 })
@@ -81,7 +104,7 @@ describe('forced CSS state preview', () => {
       tabId: 'css-tab',
       status: 'active',
       preview: { states: ['hover', 'active'], selector: '#card' },
-      limits: { states: ['hover', 'active'], maxSelectorChars: 512, minDurationMs: 1_000, defaultDurationMs: 30_000, maxDurationMs: 60_000 }
+      limits: { states: ['hover', 'active', 'focus', 'focus-visible', 'focus-within', 'target', 'buffering', 'stalled'], maxSelectorChars: 512, minDurationMs: 1_000, defaultDurationMs: 30_000, maxDurationMs: 60_000 }
     })
     expect(report.preview!.remainingMs).toBeGreaterThan(4_000)
     expect(report.preview!.remainingMs).toBeLessThanOrEqual(5_000)
@@ -101,7 +124,7 @@ describe('forced CSS state preview', () => {
     await expect(f.preview.manage(f.tab, 'set', { selector: 'x'.repeat(CSS_STATE_PREVIEW_LIMITS.maxSelectorChars + 1), states: ['hover'] }))
       .rejects.toThrow('Provide a CSS selector')
     await expect(f.preview.manage(f.tab, 'set', { selector: '#card' })).rejects.toThrow('Choose at least one CSS state')
-    await expect(f.preview.manage(f.tab, 'set', { selector: '#card', states: ['focus'] })).rejects.toThrow('Only the hover and active')
+    await expect(f.preview.manage(f.tab, 'set', { selector: '#card', states: ['visited'] })).rejects.toThrow('Only these CSS states can be previewed: hover, active, focus')
     await expect(f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'], durationMs: 999 })).rejects.toThrow('durationMs must be')
     await expect(f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'], durationMs: 60_001 })).rejects.toThrow('durationMs must be')
     f.host.conflict.mockReturnValueOnce('Stop code coverage before previewing CSS states')
@@ -110,6 +133,7 @@ describe('forced CSS state preview', () => {
       .rejects.toThrow('Open a website tab')
     expect(f.sendCommand).not.toHaveBeenCalled()
     expect(normalizeCssStatePreviewStates(['active', 'hover', 'hover'])).toEqual(['hover', 'active'])
+    expect(normalizeCssStatePreviewStates(['target', 'focus-visible', 'hover'])).toEqual(['hover', 'focus-visible', 'target'])
   })
 
   it.each([

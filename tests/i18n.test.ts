@@ -40,6 +40,8 @@ function wordCount(message: string): number {
 // Names, web platform terms and examples that any language may write as English does.
 const SAME_IN_EVERY_LANGUAGE = new Set([
   'appearance.themes.cyberpunk-turbo.label',
+  // A file name and a placeholder.
+  'qualityAuditText.text.llmsTxt',
   'home.endpoint',
   'network.filters.fetchXhr',
   'networkLabels.responseSources.serviceWorker',
