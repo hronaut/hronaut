@@ -925,7 +925,7 @@ describe('agent presence over MCP', () => {
     // Reading does not count; an action it finished does.
     expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
     expect(onAgentMovedOn).not.toHaveBeenCalled()
-    const stopped = await claudeClient.client.callTool({ name: 'browser_history', arguments: { workspaceId, tabId, action: 'stop' } }) as CallToolResult
+    const stopped = await claudeClient.client.callTool({ name: 'browser_history', arguments: { workspaceId, tabId, action: 'stop', read: 'none' } }) as CallToolResult
     expect(stopped.isError, text(stopped)).not.toBe(true)
     expect(onAgentMovedOn).toHaveBeenCalledExactlyOnceWith(openId)
   })

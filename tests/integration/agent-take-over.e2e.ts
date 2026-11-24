@@ -63,7 +63,7 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
   try {
     // Wide enough for the whole prompt beside the commands.
     await electronApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]!.setSize(1920, 900) })
-    await connectMcpWorkspace(client, 'Take over', false)
+    const { workspaceId } = await connectMcpWorkspace(client, 'Take over', false)
     const url = 'data:text/html,<title>Cart</title><main>Cart</main><script>window.keys=[];onkeydown=e=>keys.push(e.key)</script>'
     const opened = parsed(await client.callTool({ name: 'browser_new_tab', arguments: { url, active: true } }) as CallToolResult)
     const tabId = (opened.tabs as Array<{ id: string }>)[0]!.id
@@ -147,14 +147,25 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
     succeeded(await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult)
 
     // Done, hand back on the agent's request for you also hands back a tab you took over, as from the live strip.
-    succeeded(await client.callTool({ name: 'browser_request_user_attention', arguments: { tabId, reason: 'Sign in, please.' } }) as CallToolResult)
+    const request = parsed(await client.callTool({ name: 'browser_request_user_attention', arguments: { tabId, reason: 'Sign in, please.' } }) as CallToolResult)
     await appWindow.evaluate(`window.hronaut.setTabAgentPaused(${JSON.stringify(tabId)}, true, { takeOver: true })`)
     await expect(control).toBeVisible()
+    const waited = client.callTool({ name: 'browser_user_attention', arguments: { workspaceId, requestId: request.id, action: 'wait', timeoutMs: 30_000 } })
     await appWindow.evaluate('window.hronaut.getUserAttention().then((request) => window.hronaut.answerUserAttention(request.id, "resolved"))')
     await expect(prompt).toHaveCount(0)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)}))`))
       .toMatchObject({ agentPaused: false, handedBack: { note: expect.stringContaining('handed it back') } })
-    succeeded(await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult)
+    // The agent waiting on its request reads the page with the answer: what changed, and the page as it is now.
+    const answered = await waited as CallToolResult
+    expect(parsed(answered).outcome).toBe('resolved')
+    const view = answered.content.slice(1).map(item => item.type === 'text' ? item.text : '')
+    expect(JSON.parse(view[0]!)).toMatchObject({ page: { tabId, url: next, title: 'Checkout', handedBack: { note: expect.stringContaining('handed it back') },
+      snapshot: { returnedChars: expect.any(Number) } } })
+    expect(view[1]).toContain('Checkout')
+    // The next result in the workspace does not tell it again.
+    const snapshot = await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult
+    succeeded(snapshot)
+    expect(JSON.stringify(snapshot.content)).not.toContain('Meanwhile in this workspace')
 
     // With the tab rail in a narrower window the address field has no room to spare, so the agent's avatar
     // carries a hand badge instead, and Ctrl+Shift+O still takes over.

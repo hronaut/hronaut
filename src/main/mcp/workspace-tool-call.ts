@@ -28,7 +28,6 @@ import { scopeBrowserStateResult, withPostWriteVerification, withPreWriteReconci
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
 import { pageDialogInterrupted, pageDialogInterruptedResult, withWebsiteDialogNote } from './website-dialog-calls.js'
-import { createWorkspaceNotices } from './workspace-notices.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
@@ -54,7 +53,7 @@ export function requiresWorkspaceWriteLease(toolName: string, input: Record<stri
  * Every member must be a stable binding (a const or a parameter that is never reassigned): the registrar keeps what
  * it is given, so a reassigned `let` passed here would go stale.
  */
-export type WorkspaceToolScope = Pick<McpToolContext, 'actionTracker' | 'auditAuthorization' | 'auditReceipts' | 'capabilityAuthorizationFingerprint' | 'client' | 'humanReviewSessionBinding' | 'humanWaiting' | 'manager' | 'onTabActivity' | 'requireActiveCapabilityDispatch' | 'requireAgentWorkspace' | 'reviewedActionArguments' | 'tool' | 'workspaceAuthorizationError' | 'workspaceLeases' | 'workspaceToolInputSchemas'> & {
+export type WorkspaceToolScope = Pick<McpToolContext, 'actionTracker' | 'auditAuthorization' | 'auditReceipts' | 'capabilityAuthorizationFingerprint' | 'client' | 'humanReviewSessionBinding' | 'humanWaiting' | 'manager' | 'onTabActivity' | 'requireActiveCapabilityDispatch' | 'requireAgentWorkspace' | 'reviewedActionArguments' | 'tool' | 'workspaceAuthorizationError' | 'workspaceLeases' | 'workspaceNotices' | 'workspaceToolInputSchemas'> & {
   argumentNormalizers: Map<string, (args: Record<string, unknown>) => Record<string, unknown>>
   frameRequests: AsyncLocalStorage<{ settlement?: ToolCallSettlement }>
   registerToolWithSettlement: (name: string, config: unknown, handler: unknown, options?: ToolOptions<ToolCallSettlement | undefined>) => RegisteredTool
@@ -94,9 +93,9 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
     tool,
     workspaceAuthorizationError,
     workspaceLeases,
+    workspaceNotices: notices,
     workspaceToolInputSchemas
   } = scope
-  const notices = createWorkspaceNotices()
   const registerWorkspaceTool = <T extends object, S extends ToolCallSettlement | undefined = undefined>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>

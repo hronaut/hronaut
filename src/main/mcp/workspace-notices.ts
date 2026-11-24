@@ -1,7 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../shared/types.js'
 import { mcpWorkspaceTab } from './tool-results.js'
-import type { McpToolContext } from './tools/tool-context.js'
 
 // An agent working in one tab of its workspace does not see what happens in the others: a page there may show a
 // dialog that holds it, its renderer may crash or hang, or the person may hand a tab back. The next result of a call
@@ -54,7 +53,7 @@ export function createWorkspaceNotices() {
       workspaceId: string
       resolvedTabId: string | undefined
       omitUrlDetail: boolean
-      requireActiveCapabilityDispatch: McpToolContext['requireActiveCapabilityDispatch']
+      requireActiveCapabilityDispatch: (name: string, input: Record<string, unknown>, target: { workspaceId: string; tabId: string }) => unknown
     }): CallToolResult {
       const { workspaceId } = options
       const readable = (tabId: string): boolean => {
@@ -77,6 +76,10 @@ export function createWorkspaceNotices() {
       if (ownDialog) remember(`dialog:${ownDialog.id}`)
       if (!fresh.length) return result
       return { ...result, content: [...result.content, { type: 'text', text: `Meanwhile in this workspace:\n- ${fresh.join('\n- ')}` }] }
+    },
+    /** A hand back the agent read in another result, as the attention request it waited on, so it is not told again. */
+    heardHandBack(tabId: string, at: number): void {
+      remember(`handed-back:${tabId}:${at}`)
     }
   }
 }

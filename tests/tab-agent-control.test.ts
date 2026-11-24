@@ -62,6 +62,11 @@ describe('per-tab agent authorization', () => {
     expect(() => check('browser_site_data', { workspaceId: 'workspace' })).toThrow(/paused/)
     expect(() => check('browser_workspaces', { action: 'create' })).not.toThrow()
   })
+
+  it('lets an agent wait for the person while they have a tab of its workspace, but not while all agents are paused', () => {
+    expect(() => fixture(false).check('browser_user_attention', { workspaceId: 'workspace', action: 'wait' })).not.toThrow()
+    expect(() => fixture(true).check('browser_user_attention', { workspaceId: 'workspace', action: 'wait' })).toThrow(/paused/)
+  })
 })
 
 describe('a tab the person took over', () => {
