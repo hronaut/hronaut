@@ -25,7 +25,8 @@ function tabNotices(tab: ReturnType<typeof mcpWorkspaceTab<WorkspaceTab>>, resol
   if (problem?.kind === 'renderer-gone') {
     const cause = [problem.reason, problem.exitCode === undefined ? undefined : `exit code ${problem.exitCode}`].filter(Boolean).join(', ')
     notices.push({ key: `crash:${tab.id}:${tab.navigationGeneration}:${tab.documentGeneration ?? 0}:${cause}`,
-      text: `${name}: its page stopped working${cause ? ` (${cause})` : ''}. Reload it with browser_history action "reload", or close it with browser_close_tab.` })
+      text: `${name}: its page stopped working${cause ? ` (${cause})` : ''}. `
+        + 'Reload it with browser_history action "reload", or close it with browser_close_tab.' })
   } else if (problem?.kind === 'unresponsive') {
     notices.push({ key: `hang:${tab.id}:${tab.navigationGeneration}:${tab.documentGeneration ?? 0}`,
       text: `${name}: its page stopped responding. Wait and check it again with browser_snapshot, or reload it with browser_history action "reload".` })
