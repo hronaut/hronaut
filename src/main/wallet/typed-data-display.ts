@@ -134,15 +134,19 @@ function declaredFields(types: Types, typeName: string, value: unknown): Map<str
   return fields
 }
 
-// The domain fields the signer hashes: the declared EIP712Domain type, or
-// the ones it infers from the domain object when none is declared.
+// The domain fields the signer hashes: the declared EIP712Domain type, or,
+// when none is declared, every field present on the domain object (not
+// undefined or null), as viem's getTypesForEIP712Domain infers them.
+const INFERRED_DOMAIN_TYPES = [
+  ['name', 'string'], ['version', 'string'], ['chainId', 'uint256'], ['verifyingContract', 'address'], ['salt', 'bytes32']
+] as const
+
 function domainFields(types: Types, domain: Record<string, unknown>): Map<string, Field> {
   if (Array.isArray(types.EIP712Domain)) return declaredFields(types, 'EIP712Domain', domain)
   const fields = new Map<string, Field>()
-  if (typeof domain.name === 'string') fields.set('name', { type: 'string', value: domain.name })
-  if (domain.version) fields.set('version', { type: 'string', value: domain.version })
-  if (typeof domain.chainId === 'number' || typeof domain.chainId === 'bigint') fields.set('chainId', { type: 'uint256', value: domain.chainId })
-  if (domain.verifyingContract) fields.set('verifyingContract', { type: 'address', value: domain.verifyingContract })
+  for (const [name, type] of INFERRED_DOMAIN_TYPES) {
+    if (domain[name] != null) fields.set(name, { type, value: domain[name] })
+  }
   return fields
 }
 

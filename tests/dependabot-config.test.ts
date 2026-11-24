@@ -109,7 +109,7 @@ describe('Dependabot configuration', () => {
   })
 
   it('names each Dockerfile.test image the way Dependabot reads it', () => {
-    // Dependabot names an image without its registry, so FROM mcr.microsoft.com/playwright:v1.65.0-noble is "playwright".
+    // Dependabot names an image without its registry, so FROM mcr.microsoft.com/playwright:v1.65.1-noble is "playwright".
     // An allow list or pattern that keeps the registry matches nothing, and the image is never updated.
     const dockerfile = fs.readFileSync(path.join(process.cwd(), 'Dockerfile.test'), 'utf8')
     const images = new Set(

@@ -47,11 +47,12 @@ function renderBar(options: {
     findSelectionText: vi.fn(options.browser?.findSelectionText ?? (async (_tabId: string) => '')),
     focusActivePage: vi.fn(async () => undefined)
   }
+  const updateOpen = vi.fn()
   const view = render(FindInPageBar, {
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { open: true, activeTab, browser }
+    props: { open: true, activeTab, browser, 'onUpdate:open': updateOpen }
   })
-  return { view, browser, activeTab }
+  return { view, browser, activeTab, updateOpen }
 }
 
 describe('FindInPageBar', () => {
@@ -450,13 +451,13 @@ describe('FindInPageBar', () => {
 
   it('invalidates pending work and ends the page search, without selecting its match, when unmounted', async () => {
     const pending = deferred<BrowserFindResult>()
-    const { view, browser } = renderBar({ browser: { findInPage: () => pending.promise } })
+    const { view, browser, updateOpen } = renderBar({ browser: { findInPage: () => pending.promise } })
     await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
 
     view.unmount()
 
     await vi.waitFor(() => expect(browser.stopFindInPage).toHaveBeenCalledExactlyOnceWith('first', { clearSelection: true }))
-    expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+    expect(updateOpen).toHaveBeenLastCalledWith(false)
     pending.resolve({ activeMatchOrdinal: 1, matches: 1 })
   })
 

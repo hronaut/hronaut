@@ -773,7 +773,7 @@ describe('WalletsSettingsPanel', () => {
     await user.type(screen.getByLabelText('Method / instruction'), 'erc20.transfer')
     const anyToken = screen.getByRole('checkbox', { name: 'Allow any token contract' })
     expect(anyToken).not.toBeChecked()
-    expect(anyToken).toHaveAccessibleDescription(expect.stringContaining('signed on any token contract'))
+    expect(anyToken).toHaveAccessibleDescription(/signed on any token contract/)
     await user.click(anyToken)
     expect(screen.getByLabelText('Token contract')).toBeDisabled()
     expect(screen.getByLabelText('Token contract')).not.toBeRequired()

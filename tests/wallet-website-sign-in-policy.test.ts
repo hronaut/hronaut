@@ -230,6 +230,11 @@ describe('website typed-data policy', () => {
         types: { ...permit().types, EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }] }
       })
     })).toMatchObject({ outcome: 'approved' })
+    // An undeclared domain signs every field it has, so a decimal-string chain ID binds this chain as well.
+    expect(evaluate({
+      wallet: agentWallet, request: signRequest, policies: [typedDataPolicy],
+      message: typedDataMessage(permit({ name: 'QA Token', chainId: '11155111', verifyingContract: permitToken }))
+    })).toMatchObject({ outcome: 'approved' })
   })
 
   it.each([
@@ -237,8 +242,6 @@ describe('website typed-data policy', () => {
     ['typed data that signs only a domain', { message: typedDataMessage({ ...permit(), primaryType: 'EIP712Domain' }) }, 'typed-data-domain-only'],
     ['an imported or managed wallet', { wallet, policies: [typedDataPolicy] }, 'typed-data-requires-agent-wallet'],
     ['another chain', { message: typedDataMessage(permit({ name: 'QA Token', chainId: 1, verifyingContract: permitToken })) }, 'typed-data-chain-mismatch'],
-    // Without a declared domain, the signer only signs a numeric chain ID.
-    ['a text chain ID in an undeclared domain', { message: typedDataMessage(permit({ name: 'QA Token', chainId: '11155111', verifyingContract: permitToken })) }, 'typed-data-chain-mismatch'],
     ['no chain in the domain', { message: typedDataMessage(permit({ name: 'QA Token', verifyingContract: permitToken })) }, 'typed-data-chain-mismatch'],
     ['a chain ID the declared domain does not sign', {
       message: typedDataMessage({

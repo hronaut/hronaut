@@ -105,14 +105,23 @@ describe('typed data in the trusted approval', () => {
   })
 
   it('shows only the domain fields that are signed', () => {
-    // A declared domain without chainId, and an undeclared domain whose chainId is a string, leave it unsigned.
+    // A declared domain without chainId, and an undeclared domain whose chainId is null, leave it unsigned.
     for (const typedData of [
       { domain: { name: 'App', chainId: 1 }, primaryType: 'Login', types: { EIP712Domain: [{ name: 'name', type: 'string' }], Login: [] }, message: {} },
-      { domain: { name: 'App', chainId: '1' }, primaryType: 'Login', types: { Login: [] }, message: {} }
+      { domain: { name: 'App', chainId: null }, primaryType: 'Login', types: { Login: [] }, message: {} }
     ]) {
       expect(typedDataDisplay(typedData, wallet)).toEqual({ primaryType: 'Login', domain: { name: 'App' }, warnings: [] })
       expect(signedHash(typedData)).toBe(signedHash({ ...typedData, domain: { name: 'App' } }))
     }
+  })
+
+  it('shows every field an undeclared domain signs, a chain ID written as a string too', () => {
+    const typedData = { domain: { name: 'App', chainId: '1' }, primaryType: 'Login', types: { Login: [] }, message: {} }
+    expect(typedDataDisplay(typedData, wallet)).toEqual({
+      primaryType: 'Login', domain: { name: 'App', chainId: '1' }, warnings: ['typed-data-other-chain']
+    })
+    expect(signedHash(typedData)).toBe(signedHash({ ...typedData, domain: { name: 'App', chainId: 1 } }))
+    expect(signedHash(typedData)).not.toBe(signedHash({ ...typedData, domain: { name: 'App' } }))
   })
 
   it('shows the spender and amount of an ERC-20 permit', () => {
