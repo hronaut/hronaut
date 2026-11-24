@@ -77,8 +77,9 @@ test('hides URL query and fragment from agents only while the person asks, witho
 
     // A navigation result shows its tab the same way, and the snapshot it reads of the page too.
     const navigation = await call('browser_navigate', { ...args, url: `${origin}/checkout?session=query-canary-2#fragment-canary` })
-    const navigated = navigation.content.map(item => item.type === 'text' ? item.text : '').join('\n')
-    expect(JSON.parse(text(navigation))).toMatchObject({ tabId, url: `${origin}/checkout`, urlDetail: 'omitted' })
+    const navigated = text(navigation)
+    const loaded = navigation.content[0]
+    expect(JSON.parse(loaded?.type === 'text' ? loaded.text : '')).toMatchObject({ tabId, url: `${origin}/checkout`, urlDetail: 'omitted' })
     expect(navigated).toContain(`URL: ${origin}/checkout (query and fragment omitted)`)
     for (const canary of canaries) expect(navigated, canary).not.toContain(canary)
 

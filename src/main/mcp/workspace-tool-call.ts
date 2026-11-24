@@ -20,12 +20,15 @@ import {
   type BrowserActionAuthorityReason
 } from './browser-action-authority.js'
 import type { BrowserState } from '../../shared/types.js'
-import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError, mcpWorkspaceState,
+import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError,
   nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation,
   textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
+import { scopeBrowserStateResult, withPostWriteVerification, withPreWriteReconciliation, withReconciliationOutcome,
+  withReviewContinuation } from './workspace-tool-results.js'
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
 import { pageDialogInterrupted, pageDialogInterruptedResult, withWebsiteDialogNote } from './website-dialog-calls.js'
+import { createWorkspaceNotices } from './workspace-notices.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { auditEvidenceAvailability } from '../browser/debug-report/debug-report.js'
@@ -34,103 +37,6 @@ import { requireTabInMcpGroup, getMcpGroupState, tabBelongsToMcpGroup } from '..
 
 function publicObserverAllowsTool(name: string, allowed: boolean): boolean {
   return name.startsWith('browser_') && (toolDefinition(name).annotations.readOnlyHint || allowed)
-}
-
-function scopeBrowserStateResult(result: CallToolResult, state: BrowserState, omitUrlDetail: boolean): CallToolResult {
-  if (result.isError) return result
-  return {
-    ...result,
-    content: result.content.map((item) => {
-      if (item.type !== 'text') return item
-      try {
-        const value = JSON.parse(item.text) as Record<string, unknown>
-        if (!Array.isArray(value.tabs) || typeof value.profilePath !== 'string') return item
-        // The workspace's own state leaves out another workspace's split views and Follow, so the global copies must
-        // not survive underneath it.
-        const {
-          tabs: _tabs, closedTabs: _closedTabs, mcpTabGroups: _groups, savedTabGroups: _savedGroups, splitView: _splitView,
-          restingSplitViews: _restingSplitViews, agentFollow: _agentFollow, ...valueRest
-        } = value
-        return { ...item, text: JSON.stringify({ ...valueRest, ...mcpWorkspaceState(state, omitUrlDetail) }, null, 2) }
-      } catch {
-        return item
-      }
-    })
-  }
-}
-
-function withPostWriteVerification(result: CallToolResult, verification: { status: string; reason: string; attempt: number }): CallToolResult {
-  return {
-    ...result,
-    content: result.content.map(item => {
-      if (item.type !== 'text') return item
-      try {
-        const value = JSON.parse(item.text) as unknown
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
-        return { ...item, text: JSON.stringify({ ...value, postWriteVerification: verification }, null, 2) }
-      } catch { return item }
-    })
-  }
-}
-
-function withPreWriteReconciliation(result: CallToolResult, reconciliation: PublicBrowserReconciliation): CallToolResult {
-  const structured = result.structuredContent
-  return {
-    ...result,
-    ...(structured && typeof structured === 'object' && !Array.isArray(structured)
-      ? { structuredContent: { ...structured, preWriteReconciliation: reconciliation } } : {}),
-    content: result.content.map(item => {
-      if (item.type !== 'text') return item
-      try {
-        const value = JSON.parse(item.text) as unknown
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
-        return { ...item, text: JSON.stringify({ ...value, preWriteReconciliation: reconciliation }, null, 2) }
-      } catch { return item }
-    })
-  }
-}
-
-function withReconciliationOutcome(result: CallToolResult, outcome: {
-  status: 'verified' | 'blocked' | 'reconciliation_required'
-  authoritativeReadback: 'verified' | 'not-verified'
-  dispatch: 'not-dispatched' | 'dispatched-once'
-}): CallToolResult {
-  const structured = result.structuredContent
-  return {
-    ...result,
-    ...(structured && typeof structured === 'object' && !Array.isArray(structured)
-      ? { structuredContent: { ...structured, reconciliationOutcome: outcome } } : {}),
-    content: result.content.map(item => {
-      if (item.type !== 'text') return item
-      try {
-        const value = JSON.parse(item.text) as unknown
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
-        return { ...item, text: JSON.stringify({ ...value, reconciliationOutcome: outcome }, null, 2) }
-      } catch { return item }
-    })
-  }
-}
-
-function withReviewContinuation(result: CallToolResult, continuation: {
-  id: string
-  revision: string
-  nextStep: number
-  totalSteps: number
-}): CallToolResult {
-  const structured = result.structuredContent
-  return {
-    ...result,
-    ...(structured && typeof structured === 'object' && !Array.isArray(structured)
-      ? { structuredContent: { ...structured, reviewContinuation: continuation } } : {}),
-    content: result.content.map(item => {
-      if (item.type !== 'text') return item
-      try {
-        const value = JSON.parse(item.text) as unknown
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
-        return { ...item, text: JSON.stringify({ ...value, reviewContinuation: continuation }, null, 2) }
-      } catch { return item }
-    })
-  }
 }
 
 /**
@@ -190,6 +96,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
     workspaceLeases,
     workspaceToolInputSchemas
   } = scope
+  const notices = createWorkspaceNotices()
   const registerWorkspaceTool = <T extends object, S extends ToolCallSettlement | undefined = undefined>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
@@ -344,6 +251,10 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
           if (resolvedTabId && !options.closesTargetTab
             && !tabBelongsToMcpGroup(manager, workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
         }
+        // What happened meanwhile in the workspace's other tabs that the agent may read and has not heard of yet.
+        const withWorkspaceNotices = (result: CallToolResult, state: BrowserState): CallToolResult => notices.withNotices(result, state, {
+          workspaceId, resolvedTabId, omitUrlDetail: urlDetailOmitted(manager), requireActiveCapabilityDispatch
+        })
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
         let activityStarted = false
@@ -548,10 +459,10 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
             const workspaceState = getMcpGroupState(manager, workspaceId)
             const scoped = scopeBrowserStateResult(result, workspaceState, urlDetailOmitted(manager))
             if (scoped.isError) await finishReviewedAttempt('unknown')
-            return withWebsiteDialogNote(
+            return withWorkspaceNotices(withWebsiteDialogNote(
               preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped,
               resolvedTabId ? workspaceState.tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined
-            )
+            ), workspaceState)
           } catch (error) {
             // A page's dialog that holds the page stopped a call that had reached it, as a click that opens a confirm. A
             // change then has unknown effects.
@@ -563,8 +474,9 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               // The dialog's message is page content, for an agent that still holds the workspace and its tab.
               try {
                 requireCurrentAfterDispatch()
-                return withWebsiteDialogNote(stopped,
-                  resolvedTabId ? getMcpGroupState(manager, workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined)
+                const workspaceState = getMcpGroupState(manager, workspaceId)
+                return withWorkspaceNotices(withWebsiteDialogNote(stopped,
+                  resolvedTabId ? workspaceState.tabs.find(tab => tab.id === resolvedTabId)?.dialog : undefined), workspaceState)
               } catch (settleError) {
                 rememberInputPolicy(settleError)
                 return stopped
