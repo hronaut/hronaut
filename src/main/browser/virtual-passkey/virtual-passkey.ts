@@ -6,6 +6,7 @@ import {
   type BrowserVirtualPasskeySummary,
   type VirtualPasskeyAction,
   type VirtualPasskeyEndReason,
+  type VirtualPasskeyKind,
   type VirtualPasskeyReport
 } from '../../../shared/virtual-passkey.js'
 
@@ -33,6 +34,8 @@ export interface VirtualPasskeyHost<T> {
 
 export interface VirtualPasskeyOptions {
   origin: string
+  /** With start: a passkey (the default) or a U2F security key. */
+  kind?: VirtualPasskeyKind
   userVerified?: boolean
   durationMs?: number
 }
@@ -44,6 +47,7 @@ interface Session {
   /** Until the authenticator exists and every check passed, the session is starting and owns nothing to report. */
   started: boolean
   authenticatorId?: string
+  kind: VirtualPasskeyKind
   userVerified: boolean
   startedAt: number
   expiresAt: number
@@ -60,13 +64,24 @@ interface Session {
 /** How often the page's frames and the starting call's authority are checked between navigations. */
 const PAGE_CHECK_MS = 250
 
-const AUTHENTICATOR = {
-  protocol: 'ctap2',
-  ctap2Version: 'ctap2_1',
-  transport: 'internal',
-  hasResidentKey: true,
-  hasUserVerification: true,
-  automaticPresenceSimulation: true
+/** Chromium's virtual authenticator options for each kind; presence is always simulated, so no prompt waits for a touch. */
+const AUTHENTICATORS: Record<VirtualPasskeyKind, Record<string, unknown>> = {
+  passkey: {
+    protocol: 'ctap2',
+    ctap2Version: 'ctap2_1',
+    transport: 'internal',
+    hasResidentKey: true,
+    hasUserVerification: true,
+    automaticPresenceSimulation: true
+  },
+  // A U2F key: CTAP1 over USB, no discoverable credentials and no user verification, as hardware U2F keys are.
+  'security-key': {
+    protocol: 'u2f',
+    transport: 'usb',
+    hasResidentKey: false,
+    hasUserVerification: false,
+    automaticPresenceSimulation: true
+  }
 }
 
 /**
@@ -171,6 +186,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
   async manage(tab: T, action: VirtualPasskeyAction, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<VirtualPasskeyReport> {
     const origin = virtualPasskeyOrigin(options.origin)
     if (action !== 'start' && options.durationMs !== undefined) throw new Error('durationMs is only for action start')
+    if (action !== 'start' && options.kind !== undefined) throw new Error('kind is only for action start')
     if (action !== 'start' && action !== 'configure' && options.userVerified !== undefined) throw new Error('userVerified is only for actions start and configure')
     if (action === 'start') await this.start(tab, origin, options, authority)
     else if (action === 'configure') await this.configure(tab, origin, options.userVerified)
@@ -194,14 +210,17 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
 
   private async start(tab: T, origin: string, options: VirtualPasskeyOptions, authority: VirtualPasskeyAuthority): Promise<void> {
     const durationMs = virtualPasskeyDuration(options.durationMs)
-    const userVerified = options.userVerified ?? true
+    const kind = options.kind ?? 'passkey'
+    if (kind !== 'passkey' && kind !== 'security-key') throw new Error('kind must be passkey or security-key')
+    if (kind === 'security-key' && options.userVerified === true) throw new Error('A security key has no user verification; leave userVerified out for kind security-key')
+    const userVerified = kind === 'passkey' && (options.userVerified ?? true)
     if (this.sessions.has(tab)) throw new Error('A virtual passkey is already active or starting in this tab; stop it before starting another')
     const webContents = tab.webContents
     if (webContents.isDestroyed() || webContents.isCrashed()) throw new Error('The page is not running; reload the tab before starting a virtual passkey')
     if (httpOrigin(webContents.getURL()) !== origin) throw new Error(`The tab is not showing ${origin}; open a page of that origin before starting a virtual passkey for it`)
     authority.assertCurrent()
     const session: Session = {
-      origin, webContents, authority, started: false, userVerified,
+      origin, webContents, authority, started: false, kind, userVerified,
       startedAt: 0, expiresAt: 0, deadlineMonotonic: 0, credentials: 0, registrations: 0, signIns: 0, release: () => undefined
     }
     // The boundary is in place before anything is checked or enabled, so no navigation can slip between them.
@@ -224,7 +243,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
         await webContents.debugger.sendCommand('WebAuthn.enable', { enableUI: false })
         assertCurrent()
         const added = await webContents.debugger.sendCommand('WebAuthn.addVirtualAuthenticator', {
-          options: { ...AUTHENTICATOR, isUserVerified: userVerified }
+          options: { ...AUTHENTICATORS[kind], isUserVerified: userVerified }
         }) as { authenticatorId?: unknown }
         if (typeof added.authenticatorId !== 'string') throw new Error('The browser did not create a virtual authenticator')
         session.authenticatorId = added.authenticatorId
@@ -259,6 +278,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
     if (userVerified === undefined) throw new Error('configure needs userVerified')
     const session = this.sessions.get(tab)
     if (!session?.started || session.origin !== origin || !session.authenticatorId) throw new Error(`No virtual passkey is active for ${origin} in this tab`)
+    if (session.kind === 'security-key') throw new Error('A security key has no user verification to configure')
     this.checkAuthority(tab, session)
     if (this.sessions.get(tab) !== session) throw new Error('The virtual passkey ended: the agent lost its authority for it')
     await session.webContents.debugger.sendCommand('WebAuthn.setUserVerified', { authenticatorId: session.authenticatorId, isUserVerified: userVerified })
@@ -368,6 +388,7 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
       status: own ? 'active' : 'inactive',
       ...(own ? {
         passkey: {
+          kind: own.kind,
           userVerified: own.userVerified,
           startedAt: new Date(own.startedAt).toISOString(),
           expiresAt: new Date(own.expiresAt).toISOString(),

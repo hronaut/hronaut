@@ -79,7 +79,7 @@ function fixture(pageOptions: Parameters<typeof page>[0] = {}) {
     changed
   })
   const authority = { assertCurrent: vi.fn() }
-  const start = (extra: { userVerified?: boolean; durationMs?: number } = {}) => controller.manage(tab, 'start', { origin: ORIGIN, ...extra }, authority)
+  const start = (extra: { kind?: 'passkey' | 'security-key'; userVerified?: boolean; durationMs?: number } = {}) => controller.manage(tab, 'start', { origin: ORIGIN, ...extra }, authority)
   const status = (origin = ORIGIN) => controller.manage(tab, 'status', { origin }, authority)
   return {
     ...fake, tab, controller, authority, changed, start, status,
@@ -134,11 +134,28 @@ describe('virtual passkey controller', () => {
       ['WebAuthn.enable', { enableUI: false }],
       ['WebAuthn.addVirtualAuthenticator', { options: expect.objectContaining({ protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, automaticPresenceSimulation: true, isUserVerified: false }) }]
     ])
-    expect(report).toMatchObject({ tabId: 'tab-1', origin: ORIGIN, status: 'active', passkey: { userVerified: false, credentials: 0, registrations: 0, signIns: 0 } })
+    expect(report).toMatchObject({ tabId: 'tab-1', origin: ORIGIN, status: 'active', passkey: { kind: 'passkey', userVerified: false, credentials: 0, registrations: 0, signIns: 0 } })
     expect(report.passkey!.remainingMs).toBeGreaterThan(119_000)
     expect(controller.active(tab)).toBe(true)
     expect(controller.summary(tab)).toEqual({ origin: ORIGIN, expiresAt: report.passkey!.expiresAt })
     expect(changed).toHaveBeenCalled()
+  })
+
+  it('starts a U2F security key over USB with no discoverable credentials or user verification when asked, and refuses verification for it', async () => {
+    const { start, sent, controller, tab, authority } = fixture()
+    await expect(start({ kind: 'security-key', userVerified: true })).rejects.toThrow('no user verification')
+    expect(sent).toEqual([])
+    const report = await start({ kind: 'security-key' })
+    expect(sent).toEqual([
+      ['WebAuthn.enable', { enableUI: false }],
+      ['WebAuthn.addVirtualAuthenticator', {
+        options: { protocol: 'u2f', transport: 'usb', hasResidentKey: false, hasUserVerification: false, automaticPresenceSimulation: true, isUserVerified: false }
+      }]
+    ])
+    expect(report.passkey).toMatchObject({ kind: 'security-key', userVerified: false })
+    await expect(controller.manage(tab, 'configure', { origin: ORIGIN, userVerified: true }, authority)).rejects.toThrow('no user verification to configure')
+    await expect(controller.manage(tab, 'status', { origin: ORIGIN, kind: 'passkey' }, authority)).rejects.toThrow('kind is only for action start')
+    expect((await controller.manage(tab, 'status', { origin: ORIGIN }, authority)).passkey?.kind).toBe('security-key')
   })
 
   it('refuses to start unless the tab, every frame and the load are at the origin, and sends nothing then', async () => {
