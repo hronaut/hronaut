@@ -109,13 +109,13 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
     const navigationBaseline = structured<{ baselineId: string }>(await call(client, 'browser_snapshot', {
       workspaceId: workspace.id, tabId, action: 'set-baseline'
     }))
-    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/changed` }))
+    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/changed`, read: 'none' }))
     const navigationDelta = structured<{ status: string; invalidationReason: string }>(await call(client, 'browser_snapshot', {
       workspaceId: workspace.id, tabId, action: 'delta', baselineId: navigationBaseline.baselineId
     }))
     expect(navigationDelta).toMatchObject({ status: 'invalidated', invalidationReason: 'navigation' })
 
-    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/stable` }))
+    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/stable`, read: 'none' }))
     const reconnectBaseline = structured<{ baselineId: string }>(await call(client, 'browser_snapshot', {
       workspaceId: workspace.id, tabId, action: 'set-baseline'
     }))
@@ -128,7 +128,7 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
     }))
     expect(reconnectDelta).toMatchObject({ status: 'invalidated', invalidationReason: 'workspace-control' })
 
-    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/auth` }))
+    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/auth`, read: 'none' }))
     const authBaseline = structured<{ baselineId: string }>(await call(client, 'browser_snapshot', {
       workspaceId: workspace.id, tabId, action: 'set-baseline'
     }))
@@ -143,7 +143,7 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
     expect(await postconditionEvidence('/signed-out')).toBe('context-changed')
 
     authenticated = true
-    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/stable` }))
+    decode(await call(client, 'browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/stable`, read: 'none' }))
     const waiting = decode<HumanWaitingRecord>(await call(client, 'browser_human_waiting', {
       workspaceId: workspace.id, action: 'request', runId: randomUUID(), decision: 'review-page',
       owner: 'Synthetic operator', fallbackOwner: 'Synthetic fallback', timeoutMs: 1_000
@@ -175,11 +175,11 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
     }))
     const readTabId = readTab.activeTabId
     expect((await snapshot(client, readWorkspace.id, readTabId)).text).toContain('Read unavailable')
-    decode(await call(client, 'browser_history', { workspaceId: readWorkspace.id, tabId: readTabId, action: 'reload' }))
+    decode(await call(client, 'browser_history', { workspaceId: readWorkspace.id, tabId: readTabId, action: 'reload', read: 'none' }))
     await expect.poll(async () => (await snapshot(client, readWorkspace.id, readTabId)).text).toContain('Fixture ready')
     expect(flakyReads).toBe(2)
 
-    decode(await call(client, 'browser_navigate', { workspaceId: readWorkspace.id, tabId: readTabId, url: `${origin}/ambiguous` }))
+    decode(await call(client, 'browser_navigate', { workspaceId: readWorkspace.id, tabId: readTabId, url: `${origin}/ambiguous`, read: 'none' }))
     const audit = decode<{ id: string }>(await call(client, 'browser_audit_receipts', { workspaceId: readWorkspace.id, action: 'start' }))
     const write = decode<{ postWriteVerification: { status: string; reason: string } }>(await call(client, 'browser_click', {
       workspaceId: readWorkspace.id,

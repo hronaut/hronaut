@@ -77,7 +77,7 @@ test('compares a volatile accessibility baseline without carrying it to another 
     await expect(accessibilityPanel).toContainText('Buttons must have discernible text · button-name')
     await accessibilityPanel.getByRole('button', { name: 'Close accessibility audit' }).click()
 
-    decode<BrowserState>(await call('browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/after` }))
+    decode<{ tabId: string }>(await call('browser_navigate', { workspaceId: workspace.id, tabId, url: `${origin}/after`, read: 'none' }))
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
       webContents.getAllWebContents().some(page => page.getURL() === url && !page.isLoading())
     ), `${origin}/after`)).toBe(true)

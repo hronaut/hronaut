@@ -144,6 +144,6 @@ test('advertises scoped tools, handles attention and wakes semantic interactions
     arguments: { action: 'reload-ignoring-cache', tabId }
   }) as CallToolResult
   expect(hardReload.isError).not.toBe(true)
-  expect(JSON.parse(text(hardReload))).toMatchObject({ activeTabId: tabId })
+  expect(JSON.parse(text(hardReload))).toMatchObject({ tabId })
   await client.callTool({ name: 'browser_wait', arguments: { tabId } })
 })

@@ -103,7 +103,7 @@ async function withTouchFixture(appWindow: Page, mcpPort: number, mcpToken: stri
     const emulateTouch = async (): Promise<void> => {
       await call('browser_emulate', { workspaceId, tabId, viewport: TOUCH_VIEWPORT })
       // Touch support is read when the document loads.
-      await call('browser_navigate', { workspaceId, tabId, url: `${origin}/` })
+      await call('browser_navigate', { workspaceId, tabId, url: `${origin}/`, read: 'none' })
       const loaded = await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, selector: '#carousel', state: 'visible' } }) as CallToolResult
       expect(loaded.isError, textOf(loaded)).not.toBe(true)
     }

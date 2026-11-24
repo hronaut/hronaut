@@ -68,8 +68,8 @@ test('reviews reproduction steps with keyboard navigation and resets selection f
     decode<BrowserReproRecording>(await call('browser_repro', {
       workspaceId: workspace.id, tabId, action: 'start'
     }))
-    decode<BrowserState>(await call('browser_navigate', {
-      workspaceId: workspace.id, tabId, url: `${origin}/next`
+    decode<{ tabId: string }>(await call('browser_navigate', {
+      workspaceId: workspace.id, tabId, url: `${origin}/next`, read: 'none'
     }))
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)'))
       .toBe('Repro timeline destination')

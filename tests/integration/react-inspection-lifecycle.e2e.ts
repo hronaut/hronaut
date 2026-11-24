@@ -39,7 +39,7 @@ test(`archive/restore and delete interrupt reads and never restore prior activat
   await expect(reopenedPage.locator('span')).toHaveCount(1)
   expect(await reopenedPage.evaluate('fixtureSawHook')).toBe(false)
   expect((await react.success<ReactInspectionResult>(request('enable'))).status).toBe('reload-required')
-  await react.success(react.call('browser_navigate', { workspaceId: react.workspace.id, tabId, url: react.origin + '/restored' }))
+  await react.success(react.call('browser_navigate', { workspaceId: react.workspace.id, tabId, url: react.origin + '/restored', read: 'none' }))
   // Navigation completion does not guarantee that React has committed its fixture tree.
   const restoredPage = await pageAt(electronApp, react.origin + '/restored')
   await expect(restoredPage.locator('span')).toHaveCount(1)

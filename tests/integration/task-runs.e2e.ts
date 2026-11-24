@@ -132,7 +132,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       action: 'start',
       checks: [{ id: 'origin', type: 'expected-origin', tabId: opened.activeTabId, expectedOrigin: origin }]
     })
-    await call(owner, 'browser_navigate', { workspaceId: workspace.id, tabId: opened.activeTabId, url: changedOrigin })
+    await call(owner, 'browser_navigate', { workspaceId: workspace.id, tabId: opened.activeTabId, url: changedOrigin, read: 'none' })
     const blocked = await call<{ outcome: string; reasonCode: string }>(owner, 'browser_task_runs', {
       workspaceId: workspace.id,
       action: 'complete',
@@ -227,7 +227,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       })
     }
     await call(owner, 'browser_navigate', {
-      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/first-target`
+      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/first-target`, read: 'none'
     })
     await expect.poll(async () => {
       const status = await call<{ tabs: Array<{ id: string; loading: boolean }> }>(owner, 'browser_status', {
@@ -260,7 +260,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
     })
     expect(JSON.stringify(preview)).not.toContain(secretInput)
     await call(owner, 'browser_navigate', {
-      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/preview-drift`
+      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/preview-drift`, read: 'none'
     })
     const stalePreviewStart = await raw(owner, 'browser_task_runs', {
       workspaceId: workspace.id,
@@ -300,7 +300,7 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       previewToken: freshPreview.previewToken
     })
     await call(owner, 'browser_navigate', {
-      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/same-origin-drift`
+      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/same-origin-drift`, read: 'none'
     })
     expect(await call(owner, 'browser_task_runs', {
       workspaceId: workspace.id,

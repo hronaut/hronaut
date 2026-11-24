@@ -130,7 +130,7 @@ test('records private bounded browser evidence across MCP reconnects without aut
       workspaceId, action: 'evidence', runId: run.id, evidenceId: diagnostic!.referenceId
     })
     expect(resolved).toMatchObject({ status: 'available', openWith: { toolName: 'browser_debug_report' } })
-    await call(resumed, 'browser_navigate', { workspaceId, url: `${origin}/generation-changed` })
+    await call(resumed, 'browser_navigate', { workspaceId, url: `${origin}/generation-changed`, read: 'none' })
     const expired = await call<{ status: string; reason: string; openWith?: unknown }>(resumed, 'browser_audit_receipts', {
       workspaceId, action: 'evidence', runId: run.id, evidenceId: diagnostic!.referenceId
     })

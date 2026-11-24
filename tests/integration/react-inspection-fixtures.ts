@@ -5,7 +5,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication, Page } from '@playwright/test'
 import type { ReactInspectionAction, ReactInspectionResult } from '../../src/shared/react-inspection.js'
-import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test as base, pageAt } from './fixtures.js'
 import { reactInspectionBundle } from './react-inspection-bundle.js'
 
@@ -83,9 +82,10 @@ export const test = base.extend<{ react: ReactFixture }>({
       const react = (action: ReactInspectionAction, subtreeId?: string) => call('browser_react', { workspaceId: workspace.id, tabId, action, ...(subtreeId ? { subtreeId } : {}) })
       const navigate = async (path: string) => {
         const url = origin + path
-        const state = await success<BrowserState>(call('browser_navigate', { workspaceId: workspace.id, tabId, url }))
+        // The tab alone, without the snapshot that would read the page the fixtures inspect.
+        const state = await success<{ tabId: string; url: string }>(call('browser_navigate', { workspaceId: workspace.id, tabId, url, read: 'none' }))
         // An aborted native load can return successful state for another URL.
-        expect(state.tabs.find(tab => tab.id === tabId)?.url, 'Fixture navigation must reach its requested destination').toBe(url)
+        expect(state.url, 'Fixture navigation must reach its requested destination').toBe(url)
         // MCP and Playwright observe navigation through separate transports.
         await page.waitForURL(url, { waitUntil: 'load', timeout: 8_000 })
         if (!path.startsWith('/bare')) {
