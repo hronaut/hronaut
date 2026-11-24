@@ -13,6 +13,10 @@ All notable changes to Hronaut are documented in this file.
 - `browser_logpoint` expressions can use original variable names when the probe is asked for by `source` and its source map has ECMA-426 scopes: Hronaut replaces them with the minified names or expressions the generated code uses there and lists them in `originalNames`.
 - `browser_virtual_passkey` can attach a U2F security key (`kind: "security-key"`) instead of a passkey, to test second-factor flows.
 
+### Fixed
+
+- `browser_logpoint` reads source maps without the page's cookies, as it says. Chromium's `Network.loadNetworkResource` sent a site its own cookies even when asked not to, so a map on the page's own origin was requested signed in; maps now load through the tab's session with credentials omitted, redirects included.
+
 ## [3.14.36] - 2026-11-24
 
 ### Changed

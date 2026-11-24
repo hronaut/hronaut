@@ -1,3 +1,4 @@
+import type { Session } from 'electron'
 import { AnyMap, LEAST_UPPER_BOUND, allGeneratedPositionsFor, originalPositionFor, type TraceMap } from '@jridgewell/trace-mapping'
 import {
   LOGPOINT_LIMITS,
@@ -155,60 +156,52 @@ function dataUrlText(url: string, budget: SourceMapBudget): string | LogpointSou
   }
 }
 
-async function withinDeadline<R>(pending: Promise<R>, deadline: number): Promise<R | 'timeout'> {
-  const remaining = deadline - performance.now()
-  if (remaining <= 0) {
-    pending.catch(() => undefined)
-    return 'timeout'
-  }
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([pending, new Promise<'timeout'>(resolve => { timer = setTimeout(() => resolve('timeout'), remaining) })])
-  } finally {
-    clearTimeout(timer)
-  }
-}
+/** Fetches a source map address; the tab's session in the app, a stand-in in tests. */
+export type MapFetch = (url: string, signal: AbortSignal) => Promise<Response>
 
 /**
- * Reads a resource through Chromium's network stack for the page, without cookies: the address is the
- * page's choice and a redirect could take it to another origin, so a map that needs a sign-in is unavailable.
+ * Fetches through the tab's session, so its proxy and certificate rules apply, with credentials omitted on the
+ * request and every redirect: the address is the page's choice. CDP's Network.loadNetworkResource is not used, as it
+ * sends the page's cookies to its own origin even with includeCredentials false.
  */
-async function fetchText(send: CdpSend, frameId: string, url: string, budget: SourceMapBudget): Promise<string | LogpointSourceMapProblem> {
-  const deadline = Math.min(budget.deadline, performance.now() + LOGPOINT_LIMITS.sourceMapTimeoutMs)
-  const loading = send<{ resource?: { success?: boolean; stream?: string } }>('Network.loadNetworkResource', {
-    frameId, url, options: { disableCache: false, includeCredentials: false }
-  })
-  const loaded = await withinDeadline(loading, deadline).catch(() => undefined)
-  if (loaded === 'timeout') {
-    // A stream that arrives late is closed, not left open.
-    void loading.then(late => late.resource?.stream && send('IO.close', { handle: late.resource.stream })).catch(() => undefined)
-    return 'timeout'
-  }
-  const stream = loaded?.resource?.stream
-  if (!loaded?.resource?.success || !stream) {
-    if (stream) await send('IO.close', { handle: stream }).catch(() => undefined)
-    return 'fetch-failed'
-  }
-  const chunks: Buffer[] = []
-  let bytes = 0
+export function sessionMapFetch(session: Pick<Session, 'fetch'>): MapFetch {
+  return async (url, signal) => await session.fetch(url, { credentials: 'omit', signal })
+}
+
+/** Reads a map without cookies, so a map that needs a sign-in is unavailable; bounded in bytes and time. */
+async function fetchText(fetchMap: MapFetch, url: string, budget: SourceMapBudget): Promise<string | LogpointSourceMapProblem> {
+  const remaining = Math.min(budget.deadline, performance.now() + LOGPOINT_LIMITS.sourceMapTimeoutMs) - performance.now()
+  if (remaining <= 0) return 'timeout'
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), remaining)
   const limit = Math.min(LOGPOINT_LIMITS.maxSourceMapBytes, budget.remainingBytes)
+  let bytes = 0
   try {
-    for (;;) {
-      const chunk = await withinDeadline(send<{ data: string; base64Encoded?: boolean; eof: boolean }>('IO.read', { handle: stream, size: 1024 * 1024 }), deadline)
-      if (chunk === 'timeout') return 'timeout'
-      const data = chunk.base64Encoded ? Buffer.from(chunk.data, 'base64') : Buffer.from(chunk.data, 'utf8')
-      bytes += data.length
-      if (bytes > limit) return 'too-large'
-      chunks.push(data)
-      if (chunk.eof) break
+    const response = await fetchMap(url, controller.signal)
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
+      return 'fetch-failed'
     }
+    const reader = response.body?.getReader()
+    if (!reader) return ''
+    const chunks: Buffer[] = []
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      bytes += value.byteLength
+      if (bytes > limit) {
+        await reader.cancel().catch(() => undefined)
+        return 'too-large'
+      }
+      chunks.push(Buffer.from(value))
+    }
+    return Buffer.concat(chunks).toString('utf8')
   } catch {
-    return 'fetch-failed'
+    return controller.signal.aborted ? 'timeout' : 'fetch-failed'
   } finally {
+    clearTimeout(timer)
     budget.remainingBytes -= Math.min(bytes, budget.remainingBytes)
-    await send('IO.close', { handle: stream }).catch(() => undefined)
   }
-  return Buffer.concat(chunks).toString('utf8')
 }
 
 function parseSourceMap(text: string): { map: TraceMap; scopes?: RawScopes } | undefined {
@@ -231,10 +224,10 @@ function mapSources(map: TraceMap): string[] {
 }
 
 /**
- * Reads one script's source map: an inline data: map, or an HTTP(S) one through the page's network stack
- * without cookies. Bounded in size and time for the whole call; never throws.
+ * Reads one script's source map: an inline data: map, or an HTTP(S) one through the tab's session without
+ * cookies. Bounded in size and time for the whole call; never throws.
  */
-export async function loadSourceMap(send: CdpSend, frameId: string, script: LogpointScriptRecord, budget: SourceMapBudget): Promise<LoadedSourceMap> {
+export async function loadSourceMap(fetchMap: MapFetch, script: LogpointScriptRecord, budget: SourceMapBudget): Promise<LoadedSourceMap> {
   if (script.sourceMapTooLarge) return { problem: 'too-large' }
   if (!script.sourceMapUrl) return { problem: 'fetch-failed' }
   if (budget.remainingBytes <= 0) return { problem: 'too-large' }
@@ -250,7 +243,7 @@ export async function loadSourceMap(send: CdpSend, frameId: string, script: Logp
       return { problem: 'unsupported-url' }
     }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return { problem: 'unsupported-url' }
-    text = await fetchText(send, frameId, url.href, budget)
+    text = await fetchText(fetchMap, url.href, budget)
   }
   if (text === 'invalid' || text === 'too-large' || text === 'timeout' || text === 'fetch-failed' || text === 'unsupported-url') return { problem: text }
   const parsed = parseSourceMap(text)

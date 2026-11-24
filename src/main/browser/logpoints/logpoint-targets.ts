@@ -5,8 +5,8 @@ import {
   loadSourceMap,
   scriptUrl,
   sourceMatches,
-  type CdpSend,
   type LoadedSourceMap,
+  type MapFetch,
   type LogpointScriptRecord,
   type RawScopes,
   type SourceMapBudget
@@ -46,12 +46,11 @@ export function validRequest(request: LogpointRequest, label: string): LogpointR
 
 /** The script and generated position one requested logpoint names, or an error saying why there is none. */
 export async function resolveTarget(
-  send: CdpSend,
+  fetchMap: MapFetch,
   label: string,
   request: LogpointRequest,
   scripts: LogpointScriptRecord[],
   maps: Map<string, LoadedSourceMap>,
-  frameId: string,
   budget: SourceMapBudget
 ): Promise<ResolvedTarget> {
   let candidates = scripts
@@ -75,7 +74,7 @@ export async function resolveTarget(
     if (!script.sourceMapUrl && !script.sourceMapTooLarge) continue
     let loaded = maps.get(script.scriptId)
     if (!loaded) {
-      loaded = await loadSourceMap(send, frameId, script, budget)
+      loaded = await loadSourceMap(fetchMap, script, budget)
       maps.set(script.scriptId, loaded)
     }
     if ('problem' in loaded) continue

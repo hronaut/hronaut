@@ -45,7 +45,7 @@ function sourceMap(): object {
   return { ...toEncodedMap(map), names: ['amount', 'doubled', 'b', 'c'], scopes }
 }
 
-test('a logpoint asked for by source reads original variable names through the source map\'s scopes', async ({ capabilities, electronApp }) => {
+test('a logpoint asked for by source reads original variable names through the source map\'s scopes, loaded without cookies', async ({ capabilities, electronApp }) => {
   const { client, tabId } = capabilities
   const server = createServer((request, response) => {
     const path = new URL(request.url ?? '/', 'http://fixture').pathname
@@ -54,10 +54,13 @@ test('a logpoint asked for by source reads original variable names through the s
       response.setHeader('content-type', 'text/javascript')
       response.end(BUNDLE)
     } else if (path === '/price.js.map') {
+      // Source maps are read without the page's cookies: one that arrives with them is refused.
+      response.statusCode = request.headers.cookie ? 403 : 200
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify(sourceMap()))
     } else {
       response.setHeader('content-type', 'text/html')
+      response.setHeader('set-cookie', 'hronaut-session=signed-in; Path=/; SameSite=Lax')
       response.end('<!doctype html><title>Price</title><script src="/price.js"></script>')
     }
   })

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AnyMap } from '@jridgewell/trace-mapping'
-import type { CdpSend, LoadedSourceMap, LogpointScriptRecord } from '../src/main/browser/logpoints/logpoint-sources.js'
+import type { LoadedSourceMap, MapFetch, LogpointScriptRecord } from '../src/main/browser/logpoints/logpoint-sources.js'
 import { resolveTarget, validRequest } from '../src/main/browser/logpoints/logpoint-targets.js'
 
 const ORIGIN = 'https://shop.test'
@@ -25,7 +25,7 @@ function loaded(sources = MAP.sources): LoadedSourceMap {
 
 async function resolve(request: Parameters<typeof validRequest>[0], scripts: LogpointScriptRecord[], maps = new Map<string, LoadedSourceMap>([['6', loaded()]])) {
   const send = vi.fn(async () => ({}))
-  const target = await resolveTarget(send as unknown as CdpSend, 'Logpoint 1', request, scripts, maps, 'main', { remainingBytes: 1024, deadline: Date.now() + 1_000 })
+  const target = await resolveTarget(send as unknown as MapFetch, 'Logpoint 1', request, scripts, maps, { remainingBytes: 1024, deadline: Date.now() + 1_000 })
   return { target, send }
 }
 

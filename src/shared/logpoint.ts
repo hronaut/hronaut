@@ -198,7 +198,7 @@ export const LOGPOINT_CAVEATS = [
 ]
 
 export const LOGPOINT_SCRIPTS_CAVEATS = [
-  'Source maps are read through the page\'s own network stack without cookies, so a map that needs a sign-in is unavailable. Only their source names are returned, never source contents.'
+  'Source maps are read through the tab\'s own session without cookies or other credentials, also on redirects, so a map that needs a sign-in is unavailable. Only their source names are returned, never source contents.'
 ]
 
 export function logpointDuration(durationMs: number | undefined): number {

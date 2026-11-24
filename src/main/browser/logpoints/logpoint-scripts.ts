@@ -9,6 +9,7 @@ import {
   scriptRecord,
   sourceMapBudget,
   type CdpSend,
+  type MapFetch,
   type LogpointScriptRecord
 } from './logpoint-sources.js'
 
@@ -52,14 +53,14 @@ export async function collectScripts<R>(
 }
 
 /** Up to maxScripts of the frames' scripts, each with the sources its source map lists, and how many were left out. */
-export async function listScripts(send: CdpSend, known: LogpointScriptRecord[], page: PageFrames): Promise<{ scripts: LogpointScript[]; omittedScripts: number }> {
+export async function listScripts(fetchMap: MapFetch, known: LogpointScriptRecord[], page: PageFrames): Promise<{ scripts: LogpointScript[]; omittedScripts: number }> {
   const own = documentScripts(known, page.frames)
   const listed = own.slice(0, LOGPOINT_LIMITS.maxScripts)
   const budget = sourceMapBudget()
   const scripts: LogpointScript[] = []
   for (const script of listed) {
     const loaded = !script.sourceMapUrl ? undefined
-      : performance.now() < budget.deadline ? await loadSourceMap(send, page.mainFrameId, script, budget) : 'not-checked' as const
+      : performance.now() < budget.deadline ? await loadSourceMap(fetchMap, script, budget) : 'not-checked' as const
     scripts.push(describeScript(script, loaded))
   }
   const unaddressed = frameScripts(known, page.frames).filter(script => script.url === undefined).length

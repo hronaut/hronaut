@@ -8,8 +8,9 @@ import {
   originalLocation,
   scriptRecord,
   scriptUrl,
+  sessionMapFetch,
   sourceMatches,
-  type CdpSend,
+  type MapFetch,
   type LogpointScriptRecord,
   type SourceMapBudget
 } from '../src/main/browser/logpoints/logpoint-sources.js'
@@ -33,19 +34,23 @@ function script(overrides: Partial<LogpointScriptRecord> = {}): LogpointScriptRe
 
 const budget = (overrides: Partial<SourceMapBudget> = {}): SourceMapBudget => ({ remainingBytes: 64 * 1024 * 1024, deadline: performance.now() + 10_000, ...overrides })
 
-/** A page's network stack serving one body in chunks of the given size. */
+/** The tab's session serving one body in chunks of the given size, or a 404 without one; records whether the body was cancelled. */
 function network(body: string | undefined, chunkSize = 1024 * 1024) {
-  let offset = 0
-  const send = vi.fn(async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
-    if (method === 'Network.loadNetworkResource') return body === undefined ? { resource: { success: false } } : { resource: { success: true, stream: 'stream-1' } }
-    if (method === 'IO.read') {
-      const data = body!.slice(offset, offset + chunkSize)
-      offset += chunkSize
-      return { data, eof: offset >= body!.length }
-    }
-    return params ? {} : {}
+  const state = { cancelled: false }
+  const fetchMap = vi.fn(async (_url: string, _signal: AbortSignal): Promise<Response> => {
+    if (body === undefined) return new Response(null, { status: 404 })
+    let offset = 0
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset >= body.length) return controller.close()
+        controller.enqueue(new TextEncoder().encode(body.slice(offset, offset + chunkSize)))
+        offset += chunkSize
+      },
+      cancel() { state.cancelled = true }
+    })
+    return new Response(stream, { status: 200 })
   })
-  return send as unknown as CdpSend & typeof send
+  return Object.assign(fetchMap as typeof fetchMap & MapFetch, { state })
 }
 
 describe('script addresses and records', () => {
@@ -106,35 +111,51 @@ describe('source maps', () => {
   it('reads an inline map, and lists its source names but never their contents', async () => {
     const inline = `data:application/json;base64,${Buffer.from(JSON.stringify(MAP)).toString('base64')}`
     const send = network(undefined)
-    const loaded = await loadSourceMap(send, 'main', script({ sourceMapUrl: inline }), budget())
+    const loaded = await loadSourceMap(send, script({ sourceMapUrl: inline }), budget())
     expect(send).not.toHaveBeenCalled()
     const described = describeScript(script({ sourceMapUrl: inline }), loaded)
     expect(described).toEqual({ url: `${ORIGIN}/bundle.js`, sourceMap: 'loaded', sources: MAP.sources })
     expect(JSON.stringify(described)).not.toContain('SOURCE-CONTENT-CANARY')
-    expect(await loadSourceMap(send, 'main', script({ sourceMapUrl: 'data:text/html,<p>' }), budget())).toEqual({ problem: 'unsupported-url' })
-    expect(await loadSourceMap(send, 'main', script({ sourceMapUrl: 'data:application/json,{not json' }), budget())).toEqual({ problem: 'invalid' })
+    expect(await loadSourceMap(send, script({ sourceMapUrl: 'data:text/html,<p>' }), budget())).toEqual({ problem: 'unsupported-url' })
+    expect(await loadSourceMap(send, script({ sourceMapUrl: 'data:application/json,{not json' }), budget())).toEqual({ problem: 'invalid' })
   })
 
-  it('fetches a map through the page\'s network stack without cookies, and closes the stream', async () => {
+  it('fetches a map through the tab\'s session without credentials, in chunks', async () => {
     const body = `)]}'\n${JSON.stringify(MAP)}`
     const send = network(body, 100)
-    const loaded = await loadSourceMap(send, 'main', script({ sourceMapUrl: 'bundle.js.map' }), budget())
+    const loaded = await loadSourceMap(send, script({ sourceMapUrl: 'bundle.js.map' }), budget())
     expect('map' in loaded && loaded.sources).toEqual(MAP.sources)
-    expect(send).toHaveBeenCalledWith('Network.loadNetworkResource', { frameId: 'main', url: `${ORIGIN}/bundle.js.map`, options: { disableCache: false, includeCredentials: false } })
-    expect(send).toHaveBeenLastCalledWith('IO.close', { handle: 'stream-1' })
+    expect(send).toHaveBeenCalledWith(`${ORIGIN}/bundle.js.map`, expect.any(AbortSignal))
 
     const cdn = network(JSON.stringify(MAP))
-    await loadSourceMap(cdn, 'main', script({ rawUrl: 'https://cdn.test/bundle.js', sourceMapUrl: 'bundle.js.map' }), budget())
-    expect(cdn).toHaveBeenCalledWith('Network.loadNetworkResource', expect.objectContaining({ url: 'https://cdn.test/bundle.js.map', options: { disableCache: false, includeCredentials: false } }))
+    await loadSourceMap(cdn, script({ rawUrl: 'https://cdn.test/bundle.js', sourceMapUrl: 'bundle.js.map' }), budget())
+    expect(cdn).toHaveBeenCalledWith('https://cdn.test/bundle.js.map', expect.any(AbortSignal))
+
+    // The session is asked to leave out cookies and other credentials, which applies to redirects too.
+    const session = { fetch: vi.fn(async () => new Response(JSON.stringify(MAP))) }
+    expect('map' in await loadSourceMap(sessionMapFetch(session), script({ sourceMapUrl: 'bundle.js.map' }), budget())).toBe(true)
+    expect(session.fetch).toHaveBeenCalledWith(`${ORIGIN}/bundle.js.map`, { credentials: 'omit', signal: expect.any(AbortSignal) })
+  })
+
+  it('gives up on a map that does not arrive in time', async () => {
+    vi.useFakeTimers()
+    try {
+      const hanging: MapFetch = async (_url, signal) => await new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))))
+      const pending = loadSourceMap(hanging, script({ sourceMapUrl: 'bundle.js.map' }), budget())
+      await vi.advanceTimersByTimeAsync(5_001)
+      expect(await pending).toEqual({ problem: 'timeout' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('counts an inline map against the call\'s budget, and keeps no address too long to be one Hronaut reads', async () => {
     const inline = `data:application/json;base64,${Buffer.from(JSON.stringify(MAP)).toString('base64')}`
     const bytes = Buffer.byteLength(JSON.stringify(MAP))
     const shared = budget({ remainingBytes: bytes + 10 })
-    expect('map' in await loadSourceMap(network(undefined), 'main', script({ sourceMapUrl: inline }), shared)).toBe(true)
+    expect('map' in await loadSourceMap(network(undefined), script({ sourceMapUrl: inline }), shared)).toBe(true)
     expect(shared.remainingBytes).toBe(10)
-    expect(await loadSourceMap(network(undefined), 'main', script({ sourceMapUrl: inline }), shared)).toEqual({ problem: 'too-large' })
+    expect(await loadSourceMap(network(undefined), script({ sourceMapUrl: inline }), shared)).toEqual({ problem: 'too-large' })
 
     const huge = scriptRecord({
       scriptId: '6', url: `${ORIGIN}/bundle.js?${'q'.repeat(5_000)}`, hash: 'h1', executionContextId: 1,
@@ -142,21 +163,21 @@ describe('source maps', () => {
     })!
     expect(huge).toMatchObject({ url: `${ORIGIN}/bundle.js`, rawUrl: `${ORIGIN}/bundle.js`, sourceMapTooLarge: true })
     expect(huge.sourceMapUrl).toBeUndefined()
-    expect(await loadSourceMap(network(undefined), 'main', huge, budget())).toEqual({ problem: 'too-large' })
+    expect(await loadSourceMap(network(undefined), huge, budget())).toEqual({ problem: 'too-large' })
     expect(describeScript(huge, undefined)).toEqual({ url: `${ORIGIN}/bundle.js`, sourceMap: 'unavailable', sourceMapProblem: 'too-large' })
   })
 
   it('says why a map could not be read, within the call\'s byte and time budget', async () => {
-    expect(await loadSourceMap(network(undefined), 'main', script({ sourceMapUrl: 'bundle.js.map' }), budget())).toEqual({ problem: 'fetch-failed' })
-    expect(await loadSourceMap(network('{}'), 'main', script({ sourceMapUrl: 'file:///etc/passwd' }), budget())).toEqual({ problem: 'unsupported-url' })
+    expect(await loadSourceMap(network(undefined), script({ sourceMapUrl: 'bundle.js.map' }), budget())).toEqual({ problem: 'fetch-failed' })
+    expect(await loadSourceMap(network('{}'), script({ sourceMapUrl: 'file:///etc/passwd' }), budget())).toEqual({ problem: 'unsupported-url' })
     const large = network(JSON.stringify(MAP), 100)
     const small = budget({ remainingBytes: 150 })
-    expect(await loadSourceMap(large, 'main', script({ sourceMapUrl: 'bundle.js.map' }), small)).toEqual({ problem: 'too-large' })
-    expect(large).toHaveBeenLastCalledWith('IO.close', { handle: 'stream-1' })
+    expect(await loadSourceMap(large, script({ sourceMapUrl: 'bundle.js.map' }), small)).toEqual({ problem: 'too-large' })
+    expect(large.state.cancelled).toBe(true)
     expect(small.remainingBytes).toBe(0)
-    expect(await loadSourceMap(network('{}'), 'main', script({ sourceMapUrl: 'bundle.js.map' }), small)).toEqual({ problem: 'too-large' })
-    expect(await loadSourceMap(network('{}'), 'main', script({ sourceMapUrl: 'bundle.js.map' }), budget({ deadline: performance.now() - 1 }))).toEqual({ problem: 'timeout' })
-    expect(await loadSourceMap(network('[1, 2]'), 'main', script({ sourceMapUrl: 'bundle.js.map' }), budget())).toEqual({ problem: 'invalid' })
+    expect(await loadSourceMap(network('{}'), script({ sourceMapUrl: 'bundle.js.map' }), small)).toEqual({ problem: 'too-large' })
+    expect(await loadSourceMap(network('{}'), script({ sourceMapUrl: 'bundle.js.map' }), budget({ deadline: performance.now() - 1 }))).toEqual({ problem: 'timeout' })
+    expect(await loadSourceMap(network('[1, 2]'), script({ sourceMapUrl: 'bundle.js.map' }), budget())).toEqual({ problem: 'invalid' })
     expect(describeScript(script({ sourceMapUrl: 'bundle.js.map' }), { problem: 'timeout' })).toEqual({ url: `${ORIGIN}/bundle.js`, sourceMap: 'unavailable', sourceMapProblem: 'timeout' })
     expect(describeScript(script({ sourceMapUrl: 'bundle.js.map' }), 'not-checked')).toEqual({ url: `${ORIGIN}/bundle.js`, sourceMap: 'not-checked' })
     expect(describeScript(script(), undefined)).toEqual({ url: `${ORIGIN}/bundle.js`, sourceMap: 'none' })
@@ -166,7 +187,7 @@ describe('source maps', () => {
     const sources = Array.from({ length: 205 }, (_, index) => `src/${index}.ts`)
     sources[0] = `src/‮evil\u0000.ts${'x'.repeat(600)}`
     const inline = `data:application/json,${encodeURIComponent(JSON.stringify({ version: 3, sources, mappings: '', names: [] }))}`
-    const described = describeScript(script({ sourceMapUrl: inline }), await loadSourceMap(network(undefined), 'main', script({ sourceMapUrl: inline }), budget()))
+    const described = describeScript(script({ sourceMapUrl: inline }), await loadSourceMap(network(undefined), script({ sourceMapUrl: inline }), budget()))
     expect(described.sources).toHaveLength(200)
     expect(described.sourcesTruncated).toBe(true)
     expect(described.sources![0]).toMatch(/^src\/evil\.tsx+…$/)
