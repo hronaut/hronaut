@@ -9,6 +9,7 @@ import {
   documentScripts,
   originalLocation,
   scriptRecord,
+  sessionMapFetch,
   sourceMapBudget,
   type CdpSend,
   type LoadedSourceMap,
@@ -291,7 +292,7 @@ export class LogpointSets<T extends LogpointTab> {
         known = collected.scripts
         page = collected.result
       }
-      const listing = await listScripts(send, known, page)
+      const listing = await listScripts(sessionMapFetch(webContents.session), known, page)
       // A failure while reading maps is reported per script; the call's authority must still hold for the list.
       assertCurrent()
       return { tabId: tab.id, url: redactNetworkUrl(tab.url), ...listing, limits: LOGPOINT_LIMITS, caveats: [...LOGPOINT_SCRIPTS_CAVEATS] }
@@ -346,9 +347,10 @@ export class LogpointSets<T extends LogpointTab> {
         const scripts = documentScripts(record.scripts.values(), page.frames)
         const maps = new Map<string, LoadedSourceMap>()
         const budget = sourceMapBudget()
+        const fetchMap = sessionMapFetch(webContents.session)
         // Every location resolves before any breakpoint is set, so the page pauses for none while maps load.
         const targets = []
-        for (const [index, request] of valid.entries()) targets.push(await resolveTarget(send, `Logpoint ${index + 1}`, request, scripts, maps, page.mainFrameId, budget))
+        for (const [index, request] of valid.entries()) targets.push(await resolveTarget(fetchMap, `Logpoint ${index + 1}`, request, scripts, maps, budget))
         for (const [index, request] of valid.entries()) {
           const label = `Logpoint ${index + 1}`
           const target = targets[index]!
