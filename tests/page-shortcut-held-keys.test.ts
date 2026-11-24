@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 vi.mock('../src/main/browser/screenshot-area/screenshot-area.js', () => ({ cancelScreenshotArea: vi.fn(async () => undefined) }))
 vi.mock('../src/main/browser/element-picker/element-picker.js', () => ({ cancelElementPicker: vi.fn(async () => undefined) }))
@@ -38,6 +39,7 @@ function browserWith(state: { locked?: boolean, occluded?: boolean, offered?: bo
     pageShortcutKey: null,
     // The fake tabs are not open in it, so a released key schedules no overview preview.
     tabs: new Map(),
+    personTypedText: new PersonTypedText(),
     reproRecorder: { observeReproKeyboard: vi.fn() },
     mcpActivityFollower: { noteHumanInput: vi.fn() },
     options: { onShortcutRequested, onUserInteraction: vi.fn(), shortcutAvailable: () => state.offered !== false }

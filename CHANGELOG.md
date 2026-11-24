@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - **Message me elsewhere** in Settings → General: when an agent needs you, Hronaut also posts a message to a Slack or Discord channel, an ntfy topic or your own endpoint, saying which agent needs you, in which workspace and what it asked, never the page, its address or what you typed. It is off until you turn it on with an address, signs each message with HMAC-SHA256 (`X-Hronaut-Signature`), tries again after 2, 10 and 30 seconds while the address cannot take it, and has **Send test**.
+- What you type, paste or fill into a page while it is yours, after you took it over from an agent, paused agents on it or while an agent waits for you there, as to sign in, reaches no agent afterwards: every result of an agent's call in that workspace says `[redacted]` in its place, in the page, its address, request and response bodies, the console, storage and error messages, also URL-encoded or escaped in JSON. Saved passwords, suggested passwords and HTTP sign-ins you fill are hidden the same way. Hronaut keeps these texts in memory only, from four characters, and forgets them when it quits.
 
 ### Changed
 

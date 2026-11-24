@@ -5,6 +5,7 @@ import type { Browser } from '../src/main/browser/browser.js'
 import { watchCredentialSubmission } from '../src/main/browser/credential-capture/credential-capture.js'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
 import { attachPagePointerEvents } from '../src/main/browser/tab-events/page-pointer-events.js'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 /** A browser that follows the person's clicks and keys on a page, with nothing else going on, and offers to save passwords. */
 function personsBrowser(onCredentialSubmitted: () => void): Browser {
@@ -18,6 +19,7 @@ function personsBrowser(onCredentialSubmitted: () => void): Browser {
     shellHeldKeys: new Set(),
     isHumanInteractionLocked: () => false,
     splitViewContains: () => false,
+    personTypedText: new PersonTypedText(),
     reproRecorder: { observeReproMouse: vi.fn(), observeReproKeyboard: vi.fn() },
     mcpActivityFollower: { noteHumanInput: vi.fn() },
     options: { onCredentialSubmitted }

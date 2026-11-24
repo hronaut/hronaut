@@ -10,6 +10,7 @@ import { createReactInspectionController } from './react-inspection/browser-reac
 import { createFixedDateController } from './fixed-date/browser-fixed-date.js'
 import { createPwaLifecycleRecorder } from './pwa-inspection/browser-pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
+import { PersonTypedText } from './person-typed-text/person-typed-text-store.js'
 import { createVideoRecorder } from './video-recording/browser-video-recorder.js'
 import { VIDEO_RECORDING_NOTICES } from '../../shared/video.js'
 import type { BrowserCredentialCandidate } from './credential-capture/credential-capture.js'
@@ -294,6 +295,8 @@ export class Browser {
   readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   /** Pages where an agent's touch contact may still be down: neither its end nor a cancel was acknowledged. */
   readonly pageFind = new PageFindController()
+  /** Text the person entered in pages agents work in, which every agent result hides. */
+  readonly personTypedText = new PersonTypedText()
   readonly faviconDecoder = new FaviconDecoder()
   readonly metadata = createPageMetadata(this)
   readonly profiling = createProfilingController(this)

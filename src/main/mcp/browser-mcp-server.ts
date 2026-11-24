@@ -148,6 +148,7 @@ import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/work
 import { getMcpGroupState } from '../browser/workspace-scope/workspace-scope.js'
 import { agentStepName } from '../browser/page-snapshots/page-snapshots.js'
 import { runAgentCall } from '../browser/browser-state/agent-calls.js'
+import { hidePersonTypedText } from './person-typed-redaction.js'
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
@@ -365,11 +366,13 @@ export function createBrowserMcpServer(
     toolOptions.set(name, options)
     if (options.singleTabControl) singleTabControlTools.add(name)
     const definition = toolDefinition(name)
+    // What the person typed in a workspace reaches no agent: every result hides it, whatever the tool.
     const registered = baseRegisterTool(name, {
       ...(config as Record<string, unknown>),
       title: definition.title,
       annotations: definition.annotations
-    } as never, (async (...args: unknown[]) => trackAgentCall(name, args[0], () => frameRequests.run({}, async () => {
+    } as never, (async (...args: unknown[]) => hidePersonTypedText(manager, args[0],
+      () => trackAgentCall(name, args[0], () => frameRequests.run({}, async () => {
       const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
         ? args[0] as Record<string, unknown> : {}
       const frameRequest = frameRequests.getStore()!
@@ -471,7 +474,7 @@ export function createBrowserMcpServer(
           void completion.then(finishWorkspaceMutation, finishWorkspaceMutation)
         } else finishWorkspaceMutation?.()
       }
-    }))) as never)
+    })))) as never)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
     return registered

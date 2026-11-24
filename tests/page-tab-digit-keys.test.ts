@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { attachPageKeyboardEvents } from '../src/main/browser/tab-events/page-keyboard-events.js'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 // Ctrl+1 to Ctrl+9 were taken from every page elsewhere than macOS, where Chrome leaves them to a website first, such
 // as a web editor going to its first editor group, and goes to that tab only when the page leaves the key alone.
@@ -32,6 +33,7 @@ function pageWith(state: { locked?: boolean, occluded?: boolean, offered?: boole
     shellHeldKeys: new Set<string>(),
     pageShortcutKey: null as { code: string; webContentsId: number | null } | null,
     tabs: new Map(),
+    personTypedText: new PersonTypedText(),
     reproRecorder: { observeReproKeyboard: vi.fn() },
     mcpActivityFollower: { noteHumanInput: vi.fn() },
     options: { onShortcutRequested, onUserInteraction: vi.fn(), shortcutAvailable: () => state.offered !== false }

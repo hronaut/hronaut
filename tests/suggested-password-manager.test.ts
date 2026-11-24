@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 // The tab manager binds the page menu's Suggest Strong Password to the active tab's page when the menu opens, and fills
 // only while passwords can be saved and that page is still shown.
@@ -50,7 +51,8 @@ function browser(available = true) {
     tabs: new Map([['page', page], ['other', { ...page, id: 'other', url: 'https://other.example/' }]]),
     activeTabId: 'page',
     tabSelectionGeneration: 5,
-    options: { suggestedPasswords: { available: () => available, whileAgentsPaused, suggested } }
+    options: { suggestedPasswords: { available: () => available, whileAgentsPaused, suggested } },
+    personTypedText: new PersonTypedText()
   }) as Manager
   return { manager, page, executeJavaScript, suggested, whileAgentsPaused, suggestion: () => strongPasswordSuggestion(manager as never, page as never) }
 }

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+import { PersonTypedText } from '../src/main/browser/person-typed-text/person-typed-text-store.js'
 
 // In split view, "click either page or either marked tab to make it the active pane". The person clicks a sleeping
 // tab, changes their mind while it wakes and goes back to work in the right-hand page of their split view. When the
@@ -105,6 +106,7 @@ function browser() {
     tabSelectionGeneration: 0, toolbarHeight: 60, contentInsets: { top: 0, right: 10, bottom: 10, left: 280 }, allTabsMuted: false,
     allHumanInteractionLocked: false, globallyUnlockedTabIds: new Set(), agentInputWebContents: new Map(), agentWheel: new Map(),
     screenshotAreaSessions: new Map(), elementPickerSessions: new Map(), browserContentOccluded: false, pageFullscreenTabs: new Set(),
+    personTypedText: new PersonTypedText(),
     reproRecorder: { observeReproMouse: vi.fn() }, mcpActivityFollower: { noteHumanInput: vi.fn() },
     scheduleTabOverviewPreview: vi.fn(),
     mcpTabGroups: new Map([[PERSON, {
