@@ -365,7 +365,7 @@ test('preserves zoomed document corners within bounded MCP full-page screenshots
       const before = await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
         .find(candidate => candidate.getURL() === url)!.executeJavaScript('({ width: innerWidth, height: innerHeight, scrollX, scrollY, pixelRatio: devicePixelRatio })'), `${fixture.url}/wide`)
       expect(before).toMatchObject({ pixelRatio: scenario.pixelRatio })
-      const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, fullPage: true, maxWidth: 1200, maxHeight: 1200 } }) as CallToolResult
+      const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, fullPage: true, maxWidth: 1200, maxHeight: 1200, detail: 'full' } }) as CallToolResult
       expect(screenshot.isError, text(screenshot)).not.toBe(true)
       const image = screenshot.content.find(item => item.type === 'image')
       expect(image?.type).toBe('image')
@@ -443,7 +443,7 @@ test('captures every document corner immediately after alternating MCP zoom chan
         const zoomed = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'set', percent } }) as CallToolResult
         expect(zoomed.isError).not.toBe(true)
         // No renderer evaluation, frame wait, or DPR polling between these two public tool calls.
-        const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, fullPage: true, maxWidth: 1200, maxHeight: 1200 } }) as CallToolResult
+        const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, fullPage: true, maxWidth: 1200, maxHeight: 1200, detail: 'full' } }) as CallToolResult
         await expectScreenshotCorners(appWindow, screenshot, testInfo, `immediate-${path}-zoom-${index}-${percent}`, 1200, 1200, aspectRatio)
       }
     }
@@ -479,7 +479,7 @@ test('captures all selected element and rectangle corners at native page zoom', 
         // Element capture may center the page. Rectangle coordinates below refer to the unscrolled viewport.
         await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
           .find(candidate => candidate.getURL() === url)!.executeJavaScript('scrollTo(0, 0)'), `${fixture.url}/region`)
-        const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, ...target, maxWidth: 600, maxHeight: 300 } }) as CallToolResult
+        const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, ...target, maxWidth: 600, maxHeight: 300, detail: 'full' } }) as CallToolResult
         await expectScreenshotCorners(appWindow, screenshot, testInfo, `${kind}-zoom-${scenario.name}`, 600, 300, 2, 3000)
       }
     }

@@ -3,6 +3,17 @@ import { readFile } from 'node:fs/promises'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
+/** The width and height a baseline or progressive JPEG's frame header gives. */
+function jpegSize(base64: string): { width: number; height: number } | undefined {
+  const data = Buffer.from(base64, 'base64')
+  for (let offset = 2; offset + 9 < data.length && data[offset] === 0xff;) {
+    const marker = data[offset + 1]
+    if (marker === 0xc0 || marker === 0xc2) return { width: data.readUInt16BE(offset + 7), height: data.readUInt16BE(offset + 5) }
+    offset += 2 + data.readUInt16BE(offset + 2)
+  }
+  return undefined
+}
+
 test('exports bounded screenshots and PDFs and records downloads and activity', async ({ capabilities, electronApp, appWindow, profileDirectory }) => {
   const { client, tabId, address, fixtureUrl, openPageTool } = capabilities
   // Keep the command live while checking both activity indicators. The brief
@@ -63,13 +74,21 @@ test('exports bounded screenshots and PDFs and records downloads and activity', 
   await client.callTool({ name: 'browser_select_tab', arguments: { tabId } })
   await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
 
+  // By default a screenshot is a compact JPEG; detail full keeps the PNG at the page's own resolution.
   const screenshot = await client.callTool({
     name: 'browser_screenshot',
     arguments: { tabId, fullPage: true }
   }) as CallToolResult
   const image = screenshot.content.find((item) => item.type === 'image')
-  expect(image?.type).toBe('image')
-  if (image?.type === 'image') expect(image.data.startsWith('iVBOR')).toBe(true)
+  expect(image).toMatchObject({ type: 'image', mimeType: 'image/jpeg' })
+  if (image?.type === 'image') expect(image.data.startsWith('/9j/')).toBe(true)
+  const fullScreenshot = await client.callTool({
+    name: 'browser_screenshot',
+    arguments: { tabId, fullPage: true, detail: 'full' }
+  }) as CallToolResult
+  const fullImage = fullScreenshot.content.find((item) => item.type === 'image')
+  expect(fullImage).toMatchObject({ type: 'image', mimeType: 'image/png' })
+  if (fullImage?.type === 'image') expect(fullImage.data.startsWith('iVBOR')).toBe(true)
 
   const captureSnapshot = await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult
   const captureRef = text(captureSnapshot).match(/\[(e\d+)\] button "Capture this area"/)?.[1]
@@ -79,15 +98,11 @@ test('exports bounded screenshots and PDFs and records downloads and activity', 
     arguments: { tabId, ref: captureRef }
   }) as CallToolResult
   const elementImage = elementScreenshot.content.find((item) => item.type === 'image')
-  expect(elementImage).toMatchObject({ type: 'image', mimeType: 'image/png' })
-  if (elementImage?.type === 'image') {
-    const png = Buffer.from(elementImage.data, 'base64')
-    expect(png.readUInt32BE(16)).toBe(240)
-    expect(png.readUInt32BE(20)).toBe(120)
-  }
+  expect(elementImage).toMatchObject({ type: 'image', mimeType: 'image/jpeg' })
+  if (elementImage?.type === 'image') expect(jpegSize(elementImage.data)).toEqual({ width: 240, height: 120 })
   const regionScreenshot = await client.callTool({
     name: 'browser_screenshot',
-    arguments: { tabId, clip: { x: 10, y: 10, width: 160, height: 90 } }
+    arguments: { tabId, clip: { x: 10, y: 10, width: 160, height: 90 }, detail: 'full' }
   }) as CallToolResult
   const regionImage = regionScreenshot.content.find((item) => item.type === 'image')
   expect(regionImage).toMatchObject({ type: 'image', mimeType: 'image/png' })
@@ -98,9 +113,10 @@ test('exports bounded screenshots and PDFs and records downloads and activity', 
   }
   const boundedElementScreenshot = await client.callTool({
     name: 'browser_screenshot',
-    arguments: { tabId, selector: '#capture-target', maxWidth: 120 }
+    arguments: { tabId, selector: '#capture-target', maxWidth: 120, format: 'png' }
   }) as CallToolResult
   const boundedElementImage = boundedElementScreenshot.content.find((item) => item.type === 'image')
+  expect(boundedElementImage).toMatchObject({ type: 'image', mimeType: 'image/png' })
   if (boundedElementImage?.type === 'image') {
     const png = Buffer.from(boundedElementImage.data, 'base64')
     expect(png.readUInt32BE(16)).toBe(120)

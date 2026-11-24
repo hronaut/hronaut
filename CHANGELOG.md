@@ -8,6 +8,11 @@ All notable changes to Hronaut are documented in this file.
 
 - `browser_navigate` and `browser_history` return only the tab they loaded (address, title, load state, page problem) instead of the whole workspace's state, and a snapshot of the loaded page in the same call, so an agent reads the page without a second call. `read: "none"` returns the tab alone; `browser_tabs` and `browser_status` still list the workspace.
 - The next result of an agent's call in a workspace tells it about the workspace's other tabs: a website dialog that holds a page, a page that crashed or stopped responding, and a tab the person handed back, once for each event, so an agent no longer finds out only when a later call there fails or hangs.
+- `browser_screenshot` returns a compact JPEG by default, at quality 75 and fitting 1568×1568 pixels (a full page 1568 wide), about half the size of the PNG it returned before on real sites; `detail: "full"` returns the PNG at the page's own resolution.
+
+### Fixed
+
+- `browser_navigate` in a tab still loading its first page, as one just opened, returned before the new page loaded, so what read the tab next read the page it was leaving.
 
 ## [3.14.37] - 2026-11-24
 

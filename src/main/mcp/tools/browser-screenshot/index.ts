@@ -7,6 +7,7 @@ import { screenshotSettlement, type ScreenshotSettlement } from './screenshot-se
 import { trackedViewportScreenshot } from '../../../browser/screenshot-observations/tracked-screenshot.js'
 import { screenshot } from '../../../browser/screenshots/screenshots.js'
 import { cssStatePreviewMarker } from '../../../browser/css-state-preview/browser-css-state-preview.js'
+import { screenshotDetailSchema, screenshotEncoding, type ScreenshotDetail } from './screenshot-detail.js'
 
 export function registerBrowserScreenshot(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -32,6 +33,7 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         quality: z.number().int().min(1).max(100).optional(),
         maxWidth: z.number().int().min(64).max(7680).optional(),
         maxHeight: z.number().int().min(64).max(7680).optional(),
+        detail: screenshotDetailSchema,
         trackChanges: z.boolean().optional()
           .describe('Plain viewport capture only: also return an observationId to pass as ifChangedSince later.'),
         ifChangedSince: z.uuid().optional()
@@ -49,10 +51,12 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
       quality?: number
       maxWidth?: number
       maxHeight?: number
+      detail?: ScreenshotDetail
       trackChanges?: boolean
       ifChangedSince?: string
     }, call: WorkspaceToolCall<ScreenshotSettlement>) => {
-      const { trackChanges, ifChangedSince, ...captureOptions } = options
+      const { trackChanges, ifChangedSince, detail, ...requested } = options
+      const captureOptions = { ...requested, ...screenshotEncoding(detail ?? 'compact', requested) }
       if (trackChanges || ifChangedSince !== undefined) {
         if (trackChanges === false || captureOptions.fullPage || captureOptions.ref !== undefined || captureOptions.selector !== undefined || captureOptions.clip || captureOptions.annotateRefs) {
           throw new TypeError('trackChanges and ifChangedSince support plain viewport screenshots only; omit fullPage, ref, selector, clip and annotateRefs, and do not set trackChanges to false')
@@ -73,7 +77,7 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         ] }
       }
       const previewBefore = cssStatePreviewMarker(manager, options.tabId)
-      const image = await screenshot(manager, options)
+      const image = await screenshot(manager, captureOptions)
       const cssStatePreview = previewBefore ?? cssStatePreviewMarker(manager, options.tabId)
       return { content: [
         ...(image.annotations ? [{ type: 'text' as const, text: JSON.stringify(image.annotations) }] : []),

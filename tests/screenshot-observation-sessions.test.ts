@@ -118,7 +118,7 @@ it('returns no image for unchanged pixels and refuses tracking of anything but a
       expect(JSON.stringify(refused.content)).toContain('support plain viewport screenshots only')
     }
     // Only plain capture options reach the tracked capture.
-    expect(manager.trackedScreenshot).toHaveBeenCalledWith({ tabId, format: undefined, quality: undefined, maxWidth: undefined, maxHeight: undefined })
+    expect(manager.trackedScreenshot).toHaveBeenCalledWith({ tabId, format: 'jpeg', quality: 75, maxWidth: 1568, maxHeight: 1568 })
 
   } finally {
     await first.close()
