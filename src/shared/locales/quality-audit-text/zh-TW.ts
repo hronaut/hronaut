@@ -5,7 +5,8 @@ export const zhTWQualityAuditText = {
     metadata: '中繼資料與 SEO',
     security: '安全性',
     pwa: 'PWA 與離線',
-    'browser-issues': 'Chromium 問題'
+    'browser-issues': 'Chromium 問題',
+    'agent-readiness': '代理程式就緒度'
   },
   statuses: {
     pass: '通過',
@@ -31,14 +32,24 @@ export const zhTWQualityAuditText = {
     certificateExpired: '主要文件的憑證已過期。',
     certificateNotYetValid: '主要文件的憑證尚未生效。',
     certificateInvalid: '主要文件的憑證目前無效。',
-    pwaInspectionPartial: '這次稽核無法取得部分 PWA 診斷資訊。'
+    pwaInspectionPartial: '這次稽核無法取得部分 PWA 診斷資訊。',
+    agentReadinessClear: '未發現代理程式就緒度問題',
+    llmsTxtMissing: '找不到 /llms.txt。',
+    llmsTxtFailed: '/llms.txt 要求失敗。',
+    llmsTxtNoHeading: '/llms.txt 沒有 Markdown H1 標題。',
+    llmsTxtNoLink: '/llms.txt 沒有 Markdown 連結。',
+    llmsTxtTooShort: '/llms.txt 少於 50 個字元。',
+    ardFailed: '/.well-known/ard.json 要求失敗。',
+    ardInvalid: '/.well-known/ard.json 不是 JSON 物件。',
+    webMcpUnavailable: 'WebMCP：無法使用'
   },
   caveats: {
     localDiagnostic: '這是根據 Hronaut 證據彙整而成、範圍有限的本機診斷，並非 Lighthouse 分數或認證。',
     accessibilityAutomation: '自動化無障礙檢查無法取代鍵盤、螢幕閱讀器、縮放、動態效果及真人易用性測試。',
     performanceVisit: '效能反映的是目前的本機造訪與環境；重要的測量請在具代表性的條件下重複進行。',
     pwaOptional: '對於沒有提供離線應用程式功能的網站，PWA 不會被視為必要條件。',
-    reloadIssues: '如要重現只在啟動時出現的 Chromium 問題，請先重新載入，再重新執行這項稽核。'
+    reloadIssues: '如要重現只在啟動時出現的 Chromium 問題，請先重新載入，再重新執行這項稽核。',
+    agentReadiness: '代理程式就緒度會在不帶 Cookie 的情況下向頁面來源要求 /llms.txt 和 /.well-known/ard.json，並檢查 WebMCP、表單以及代理程式依賴的無障礙規則；它不是 Lighthouse 的代理程式瀏覽分數。'
   },
   text: {
     violations: '{count} 個違規項目',
@@ -77,6 +88,22 @@ export const zhTWQualityAuditText = {
     installabilityIssues: '可安裝性問題：{count}',
     installabilityFinding: 'Chromium 回報了 PWA 可安裝性問題：{issue}。',
     installabilityUnknown: 'Chromium 回報了 PWA 可安裝性問題：不明問題。',
-    browserIssues: '{count} 個瀏覽器產生的問題'
+    browserIssues: '{count} 個瀏覽器產生的問題',
+    agentReadinessIssues: '{count} 個代理程式就緒度問題',
+    webMcpTools: 'WebMCP 工具：{count}',
+    unannotatedForms: '沒有 WebMCP 註解的表單：{count}/{total}',
+    llmsTxt: 'llms.txt：{state}',
+    ardManifest: 'ARD 資訊清單：{state}',
+    agentAccessibility: '代理程式依賴的無障礙規則未通過：{count}',
+    tooManyTools: '已註冊 {count} 個 WebMCP 工具；不建議超過 {max} 個。',
+    formsUnannotated: '{count} 個表單沒有 WebMCP toolname 或 tooldescription。',
+    accessibilityForAgents: '代理程式透過無障礙樹讀取頁面，以下規則未通過：{rules}。',
+    fileStates: {
+      valid: '有效',
+      invalid: '無效',
+      notFound: '找不到',
+      unreachable: '無法連線',
+      notChecked: '未檢查'
+    }
   }
 }

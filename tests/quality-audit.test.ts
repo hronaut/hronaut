@@ -131,6 +131,13 @@ function sources(): BrowserQualityAuditSources {
       authChallengesTruncated: false,
       devToolsOpen: false,
       caveats: []
+    },
+    agentReadiness: {
+      webMcpTools: null,
+      forms: 0,
+      unannotatedForms: 0,
+      llmsTxt: { status: 'found', text: '# Example\n\n[Docs](https://example.test/docs) and more text here to pass fifty chars' },
+      ardManifest: { status: 'missing' }
     }
   }
 }
@@ -184,7 +191,8 @@ describe('quality audit', () => {
 
     const report = buildBrowserQualityAudit(input)
     expect(report.status).toBe('error')
-    expect(report.totals.errors).toBe(4)
+    // image-alt also breaks the accessibility tree agents read, so agent readiness counts it too.
+    expect(report.totals.errors).toBe(5)
     expect(report.totals.warnings).toBe(2)
     expect(report.categories).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'accessibility', status: 'error' }),

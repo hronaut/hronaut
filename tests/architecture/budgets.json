@@ -160,7 +160,7 @@
     "src/main/mcp/server.ts": 1,
     "src/main/mcp/tab-agent-control.ts": 2,
     "src/main/mcp/tab-discovery.ts": 1,
-    "src/main/mcp/tool-catalog.ts": 102,
+    "src/main/mcp/tool-catalog.ts": 101,
     "src/main/mcp/tool-results.ts": 11,
     "src/main/mcp/tool-schemas.ts": 1,
     "src/main/mcp/tools/browser-bookmarks/index.ts": 1,

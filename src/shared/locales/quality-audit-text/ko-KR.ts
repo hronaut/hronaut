@@ -5,7 +5,8 @@ export const koKRQualityAuditText = {
     metadata: '메타데이터 및 SEO',
     security: '보안',
     pwa: 'PWA 및 오프라인',
-    'browser-issues': 'Chromium 문제'
+    'browser-issues': 'Chromium 문제',
+    'agent-readiness': '에이전트 준비'
   },
   statuses: {
     pass: '통과',
@@ -31,14 +32,24 @@ export const koKRQualityAuditText = {
     certificateExpired: '기본 문서의 인증서가 만료되었습니다.',
     certificateNotYetValid: '기본 문서의 인증서가 아직 유효하지 않습니다.',
     certificateInvalid: '기본 문서의 인증서가 현재 유효하지 않습니다.',
-    pwaInspectionPartial: '이 감사에서 일부 PWA 진단을 사용할 수 없었습니다.'
+    pwaInspectionPartial: '이 감사에서 일부 PWA 진단을 사용할 수 없었습니다.',
+    agentReadinessClear: '에이전트 준비 문제가 없습니다',
+    llmsTxtMissing: '/llms.txt를 찾을 수 없습니다.',
+    llmsTxtFailed: '/llms.txt 요청에 실패했습니다.',
+    llmsTxtNoHeading: '/llms.txt에 Markdown H1 제목이 없습니다.',
+    llmsTxtNoLink: '/llms.txt에 Markdown 링크가 없습니다.',
+    llmsTxtTooShort: '/llms.txt가 50자보다 짧습니다.',
+    ardFailed: '/.well-known/ard.json 요청에 실패했습니다.',
+    ardInvalid: '/.well-known/ard.json이 JSON 객체가 아닙니다.',
+    webMcpUnavailable: 'WebMCP: 사용할 수 없음'
   },
   caveats: {
     localDiagnostic: 'Hronaut 증거를 바탕으로 만든 범위가 제한된 로컬 진단입니다. Lighthouse 점수나 인증이 아닙니다.',
     accessibilityAutomation: '접근성 자동 검사는 키보드, 스크린 리더, 확대/축소, 모션 및 사람이 직접 하는 사용성 테스트를 대신할 수 없습니다.',
     performanceVisit: '성능은 현재 로컬 방문과 환경을 반영합니다. 중요한 측정은 대표성 있는 조건에서 반복하세요.',
     pwaOptional: '오프라인 앱 기능을 제공하지 않는 웹사이트에서는 PWA를 필수 요건으로 취급하지 않습니다.',
-    reloadIssues: '시작 시에만 발생하는 Chromium 문제를 재현하려면 새로고침한 후 이 감사를 다시 실행하세요.'
+    reloadIssues: '시작 시에만 발생하는 Chromium 문제를 재현하려면 새로고침한 후 이 감사를 다시 실행하세요.',
+    agentReadiness: '에이전트 준비 검사는 페이지 출처에서 쿠키 없이 /llms.txt와 /.well-known/ard.json을 요청하고, WebMCP, 양식, 에이전트가 의존하는 접근성 규칙을 확인합니다. Lighthouse의 에이전트 브라우징 점수가 아닙니다.'
   },
   text: {
     violations: '위반 {count}건',
@@ -77,6 +88,22 @@ export const koKRQualityAuditText = {
     installabilityIssues: '설치 가능성 문제: {count}',
     installabilityFinding: 'Chromium에서 PWA 설치 가능성 문제를 보고했습니다: {issue}.',
     installabilityUnknown: 'Chromium에서 PWA 설치 가능성 문제를 보고했습니다: 알 수 없는 문제.',
-    browserIssues: '브라우저에서 생성된 문제 {count}개'
+    browserIssues: '브라우저에서 생성된 문제 {count}개',
+    agentReadinessIssues: '에이전트 준비 문제 {count}개',
+    webMcpTools: 'WebMCP 도구: {count}',
+    unannotatedForms: 'WebMCP 주석이 없는 양식: {total}개 중 {count}개',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'ARD 매니페스트: {state}',
+    agentAccessibility: '에이전트가 의존하는 접근성 규칙 실패: {count}',
+    tooManyTools: 'WebMCP 도구 {count}개가 등록되어 있습니다. {max}개를 넘는 것은 권장되지 않습니다.',
+    formsUnannotated: 'WebMCP toolname이나 tooldescription이 없는 양식이 {count}개 있습니다.',
+    accessibilityForAgents: '에이전트는 접근성 트리를 통해 페이지를 읽으며, 다음 규칙이 실패합니다: {rules}.',
+    fileStates: {
+      valid: '유효',
+      invalid: '유효하지 않음',
+      notFound: '찾을 수 없음',
+      unreachable: '연결할 수 없음',
+      notChecked: '확인 안 함'
+    }
   }
 }

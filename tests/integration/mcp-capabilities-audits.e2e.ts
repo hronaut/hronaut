@@ -76,11 +76,14 @@ test('reports accessibility, quality and performance with human panels', async (
       expect.objectContaining({ id: 'metadata' }),
       expect.objectContaining({ id: 'security', status: 'error' }),
       expect.objectContaining({ id: 'pwa' }),
-      expect.objectContaining({ id: 'browser-issues' })
+      expect.objectContaining({ id: 'browser-issues' }),
+      expect.objectContaining({ id: 'agent-readiness', evidence: expect.arrayContaining(['llms.txt: valid', 'ARD manifest: invalid']) })
     ]),
     caveats: expect.arrayContaining([expect.stringContaining('not a Lighthouse score')])
   })
-  expect(qualityAudit.categories).toHaveLength(6)
+  expect(qualityAudit.categories).toHaveLength(7)
+  // The fixture server answers every other path with its page, so /.well-known/ard.json is HTML, not a JSON object.
+  expect(qualityAudit.findings).toEqual(expect.arrayContaining([expect.objectContaining({ category: 'agent-readiness', code: 'ard-manifest-invalid' })]))
   expect(JSON.stringify(qualityAudit)).not.toContain('element-inspection-secret')
 
   await openPageTool(/Quality audit:/)

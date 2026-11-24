@@ -5,7 +5,8 @@ export const esESQualityAuditText = {
     metadata: 'Metadatos y SEO',
     security: 'Seguridad',
     pwa: 'PWA y sin conexión',
-    'browser-issues': 'Problemas de Chromium'
+    'browser-issues': 'Problemas de Chromium',
+    'agent-readiness': 'Preparación para agentes'
   },
   statuses: {
     pass: 'superado',
@@ -31,14 +32,24 @@ export const esESQualityAuditText = {
     certificateExpired: 'El certificado del documento principal ha caducado.',
     certificateNotYetValid: 'El certificado del documento principal aún no es válido.',
     certificateInvalid: 'El certificado del documento principal no es válido actualmente.',
-    pwaInspectionPartial: 'Algunos diagnósticos de PWA no estaban disponibles para esta auditoría.'
+    pwaInspectionPartial: 'Algunos diagnósticos de PWA no estaban disponibles para esta auditoría.',
+    agentReadinessClear: 'No se encontraron problemas de preparación para agentes',
+    llmsTxtMissing: 'No se encontró /llms.txt.',
+    llmsTxtFailed: 'La solicitud de /llms.txt falló.',
+    llmsTxtNoHeading: '/llms.txt no tiene un encabezado H1 de Markdown.',
+    llmsTxtNoLink: '/llms.txt no tiene ningún enlace de Markdown.',
+    llmsTxtTooShort: '/llms.txt tiene menos de 50 caracteres.',
+    ardFailed: 'La solicitud de /.well-known/ard.json falló.',
+    ardInvalid: '/.well-known/ard.json no es un objeto JSON.',
+    webMcpUnavailable: 'WebMCP: no disponible'
   },
   caveats: {
     localDiagnostic: 'Es un diagnóstico local acotado, elaborado con datos de Hronaut; no es una puntuación de Lighthouse ni una certificación.',
     accessibilityAutomation: 'La automatización de accesibilidad no sustituye las pruebas con teclado, lector de pantalla, zoom y movimiento ni las pruebas de usabilidad con personas.',
     performanceVisit: 'El rendimiento refleja la visita local actual y su entorno; repite las mediciones importantes en condiciones representativas.',
     pwaOptional: 'La PWA no se considera un requisito para los sitios que no ofrecen una aplicación sin conexión.',
-    reloadIssues: 'Recarga la página antes de reproducir problemas de Chromium que solo ocurren al inicio y vuelve a ejecutar esta auditoría.'
+    reloadIssues: 'Recarga la página antes de reproducir problemas de Chromium que solo ocurren al inicio y vuelve a ejecutar esta auditoría.',
+    agentReadiness: 'La preparación para agentes solicita /llms.txt y /.well-known/ard.json al origen de la página sin cookies y comprueba WebMCP, los formularios y las reglas de accesibilidad de las que dependen los agentes; no es la puntuación de navegación agéntica de Lighthouse.'
   },
   text: {
     violations: '{count} infracción | {count} infracciones',
@@ -77,6 +88,22 @@ export const esESQualityAuditText = {
     installabilityIssues: 'Problemas de instalabilidad: {count}',
     installabilityFinding: 'Chromium indicó un problema de instalabilidad de la PWA: {issue}.',
     installabilityUnknown: 'Chromium indicó un problema desconocido de instalabilidad de la PWA.',
-    browserIssues: '{count} problema generado por el navegador | {count} problemas generados por el navegador'
+    browserIssues: '{count} problema generado por el navegador | {count} problemas generados por el navegador',
+    agentReadinessIssues: 'Problemas de preparación para agentes: {count}',
+    webMcpTools: 'Herramientas WebMCP: {count}',
+    unannotatedForms: 'Formularios sin anotaciones WebMCP: {count} de {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'Manifiesto ARD: {state}',
+    agentAccessibility: 'Reglas de accesibilidad de las que dependen los agentes que fallan: {count}',
+    tooManyTools: 'Herramientas WebMCP registradas: {count}; no se recomiendan más de {max}.',
+    formsUnannotated: 'Formularios sin toolname ni tooldescription de WebMCP: {count}.',
+    accessibilityForAgents: 'Los agentes leen la página a través de su árbol de accesibilidad, y estas reglas fallan: {rules}.',
+    fileStates: {
+      valid: 'válido',
+      invalid: 'no válido',
+      notFound: 'no encontrado',
+      unreachable: 'inaccesible',
+      notChecked: 'sin comprobar'
+    }
   }
 }

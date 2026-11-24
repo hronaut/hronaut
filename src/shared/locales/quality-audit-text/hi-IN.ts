@@ -5,7 +5,8 @@ export const hiINQualityAuditText = {
     metadata: 'मेटाडेटा और SEO',
     security: 'सुरक्षा',
     pwa: 'PWA और ऑफ़लाइन',
-    'browser-issues': 'Chromium की समस्याएं'
+    'browser-issues': 'Chromium की समस्याएं',
+    'agent-readiness': 'एजेंटों के लिए तैयारी'
   },
   statuses: {
     pass: 'पास',
@@ -31,14 +32,24 @@ export const hiINQualityAuditText = {
     certificateExpired: 'मुख्य दस्तावेज़ के सर्टिफ़िकेट की समय-सीमा खत्म हो गई है।',
     certificateNotYetValid: 'मुख्य दस्तावेज़ का सर्टिफ़िकेट अभी मान्य नहीं है।',
     certificateInvalid: 'मुख्य दस्तावेज़ का सर्टिफ़िकेट अभी मान्य नहीं है।',
-    pwaInspectionPartial: 'इस ऑडिट के लिए PWA की कुछ डायग्नोस्टिक जानकारी उपलब्ध नहीं थी।'
+    pwaInspectionPartial: 'इस ऑडिट के लिए PWA की कुछ डायग्नोस्टिक जानकारी उपलब्ध नहीं थी।',
+    agentReadinessClear: 'एजेंटों के लिए तैयारी में कोई समस्या नहीं मिली',
+    llmsTxtMissing: '/llms.txt नहीं मिला।',
+    llmsTxtFailed: '/llms.txt का अनुरोध विफल रहा।',
+    llmsTxtNoHeading: '/llms.txt में कोई Markdown H1 शीर्षक नहीं है।',
+    llmsTxtNoLink: '/llms.txt में कोई Markdown लिंक नहीं है।',
+    llmsTxtTooShort: '/llms.txt 50 वर्णों से छोटा है।',
+    ardFailed: '/.well-known/ard.json का अनुरोध विफल रहा।',
+    ardInvalid: '/.well-known/ard.json कोई JSON ऑब्जेक्ट नहीं है।',
+    webMcpUnavailable: 'WebMCP: उपलब्ध नहीं'
   },
   caveats: {
     localDiagnostic: 'यह Hronaut के सबूतों से तैयार किया गया सीमित लोकल डायग्नोस्टिक है; यह Lighthouse स्कोर या सर्टिफ़िकेशन नहीं है।',
     accessibilityAutomation: 'सुलभता की ऑटोमैटिक जांच, कीबोर्ड, स्क्रीन रीडर, ज़ूम, मोशन और इंसानों के साथ इस्तेमाल की जांच की जगह नहीं ले सकती।',
     performanceVisit: 'परफ़ॉर्मेंस, मौजूदा लोकल विज़िट और एनवायरमेंट को दिखाती है; ज़रूरी मापों को असल जैसी स्थितियों में दोहराएं।',
     pwaOptional: 'जो वेबसाइटें ऑफ़लाइन ऐप सरफ़ेस नहीं दिखातीं, उनके लिए PWA को ज़रूरी नहीं माना जाता।',
-    reloadIssues: 'सिर्फ़ स्टार्टअप पर होने वाली Chromium की समस्याएं दोहराने से पहले पेज फिर से लोड करें, फिर यह ऑडिट दोबारा चलाएं।'
+    reloadIssues: 'सिर्फ़ स्टार्टअप पर होने वाली Chromium की समस्याएं दोहराने से पहले पेज फिर से लोड करें, फिर यह ऑडिट दोबारा चलाएं।',
+    agentReadiness: 'एजेंटों के लिए तैयारी पेज के ऑरिजिन से बिना कुकी के /llms.txt और /.well-known/ard.json मांगती है, और WebMCP, फ़ॉर्म और उन सुलभता नियमों की जांच करती है जिन पर एजेंट निर्भर हैं; यह Lighthouse का एजेंटिक ब्राउज़िंग स्कोर नहीं है।'
   },
   text: {
     violations: '{count} उल्लंघन | {count} उल्लंघन',
@@ -77,6 +88,22 @@ export const hiINQualityAuditText = {
     installabilityIssues: 'इंस्टॉल करने से जुड़ी समस्याएं: {count}',
     installabilityFinding: 'Chromium ने PWA इंस्टॉल करने से जुड़ी एक समस्या बताई: {issue}।',
     installabilityUnknown: 'Chromium ने PWA इंस्टॉल करने से जुड़ी एक समस्या बताई: अनजान समस्या।',
-    browserIssues: 'ब्राउज़र की बताई गई {count} समस्या | ब्राउज़र की बताई गई {count} समस्याएं'
+    browserIssues: 'ब्राउज़र की बताई गई {count} समस्या | ब्राउज़र की बताई गई {count} समस्याएं',
+    agentReadinessIssues: 'एजेंटों के लिए तैयारी की समस्याएं: {count}',
+    webMcpTools: 'WebMCP टूल: {count}',
+    unannotatedForms: 'WebMCP एनोटेशन के बिना फ़ॉर्म: {total} में से {count}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'ARD मैनिफ़ेस्ट: {state}',
+    agentAccessibility: 'एजेंट जिन सुलभता नियमों पर निर्भर हैं उनमें विफल: {count}',
+    tooManyTools: 'पंजीकृत WebMCP टूल: {count}; {max} से अधिक की सलाह नहीं दी जाती।',
+    formsUnannotated: 'WebMCP toolname या tooldescription के बिना फ़ॉर्म: {count}।',
+    accessibilityForAgents: 'एजेंट पेज को उसके सुलभता ट्री से पढ़ते हैं, और ये नियम विफल हैं: {rules}।',
+    fileStates: {
+      valid: 'मान्य',
+      invalid: 'अमान्य',
+      notFound: 'नहीं मिला',
+      unreachable: 'पहुंच से बाहर',
+      notChecked: 'जांचा नहीं गया'
+    }
   }
 }

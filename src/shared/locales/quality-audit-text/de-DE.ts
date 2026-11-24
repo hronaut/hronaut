@@ -5,7 +5,8 @@ export const deDEQualityAuditText = {
     metadata: 'Metadaten & SEO',
     security: 'Sicherheit',
     pwa: 'PWA & Offline-Betrieb',
-    'browser-issues': 'Chromium-Probleme'
+    'browser-issues': 'Chromium-Probleme',
+    'agent-readiness': 'Bereitschaft für Agenten'
   },
   statuses: {
     pass: 'bestanden',
@@ -31,14 +32,24 @@ export const deDEQualityAuditText = {
     certificateExpired: 'Das Zertifikat des Hauptdokuments ist abgelaufen.',
     certificateNotYetValid: 'Das Zertifikat des Hauptdokuments ist noch nicht gültig.',
     certificateInvalid: 'Das Zertifikat des Hauptdokuments ist derzeit nicht gültig.',
-    pwaInspectionPartial: 'Einige PWA-Diagnosen waren für diese Prüfung nicht verfügbar.'
+    pwaInspectionPartial: 'Einige PWA-Diagnosen waren für diese Prüfung nicht verfügbar.',
+    agentReadinessClear: 'Keine Probleme bei der Agentenbereitschaft gefunden',
+    llmsTxtMissing: 'Keine /llms.txt gefunden.',
+    llmsTxtFailed: 'Die Anfrage nach /llms.txt ist fehlgeschlagen.',
+    llmsTxtNoHeading: '/llms.txt hat keine Markdown-Überschrift H1.',
+    llmsTxtNoLink: '/llms.txt enthält keinen Markdown-Link.',
+    llmsTxtTooShort: '/llms.txt ist kürzer als 50 Zeichen.',
+    ardFailed: 'Die Anfrage nach /.well-known/ard.json ist fehlgeschlagen.',
+    ardInvalid: '/.well-known/ard.json ist kein JSON-Objekt.',
+    webMcpUnavailable: 'WebMCP: nicht verfügbar'
   },
   caveats: {
     localDiagnostic: 'Dies ist eine begrenzte lokale Diagnose aus Hronaut-Daten, weder eine Lighthouse-Bewertung noch eine Zertifizierung.',
     accessibilityAutomation: 'Automatische Barrierefreiheitsprüfungen ersetzen keine Tests mit Tastatur, Screenreader, Zoom und Bewegung und keine Nutzbarkeitstests mit Menschen.',
     performanceVisit: 'Die Leistung spiegelt den aktuellen lokalen Besuch und seine Umgebung wider. Wiederholen Sie wichtige Messungen unter repräsentativen Bedingungen.',
     pwaOptional: 'Für Websites ohne Offline-App-Funktionen gilt PWA nicht als Anforderung.',
-    reloadIssues: 'Laden Sie die Seite neu, bevor Sie Chromium-Probleme nachstellen, die nur beim Start auftreten, und führen Sie diese Prüfung dann erneut aus.'
+    reloadIssues: 'Laden Sie die Seite neu, bevor Sie Chromium-Probleme nachstellen, die nur beim Start auftreten, und führen Sie diese Prüfung dann erneut aus.',
+    agentReadiness: 'Die Agentenbereitschaft ruft /llms.txt und /.well-known/ard.json vom Ursprung der Seite ohne Cookies ab und prüft WebMCP, Formulare und die Barrierefreiheitsregeln, auf die Agenten angewiesen sind; sie ist keine Lighthouse-Bewertung für agentisches Browsen.'
   },
   text: {
     violations: '{count} Verstoß | {count} Verstöße',
@@ -77,6 +88,22 @@ export const deDEQualityAuditText = {
     installabilityIssues: 'Probleme bei der Installierbarkeit: {count}',
     installabilityFinding: 'Chromium meldet ein Problem bei der PWA-Installierbarkeit: {issue}.',
     installabilityUnknown: 'Chromium meldet ein unbekanntes Problem bei der PWA-Installierbarkeit.',
-    browserIssues: '{count} vom Browser erzeugtes Problem | {count} vom Browser erzeugte Probleme'
+    browserIssues: '{count} vom Browser erzeugtes Problem | {count} vom Browser erzeugte Probleme',
+    agentReadinessIssues: 'Probleme bei der Agentenbereitschaft: {count}',
+    webMcpTools: 'WebMCP-Tools: {count}',
+    unannotatedForms: 'Formulare ohne WebMCP-Angaben: {count} von {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'ARD-Manifest: {state}',
+    agentAccessibility: 'Fehlschlagende Barrierefreiheitsregeln, auf die Agenten angewiesen sind: {count}',
+    tooManyTools: 'Registrierte WebMCP-Tools: {count}; mehr als {max} werden nicht empfohlen.',
+    formsUnannotated: 'Formulare ohne WebMCP-toolname oder -tooldescription: {count}.',
+    accessibilityForAgents: 'Agenten lesen die Seite über ihren Barrierefreiheitsbaum, und diese Regeln schlagen fehl: {rules}.',
+    fileStates: {
+      valid: 'gültig',
+      invalid: 'ungültig',
+      notFound: 'nicht gefunden',
+      unreachable: 'nicht erreichbar',
+      notChecked: 'nicht geprüft'
+    }
   }
 }

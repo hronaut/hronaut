@@ -5,7 +5,8 @@ export const viVNQualityAuditText = {
     metadata: 'Siêu dữ liệu và SEO',
     security: 'Bảo mật',
     pwa: 'PWA và ngoại tuyến',
-    'browser-issues': 'Sự cố Chromium'
+    'browser-issues': 'Sự cố Chromium',
+    'agent-readiness': 'Mức sẵn sàng cho tác nhân'
   },
   statuses: {
     pass: 'đạt',
@@ -31,14 +32,24 @@ export const viVNQualityAuditText = {
     certificateExpired: 'Chứng chỉ của tài liệu chính đã hết hạn.',
     certificateNotYetValid: 'Chứng chỉ của tài liệu chính chưa có hiệu lực.',
     certificateInvalid: 'Chứng chỉ của tài liệu chính hiện không hợp lệ.',
-    pwaInspectionPartial: 'Một số thông tin chẩn đoán PWA không có cho lượt kiểm tra này.'
+    pwaInspectionPartial: 'Một số thông tin chẩn đoán PWA không có cho lượt kiểm tra này.',
+    agentReadinessClear: 'Không tìm thấy vấn đề về mức sẵn sàng cho tác nhân',
+    llmsTxtMissing: 'Không tìm thấy /llms.txt.',
+    llmsTxtFailed: 'Yêu cầu /llms.txt không thành công.',
+    llmsTxtNoHeading: '/llms.txt không có tiêu đề H1 Markdown.',
+    llmsTxtNoLink: '/llms.txt không có liên kết Markdown.',
+    llmsTxtTooShort: '/llms.txt ngắn hơn 50 ký tự.',
+    ardFailed: 'Yêu cầu /.well-known/ard.json không thành công.',
+    ardInvalid: '/.well-known/ard.json không phải là đối tượng JSON.',
+    webMcpUnavailable: 'WebMCP: không khả dụng'
   },
   caveats: {
     localDiagnostic: 'Đây là thông tin chẩn đoán cục bộ có giới hạn, được tổng hợp từ bằng chứng của Hronaut; đây không phải là điểm Lighthouse hay chứng nhận.',
     accessibilityAutomation: 'Kiểm tra hỗ trợ tiếp cận tự động không thể thay thế việc kiểm thử bằng bàn phím, trình đọc màn hình, thu phóng, chuyển động và khả năng sử dụng thực tế với con người.',
     performanceVisit: 'Hiệu suất phản ánh lượt truy cập và môi trường cục bộ hiện tại; hãy lặp lại các phép đo quan trọng trong điều kiện tiêu biểu.',
     pwaOptional: 'PWA không được coi là yêu cầu đối với các trang web không cung cấp bề mặt ứng dụng ngoại tuyến.',
-    reloadIssues: 'Hãy tải lại trước khi tái hiện các sự cố Chromium chỉ xảy ra khi khởi động, rồi chạy lại bước kiểm tra này.'
+    reloadIssues: 'Hãy tải lại trước khi tái hiện các sự cố Chromium chỉ xảy ra khi khởi động, rồi chạy lại bước kiểm tra này.',
+    agentReadiness: 'Kiểm tra mức sẵn sàng cho tác nhân yêu cầu /llms.txt và /.well-known/ard.json từ nguồn gốc của trang mà không gửi cookie, đồng thời kiểm tra WebMCP, biểu mẫu và các quy tắc hỗ trợ tiếp cận mà tác nhân dựa vào; đây không phải điểm duyệt web bằng tác nhân của Lighthouse.'
   },
   text: {
     violations: '{count} lỗi vi phạm',
@@ -77,6 +88,22 @@ export const viVNQualityAuditText = {
     installabilityIssues: 'Sự cố về khả năng cài đặt: {count}',
     installabilityFinding: 'Chromium báo cáo một sự cố về khả năng cài đặt PWA: {issue}.',
     installabilityUnknown: 'Chromium báo cáo một sự cố về khả năng cài đặt PWA: sự cố không xác định.',
-    browserIssues: '{count} sự cố do trình duyệt tạo ra'
+    browserIssues: '{count} sự cố do trình duyệt tạo ra',
+    agentReadinessIssues: '{count} vấn đề về mức sẵn sàng cho tác nhân',
+    webMcpTools: 'Công cụ WebMCP: {count}',
+    unannotatedForms: 'Biểu mẫu không có chú thích WebMCP: {count}/{total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'Tệp kê khai ARD: {state}',
+    agentAccessibility: 'Quy tắc hỗ trợ tiếp cận mà tác nhân dựa vào bị lỗi: {count}',
+    tooManyTools: 'Đã đăng ký {count} công cụ WebMCP; không nên vượt quá {max}.',
+    formsUnannotated: '{count} biểu mẫu không có toolname hoặc tooldescription WebMCP.',
+    accessibilityForAgents: 'Tác nhân đọc trang qua cây hỗ trợ tiếp cận, và các quy tắc sau bị lỗi: {rules}.',
+    fileStates: {
+      valid: 'hợp lệ',
+      invalid: 'không hợp lệ',
+      notFound: 'không tìm thấy',
+      unreachable: 'không truy cập được',
+      notChecked: 'chưa kiểm tra'
+    }
   }
 }

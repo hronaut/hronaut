@@ -195,6 +195,12 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
         response.end('{"redirected":true,"visible":"redirect-kept"}')
         return
       }
+      if (request.url === '/llms.txt') {
+        // Agent readiness reads it without cookies; a request that carries any fails the check.
+        response.writeHead(request.headers.cookie ? 500 : 200, { 'content-type': 'text/plain; charset=utf-8' })
+        response.end('# Capability fixture\n\n> Pages Hronaut tests its tools on.\n\n- [Home](/): the fixture page\n')
+        return
+      }
       if (request.url === '/no-js') {
         response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
         response.end(`<!doctype html><html><head><title>Static fallback</title></head><body>

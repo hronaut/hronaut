@@ -5,7 +5,8 @@ export const ruRUQualityAuditText = {
     metadata: 'Метаданные и SEO',
     security: 'Безопасность',
     pwa: 'PWA и офлайн',
-    'browser-issues': 'Проблемы Chromium'
+    'browser-issues': 'Проблемы Chromium',
+    'agent-readiness': 'Готовность для агентов'
   },
   statuses: {
     pass: 'пройдено',
@@ -31,14 +32,24 @@ export const ruRUQualityAuditText = {
     certificateExpired: 'Срок действия сертификата основного документа истёк.',
     certificateNotYetValid: 'Сертификат основного документа ещё не действует.',
     certificateInvalid: 'Сертификат основного документа сейчас недействителен.',
-    pwaInspectionPartial: 'Часть диагностики PWA для этого аудита была недоступна.'
+    pwaInspectionPartial: 'Часть диагностики PWA для этого аудита была недоступна.',
+    agentReadinessClear: 'Проблем с готовностью для агентов не найдено',
+    llmsTxtMissing: '/llms.txt не найден.',
+    llmsTxtFailed: 'Запрос /llms.txt не удался.',
+    llmsTxtNoHeading: 'В /llms.txt нет заголовка H1 в Markdown.',
+    llmsTxtNoLink: 'В /llms.txt нет ссылки в Markdown.',
+    llmsTxtTooShort: '/llms.txt короче 50 символов.',
+    ardFailed: 'Запрос /.well-known/ard.json не удался.',
+    ardInvalid: '/.well-known/ard.json не является объектом JSON.',
+    webMcpUnavailable: 'WebMCP: недоступен'
   },
   caveats: {
     localDiagnostic: 'Это ограниченная локальная диагностика на основе данных Hronaut, а не оценка Lighthouse и не сертификация.',
     accessibilityAutomation: 'Автоматическая проверка доступности не заменяет тестирование с клавиатурой, программой чтения с экрана, масштабированием и анимацией, а также проверку удобства людьми.',
     performanceVisit: 'Производительность отражает текущее локальное посещение и окружение; повторяйте важные измерения в репрезентативных условиях.',
     pwaOptional: 'PWA не считается обязательной для сайтов без офлайн-приложения.',
-    reloadIssues: 'Перезагрузите страницу, прежде чем воспроизводить проблемы Chromium, возникающие только при запуске, затем повторите этот аудит.'
+    reloadIssues: 'Перезагрузите страницу, прежде чем воспроизводить проблемы Chromium, возникающие только при запуске, затем повторите этот аудит.',
+    agentReadiness: 'Проверка готовности для агентов запрашивает /llms.txt и /.well-known/ard.json у источника страницы без cookie и проверяет WebMCP, формы и правила доступности, на которые опираются агенты; это не оценка Lighthouse для агентного браузинга.'
   },
   text: {
     violations: '{count} нарушение | {count} нарушения | {count} нарушений',
@@ -77,6 +88,22 @@ export const ruRUQualityAuditText = {
     installabilityIssues: 'Проблем с установкой: {count}',
     installabilityFinding: 'Chromium сообщил о проблеме с установкой PWA: {issue}.',
     installabilityUnknown: 'Chromium сообщил о неизвестной проблеме с установкой PWA.',
-    browserIssues: 'Проблем, обнаруженных браузером: {count}'
+    browserIssues: 'Проблем, обнаруженных браузером: {count}',
+    agentReadinessIssues: 'Проблем с готовностью для агентов: {count}',
+    webMcpTools: 'Инструментов WebMCP: {count}',
+    unannotatedForms: 'Форм без аннотаций WebMCP: {count} из {total}',
+    llmsTxt: 'llms.txt: {state}',
+    ardManifest: 'Манифест ARD: {state}',
+    agentAccessibility: 'Нарушено правил доступности, на которые опираются агенты: {count}',
+    tooManyTools: 'Зарегистрировано инструментов WebMCP: {count}; больше {max} не рекомендуется.',
+    formsUnannotated: 'Форм без toolname и tooldescription для WebMCP: {count}.',
+    accessibilityForAgents: 'Агенты читают страницу через её дерево доступности, а эти правила нарушены: {rules}.',
+    fileStates: {
+      valid: 'корректен',
+      invalid: 'некорректен',
+      notFound: 'не найден',
+      unreachable: 'недоступен',
+      notChecked: 'не проверен'
+    }
   }
 }
