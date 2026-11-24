@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.38] - 2026-11-24
+
 ### Added
 
 - **Message me elsewhere** in Settings → General: when an agent needs you, Hronaut also posts a message to a Slack or Discord channel, an ntfy topic or your own endpoint, saying which agent needs you, in which workspace and what it asked, never the page, its address or what you typed. It is off until you turn it on with an address, signs each message with HMAC-SHA256 (`X-Hronaut-Signature`), tries again after 2, 10 and 30 seconds while the address cannot take it, and has **Send test**.
