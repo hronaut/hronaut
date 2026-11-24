@@ -448,6 +448,27 @@ export const koKR: MessageSchema = {
       label: '알림음 재생',
       description: '에이전트가 브라우저에서 수동 단계를 완료해야 할 때 경고음을 재생합니다.'
     },
+    personNeededWebhook: {
+      label: '다른 곳으로도 알리기',
+      description: '에이전트에게 도움이 필요하면 Slack, Discord, ntfy 또는 직접 만든 엔드포인트로도 메시지를 보냅니다. 이때 작업 공간 이름, 에이전트 이름, 요청 내용이 이 컴퓨터 밖으로 전송됩니다. 페이지, 페이지 주소, 입력한 내용은 절대 보내지 않습니다.',
+      sendTo: '보낼 곳',
+      ownEndpoint: '직접 만든 엔드포인트(JSON)',
+      address: '웹훅 주소',
+      addressHint: 'Slack, Discord 또는 ntfy에서 받은 웹훅 URL 또는 직접 만든 엔드포인트입니다.',
+      addressMissing: '보낼 주소를 입력하세요.',
+      addressInvalid: '사용자 이름과 비밀번호가 없는 전체 https:// 주소를 사용하세요. http://는 이 컴퓨터에만 쓸 수 있습니다.',
+      save: '저장',
+      test: '테스트 보내기',
+      testSent: '테스트 메시지를 보냈습니다.',
+      testRefused: '주소가 상태 {status}(으)로 응답했습니다.',
+      testTimeout: '주소가 10초 안에 응답하지 않았습니다.',
+      testUnreachable: '주소에 연결할 수 없습니다.',
+      secret: '서명 비밀 키',
+      secretHint: '각 메시지에는 X-Hronaut-Signature: sha256= 와 X-Hronaut-Timestamp, 점, 본문의 HMAC-SHA256 값이 들어 있어 엔드포인트에서 이 Hronaut가 보낸 것인지 확인할 수 있습니다.',
+      copy: '복사',
+      copied: '복사됨',
+      renew: '새 비밀 키'
+    },
     agentCursor: {
       label: '에이전트 커서 표시',
       description: '각 에이전트가 페이지에서 클릭하거나 가리키거나 드래그하는 위치에 이름과 함께 커서를 표시합니다.'

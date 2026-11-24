@@ -448,6 +448,27 @@ export const trTR: MessageSchema = {
       label: 'Uyarı sesi çal',
       description: 'Bir ajan, tarayıcıda elle yapılması gereken bir adımı tamamlamanızı beklediğinde uyarı sesi çalar.'
     },
+    personNeededWebhook: {
+      label: 'Bana başka yerden de haber ver',
+      description: 'Bir ajanın size ihtiyacı olduğunda Slack, Discord, ntfy ya da kendi uç noktanıza da mesaj gönderir. Bu, bu bilgisayardan dışarı veri gönderir: çalışma alanının adı, ajanın adı ve istediği şey. Sayfa, adresi ya da yazdıklarınız asla gönderilmez.',
+      sendTo: 'Gönderilecek yer',
+      ownEndpoint: 'Kendi uç noktanız (JSON)',
+      address: 'Webhook adresi',
+      addressHint: 'Slack, Discord ya da ntfy’nin verdiği webhook URL’si veya kendi uç noktanız.',
+      addressMissing: 'Gönderilecek adresi girin.',
+      addressInvalid: 'Kullanıcı adı ve parola içermeyen tam bir https:// adresi kullanın. http:// yalnızca bu bilgisayar için çalışır.',
+      save: 'Kaydet',
+      test: 'Test gönder',
+      testSent: 'Test mesajı gönderildi.',
+      testRefused: 'Adres {status} durumuyla yanıt verdi.',
+      testTimeout: 'Adres 10 saniye içinde yanıt vermedi.',
+      testUnreachable: 'Adrese ulaşılamadı.',
+      secret: 'İmza anahtarı',
+      secretHint: 'Her mesaj X-Hronaut-Signature: sha256= ve X-Hronaut-Timestamp, bir nokta ve gövdenin HMAC-SHA256 değerini taşır; böylece uç noktanız mesajın bu Hronaut’tan geldiğini doğrulayabilir.',
+      copy: 'Kopyala',
+      copied: 'Kopyalandı',
+      renew: 'Yeni anahtar'
+    },
     agentCursor: {
       label: 'Ajan imleçlerini göster',
       description: 'Her ajanın imlecini, adıyla birlikte, sayfada tıkladığı, işaret ettiği veya sürüklediği yerde gösterir.'

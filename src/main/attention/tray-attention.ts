@@ -22,6 +22,8 @@ import { selectTabAndWait } from '../browser/tab-selection/tab-selection.js'
 import { UPDATES_IPC } from '../../shared/ipc/updates.js'
 import { ATTENTION_IPC } from '../../shared/ipc/attention.js'
 import { sendTo } from '../typed-ipc.js'
+import { listMcpTabGroups } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
+import { personNeededWebhook } from './person-needed-webhook-ipc.js'
 
 /**
  * The attention request still open for the user, created once by index.ts. It shows as needs you until it is answered
@@ -267,6 +269,25 @@ export function createTrayAttention(host: TrayAttentionHost): {
     else activeMcpActivities.delete(activity.activityId)
   }
 
+  /**
+   * The person's webhook, when they turned it on, also tells them: which agent needs them in which workspace, and what
+   * it asked, in the interface language for a decision. It never waits for the message or fails the request.
+   */
+  function messagePersonElsewhere(request: UserAttentionRequest, input: UserAttentionInput): void {
+    const browser = host.tabs()
+    const workspace = request.workspaceId && browser ? listMcpTabGroups(browser).find(group => group.id === request.workspaceId)?.name : undefined
+    const decision = input.humanWaitingDecisionId ? humanDecisionFromAttentionReason(request.reason) : undefined
+    void personNeededWebhook().personNeeded({
+      id: request.id,
+      requestedAt: request.requestedAt,
+      ...(workspace ? { workspace } : {}),
+      ...(input.agentName ? { agent: input.agentName } : {}),
+      reason: decision ? host.text(`shell.agentCard.decisionReasons.${decision}`) : request.reason,
+      ...(request.notificationMessage ? { message: request.notificationMessage } : {}),
+      decision: Boolean(input.humanWaitingDecisionId)
+    })
+  }
+
   async function requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest> {
     const requestGeneration = ++attentionRequestGeneration
     const request: UserAttentionRequest = {
@@ -311,6 +332,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
     if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) {
       sendTo(host.mainWindow()!.webContents, ATTENTION_IPC.requested)
     }
+    messagePersonElsewhere(request, input)
     if (Notification.isSupported()) {
       try {
         // The shell plays the attention sound the person picked; the notification's own sound would double it.

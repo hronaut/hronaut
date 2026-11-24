@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AppSettings } from '../src/shared/types.js'
 
 vi.mock('electron', () => ({ app: { getPath: () => '' }, nativeTheme: {} }))
+const webhook = vi.hoisted(() => ({ configure: vi.fn(async () => undefined) }))
+vi.mock('../src/main/attention/person-needed-webhook-ipc.js', () => ({ personNeededWebhook: () => webhook, registerPersonNeededWebhookIpc: () => undefined }))
 // The fake browser below stubs the functions the code under test calls; these reach its stubs.
 vi.mock('../src/main/browser/tab-sleep/memory-saver.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../src/main/browser/tab-sleep/memory-saver.js')>(),
@@ -113,6 +115,8 @@ describe('Reset to default in Settings', () => {
     expect(host.applySpellCheckLanguages).toHaveBeenCalledWith([])
     expect(host.applyTheme).not.toHaveBeenCalled()
     expect(host.publishSettings).toHaveBeenCalledOnce()
+    // Message me elsewhere, which General shows too, is off with no address again.
+    expect(webhook.configure).toHaveBeenCalledWith({ enabled: false, kind: 'json', url: '' })
   })
 
   it('turns spell checking back off in every browser session when the General reset cannot be saved', async () => {

@@ -448,6 +448,27 @@ export const plPL: MessageSchema = {
       label: 'Odtwarzaj dźwięk uwagi',
       description: 'Odtwórz ostrzeżenie, gdy agent wymaga ręcznego kroku w przeglądarce.'
     },
+    personNeededWebhook: {
+      label: 'Powiadamiaj mnie też gdzie indziej',
+      description: 'Gdy agent Cię potrzebuje, wysyłaj też wiadomość do Slacka, Discorda, ntfy lub na własny endpoint. Dane opuszczają wtedy ten komputer: nazwa obszaru roboczego, nazwa agenta i to, o co prosi. Nigdy strona, jej adres ani to, co wpisałeś.',
+      sendTo: 'Wysyłaj do',
+      ownEndpoint: 'Własny endpoint (JSON)',
+      address: 'Adres webhooka',
+      addressHint: 'Adres URL webhooka od Slacka, Discorda lub ntfy albo Twój własny endpoint.',
+      addressMissing: 'Wpisz adres docelowy.',
+      addressInvalid: 'Użyj pełnego adresu https:// bez nazwy użytkownika i hasła. http:// działa tylko dla tego komputera.',
+      save: 'Zapisz',
+      test: 'Wyślij test',
+      testSent: 'Wysłano wiadomość testową.',
+      testRefused: 'Adres odpowiedział statusem {status}.',
+      testTimeout: 'Adres nie odpowiedział w ciągu 10 sekund.',
+      testUnreachable: 'Nie udało się połączyć z adresem.',
+      secret: 'Sekret podpisu',
+      secretHint: 'Każda wiadomość zawiera X-Hronaut-Signature: sha256= i HMAC-SHA256 z X-Hronaut-Timestamp, kropki i treści, aby Twój endpoint mógł sprawdzić, że pochodzi od tego Hronauta.',
+      copy: 'Kopiuj',
+      copied: 'Skopiowano',
+      renew: 'Nowy sekret'
+    },
     agentCursor: {
       label: 'Pokazuj kursory agentów',
       description: 'Pokazuj kursor każdego agenta z jego nazwą tam, gdzie klika, wskazuje lub przeciąga na stronie.'

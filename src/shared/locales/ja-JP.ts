@@ -448,6 +448,27 @@ export const jaJP: MessageSchema = {
       label: '通知音を鳴らす',
       description: 'エージェントがブラウザでの手動操作を必要としているときに、警告音を鳴らします。'
     },
+    personNeededWebhook: {
+      label: 'ほかの場所にも通知',
+      description: 'エージェントがあなたを必要としたとき、Slack、Discord、ntfy、または独自のエンドポイントにもメッセージを送ります。このとき、ワークスペース名、エージェント名、依頼内容がこのコンピューターの外に送られます。ページ、そのアドレス、入力した内容は送りません。',
+      sendTo: '送信先',
+      ownEndpoint: '独自のエンドポイント (JSON)',
+      address: 'Webhook のアドレス',
+      addressHint: 'Slack、Discord、ntfy から発行された Webhook URL、または独自のエンドポイント。',
+      addressMissing: '送信先のアドレスを入力してください。',
+      addressInvalid: 'ユーザー名とパスワードを含まない完全な https:// アドレスを使ってください。http:// はこのコンピューターのみ使えます。',
+      save: '保存',
+      test: 'テスト送信',
+      testSent: 'テストメッセージを送信しました。',
+      testRefused: 'アドレスがステータス {status} で応答しました。',
+      testTimeout: 'アドレスが 10 秒以内に応答しませんでした。',
+      testUnreachable: 'アドレスに接続できませんでした。',
+      secret: '署名シークレット',
+      secretHint: '各メッセージには X-Hronaut-Signature: sha256= と、X-Hronaut-Timestamp、ドット、本文の HMAC-SHA256 が付くため、エンドポイントでこの Hronaut からのものか確認できます。',
+      copy: 'コピー',
+      copied: 'コピーしました',
+      renew: '新しいシークレット'
+    },
     agentCursor: {
       label: 'エージェントのカーソルを表示',
       description: '各エージェントがページ上でクリック、ポイント、ドラッグする位置に、名前付きのカーソルを表示します。'

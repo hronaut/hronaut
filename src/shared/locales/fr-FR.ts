@@ -448,6 +448,27 @@ export const frFR: MessageSchema = {
       label: 'Émettre un son d’attention',
       description: 'Émettre un avertissement lorsqu’un agent nécessite une étape manuelle dans le navigateur.'
     },
+    personNeededWebhook: {
+      label: 'Me prévenir ailleurs aussi',
+      description: 'Quand un agent a besoin de vous, envoyer aussi un message sur Slack, Discord, ntfy ou à votre propre point de terminaison. Des données quittent alors cet ordinateur : le nom de l’espace de travail, le nom de l’agent et ce qu’il demande. Jamais la page, son adresse ni ce que vous avez saisi.',
+      sendTo: 'Envoyer à',
+      ownEndpoint: 'Votre propre point de terminaison (JSON)',
+      address: 'Adresse du webhook',
+      addressHint: 'L’URL de webhook fournie par Slack, Discord ou ntfy, ou votre propre point de terminaison.',
+      addressMissing: 'Saisissez l’adresse de destination.',
+      addressInvalid: 'Utilisez une adresse https:// complète, sans nom d’utilisateur ni mot de passe. http:// ne fonctionne que pour cet ordinateur.',
+      save: 'Enregistrer',
+      test: 'Envoyer un test',
+      testSent: 'Message de test envoyé.',
+      testRefused: 'L’adresse a répondu avec le statut {status}.',
+      testTimeout: 'L’adresse n’a pas répondu en 10 secondes.',
+      testUnreachable: 'Impossible de joindre l’adresse.',
+      secret: 'Secret de signature',
+      secretHint: 'Chaque message porte X-Hronaut-Signature: sha256= et le HMAC-SHA256 de son X-Hronaut-Timestamp, d’un point et du corps, pour que votre point de terminaison vérifie qu’il vient de ce Hronaut.',
+      copy: 'Copier',
+      copied: 'Copié',
+      renew: 'Nouveau secret'
+    },
     agentCursor: {
       label: 'Afficher les curseurs des agents',
       description: 'Afficher le curseur de chaque agent, avec son nom, là où il clique, pointe ou fait glisser sur une page.'

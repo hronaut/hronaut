@@ -8,6 +8,9 @@ import type {
   McpCapabilityProfileCreateInput,
   McpCapabilityProfileSummary,
   MemorySaverTimeoutMinutes,
+  PersonNeededWebhookConfig,
+  PersonNeededWebhookSettings,
+  PersonNeededWebhookTest,
   RendererSettingsState,
   SearchEngineName,
   SpellCheckLanguages,
@@ -62,6 +65,14 @@ export const SETTINGS_IPC = {
   setAttentionSound: 'settings:set-attention-sound' as InvokeChannel<[enabled: boolean], AppSettings>,
   /** Shell → main: sets which sound that is. */
   setAttentionSoundCue: 'settings:set-attention-sound-cue' as InvokeChannel<[cue: AttentionSoundCue], AppSettings>,
+  /** Shell → main: the webhook that messages the person elsewhere when an agent needs them, with its signing secret. */
+  getPersonNeededWebhook: 'settings:get-person-needed-webhook' as InvokeChannel<[], PersonNeededWebhookSettings>,
+  /** Shell → main: turns that webhook on or off and sets where it sends to. */
+  setPersonNeededWebhook: 'settings:set-person-needed-webhook' as InvokeChannel<[config: PersonNeededWebhookConfig], PersonNeededWebhookSettings>,
+  /** Shell → main: replaces the webhook's signing secret. */
+  renewPersonNeededWebhookSecret: 'settings:renew-person-needed-webhook-secret' as InvokeChannel<[], PersonNeededWebhookSettings>,
+  /** Shell → main: sends one test message to the webhook's address and says what came back. */
+  testPersonNeededWebhook: 'settings:test-person-needed-webhook' as InvokeChannel<[], PersonNeededWebhookTest>,
   /** Shell → main: turns following agent activity on or off. */
   setFollowAgentActivity: 'settings:set-follow-agent-activity' as InvokeChannel<[enabled: boolean], AppSettings>,
   /** Shell → main: turns drawing each agent's cursor on the page on or off. */

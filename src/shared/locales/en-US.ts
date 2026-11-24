@@ -446,6 +446,27 @@ export const enUS = {
       label: 'Play attention sound',
       description: 'Play a warning cue when an agent needs you to complete a manual browser step.'
     },
+    personNeededWebhook: {
+      label: 'Message me elsewhere',
+      description: "When an agent needs you, also post a message to Slack, Discord, ntfy or your own endpoint. This sends data off this computer: the workspace name, the agent's name and what it asked. Never the page, its address or what you typed.",
+      sendTo: 'Send to',
+      ownEndpoint: 'Your own endpoint (JSON)',
+      address: 'Webhook address',
+      addressHint: 'The webhook URL that Slack, Discord or ntfy gave you, or your own endpoint.',
+      addressMissing: 'Enter the address to send to.',
+      addressInvalid: 'Use a full https:// address without a user name or password. http:// works only for this computer.',
+      save: 'Save',
+      test: 'Send test',
+      testSent: 'Test message sent.',
+      testRefused: 'The address answered with status {status}.',
+      testTimeout: 'The address did not answer within 10 seconds.',
+      testUnreachable: 'Could not reach the address.',
+      secret: 'Signing secret',
+      secretHint: 'Each message carries X-Hronaut-Signature: sha256= and the HMAC-SHA256 of its X-Hronaut-Timestamp, a dot and the body, so your endpoint can check it came from this Hronaut.',
+      copy: 'Copy',
+      copied: 'Copied',
+      renew: 'New secret'
+    },
     agentCursor: {
       label: 'Show agent cursors',
       description: 'Draw the cursor of each agent, with its name, where it clicks, points or drags on a page.'

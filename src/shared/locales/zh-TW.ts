@@ -448,6 +448,27 @@ export const zhTW: MessageSchema = {
       label: '播放提醒音效',
       description: '代理程式需要你完成手動瀏覽器步驟時，播放警示音。'
     },
+    personNeededWebhook: {
+      label: '也在其他地方通知我',
+      description: '當代理需要你時，也向 Slack、Discord、ntfy 或你自己的端點傳送訊息。這會把資料傳送到這台電腦之外：工作區名稱、代理名稱和它的請求。絕不會傳送頁面、頁面網址或你輸入的內容。',
+      sendTo: '傳送到',
+      ownEndpoint: '你自己的端點 (JSON)',
+      address: 'Webhook 網址',
+      addressHint: 'Slack、Discord 或 ntfy 提供的 Webhook URL，或你自己的端點。',
+      addressMissing: '請輸入要傳送到的網址。',
+      addressInvalid: '請使用不含使用者名稱和密碼的完整 https:// 網址。http:// 僅適用於這台電腦。',
+      save: '儲存',
+      test: '傳送測試',
+      testSent: '已傳送測試訊息。',
+      testRefused: '該網址回應了狀態 {status}。',
+      testTimeout: '該網址在 10 秒內沒有回應。',
+      testUnreachable: '無法連線到該網址。',
+      secret: '簽章密鑰',
+      secretHint: '每則訊息都帶有 X-Hronaut-Signature: sha256= 以及由 X-Hronaut-Timestamp、一個點和訊息內容計算出的 HMAC-SHA256，方便你的端點確認訊息來自這個 Hronaut。',
+      copy: '複製',
+      copied: '已複製',
+      renew: '新密鑰'
+    },
     agentCursor: {
       label: '顯示代理程式游標',
       description: '在網頁上代理程式點擊、指向或拖曳的位置，繪製各代理程式的游標及其名稱。'

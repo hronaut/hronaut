@@ -31,6 +31,7 @@ import { setMemorySaverSettings } from '../browser/tab-sleep/memory-saver.js'
 import { applySiteMutingToTabs } from '../browser/site-muting/site-muting.js'
 import { isSitePermissionsBlockedByDefault, readSitePermissionsBlockedByDefault } from '../../shared/site-permission-defaults.js'
 import { SETTINGS_IPC } from '../../shared/ipc/settings.js'
+import { personNeededWebhook, registerPersonNeededWebhookIpc } from '../attention/person-needed-webhook-ipc.js'
 
 type SettingsIpcCapabilityProfiles = Pick<McpCapabilityProfileStore, 'list' | 'create' | 'derive' | 'update' | 'rotate' | 'revoke'>
 
@@ -174,6 +175,8 @@ export function registerSettingsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host:
       host.applySpellCheckLanguages(next.spellCheckLanguages)
       await startupLaunch?.setEnabled(next.launchAtStartup)
     })
+    // Message me elsewhere shows in General too, and is off with no address by default; its signing secret stays.
+    await personNeededWebhook().configure({ enabled: false, kind: 'json', url: '' })
     // Publishes the reset settings too, also when the language stays the same.
     await host.applyLanguagePreferenceRuntime(host.settings().languagePreference)
     return host.currentRendererSettingsState()
@@ -311,6 +314,7 @@ export function registerSettingsIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host:
     host.publishSettings()
     return { ...host.settings() }
   })
+  registerPersonNeededWebhookIpc(ipcMain, (event) => host.assertTrustedSender(event))
   ipcMain.handle(SETTINGS_IPC.setAttentionSoundCue, async (event, cue: unknown) => {
     host.assertTrustedSender(event)
     if (!isAttentionSoundCue(cue)) throw new TypeError('Unsupported attention sound')

@@ -448,6 +448,27 @@ export const deDE: MessageSchema = {
       label: 'Hinweiston wiedergeben',
       description: 'Einen Warnton abspielen, wenn ein Agent einen manuellen Browserschritt benötigt.'
     },
+    personNeededWebhook: {
+      label: 'Mich auch woanders benachrichtigen',
+      description: 'Wenn ein Agent Sie braucht, zusätzlich eine Nachricht an Slack, Discord, ntfy oder Ihren eigenen Endpunkt senden. Dabei verlassen Daten diesen Computer: der Name des Arbeitsbereichs, der Name des Agenten und seine Bitte. Nie die Seite, ihre Adresse oder Ihre Eingaben.',
+      sendTo: 'Senden an',
+      ownEndpoint: 'Eigener Endpunkt (JSON)',
+      address: 'Webhook-Adresse',
+      addressHint: 'Die Webhook-URL, die Slack, Discord oder ntfy Ihnen gegeben hat, oder Ihr eigener Endpunkt.',
+      addressMissing: 'Geben Sie die Zieladresse ein.',
+      addressInvalid: 'Verwenden Sie eine vollständige https://-Adresse ohne Benutzernamen und Passwort. http:// geht nur für diesen Computer.',
+      save: 'Speichern',
+      test: 'Test senden',
+      testSent: 'Testnachricht gesendet.',
+      testRefused: 'Die Adresse antwortete mit Status {status}.',
+      testTimeout: 'Die Adresse hat nicht innerhalb von 10 Sekunden geantwortet.',
+      testUnreachable: 'Die Adresse war nicht erreichbar.',
+      secret: 'Signaturgeheimnis',
+      secretHint: 'Jede Nachricht trägt X-Hronaut-Signature: sha256= und den HMAC-SHA256 aus X-Hronaut-Timestamp, einem Punkt und dem Inhalt, damit Ihr Endpunkt prüfen kann, dass sie von diesem Hronaut kommt.',
+      copy: 'Kopieren',
+      copied: 'Kopiert',
+      renew: 'Neues Geheimnis'
+    },
     agentCursor: {
       label: 'Agenten-Cursor zeigen',
       description: 'Den Cursor jedes Agenten mit seinem Namen dort zeigen, wo er auf einer Seite klickt, zeigt oder zieht.'

@@ -34,6 +34,9 @@ import type {
   AppSettings,
   AttentionSoundCue,
   DownloadDirectorySelection,
+  PersonNeededWebhookConfig,
+  PersonNeededWebhookSettings,
+  PersonNeededWebhookTest,
   RendererSettingsState,
   SitePermissionDecision,
   SitePermissionEntry,
@@ -173,6 +176,11 @@ export interface HronautSettingsApi {
   setLaunchMinimized(enabled: boolean): Promise<AppSettings>
   setAttentionSound(enabled: boolean): Promise<AppSettings>
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
+  /** The webhook that messages the person elsewhere when an agent needs them; off until they turn it on. */
+  getPersonNeededWebhook(): Promise<PersonNeededWebhookSettings>
+  setPersonNeededWebhook(config: PersonNeededWebhookConfig): Promise<PersonNeededWebhookSettings>
+  renewPersonNeededWebhookSecret(): Promise<PersonNeededWebhookSettings>
+  testPersonNeededWebhook(): Promise<PersonNeededWebhookTest>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>

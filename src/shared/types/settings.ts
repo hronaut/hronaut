@@ -142,3 +142,23 @@ export interface SitePermissionEntry extends SitePermissionScope {
   permission: string
   decision: SitePermissionDecision
 }
+
+/** Where the person's webhook sends a message when an agent needs them, which shapes the message for it. */
+export type PersonNeededWebhookKind = 'slack' | 'discord' | 'ntfy' | 'json'
+
+/** What the person chooses for the webhook. It is off until they turn it on with an address. */
+export interface PersonNeededWebhookConfig {
+  enabled: boolean
+  kind: PersonNeededWebhookKind
+  url: string
+}
+
+/** The webhook as Settings shows it, with the secret its messages are signed with. */
+export interface PersonNeededWebhookSettings extends PersonNeededWebhookConfig {
+  secret: string
+}
+
+/** What a test message got back. */
+export type PersonNeededWebhookTest =
+  | { ok: true; status: number }
+  | { ok: false; reason: 'no-address' | 'unreachable' | 'timeout' | 'refused'; status?: number }

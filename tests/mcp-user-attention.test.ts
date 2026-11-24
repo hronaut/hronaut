@@ -150,7 +150,9 @@ describe('MCP user-attention presentation failures', () => {
     }) as CallToolResult
     expect(attention.isError).toBe(true)
     expect(text(attention)).toContain('simulated async attention rejection')
-    expect(requestUserAttention).toHaveBeenCalledWith({ reason: 'Review this page.', notificationMessage: 'Approval needed on the checkout tab.', tabId, workspaceId })
+    expect(requestUserAttention).toHaveBeenCalledWith({
+      reason: 'Review this page.', notificationMessage: 'Approval needed on the checkout tab.', tabId, workspaceId, agentName: 'hronaut-attention-await-test'
+    })
 
     const show = await client.callTool({
       name: 'browser_show',
@@ -241,7 +243,8 @@ describe('MCP user-attention presentation failures', () => {
       reason: 'Create the first tab.',
       notificationMessage: undefined,
       tabId: undefined,
-      workspaceId
+      workspaceId,
+      agentName: 'hronaut-empty-workspace-attention-test'
     })
     expect(manager.requireTabInMcpGroup).not.toHaveBeenCalled()
 

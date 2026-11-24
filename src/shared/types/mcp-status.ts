@@ -3,6 +3,8 @@ import type { AgentStatusAgent } from '../agent-status.js'
 export interface UserAttentionInput {
   reason: string
   notificationMessage?: string
+  /** The name the asking agent's MCP client gave, for the person's webhook only; never part of the request shown or returned. */
+  agentName?: string
   humanWaitingDecisionId?: string
   expiresAt?: number
   workspaceId?: string

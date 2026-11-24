@@ -687,8 +687,8 @@ describe('agent presence over MCP', () => {
 
     let asked = await ask(claudeClient.client, 'Approve the order.')
     expect(asked.isError, text(asked)).not.toBe(true)
-    // The attention call reaches main unchanged.
-    expect(requestUserAttention).toHaveBeenLastCalledWith({ reason: 'Approve the order.', tabId, workspaceId })
+    // The attention call reaches main with the client's name, which the person's webhook says needs them.
+    expect(requestUserAttention).toHaveBeenLastCalledWith({ reason: 'Approve the order.', tabId, workspaceId, agentName: 'Claude Code' })
     expect(onAgentPresenceChanged).toHaveBeenCalled()
     expect(server.getAgentPresence()[workspaceId]).toEqual([expect.objectContaining({
       name: 'Claude Code', initial: 'C', state: 'needs-you', step: 'askYou', attentionTabId: tabId
