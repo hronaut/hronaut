@@ -13,6 +13,12 @@ All notable changes to Hronaut are documented in this file.
 - `browser_logpoint` expressions can use original variable names when the probe is asked for by `source` and its source map has ECMA-426 scopes: Hronaut replaces them with the minified names or expressions the generated code uses there and lists them in `originalNames`.
 - `browser_virtual_passkey` can attach a U2F security key (`kind: "security-key"`) instead of a passkey, to test second-factor flows.
 
+### Changed
+
+- Updated Electron to 45.4.1 (Chromium 156.0.8078.100) and the other dependencies to their latest versions, among them viem 2.58, Vue 3.5.46, Playwright 1.65.1 and Storybook 10.6.8.
+- **Copy Image** on a canvas with another website's picture in it is refused with a message, as Chrome gives no picture for it. Chromium in Electron 45.4.1 stopped copying such a canvas, which left the image copied before on the clipboard as if the copy had worked.
+- A wallet approval for typed data without a declared `EIP712Domain` now shows every domain field the signature covers, such as a chain ID written as text, because viem 2.58 signs every field the domain has. A wallet policy accepts such a request when that chain ID is the wallet's network.
+
 ## [3.14.35] - 2026-11-22
 
 ### Changed

@@ -4,6 +4,7 @@ import { LocalizedError, personErrorMessage } from './localized-error.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import { SHELL_IPC } from '../shared/ipc/shell.js'
 import { sendTo } from './typed-ipc.js'
+import { canvasAtPointIsTainted } from './browser/canvas-copy.js'
 
 type ClipboardRecord = ConstructorParameters<typeof ClipboardItem>[0]
 
@@ -162,6 +163,11 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   /** Copies the image or canvas at (x, y) in the page. A canvas with no picture to give copies nothing, a rejected copy. */
   async function copyPageImageToClipboard(webContents: WebContents, x: number, y: number, picture: 'image' | 'canvas' = 'image'): Promise<void> {
     const rejected = picture === 'canvas' ? 'appErrors.clipboard.canvasRejected' : 'appErrors.clipboard.imageRejected'
+    // Chromium gives no picture for a canvas with another website's picture in it, and the clipboard would keep the
+    // one copied before, which reads as a copy that worked. Such a copy is refused before it starts.
+    if (picture === 'canvas' && !webContents.isDestroyed() && await canvasAtPointIsTainted(webContents, x, y)) {
+      throw new LocalizedError(rejected)
+    }
     await copyImageThePageGives(() => webContents.isDestroyed(), () => webContents.copyImageAt(x, y), rejected)
   }
 

@@ -12,7 +12,7 @@ type Point = { x: number; y: number }
 // A green pixel the other site serves.
 const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMQeSYHAAIqARnNM6sNAAAAAElFTkSuQmCC'
 
-test('copies the picture a canvas shows from the page menu, also with another site\'s picture in it', async ({ electronApp, appWindow }) => {
+test('copies the picture a canvas shows from the page menu, and refuses one with another site\'s picture in it', async ({ electronApp, appWindow }) => {
   let otherSite = ''
   // Two charts drawn into canvases at their own size: a red one, and a blue one with a picture from another site
   // across it, which the page itself can no longer read. A chart of another site is embedded below them.
@@ -105,8 +105,11 @@ test('copies the picture a canvas shows from the page menu, also with another si
 
     await copyCanvas(115)
     await expect.poll(() => clipboardImage([{ x: 75, y: 45 }])).toEqual({ size: { width: 150, height: 90 }, colors: ['red'] })
+    // As in Chrome, a canvas with another site's picture in it, which the page itself may not read, gives no picture.
+    // The copy is refused and the person told, rather than leaving what was copied before as if it had worked.
     await copyCanvas(375)
-    await expect.poll(() => clipboardImage([{ x: 75, y: 10 }, { x: 75, y: 45 }])).toEqual({ size: { width: 150, height: 90 }, colors: ['blue', 'green'] })
+    await expect(appWindow.locator('.app-toast').filter({ hasText: 'The canvas had no picture to copy' })).toBeVisible()
+    expect(await clipboardImage([{ x: 75, y: 45 }])).toBeNull()
 
     // A real right-click on the screen, since input sent to the page never reaches a frame of another site. The copy
     // cannot reach into that frame's process, so Copy Image is there but unavailable rather than failing.

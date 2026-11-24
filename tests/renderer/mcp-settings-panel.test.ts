@@ -111,7 +111,7 @@ describe('McpSettingsPanel', () => {
     const user = userEvent.setup()
     const toggle = screen.getByRole('checkbox', { name: /Hide URL details from agents/ })
     expect(toggle).not.toBeChecked()
-    expect(toggle).toHaveAccessibleName(expect.stringContaining('without credentials or the part after ? or #'))
+    expect(toggle).toHaveAccessibleName(/without credentials or the part after \? or #/)
     await user.click(toggle)
     expect(setOmitAgentUrlDetail).toHaveBeenLastCalledWith(true)
     expect(toggle).toBeChecked()

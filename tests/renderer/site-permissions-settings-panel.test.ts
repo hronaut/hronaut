@@ -77,7 +77,7 @@ describe('saving to files websites hold', () => {
     await showDefaults()
     const toggle = screen.getByRole('checkbox', { name: /Let websites save to files you open or drop/ })
     expect(toggle).not.toBeChecked()
-    expect(toggle).toHaveAccessibleDescription(expect.stringContaining('could also overwrite other files in the folder'))
+    expect(toggle).toHaveAccessibleDescription(/could also overwrite other files in the folder/)
     expect(view.container.querySelector('.security-warning')).toBeNull()
     await userEvent.click(toggle)
     expect(setFileSaving).toHaveBeenLastCalledWith(true)

@@ -62,6 +62,7 @@ function renderBar(options: {
     setZoom: vi.fn(options.setZoom ?? (async () => state))
   }
   const acceptState = vi.fn(async (next: Promise<BrowserState> | BrowserState) => { await next })
+  const updateOpen = vi.fn()
   const view = render(ZoomBar, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
@@ -69,10 +70,11 @@ function renderBar(options: {
       activeTab,
       browser,
       acceptState,
-      formatPercent: (value: number) => `${value}%`
+      formatPercent: (value: number) => `${value}%`,
+      'onUpdate:open': updateOpen
     }
   })
-  return { view, browser, acceptState, activeTab, state }
+  return { view, browser, acceptState, activeTab, state, updateOpen }
 }
 
 describe('ZoomBar', () => {
@@ -194,7 +196,7 @@ describe('ZoomBar', () => {
     const minimum = renderBar({ activeTab: tab('minimum', { zoomPercent: 25 }) })
     expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
     minimum.view.unmount()
-    expect(minimum.view.emitted()['update:open']?.at(-1)).toEqual([false])
+    expect(minimum.updateOpen).toHaveBeenLastCalledWith(false)
 
     renderBar({ activeTab: tab('maximum', { zoomPercent: 500 }) })
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
