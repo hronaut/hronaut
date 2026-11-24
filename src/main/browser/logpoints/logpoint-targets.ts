@@ -8,6 +8,7 @@ import {
   type CdpSend,
   type LoadedSourceMap,
   type LogpointScriptRecord,
+  type RawScopes,
   type SourceMapBudget
 } from './logpoint-sources.js'
 
@@ -18,6 +19,8 @@ export interface ResolvedTarget {
   line: number
   column: number
   map?: TraceMap
+  /** The map's ECMA-426 scopes, set only for a logpoint asked for by source. */
+  scopes?: RawScopes
   generatedMatches?: number
 }
 
@@ -67,7 +70,7 @@ export async function resolveTarget(
     }
     return { script: onLine[0]!, line, column: (request.column ?? 1) - 1 }
   }
-  const matches: Array<{ script: LogpointScriptRecord; map: TraceMap; source: string }> = []
+  const matches: Array<{ script: LogpointScriptRecord; map: TraceMap; scopes?: RawScopes; source: string }> = []
   for (const script of candidates.slice(0, LOGPOINT_LIMITS.maxScripts)) {
     if (!script.sourceMapUrl && !script.sourceMapTooLarge) continue
     let loaded = maps.get(script.scriptId)
@@ -79,7 +82,7 @@ export async function resolveTarget(
     for (const source of loaded.sources) {
       // The same bundle loaded twice is one match.
       if (source && sourceMatches(source, request.source) && !matches.some(match => match.script.hash === script.hash && match.source === source)) {
-        matches.push({ script, map: loaded.map, source })
+        matches.push({ script, map: loaded.map, ...(loaded.scopes ? { scopes: loaded.scopes } : {}), source })
       }
     }
   }
@@ -91,8 +94,8 @@ export async function resolveTarget(
   if (matches.length > 1) {
     throw new Error(`${label}: more than one script maps that source; add url to choose one of: ${matches.slice(0, 3).map(match => match.script.url).join(', ')}`)
   }
-  const { script, map, source } = matches[0]!
+  const { script, map, scopes, source } = matches[0]!
   const positions = generatedPositions(map, source, request.line, request.column)
   if (!positions.length) throw new Error(`${label}: no code maps to that line of the source`)
-  return { script, map, line: positions[0]!.line - 1, column: positions[0]!.column, generatedMatches: positions.length }
+  return { script, map, ...(scopes ? { scopes } : {}), line: positions[0]!.line - 1, column: positions[0]!.column, generatedMatches: positions.length }
 }

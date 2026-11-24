@@ -97,9 +97,20 @@ export interface LogpointRecord {
  */
 export type LogpointState = 'armed' | 'complete' | 'stale' | 'ended'
 
+/** An original variable name a logpoint's expression reads, and what the generated code reads it through instead. */
+export interface LogpointOriginalName {
+  name: string
+  generated: string
+}
+
 export interface LogpointProbe {
   id: string
   expression: string
+  /**
+   * For a logpoint asked for by source whose source map has ECMA-426 scopes: the original variable names the
+   * expression reads that the generated code names differently. The expression runs with them replaced.
+   */
+  originalNames?: LogpointOriginalName[]
   requested: Omit<LogpointRequest, 'expression'>
   resolved: LogpointResolvedLocation
   /** Hits the logpoint may cause, recorded or not: once its records and counted hits reach it, the logpoint is complete. */
@@ -182,7 +193,7 @@ export const LOGPOINT_CAVEATS = [
   'Each hit pauses the page for about 2 ms while Hronaut reads the expression, and a function with an armed logpoint runs several times slower until it is removed. Every hit counts toward maxHits, also one in another frame or one Hronaut could not read, so a busy loop pauses the page at most maxHits times for each logpoint. A debugger statement in the page is resumed at once.',
   'Expressions run in the paused frame under Chromium\'s side-effect check: anything that could change the page, such as an assignment, a call that writes, console.log or fetch, is refused and recorded as side-effect. Values are page data and may be private; they stay in memory for this tab and never reach logs, diagnostics or disk.',
   'No record does not prove a line never ran: code that ran before the logpoint was set, in another frame or a worker, or in a different bundle is not observed, and otherFrameHits and missedHits count hits that were not read. A logpoint is pinned to its script\'s content, so the same content loaded from another address in the top-level page also hits it. A reload or navigation within the origin that runs the same bundle keeps the logpoints, so top-level code is caught after it.',
-  'Source lines resolve through the script\'s source map. Minified code keeps its generated names, so an original variable name may not be in scope at the resolved location.',
+  'Source lines resolve through the script\'s source map. When a logpoint is asked for by source and the map has ECMA-426 scopes, the original variable names in its expression are replaced with what the generated code reads them through, as originalNames shows, everywhere in the expression, arrow function parameters included. Most bundlers do not write scopes yet; without them minified code keeps its generated names, so an original variable name may not be in scope at the resolved location.',
   'Logpoints end when the top-level page leaves the origin, Developer Tools open, a person uses, pauses or takes over the tab, the workspace\'s control changes, or after durationMs.'
 ]
 
