@@ -58,7 +58,8 @@ const CAVEATS = [
   'Taking a heap snapshot collects garbage first and pauses the page for as long as it takes, often seconds on a large app.',
   'Sizes are self sizes, the bytes an object holds itself, not what it keeps alive; compare snapshots taken after the same interaction to see what grows.',
   'Only class names and counts are kept: never object values, strings, source code or the object graph.',
-  'Detached nodes are DOM nodes no document holds that the heap still does; a detached document usually means a removed frame or old page whose window something still references.'
+  'Detached nodes are DOM nodes no document holds that the heap still does; '
+    + 'a detached document usually means a removed frame or old page whose window something still references.'
 ]
 
 /**
@@ -70,12 +71,17 @@ export class HeapSnapshots<Tab extends HeapSnapshotTab> {
   private readonly taking = new WeakSet<Tab>()
   private lastId = 0
 
-  constructor(private readonly host: HeapSnapshotHost<Tab>, private readonly startWorker: StartWorker = () => startHeapSnapshotWorker({ name: 'Hronaut heap snapshot' })) {}
+  constructor(
+    private readonly host: HeapSnapshotHost<Tab>,
+    private readonly startWorker: StartWorker = () => startHeapSnapshotWorker({ name: 'Hronaut heap snapshot' })
+  ) {}
 
   async manage(options: HeapSnapshotOptions): Promise<HeapSnapshotReport> {
     const tab = this.host.getTab(options.tabId)
     const limit = options.limit ?? HEAP_SNAPSHOT_LIMITS.defaultLimit
-    if (!Number.isInteger(limit) || limit < 1 || limit > HEAP_SNAPSHOT_LIMITS.maxLimit) throw new Error(`limit must be a whole number from 1 to ${HEAP_SNAPSHOT_LIMITS.maxLimit}`)
+    if (!Number.isInteger(limit) || limit < 1 || limit > HEAP_SNAPSHOT_LIMITS.maxLimit) {
+      throw new Error(`limit must be a whole number from 1 to ${HEAP_SNAPSHOT_LIMITS.maxLimit}`)
+    }
     if (options.action !== 'take-heap-snapshot' && options.label !== undefined) throw new Error('label is only for action take-heap-snapshot')
     const comparing = options.action === 'compare-heap-snapshots'
     if (!comparing && (options.baseSnapshotId !== undefined || options.targetSnapshotId !== undefined)) {

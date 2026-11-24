@@ -14,7 +14,7 @@ export { auditEvidenceExpiredReason } from './tools/browser-audit-receipts/index
 export { browserClickPageInput } from './tools/browser-click/index.js'
 export { MCP_FAILED_AUTH_LIMIT, McpHttpServer, mcpRequestAuthorized } from './http-server.js'
 export type { McpClientActivity, McpDashboardState, McpHttpServerOptions } from './http-server.js'
-export { assertMcpToolRegistrationContract } from './browser-mcp-server.js'
+export { assertMcpToolRegistrationContract } from './tool-registration-contract.js'
 export { mcpCapabilityProfileInputFromPreset } from './capability-presets.js'
 export { WalletAgentSessionRegistry } from './wallet-agent-sessions.js'
 export type { WalletAgentOperations, WalletAgentToolTarget } from './wallet-agent-sessions.js'

@@ -166,7 +166,8 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
           const known = await send('DOM.querySelectorAll', { nodeId: document.root.nodeId, selector: ':buffering, :stalled' }).then(() => true, () => false)
           assertCurrent()
           if (!known) {
-            throw new Error(`This Chromium (${process.versions.chrome}) does not support the :buffering and :stalled media pseudo-classes, so they cannot be forced yet`)
+            throw new Error(`This Chromium (${process.versions.chrome}) does not support the :buffering and :stalled media pseudo-classes, `
+              + 'so they cannot be forced yet')
           }
         }
         try {

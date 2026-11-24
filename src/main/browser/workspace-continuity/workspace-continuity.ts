@@ -249,6 +249,7 @@ function advanceWorkspaceObservationGeneration(browser: Browser, workspaceId: st
     void browser.cssStatePreview.clear(tab, 'workspace-control-changed').catch(() => undefined)
     browser.virtualPasskeys.stop(tab, 'authority-changed')
     browser.logpoints.stop(tab, 'authority-changed')
+    browser.ariaNotify.stop(tab, 'authority-changed')
     browser.networkWaitController.reject(tab.id, 'Workspace control changed while waiting for network activity.')
   }
   browser.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)

@@ -4,6 +4,13 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `browser_memory` takes heap snapshots and compares them. `take-heap-snapshot` keeps a summary of a V8 heap snapshot: object counts and self sizes per class, DOM nodes and documents that no document holds but the heap still does, and the number of JavaScript contexts. `compare-heap-snapshots` shows what grew between two of them, such as a removed frame whose window something still references. The snapshot is parsed off the main process and dropped; values, strings and the object graph never reach the agent.
+- `browser_aria_notify` records the announcements a page makes through `ariaNotify()`, with text, priority, target and the line of code that made each call. They never reach the DOM, so snapshots and `browser_live_region` cannot see them.
+- `browser_css_state_preview` also forces `:focus`, `:focus-visible`, `:focus-within` and `:target`. `:buffering` and `:stalled` on audio and video are accepted too and work once Electron's Chromium supports those media pseudo-classes; Chromium 156 does not, so Hronaut says so.
+- `browser_virtual_passkey` can attach a U2F security key (`kind: "security-key"`) instead of a passkey, to test second-factor flows.
+
 ## [3.14.35] - 2026-11-22
 
 ### Changed

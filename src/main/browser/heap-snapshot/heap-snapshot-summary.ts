@@ -74,7 +74,11 @@ export function summarizeHeapSnapshot(raw: unknown): HeapSnapshotCounts {
     nodeCount: nodes.length / width,
     totalSelfBytes,
     classes: kept,
-    otherClasses: { classes: rest.length, count: rest.reduce((sum, item) => sum + item.count, 0), selfBytes: rest.reduce((sum, item) => sum + item.selfBytes, 0) },
+    otherClasses: {
+      classes: rest.length,
+      count: rest.reduce((sum, item) => sum + item.count, 0),
+      selfBytes: rest.reduce((sum, item) => sum + item.selfBytes, 0)
+    },
     detached: { nodes: detachedNodes, selfBytes: detachedBytes, documents: detachedDocuments, byName: largestFirst(detachedClasses).slice(0, 50) },
     nativeContexts
   }

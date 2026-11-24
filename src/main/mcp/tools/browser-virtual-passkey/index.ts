@@ -30,7 +30,9 @@ export function registerBrowserVirtualPasskey(context: McpToolContext): void {
     },
     tabTool('browser_virtual_passkey', async ({ tabId, action, origin, kind, userVerified, durationMs }: {
       tabId: string; action: VirtualPasskeyAction; origin: string; kind?: VirtualPasskeyKind; userVerified?: boolean; durationMs?: number
-    }, call: WorkspaceToolCall<VirtualPasskeySettlement>) => textResult(await virtualPasskey(manager, tabId, action, { origin, kind, userVerified, durationMs }, {
+    }, call: WorkspaceToolCall<VirtualPasskeySettlement>) => textResult(await virtualPasskey(manager, tabId, action, {
+      origin, kind, userVerified, durationMs
+    }, {
       // Checked on every navigation in the page and four times a second, without renewing write ownership.
       assertCurrent: () => call.validateLifecycle(origin)
     }))),

@@ -17,7 +17,8 @@ export function registerBrowserCssStatePreview(context: McpToolContext): void {
         selector: z.string().min(1).max(CSS_STATE_PREVIEW_LIMITS.maxSelectorChars).optional()
           .describe('CSS selector for exactly one element in the top-level document; required for set'),
         states: z.array(z.enum(CSS_STATE_PREVIEW_STATES)).min(1).max(CSS_STATE_PREVIEW_STATES.length).optional()
-          .describe('CSS states to force on that element; required for set. buffering and stalled need an audio or video element and a Chromium with the media pseudo-classes.'),
+          .describe('CSS states to force on that element; required for set. '
+            + 'buffering and stalled need an audio or video element and a Chromium with the media pseudo-classes.'),
         durationMs: z.number().int().min(CSS_STATE_PREVIEW_LIMITS.minDurationMs).max(CSS_STATE_PREVIEW_LIMITS.maxDurationMs).optional()
           .describe(`How long the preview lasts before it clears itself; default ${CSS_STATE_PREVIEW_LIMITS.defaultDurationMs}`)
       }

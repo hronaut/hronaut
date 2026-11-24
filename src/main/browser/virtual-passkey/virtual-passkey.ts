@@ -212,7 +212,9 @@ export class VirtualPasskeyController<T extends VirtualPasskeyTab> {
     const durationMs = virtualPasskeyDuration(options.durationMs)
     const kind = options.kind ?? 'passkey'
     if (kind !== 'passkey' && kind !== 'security-key') throw new Error('kind must be passkey or security-key')
-    if (kind === 'security-key' && options.userVerified === true) throw new Error('A security key has no user verification; leave userVerified out for kind security-key')
+    if (kind === 'security-key' && options.userVerified === true) {
+      throw new Error('A security key has no user verification; leave userVerified out for kind security-key')
+    }
     const userVerified = kind === 'passkey' && (options.userVerified ?? true)
     if (this.sessions.has(tab)) throw new Error('A virtual passkey is already active or starting in this tab; stop it before starting another')
     const webContents = tab.webContents
