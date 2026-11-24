@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.37] - 2026-11-24
+
 ### Added
 
 - `browser_memory` takes heap snapshots and compares them. `take-heap-snapshot` keeps a summary of a V8 heap snapshot: object counts and self sizes per class, DOM nodes and documents that no document holds but the heap still does, and the number of JavaScript contexts. `compare-heap-snapshots` shows what grew between two of them, such as a removed frame whose window something still references. The snapshot is parsed off the main process and dropped; values, strings and the object graph never reach the agent.

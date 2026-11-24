@@ -19,7 +19,7 @@ const FILE_STATES: Readonly<Record<string, string>> = {
   valid: 'valid', invalid: 'invalid', 'not found': 'notFound', unreachable: 'unreachable', 'not checked': 'notChecked'
 }
 const FIXED_TEXT = new Map(Object.entries(QUALITY_AUDIT_FIXED_TEXT).map(([key, value]) => [value as string, key]))
-const CAVEATS = new Map(Object.entries(QUALITY_AUDIT_CAVEATS).map(([key, value]) => [value as string, key]))
+const CAVEATS = new Map(Object.entries(QUALITY_AUDIT_CAVEATS).map(([key, value]) => [value, key]))
 // Page metadata findings carry the messages the Page metadata panel names by code.
 const METADATA_ISSUES: Readonly<Record<string, string>> = {
   'missing-title': 'missingTitle', 'multiple-titles': 'multipleTitles',
