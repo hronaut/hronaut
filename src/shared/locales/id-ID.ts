@@ -448,6 +448,27 @@ export const idID: MessageSchema = {
       label: 'Putar suara pemberitahuan',
       description: 'Putar isyarat peringatan saat agen memerlukan Anda untuk menyelesaikan langkah browser secara manual.'
     },
+    personNeededWebhook: {
+      label: 'Beri tahu saya di tempat lain juga',
+      description: 'Saat agen membutuhkan Anda, kirim juga pesan ke Slack, Discord, ntfy, atau endpoint Anda sendiri. Ini mengirim data keluar dari komputer ini: nama ruang kerja, nama agen, dan apa yang dimintanya. Tidak pernah halaman, alamatnya, atau yang Anda ketik.',
+      sendTo: 'Kirim ke',
+      ownEndpoint: 'Endpoint Anda sendiri (JSON)',
+      address: 'Alamat webhook',
+      addressHint: 'URL webhook dari Slack, Discord, atau ntfy, atau endpoint Anda sendiri.',
+      addressMissing: 'Masukkan alamat tujuan.',
+      addressInvalid: 'Gunakan alamat https:// lengkap tanpa nama pengguna dan kata sandi. http:// hanya untuk komputer ini.',
+      save: 'Simpan',
+      test: 'Kirim tes',
+      testSent: 'Pesan tes terkirim.',
+      testRefused: 'Alamat menjawab dengan status {status}.',
+      testTimeout: 'Alamat tidak menjawab dalam 10 detik.',
+      testUnreachable: 'Tidak dapat menjangkau alamat.',
+      secret: 'Rahasia tanda tangan',
+      secretHint: 'Setiap pesan membawa X-Hronaut-Signature: sha256= dan HMAC-SHA256 dari X-Hronaut-Timestamp, sebuah titik, dan isi pesan, agar endpoint Anda dapat memeriksa bahwa pesan berasal dari Hronaut ini.',
+      copy: 'Salin',
+      copied: 'Disalin',
+      renew: 'Rahasia baru'
+    },
     agentCursor: {
       label: 'Tampilkan kursor agen',
       description: 'Gambar kursor setiap agen, beserta namanya, di tempat agen mengklik, menunjuk, atau menyeret di halaman.'

@@ -61,6 +61,7 @@ import type { HumanWaitingService } from '../human-waiting-service.js'
 import type { TaskRunService } from '../task-run-service.js'
 import type { PostWriteRequest, PreWriteReconciliationRequest } from '../tool-schemas.js'
 import { WorkspaceWriteLeaseRegistry } from '../workspace-write-leases.js'
+import type { WorkspaceNotices } from '../workspace-notices.js'
 import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '../browser-data-operations.js'
 import type { McpClientActivity } from '../http-server.js'
 import type { WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from '../wallet-agent-sessions.js'
@@ -282,6 +283,8 @@ export interface McpToolContext {
   workspaceToolInputSchemas: Map<string, z.ZodObject<Record<string, z.ZodType>>>
   actionTracker: McpActionTracker
   workspaceLeases: WorkspaceWriteLeaseRegistry
+  /** What this session has told its agent about its workspaces' tabs, so each event is told once. */
+  workspaceNotices: WorkspaceNotices
   showWindowInactive: () => void
   getPaused: () => boolean
   getUserAttention: () => UserAttentionRequest | null

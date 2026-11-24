@@ -143,7 +143,7 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
         expect(await electronApp.evaluate(() =>
           (globalThis as typeof globalThis & { __qaStaleFocusRequests?: number }).__qaStaleFocusRequests)).toBe(0)
       }
-      const result = ownerChangeResult ?? (eventKind === 'close' ? await call('browser_close_tab', { workspaceId, tabId: targetTabId }) : eventKind === 'popup' ? await call('browser_evaluate', { workspaceId, script: "window.open('/popup'); 'opened'" }) : eventKind === 'capture' ? await call('browser_screenshot', { workspaceId, tabId: backgroundTabId }) : eventKind === 'show' ? await call('browser_show', { workspaceId }) : await call('browser_evaluate', { workspaceId, script: eventKind === 'focus'
+      const result = ownerChangeResult ?? (eventKind === 'close' ? await call('browser_close_tab', { workspaceId, tabId: targetTabId }) : eventKind === 'popup' ? await call('browser_evaluate', { workspaceId, script: "window.open('/popup'); 'opened'" }) : eventKind === 'capture' ? await call('browser_screenshot', { workspaceId, tabId: backgroundTabId, detail: 'full' }) : eventKind === 'show' ? await call('browser_show', { workspaceId }) : await call('browser_evaluate', { workspaceId, script: eventKind === 'focus'
         ? "setTimeout(() => { window.focus(); document.body.dataset.focusAttempted = 'yes'; }, 250); 'scheduled'"
         : "setTimeout(() => { location.href = '/landed'; }, 250); 'scheduled'" }))
       expect(result.isError, JSON.stringify(result.content.filter(part => part.type === 'text'))).not.toBe(true)

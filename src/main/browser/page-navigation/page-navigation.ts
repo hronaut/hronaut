@@ -340,10 +340,12 @@ async function loadAddress(browser: Browser, tab: BrowserTab, normalized: string
       webContents.on('did-start-navigation', onNavigationStart)
       webContents.on('did-navigate', onShown)
       const load = webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
-        // A page that started before this one can finish loading while this one waits for the person to sign in, as
-        // when an agent sends a new tab on before its first page showed, and Electron then settles this load: it
-        // has loaded only once the tab stops loading.
-        () => asksToSignIn(webContents) ? stopsLoading().then(() => ({ kind: 'loaded' })) : { kind: 'loaded' },
+        // A page that started before this one can finish loading while this one is still on its way or waits for the
+        // person to sign in, as when an agent sends a new tab on before its first page showed, and Electron then
+        // settles this load: it has loaded only once the tab stops loading, so that what reads it next reads it.
+        () => asksToSignIn(webContents) || webContents.isLoadingMainFrame()
+          ? stopsLoading().then(() => ({ kind: 'loaded' }))
+          : { kind: 'loaded' },
         (error: unknown) => ({ kind: 'failed', error })
       )
       // A page whose load never ends, such as one with an image its server never answers, keeps loading in the tab, as

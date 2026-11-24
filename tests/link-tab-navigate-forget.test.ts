@@ -32,7 +32,7 @@ function navigation(mcpGroupId: string | undefined, allowed = true, page: FakePa
     id: 'tab', url: page.address ?? (page.url || 'about:blank'), pinned: false, mcpGroupId, navigationGeneration: 0, navigationPolicyDenialSequence: 0,
     sleeping: false, returnsToTabId: 'before',
     webContents: {
-      on: vi.fn(), once: vi.fn(), removeListener: vi.fn(), isCrashed: () => false, isDestroyed: () => false, loadURL,
+      on: vi.fn(), once: vi.fn(), removeListener: vi.fn(), isCrashed: () => false, isLoadingMainFrame: () => false, isDestroyed: () => false, loadURL,
       getURL: () => shown.url, navigationHistory: { length: () => shown.entries }
     }
   }

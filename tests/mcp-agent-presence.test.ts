@@ -687,8 +687,8 @@ describe('agent presence over MCP', () => {
 
     let asked = await ask(claudeClient.client, 'Approve the order.')
     expect(asked.isError, text(asked)).not.toBe(true)
-    // The attention call reaches main unchanged.
-    expect(requestUserAttention).toHaveBeenLastCalledWith({ reason: 'Approve the order.', tabId, workspaceId })
+    // The attention call reaches main with the client's name, which the person's webhook says needs them.
+    expect(requestUserAttention).toHaveBeenLastCalledWith({ reason: 'Approve the order.', tabId, workspaceId, agentName: 'Claude Code' })
     expect(onAgentPresenceChanged).toHaveBeenCalled()
     expect(server.getAgentPresence()[workspaceId]).toEqual([expect.objectContaining({
       name: 'Claude Code', initial: 'C', state: 'needs-you', step: 'askYou', attentionTabId: tabId
@@ -925,7 +925,7 @@ describe('agent presence over MCP', () => {
     // Reading does not count; an action it finished does.
     expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
     expect(onAgentMovedOn).not.toHaveBeenCalled()
-    const stopped = await claudeClient.client.callTool({ name: 'browser_history', arguments: { workspaceId, tabId, action: 'stop' } }) as CallToolResult
+    const stopped = await claudeClient.client.callTool({ name: 'browser_history', arguments: { workspaceId, tabId, action: 'stop', read: 'none' } }) as CallToolResult
     expect(stopped.isError, text(stopped)).not.toBe(true)
     expect(onAgentMovedOn).toHaveBeenCalledExactlyOnceWith(openId)
   })

@@ -112,9 +112,9 @@ describe('workspace-scoped browser state', () => {
   })
 })
 
-// Tools such as browser_navigate return the manager's global state, which the call path rescopes to the workspace.
+// Tools such as browser_close_tab return the manager's global state, which the call path rescopes to the workspace.
 // The rescoping kept every global field it did not replace, so another workspace's Follow and split view survived
-// in the result even once the workspace's own state left them out.
+// in the result even once the workspace's own state left them out. browser_navigate returns only its own tab.
 describe('browser state returned by a workspace tool', () => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789c1'
   const tabId = '01912345-6790-7abc-8def-0123456789d1'
@@ -132,7 +132,7 @@ describe('browser state returned by a workspace tool', () => {
     vi.mocked(getMcpGroupState).mockReset()
   })
 
-  it('leaves out another workspace\'s Follow and split views from a navigation result', async () => {
+  it('leaves out another workspace\'s Follow and split views from a state result, and a navigation names only its tab', async () => {
     const workspace = { id: workspaceId, name: 'Mine', agentAccess: true, contextClass: 'standard' as const, navigationPolicy: { mode: 'unrestricted', rules: [] } }
     const tab = (id: string, mcpGroupId: string) => ({ id, mcpGroupId, url: 'https://shop.example/', title: id, loading: false, sleeping: false })
     const tabs = [
@@ -157,7 +157,8 @@ describe('browser state returned by a workspace tool', () => {
       tabBelongsToMcpGroup: vi.fn((id: string, requested: string) => id === workspaceId && requested === tabId),
       wakeTab: vi.fn(async () => global()),
       getState: vi.fn(global),
-      navigate: vi.fn(async () => global())
+      navigate: vi.fn(async () => global()),
+      closeTab: vi.fn(async () => global())
     }
     // The workspace's own state, as getMcpGroupState builds it: only its tab, no foreign Follow or split view.
     vi.mocked(getMcpGroupState).mockImplementation(() => {
@@ -174,14 +175,22 @@ describe('browser state returned by a workspace tool', () => {
     const created = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Mine' } }) as CallToolResult
     expect(created.isError).not.toBe(true)
 
-    const result = await client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'https://shop.example/cart' } }) as CallToolResult
+    const navigation = await client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'https://shop.example/cart', read: 'none' } }) as CallToolResult
+    const navigated = navigation.content.map(item => item.type === 'text' ? item.text : '').join('\n')
+    expect(navigation.isError, navigated).not.toBe(true)
+    expect(manager.navigate).toHaveBeenCalled()
+    expect(JSON.parse(navigated)).toEqual({ tabId, url: 'https://shop.example/', title: tabId, loading: false, canGoBack: undefined, canGoForward: undefined })
+
+    const result = await client.callTool({ name: 'browser_close_tab', arguments: { workspaceId, tabId } }) as CallToolResult
     const text = result.content.map(item => item.type === 'text' ? item.text : '').join('\n')
     expect(result.isError, text).not.toBe(true)
-    expect(manager.navigate).toHaveBeenCalled()
+    expect(manager.closeTab).toHaveBeenCalled()
     expect(text).toContain(tabId)
-    expect(text).not.toContain(otherTab)
-    expect(text).not.toContain(otherSplitTab)
-    for (const id of otherPairedTabs) expect(text).not.toContain(id)
-    expect(text).not.toContain('Other Agent')
+    for (const shown of [text, navigated]) {
+      expect(shown).not.toContain(otherTab)
+      expect(shown).not.toContain(otherSplitTab)
+      for (const id of otherPairedTabs) expect(shown).not.toContain(id)
+      expect(shown).not.toContain('Other Agent')
+    }
   })
 })

@@ -139,7 +139,7 @@ test('routes a minimized full-page capture through a temporary rendering host', 
 
     const screenshot = await client.callTool({
       name: 'browser_screenshot',
-      arguments: { tabId, fullPage: true }
+      arguments: { tabId, fullPage: true, detail: 'full' }
     }) as CallToolResult
 
     expect(screenshot.isError, text(screenshot)).not.toBe(true)
@@ -254,7 +254,7 @@ test('captures the shown tab again after layout hid it in a minimized window', a
     for (const fullPage of [false, true, false]) {
       const screenshot = await client.callTool({
         name: 'browser_screenshot',
-        arguments: { tabId, fullPage }
+        arguments: { tabId, fullPage, detail: 'full' }
       }, undefined, { timeout: 15_000 }) as CallToolResult
       expect(screenshot.isError, `${fullPage ? 'full page' : 'viewport'}: ${text(screenshot)}`).not.toBe(true)
       const image = screenshot.content.find((item) => item.type === 'image')
@@ -377,7 +377,7 @@ test('captures hidden pages and survives tab teardown during offscreen rendering
       }
       const screenshot = await client.callTool({
         name: 'browser_screenshot',
-        arguments: { tabId, fullPage }
+        arguments: { tabId, fullPage, detail: 'full' }
       }) as CallToolResult
       if (fullPage) {
         const beganFrameSubscription = await electronApp.evaluate(() => {
@@ -425,7 +425,7 @@ test('captures hidden pages and survives tab teardown during offscreen rendering
     }
     const cropped = await client.callTool({
       name: 'browser_screenshot',
-      arguments: { tabId, clip: { x: 0, y: 0, width: 128, height: 64 } }
+      arguments: { tabId, clip: { x: 0, y: 0, width: 128, height: 64 }, detail: 'full' }
     }) as CallToolResult
     expect(cropped.isError, `hidden cropped PNG: ${text(cropped)}`).not.toBe(true)
     const croppedImage = cropped.content.find((item) => item.type === 'image')

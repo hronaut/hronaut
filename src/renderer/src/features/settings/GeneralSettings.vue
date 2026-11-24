@@ -10,6 +10,7 @@ import { ATTENTION_SOUND_CUES, type AttentionSoundCue, type LanguagePreference, 
 import { LOCALE_NATIVE_NAMES, SUPPORTED_LOCALES } from '../../../../shared/locale.js'
 import { ignoreHeldEnter } from '../../held-enter.js'
 import { useSettingsStore } from '../../stores/settings.js'
+import PersonNeededWebhookSettings from './PersonNeededWebhookSettings.vue'
 
 const emit = defineEmits<{
   testSound: []
@@ -293,6 +294,7 @@ async function setPinAgentLiveStatus(event: Event): Promise<void> {
           </UiButton>
         </div>
       </div>
+      <PersonNeededWebhookSettings @setting-error="emit('settingError', $event)" />
       <label class="settings-row" for="setting-agent-cursor">
         <span>
           <strong>{{ t('appearance.agentCursor.label') }}</strong>

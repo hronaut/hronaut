@@ -18,6 +18,9 @@ export function requireTabAgentControl(
   // Discovery and re-establishing existing ownership are necessary after reconnect.
   // These actions do not grant page access; normal resume-key and lease checks remain.
   if (name === 'browser_workspaces' && ['list', 'resume', 'ownership-status', 'claim-ownership', 'release-ownership'].includes(String(input.action ?? 'list'))) return
+  // Waiting for the person to finish what the agent asked of them reads no page, and goes on while they have a tab of it;
+  // the page that comes with their answer is checked on its own.
+  if (name === 'browser_user_attention' && !globallyPaused) return
   const workspaceId = typeof input.workspaceId === 'string' ? input.workspaceId
     : typeof input.sourceWorkspaceId === 'string' ? input.sourceWorkspaceId : undefined
   if (!globallyPaused && !workspaceId) return

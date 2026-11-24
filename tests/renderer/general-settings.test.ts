@@ -53,12 +53,15 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
   }
 }
 
+// Message me elsewhere reads its own settings when it shows; off, it shows only its switch.
+const webhookOff = { getPersonNeededWebhook: async () => ({ enabled: false, kind: 'json', url: '', secret: 'x'.repeat(43) }) }
+
 describe('GeneralSettings', () => {
   it('switches locale while keeping focus on the language selector', async () => {
     const setLanguagePreference = vi.fn(async () => snapshot('uk-UA'))
     Object.defineProperty(window, 'hronautSettings', {
       configurable: true,
-      value: { setLanguagePreference }
+      value: { ...webhookOff, setLanguagePreference }
     })
     const pinia = createTestingPinia({
       stubActions: false,
@@ -106,6 +109,7 @@ describe('GeneralSettings', () => {
       'setting-launch-at-startup',
       'setting-launch-minimized',
       'setting-attention-sound',
+      'setting-person-needed-webhook',
       'setting-agent-cursor',
       'setting-agent-strip'
     ])
@@ -117,7 +121,7 @@ describe('GeneralSettings', () => {
     const failure = new Error('disk full')
     Object.defineProperty(window, 'hronautSettings', {
       configurable: true,
-      value: { setLanguagePreference: vi.fn().mockRejectedValue(failure) }
+      value: { ...webhookOff, setLanguagePreference: vi.fn().mockRejectedValue(failure) }
     })
     const pinia = createTestingPinia({
       stubActions: false,
@@ -145,7 +149,7 @@ describe('GeneralSettings', () => {
     }))
     Object.defineProperty(window, 'hronautSettings', {
       configurable: true,
-      value: { setLaunchAtStartup, setLaunchMinimized }
+      value: { ...webhookOff, setLaunchAtStartup, setLaunchMinimized }
     })
     const pinia = createTestingPinia({
       stubActions: false,
@@ -168,7 +172,7 @@ describe('GeneralSettings', () => {
 
   it('turns agent cursors on the page off and back on', async () => {
     const setShowAgentCursor = vi.fn(async (showAgentCursor: boolean) => ({ ...snapshot('en-US').settings, showAgentCursor }))
-    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { setShowAgentCursor } })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { ...webhookOff, setShowAgentCursor } })
     const pinia = createTestingPinia({
       stubActions: false,
       createSpy: vi.fn,
@@ -190,7 +194,7 @@ describe('GeneralSettings', () => {
 
   it('pins the live status strip and unpins it, off until you choose it', async () => {
     const setPinAgentLiveStatus = vi.fn(async (pinAgentLiveStatus: boolean) => ({ ...snapshot('en-US').settings, pinAgentLiveStatus }))
-    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { setPinAgentLiveStatus } })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { ...webhookOff, setPinAgentLiveStatus } })
     const pinia = createTestingPinia({
       stubActions: false,
       createSpy: vi.fn,
@@ -216,7 +220,7 @@ describe('GeneralSettings', () => {
       if (fail) throw new Error('disk full')
       return { ...snapshot('en-US').settings, spellCheck }
     })
-    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { setSpellCheck } })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { ...webhookOff, setSpellCheck } })
     const pinia = createTestingPinia({
       stubActions: false,
       createSpy: vi.fn,
@@ -245,7 +249,7 @@ describe('GeneralSettings', () => {
       return { ...snapshot('en-US').settings, spellCheckLanguages }
     })
     const getSpellCheckLanguages = vi.fn(async () => ({ available: ['de', 'en-GB', 'en-US', 'uk'], automatic: ['en-US'] }))
-    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages, setSpellCheckLanguages } })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { ...webhookOff, getSpellCheckLanguages, setSpellCheckLanguages } })
     const pinia = createTestingPinia({
       stubActions: false,
       createSpy: vi.fn,
@@ -285,7 +289,7 @@ describe('GeneralSettings', () => {
 
   it('names the languages in the interface language, starting with a capital', async () => {
     const getSpellCheckLanguages = vi.fn(async () => ({ available: ['en-US', 'uk'], automatic: ['uk'] }))
-    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages } })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { ...webhookOff, getSpellCheckLanguages } })
     const pinia = createTestingPinia({ stubActions: false, createSpy: vi.fn, initialState: { settings: snapshot('uk-UA') } })
     render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('uk-UA')] } })
     const list = await screen.findByRole('list', { name: 'Мови перевірки правопису' })
@@ -296,7 +300,7 @@ describe('GeneralSettings', () => {
   it('cannot change the spell check languages while spell check is off', async () => {
     const getSpellCheckLanguages = vi.fn(async () => ({ available: ['en-US', 'uk'], automatic: ['en-US'] }))
     const setSpellCheckLanguages = vi.fn()
-    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages, setSpellCheckLanguages } })
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { ...webhookOff, getSpellCheckLanguages, setSpellCheckLanguages } })
     const settings = { ...snapshot('en-US').settings, spellCheck: false, spellCheckLanguages: ['uk', 'en-US'] }
     const pinia = createTestingPinia({ stubActions: false, createSpy: vi.fn, initialState: { settings: { ...snapshot('en-US'), settings } } })
     render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
@@ -309,7 +313,7 @@ describe('GeneralSettings', () => {
 
   it('shows no spell check languages where the system picks them, as on macOS, or when main cannot list them', async () => {
     for (const getSpellCheckLanguages of [vi.fn(async () => ({ available: [], automatic: [] })), vi.fn(async () => { throw new Error('gone') })]) {
-      Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { getSpellCheckLanguages } })
+      Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { ...webhookOff, getSpellCheckLanguages } })
       const pinia = createTestingPinia({ stubActions: false, createSpy: vi.fn, initialState: { settings: snapshot('en-US') } })
       const rendered = render(GeneralSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
       await vi.waitFor(() => expect(getSpellCheckLanguages).toHaveBeenCalledOnce())

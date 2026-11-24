@@ -75,8 +75,12 @@ test('hides URL query and fragment from agents only while the person asks, witho
     expect(delta.structuredContent).toMatchObject({ status: 'invalidated', invalidationReason: 'snapshot-format', changes: [] })
     expect(text(delta)).not.toContain('query-canary')
 
-    // A navigation result is the workspace state too.
-    const navigated = text(await call('browser_navigate', { ...args, url: `${origin}/checkout?session=query-canary-2#fragment-canary` }))
+    // A navigation result shows its tab the same way, and the snapshot it reads of the page too.
+    const navigation = await call('browser_navigate', { ...args, url: `${origin}/checkout?session=query-canary-2#fragment-canary` })
+    const navigated = text(navigation)
+    const loaded = navigation.content[0]
+    expect(JSON.parse(loaded?.type === 'text' ? loaded.text : '')).toMatchObject({ tabId, url: `${origin}/checkout`, urlDetail: 'omitted' })
+    expect(navigated).toContain(`URL: ${origin}/checkout (query and fragment omitted)`)
     for (const canary of canaries) expect(navigated, canary).not.toContain(canary)
 
     // The real address is unchanged for browsing and the person.

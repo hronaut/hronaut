@@ -90,6 +90,8 @@ const navigation = computed<Array<{
 })))
 
 const { query, matches, searchKeydown } = useSettingsSectionSearch(navigation, section)
+// A section that reads settings of its own, as General's Message me elsewhere does, reads them again after a reset.
+const resets = ref(0)
 
 /**
  * Reset to default disables itself and the section while it runs, so Chromium moves its focus to the document body.
@@ -99,7 +101,7 @@ async function resetWithFocus(event: Event): Promise<void> {
   const button = event.currentTarget instanceof HTMLElement && document.activeElement === event.currentTarget
     ? event.currentTarget : null
   const dialog = panel.value
-  await resetCurrent()
+  if (await resetCurrent()) resets.value++
   await nextTick()
   if (!button || !dialog || !open.value || dialog !== panel.value || !dialog.isConnected || !document.hasFocus()) return
   if (document.activeElement !== document.body && document.activeElement !== button) return
@@ -156,6 +158,7 @@ watch(open, async (active, _previous, onCleanup) => {
           />
           <GeneralSettings
             v-else-if="section === 'general'"
+            :key="resets"
             @test-sound="testSound"
             @setting-error="reportSettingError"
           />

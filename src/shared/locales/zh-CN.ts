@@ -448,6 +448,27 @@ export const zhCN: MessageSchema = {
       label: '播放提醒音',
       description: '当智能体需要您完成手动浏览器步骤时，播放提示音。'
     },
+    personNeededWebhook: {
+      label: '也在其他地方通知我',
+      description: '当代理需要你时，也向 Slack、Discord、ntfy 或你自己的端点发送消息。这会把数据发送到这台电脑之外：工作区名称、代理名称和它的请求。绝不会发送页面、页面地址或你输入的内容。',
+      sendTo: '发送到',
+      ownEndpoint: '你自己的端点 (JSON)',
+      address: 'Webhook 地址',
+      addressHint: 'Slack、Discord 或 ntfy 提供的 Webhook URL，或你自己的端点。',
+      addressMissing: '请输入要发送到的地址。',
+      addressInvalid: '请使用不含用户名和密码的完整 https:// 地址。http:// 仅适用于这台电脑。',
+      save: '保存',
+      test: '发送测试',
+      testSent: '测试消息已发送。',
+      testRefused: '该地址返回了状态 {status}。',
+      testTimeout: '该地址在 10 秒内没有响应。',
+      testUnreachable: '无法连接到该地址。',
+      secret: '签名密钥',
+      secretHint: '每条消息都带有 X-Hronaut-Signature: sha256= 以及由 X-Hronaut-Timestamp、一个点和消息正文计算出的 HMAC-SHA256，方便你的端点确认消息来自这个 Hronaut。',
+      copy: '复制',
+      copied: '已复制',
+      renew: '新密钥'
+    },
     agentCursor: {
       label: '显示智能体光标',
       description: '在页面上智能体点击、指向或拖动的位置绘制其光标及名称。'

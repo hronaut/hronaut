@@ -37,7 +37,7 @@ for (const displayScale of [1, 2]) test.describe(`annotated viewport at native s
       const selected = await appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)')
       const ordinary = await call('browser_screenshot', { maxWidth: 400 })
       expect(ordinary.content.every(item => item.type === 'image')).toBe(true)
-      const result = await call('browser_screenshot', { annotateRefs: [refs[0], refs[2], refs[3], refs[4], refs[5], 'e999999'], maxWidth: 400 })
+      const result = await call('browser_screenshot', { annotateRefs: [refs[0], refs[2], refs[3], refs[4], refs[5], 'e999999'], maxWidth: 400, detail: 'full' })
       expect(text(result)).not.toBe('')
       const report = JSON.parse(text(result)) as ScreenshotAnnotationReport
       expect(report).toMatchObject({ scope: 'viewport', width: 400, height: 300 })

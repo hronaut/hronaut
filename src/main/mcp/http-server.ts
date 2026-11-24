@@ -414,7 +414,7 @@ export class McpHttpServer {
             this.options.showWindowInactive,
             this.options.getUserAttention,
             async (input) => {
-              const attention = await this.options.requestUserAttention(input)
+              const attention = await this.options.requestUserAttention({ ...input, agentName: client.name })
               this.recordAgentAttention(client, input, attention)
               return attention
             },

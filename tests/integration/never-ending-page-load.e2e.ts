@@ -60,8 +60,8 @@ test('agent calls answer on a page whose load never ends', async ({ electronApp,
     succeeded(await call('browser_evaluate', { ...target, script: "location.href = '/nothing'" }))
     expect(succeeded(await call('browser_snapshot', target))).toContain('TITLE: Stalled /first')
 
-    const navigated = JSON.parse(succeeded(await call('browser_navigate', { ...target, url: `${base}/second` }, 45_000))) as BrowserState
-    expect(navigated.tabs.find(tab => tab.id === target.tabId)).toMatchObject({ url: `${base}/second`, loading: true })
+    const navigated = JSON.parse(succeeded(await call('browser_navigate', { ...target, url: `${base}/second`, read: 'none' }, 45_000))) as BrowserState['tabs'][number]
+    expect(navigated).toMatchObject({ tabId: target.tabId, url: `${base}/second`, loading: true })
     expect(succeeded(await call('browser_snapshot', target))).toContain('TITLE: Stalled /second')
     expect(await pageLoading(`${base}/second`)).toBe(true)
   } finally {

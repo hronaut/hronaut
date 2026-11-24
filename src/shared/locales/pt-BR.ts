@@ -448,6 +448,27 @@ export const ptBR: MessageSchema = {
       label: 'Tocar som de atenção',
       description: 'Toca um sinal de alerta quando um agente precisa que você conclua uma etapa manual no navegador.'
     },
+    personNeededWebhook: {
+      label: 'Avisar também em outro lugar',
+      description: 'Quando um agente precisar de você, enviar também uma mensagem para o Slack, Discord, ntfy ou seu próprio endpoint. Isso envia dados para fora deste computador: o nome do espaço de trabalho, o nome do agente e o que ele pediu. Nunca a página, o endereço dela ou o que você digitou.',
+      sendTo: 'Enviar para',
+      ownEndpoint: 'Seu próprio endpoint (JSON)',
+      address: 'Endereço do webhook',
+      addressHint: 'A URL de webhook que o Slack, o Discord ou o ntfy forneceu, ou seu próprio endpoint.',
+      addressMissing: 'Digite o endereço de destino.',
+      addressInvalid: 'Use um endereço https:// completo sem nome de usuário nem senha. http:// funciona só para este computador.',
+      save: 'Salvar',
+      test: 'Enviar teste',
+      testSent: 'Mensagem de teste enviada.',
+      testRefused: 'O endereço respondeu com o status {status}.',
+      testTimeout: 'O endereço não respondeu em 10 segundos.',
+      testUnreachable: 'Não foi possível acessar o endereço.',
+      secret: 'Segredo de assinatura',
+      secretHint: 'Cada mensagem traz X-Hronaut-Signature: sha256= e o HMAC-SHA256 do X-Hronaut-Timestamp, um ponto e o corpo, para que seu endpoint confira que veio deste Hronaut.',
+      copy: 'Copiar',
+      copied: 'Copiado',
+      renew: 'Novo segredo'
+    },
     agentCursor: {
       label: 'Mostrar cursores dos agentes',
       description: 'Desenha o cursor de cada agente, com o nome dele, onde ele clica, aponta ou arrasta em uma página.'

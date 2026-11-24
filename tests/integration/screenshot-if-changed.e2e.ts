@@ -53,11 +53,14 @@ test('returns no image when the viewport pixels match an earlier tracked screens
   const screenshot = (args: Record<string, unknown>) => client.callTool({ name: 'browser_screenshot', arguments: { tabId, ...args } }) as Promise<CallToolResult>
   await onPage(electronApp, fixtureUrl, STATIC_PAGE)
 
-  // An ordinary screenshot is unchanged: one image and nothing else.
+  // An ordinary screenshot is unchanged: one image and nothing else, by default a compact JPEG.
   const plain = await screenshot({})
   expect(plain.content.map(item => item.type)).toEqual(['image'])
-  // Encoded in the app's PNG worker, not by main.
-  expect(pngEncoding(plain)).toEqual({ colorType: 6, filters: [1] })
+  expect(plain.content[0]).toMatchObject({ mimeType: 'image/jpeg' })
+  // A full one is encoded in the app's PNG worker, not by main.
+  const full = await screenshot({ detail: 'full' })
+  expect(full.content[0]).toMatchObject({ mimeType: 'image/png' })
+  expect(pngEncoding(full)).toEqual({ colorType: 6, filters: [1] })
 
   const first = await screenshot({ trackChanges: true })
   expect(first.isError).not.toBe(true)

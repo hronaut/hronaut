@@ -142,6 +142,7 @@ import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '
 import type { WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from './wallet-agent-sessions.js'
 import type { McpClientActivity } from './http-server.js'
 import { createWorkspaceToolRegistrar, requiresWorkspaceWriteLease } from './workspace-tool-call.js'
+import { createWorkspaceNotices } from './workspace-notices.js'
 import { listMcpTabGroups, requireMcpTabGroup } from '../browser/mcp-tab-groups/mcp-tab-groups.js'
 import { suspendWorkspaceContinuity } from '../browser/workspace-continuity/workspace-continuity.js'
 import { getMcpGroupState } from '../browser/workspace-scope/workspace-scope.js'
@@ -577,6 +578,7 @@ export function createBrowserMcpServer(
       } : {})
     }
   }
+  const workspaceNotices = createWorkspaceNotices()
   const registerWorkspaceTool = createWorkspaceToolRegistrar({
     actionTracker,
     argumentNormalizers,
@@ -600,6 +602,7 @@ export function createBrowserMcpServer(
     tool,
     workspaceAuthorizationError,
     workspaceLeases,
+    workspaceNotices,
     workspaceToolInputSchemas
   })
 
@@ -662,7 +665,8 @@ export function createBrowserMcpServer(
     workspaceAuthorizationError,
     workspaceToolInputSchemas,
     actionTracker,
-    workspaceLeases
+    workspaceLeases,
+    workspaceNotices
   }
 
   // Each tool registers itself from tools/<tool-name>/index.ts, in this order.

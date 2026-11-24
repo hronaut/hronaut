@@ -2,9 +2,11 @@ import { z } from 'zod'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { workspaceIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { resolvedRequestPage } from './resolved-request-page.js'
 
 export function registerBrowserUserAttention(context: McpToolContext): void {
   const { registerTool, requireActiveCapabilityDispatch, requireAgentWorkspace, tool, userAttentionLifecycle } = context
+  // A request the person resolved comes with the page of its tab, so the agent goes on from what it shows now.
   registerTool(
     'browser_user_attention',
     {
@@ -23,9 +25,13 @@ export function registerBrowserUserAttention(context: McpToolContext): void {
       }
       authorize()
       if (!userAttentionLifecycle) throw new Error('Attention history unavailable')
-      return textResult(input.action === 'wait'
+      const report = input.action === 'wait'
         ? await userAttentionLifecycle.wait(input.requestId, input.workspaceId, input.timeoutMs, authorize, extra?.signal)
-        : userAttentionLifecycle.status(input.requestId, input.workspaceId))
+        : userAttentionLifecycle.status(input.requestId, input.workspaceId)
+      const request = 'request' in report ? report.request : report
+      const result = textResult(report)
+      if (request.state !== 'resolved' || !request.tabId) return result
+      return { ...result, content: [...result.content, ...await resolvedRequestPage(context, input.workspaceId, request.tabId, authorize)] }
     }),
     { pageOrigins: 'none' }
   )

@@ -24,6 +24,7 @@ function pageThatAsksToStay(confirmLeavePage: () => Promise<boolean> = async () 
   const webContents = Object.assign(new EventEmitter(), {
     isDestroyed: () => false,
     isCrashed: () => false,
+    isLoadingMainFrame: () => false,
     // As Electron: the page's question goes to will-prevent-unload, and the load is cancelled unless it is prevented.
     loadURL: vi.fn(async function (this: EventEmitter) {
       let left = false

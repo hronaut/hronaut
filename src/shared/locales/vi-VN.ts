@@ -448,6 +448,27 @@ export const viVN: MessageSchema = {
       label: 'Phát âm thanh báo',
       description: 'Phát âm thanh cảnh báo khi tác nhân cần bạn hoàn thành một bước thủ công trong trình duyệt.'
     },
+    personNeededWebhook: {
+      label: 'Báo cho tôi ở nơi khác nữa',
+      description: 'Khi một tác nhân cần bạn, gửi thêm tin nhắn tới Slack, Discord, ntfy hoặc endpoint của riêng bạn. Việc này gửi dữ liệu ra khỏi máy tính này: tên không gian làm việc, tên tác nhân và điều nó yêu cầu. Không bao giờ gửi trang, địa chỉ của trang hay nội dung bạn đã nhập.',
+      sendTo: 'Gửi tới',
+      ownEndpoint: 'Endpoint của riêng bạn (JSON)',
+      address: 'Địa chỉ webhook',
+      addressHint: 'URL webhook mà Slack, Discord hoặc ntfy cấp cho bạn, hoặc endpoint của riêng bạn.',
+      addressMissing: 'Nhập địa chỉ cần gửi tới.',
+      addressInvalid: 'Dùng địa chỉ https:// đầy đủ, không có tên người dùng và mật khẩu. http:// chỉ dùng được cho máy tính này.',
+      save: 'Lưu',
+      test: 'Gửi thử',
+      testSent: 'Đã gửi tin nhắn thử.',
+      testRefused: 'Địa chỉ đã trả lời với trạng thái {status}.',
+      testTimeout: 'Địa chỉ không trả lời trong 10 giây.',
+      testUnreachable: 'Không thể kết nối tới địa chỉ.',
+      secret: 'Khóa bí mật để ký',
+      secretHint: 'Mỗi tin nhắn mang X-Hronaut-Signature: sha256= và HMAC-SHA256 của X-Hronaut-Timestamp, một dấu chấm và nội dung, để endpoint của bạn kiểm tra rằng tin nhắn đến từ Hronaut này.',
+      copy: 'Sao chép',
+      copied: 'Đã sao chép',
+      renew: 'Khóa bí mật mới'
+    },
     agentCursor: {
       label: 'Hiện con trỏ của tác nhân',
       description: 'Vẽ con trỏ của từng tác nhân, kèm tên, tại nơi tác nhân nhấp, trỏ hoặc kéo trên trang.'

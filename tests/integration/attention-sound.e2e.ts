@@ -52,7 +52,7 @@ test('does not publish attention when its sleeping target closes during wake', a
     await useMcpWorkspace(client, 'Attention wake close')
     const navigated = await client.callTool({ name: 'browser_navigate', arguments: { url: `http://127.0.0.1:${address.port}` } }) as CallToolResult
     expect(navigated.isError).not.toBe(true)
-    const tabId = (JSON.parse(text(navigated)) as { activeTabId: string }).activeTabId
+    const tabId = (JSON.parse(text(navigated)) as { tabId: string }).tabId
     await client.callTool({ name: 'browser_new_tab', arguments: { url: 'about:blank', active: true } })
     await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.sleeping)`)).toBe(true)
@@ -407,7 +407,7 @@ test('keeps the current tab selected when presentation actions cannot wake their
       arguments: { url }
     }) as CallToolResult
     expect(navigated.isError, text(navigated)).not.toBe(true)
-    const targetTabId = (JSON.parse(text(navigated)) as { activeTabId: string }).activeTabId
+    const targetTabId = (JSON.parse(text(navigated)) as { tabId: string }).tabId
     await client.callTool({ name: 'browser_wait', arguments: { tabId: targetTabId } })
     const opened = await client.callTool({
       name: 'browser_new_tab',
@@ -573,7 +573,7 @@ test('keeps newer user attention authoritative when an older tab wake finishes l
     await client.connect(transport)
     await useMcpWorkspace(client, 'Attention authority tests')
     const navigated = await client.callTool({ name: 'browser_navigate', arguments: { url } }) as CallToolResult
-    const targetTabId = (JSON.parse(text(navigated)) as { activeTabId: string }).activeTabId
+    const targetTabId = (JSON.parse(text(navigated)) as { tabId: string }).tabId
     await client.callTool({ name: 'browser_wait', arguments: { tabId: targetTabId } })
     const opened = await client.callTool({
       name: 'browser_new_tab',
