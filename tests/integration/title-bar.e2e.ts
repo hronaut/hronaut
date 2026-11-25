@@ -100,6 +100,31 @@ test('uses the horizontal tab strip as the title bar without swallowing tab or a
     record.stop = () => { menu?.off('menu-will-show', listener) }
     mainGlobal.__hronautAltMenu = record
   })
+  // On Linux, Alt alone opens nothing while a text field such as the address field has the keyboard: an Alt+Shift layout
+  // switch can arrive as Alt alone there. The shell answers in order, so the single menu below proves it opened none.
+  if (process.platform === 'linux') {
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
+      const mainGlobal = globalThis as typeof globalThis & { __hronautAltReleased?: boolean }
+      mainGlobal.__hronautAltReleased = false
+      // Registered after Hronaut's own listener, so it sees the release once Hronaut has asked the shell about it.
+      main?.webContents.once('before-input-event', function seen(_event, input) {
+        if (input.type === 'keyUp' && input.key === 'Alt') mainGlobal.__hronautAltReleased = true
+        else main.webContents.once('before-input-event', seen)
+      })
+      main?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Alt' })
+      main?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Alt' })
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautAltReleased?: boolean }).__hronautAltReleased
+    ))).toBe(true)
+    // The shell answers Hronaut's question in order, before a later script there finishes its next turn.
+    await appWindow.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)))
+    expect(await electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautAltMenu?: { shown: number } }).__hronautAltMenu?.shown
+    ))).toBe(0)
+  }
+  await address.evaluate((input) => (input as HTMLInputElement).blur())
   // Alt with a digit is a workspace key and opens nothing, even when Alt is released first; Alt alone shows the menu
   // when it is released. Keys reach the window in order, so the single bare Alt menu proves the digit opened none.
   await electronApp.evaluate(({ BrowserWindow }) => {
