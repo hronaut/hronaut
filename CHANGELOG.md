@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.39] - 2026-11-25
+
 ### Fixed
 
 - On Linux, switching the keyboard layout with Alt+Shift while typing in the address field no longer opens the application menu. On X11 that menu held the mouse for the whole desktop, so clicks in other windows did nothing until it closed. Alt alone still opens the menu when no text field of the window has the keyboard.
