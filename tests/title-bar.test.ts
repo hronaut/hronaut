@@ -92,6 +92,17 @@ describe('hybrid title bar configuration', () => {
     expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('suppress')
   })
 
+  it.each(['linux', 'win32'] as const)('shows no menu on %s for an Alt+Shift layout switch whose Shift press the desktop kept', (platform) => {
+    const gesture = createAutoHideMenuGesture(platform)
+    // GNOME on X11 with an input method passes on Alt's press, then only the release of Shift, as the layout key.
+    expect(gesture({ type: 'keyDown', key: 'Alt', code: 'AltLeft' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'GroupNext', code: 'ShiftLeft' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt', code: 'AltLeft' })).toBe('suppress')
+    // Alt alone still shows the menu afterwards.
+    expect(gesture({ type: 'keyDown', key: 'Alt', code: 'AltLeft' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt', code: 'AltLeft' })).toBe('toggle')
+  })
+
   it.each(['linux', 'win32'] as const)('forgets an Alt press on %s after a click, an Alt-drag or a switch away', (platform) => {
     const gesture = createAutoHideMenuGesture(platform)
     expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
