@@ -19,6 +19,15 @@ import { attachShellKeyHandoff } from './shell-key-handoff.js'
 import { holdMainWindowMinimumSize, mainWindowMinimumSize } from './main-window-minimum-size.js'
 import { reloadShellAfterRendererExit } from './shell-crash-recovery.js'
 
+/** Whether the shell's focused element takes typed text; `executeJavaScript` evaluates it in the shell. */
+const SHELL_TEXT_FIELD_FOCUSED_SCRIPT = `(() => {
+  const focused = document.activeElement
+  if (!(focused instanceof HTMLElement)) return false
+  if (focused.isContentEditable || focused instanceof HTMLTextAreaElement) return true
+  return focused instanceof HTMLInputElement
+    && !['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'].includes(focused.type)
+})()`
+
 /**
  * The main window and what it was opened with, created once by index.ts. The window opens after startup and closes
  * when the person quits or closes it; every reader reads the fields when it runs, so it always sees the current window.
@@ -161,6 +170,28 @@ export function createMainWindow(host: MainWindowHost): {
     return window
   }
 
+  /**
+   * Pops the application menu up under the overlaid title bar. On Linux it stays closed while the person types in one
+   * of the shell's text fields, such as the address field: a layout switch with Alt+Shift can reach the window as Alt
+   * alone, with no trace of Shift before Alt is released, and an open menu holds the pointer for the whole desktop on
+   * X11.
+   */
+  async function popUpApplicationMenu(window: BrowserWindow): Promise<void> {
+    if (desktopWindowPlatform() === 'linux') {
+      const typing = await window.webContents.executeJavaScript(SHELL_TEXT_FIELD_FOCUSED_SCRIPT).catch(() => false) as unknown
+      if (typing === true || window.isDestroyed() || !window.isFocused()) return
+    }
+    Menu.getApplicationMenu()?.popup({
+      window,
+      x: 8,
+      y: titleBarOverlayStyle(
+        host.resolvedTheme(host.settings().theme),
+        host.settings().tabPosition,
+        host.settings().interfaceScale
+      ).height
+    })
+  }
+
   /** Shows the menu bar, or pops the menu up under an overlaid title bar, when Alt is pressed and released alone. */
   function attachMenuBarGesture(): void {
     const autoHideMenuGesture = createAutoHideMenuGesture(desktopWindowPlatform())
@@ -174,15 +205,7 @@ export function createMainWindow(host: MainWindowHost): {
       if (menuGesture) event.preventDefault()
       if (host.refs.window && menuGesture === 'toggle') {
         if (host.refs.chromeMode === 'overlay') {
-          Menu.getApplicationMenu()?.popup({
-            window: host.refs.window,
-            x: 8,
-            y: titleBarOverlayStyle(
-              host.resolvedTheme(host.settings().theme),
-              host.settings().tabPosition,
-              host.settings().interfaceScale
-            ).height
-          })
+          void popUpApplicationMenu(host.refs.window)
         } else {
           host.refs.window.setMenuBarVisibility(!host.refs.window.isMenuBarVisible())
         }

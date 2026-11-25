@@ -42,8 +42,9 @@ export type AutoHideMenuGesture = ((input: MenuToggleInput & { isAutoRepeat?: bo
  * Alt alone shows the auto-hidden menu when it is released, as native auto-hide menus do, so Alt held with another key
  * stays a shortcut. The press goes on to the window: Chromium drops the release of a key press held back in
  * `before-input-event`, so holding it back would leave nothing to show the menu on. Every Alt release is held back
- * instead, so the native auto-hide menu and the system menu never act on it as well. Anything else done with Alt
- * down, such as a click, an Alt-drag of the window or switching away from it, should call `reset`.
+ * instead, so the native auto-hide menu and the system menu never act on it as well. Another key released while Alt
+ * is down counts as a key held with it, even when its press never arrived. Anything else done with Alt down, such as
+ * a click, an Alt-drag of the window or switching away from it, should call `reset`.
  */
 export function createAutoHideMenuGesture(platform: DesktopWindowPlatform): AutoHideMenuGesture {
   let armed = false
@@ -57,7 +58,13 @@ export function createAutoHideMenuGesture(platform: DesktopWindowPlatform): Auto
       }
       return undefined
     }
-    if (input.type !== 'keyUp' || !isAltKey(input)) return undefined
+    if (input.type !== 'keyUp') return undefined
+    if (!isAltKey(input)) {
+      // The desktop can keep another key's press to itself, such as Shift in an Alt+Shift layout switch on Linux,
+      // and pass on only its release.
+      armed = false
+      return undefined
+    }
     const toggle = armed
     armed = false
     return toggle ? 'toggle' : 'suppress'
