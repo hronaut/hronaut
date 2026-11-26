@@ -183,8 +183,20 @@ describe('BrowserPageActions', () => {
   })
 })
 
+it('queues a tab lock change asked for while one waits', async () => {
+  const view = renderActions()
+  await view.rerender({ interactionPending: true })
+  const button = view.container.querySelector('.tab-interaction-lock-button') as HTMLButtonElement
+  expect(button).toBeEnabled()
+  expect(button).toHaveAttribute('aria-busy', 'true')
+  expect(button.getAttribute('aria-label')).toContain('Waiting…')
+  button.click()
+  expect(view.emitted().toggleTabInteraction).toHaveLength(1)
+  await view.rerender({ interactionPending: false })
+  expect(button.querySelector('.state-spinner')).toBeNull()
+})
+
 it.each([
-  ['interactionPending', '.tab-interaction-lock-button', 'toggleTabInteraction'],
   ['audioPending', '.tab-mute-button', 'toggleTabMuted'],
   ['agentPending', '.tab-agent-control-button', 'toggleTabAgentPaused'],
   ['lifecyclePending', '.page-lifecycle-button', 'togglePageLifecycle']

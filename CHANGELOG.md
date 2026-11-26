@@ -8,6 +8,11 @@ All notable changes to Hronaut are documented in this file.
 
 - Updated Electron to 45.5.0 with Chromium 156.0.8078.109.
 
+### Fixed
+
+- **Lock input** and **Unlock input**, for one tab or all tabs, sometimes did nothing and stayed disabled with a spinner. A change waited for every page to apply it, and a page that stopped answering, or one with Developer Tools open, held that change and every later one. Each change now settles within a few seconds and the page follows when it can; clicks made while one waits run next, in order.
+- A workspace whose agent's call never finished, as one hung on a page after the agent disconnected, stayed busy until Hronaut restarted, so no agent could take it over or close it. It is free again a minute after the agent's claim ends, and a busy answer now says when (`availableAt`) and what to do then.
+
 ## [3.14.40] - 2026-11-25
 
 ### Fixed

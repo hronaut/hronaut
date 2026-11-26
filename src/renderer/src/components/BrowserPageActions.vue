@@ -88,7 +88,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
       v-tooltip="interactionPending ? t('runtime.locks.waiting') : tabInteractionLockLabel"
       :aria-label="interactionPending ? t('runtime.locks.waiting') + ': ' + (tabInteractionLockLabel) : tabInteractionLockLabel"
       :aria-pressed="tabHumanInteractionLocked"
-      :disabled="interactionPending || activeTabIsInternal"
+      :disabled="activeTabIsInternal"
       @click="emit('toggleTabInteraction')"
     >
       <IconProgress v-if="interactionPending" class="state-spinner" aria-hidden="true" />

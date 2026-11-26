@@ -122,7 +122,6 @@ watch(() => props.licenseReminderShown, (shown) => {
       class="topbar-icon-button browser-lock-button all-lock-button"
       :class="{ locked: allInteractionLocked }"
       :aria-busy="Boolean(interactionPending)"
-      :disabled="interactionPending"
       type="button"
       v-tooltip="interactionPending ? t('runtime.locks.waiting') : allInteractionLockLabel"
       :aria-label="interactionPending ? t('runtime.locks.waiting') + ': ' + (allInteractionLockLabel) : allInteractionLockLabel"
