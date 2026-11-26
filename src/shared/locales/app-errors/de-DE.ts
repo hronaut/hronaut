@@ -295,6 +295,7 @@ export const deDEAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Schließen Sie die Entwicklertools für diesen Tab und versuchen Sie es dann erneut.',
+    pageNotAnswering: 'Die Seite hat {seconds} s lang nicht reagiert, daher hat Hronaut die Verbindung zu ihr zurückgesetzt. Versuchen Sie es erneut; wenn die Seite weiterhin hängt, laden Sie sie neu.',
     pickOnHome: 'Öffnen Sie einen Website-Tab, bevor Sie ein Element auswählen.',
     areaOnHome: 'Öffnen Sie einen Website-Tab, bevor Sie einen Bereich aufnehmen.',
     areaIncomplete: 'Der ausgewählte Bildschirmfoto-Bereich war unvollständig; wählen Sie ihn erneut aus.',

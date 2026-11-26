@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
+import type { DebuggerOperationOptions } from '../debugger-queue.js'
 
 /**
  * Runs a debugger operation on the page in its turn, attaching the debugger
@@ -8,9 +9,18 @@ import type { Browser } from '../browser.js'
  * and refusing while the page's Developer Tools are open or opening. With
  * validateAdmission, the caller's admission is checked before and after
  * every step up to the operation; without it, a debugger this call attached
- * gets its page and runtime domains enabled again afterwards.
+ * gets its page and runtime domains enabled again afterwards. An operation
+ * that waits on purpose, as for a caller's deadline, declares how long in
+ * options; past its budget the queue resets the page's debugger connection
+ * and the call fails with DebuggerOperationStalledError.
  */
-export async function withDebugger<T>(browser: Browser, webContents: WebContents, operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
+export async function withDebugger<T>(
+  browser: Browser,
+  webContents: WebContents,
+  operation: () => Promise<T>,
+  validateAdmission?: () => void,
+  options?: DebuggerOperationOptions
+): Promise<T> {
   validateAdmission?.()
   return browser.debuggerQueue.run(webContents.id, async () => {
     validateAdmission?.()
@@ -42,5 +52,5 @@ export async function withDebugger<T>(browser: Browser, webContents: WebContents
         await webContents.debugger.sendCommand('Runtime.enable').catch(() => undefined)
       }
     }
-  })
+  }, options)
 }

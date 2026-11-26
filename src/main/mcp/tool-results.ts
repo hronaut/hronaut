@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { type BrowserReconciliationCondition, type BrowserReconciliationResult, classifyBrowserReconciliation } from '../../shared/browser-reconciliation.js'
 import type { BrowserState, McpActivityResult } from '../../shared/types.js'
 import { titleWithoutUrlDetail, urlWithoutDetail } from '../../shared/url-detail.js'
+import { DebuggerOperationStalledError } from '../browser/debugger-queue.js'
 import { NativeClickAdmissionError, type NativeClickProgress, nativeClickEffectsPossible, nativeClickReason } from '../browser/native-click-admission.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import { NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
@@ -101,11 +102,25 @@ export const nativeKeyHoldNotDispatchedResult = (result: CallToolResult, policy?
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
 }
 
+/** A debugger operation the page did not answer within its budget, after which Hronaut reset its connection to the page. */
+export const pageNotAnsweringResult = (error: DebuggerOperationStalledError): CallToolResult => {
+  const outcome = {
+    status: 'OUTCOME_UNKNOWN', reason: 'PAGE_NOT_ANSWERING', effects: 'possible', retrySafe: false, budgetMs: error.budgetMs,
+    detail: error.message,
+    nextAction: 'Inspect fresh page state before continuing; do not replay the action blindly. Hronaut reset its debugger'
+      + ' connection to the page, which ends emulation and request conditions. While the page stays stuck, its next debugger'
+      + ' actions fail within seconds, and a page stuck in a script shows as not responding within 15 s; then'
+      + ' browser_history action=reload replaces its renderer.'
+  }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
 export const errorResult = (error: unknown): CallToolResult => {
   if (error instanceof NativeClickAdmissionError) return nativeClickFailureResult(error.progress, error.reason)
   if (error instanceof NativeKeyHoldOutcomeUnknownError) return nativeKeyHoldUnknownResult(error.progress)
   if (error instanceof NativeWheelOutcomeUnknownError) return nativeWheelUnknownResult()
   if (error instanceof NativeInputCleanupError) return nativeInputCleanupResult()
+  if (error instanceof DebuggerOperationStalledError) return pageNotAnsweringResult(error)
   if (error instanceof WorkspaceWriteLeaseError) {
     const outcome = {
       status: error.code === 'WORKSPACE_BUSY' ? 'BUSY' : 'LEASE_LOST',

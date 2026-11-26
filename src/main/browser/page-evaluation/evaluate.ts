@@ -73,7 +73,8 @@ export async function evaluate(browser: Browser, script: string, tabId?: string,
       if (!refusedUnsentByPageDialog(error)) releaseEvaluationDialogs(webContents, evaluationId, contextId)
       throw error
     }
-  })))
+    // The deadline frees the page's turn itself; the budget beyond it is for a page that stops answering commands.
+  }, undefined, { waitMs: deadline?.timeoutMs })))
 }
 
 function stopSignal(deadline: EvaluationDeadline): AbortSignal {

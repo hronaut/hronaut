@@ -1850,6 +1850,7 @@
   "appErrors.bookmarks.importEmpty": "756065d5ae",
   "appErrors.bookmarks.tabsNothingToSave": "a97a212c25",
   "appErrors.pageTools.devToolsOpen": "cda96814e6",
+  "appErrors.pageTools.pageNotAnswering": "b7fe894f81",
   "appErrors.pageTools.pickOnHome": "3536789124",
   "appErrors.pageTools.areaOnHome": "be632bc2ed",
   "appErrors.pageTools.areaIncomplete": "e56eadc0a9",

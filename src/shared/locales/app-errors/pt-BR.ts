@@ -295,6 +295,7 @@ export const ptBRAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Feche as Ferramentas do desenvolvedor desta guia e tente novamente.',
+    pageNotAnswering: 'A página não respondeu por {seconds} s, então o Hronaut redefiniu a conexão com ela. Tente novamente; se a página continuar travada, recarregue-a.',
     pickOnHome: 'Abra uma guia de site antes de selecionar um elemento',
     areaOnHome: 'Abra uma guia de site antes de capturar uma área',
     areaIncomplete: 'A área selecionada para a captura de tela estava incompleta; tente selecioná-la novamente',

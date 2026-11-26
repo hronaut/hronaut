@@ -10,7 +10,7 @@ import type { WorkerEvaluationAuthority, WorkerEvaluationDeadline } from './work
 export function createWorkerEvaluations(browser: Browser): WorkerEvaluations<BrowserTab> {
   return new WorkerEvaluations<BrowserTab>({
     isCurrent: tab => browser.tabs.get(tab.id) === tab,
-    withDebugger: (tab, operation) => withDebugger(browser, tab.webContents, operation)
+    withDebugger: (tab, operation, options) => withDebugger(browser, tab.webContents, operation, undefined, options)
   })
 }
 

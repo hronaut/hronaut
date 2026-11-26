@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import { pageScript } from '../../../shared/page-script.js'
+import type { DebuggerOperationOptions } from '../debugger-queue.js'
 import { RendererExitedError } from '../renderer-exit-guard.js'
 import {
   WORKER_EVALUATION_CAVEATS,
@@ -24,7 +25,7 @@ export interface WorkerEvaluationAuthority { assertCurrent(): void }
 export interface WorkerEvaluationHost<T> {
   isCurrent(tab: T): boolean
   /** Runs in the tab's debugger queue after attaching; rejects while Developer Tools are open. */
-  withDebugger<R>(tab: T, operation: () => Promise<R>): Promise<R>
+  withDebugger<R>(tab: T, operation: () => Promise<R>, options?: DebuggerOperationOptions): Promise<R>
 }
 
 /** How long an evaluation waits for its script, and the call's cancellation. */
@@ -395,7 +396,7 @@ export class WorkerEvaluations<T extends WorkerTab> {
         }
         return readResponse(response)
       })
-    })
+    }, { waitMs: deadline.timeoutMs })
     // Also stops waiting for the debugger queue; the queued operation then finds the stop and sends nothing.
     const outcome = await untilStopped(operation, stop, stopped)
     authority.assertCurrent()

@@ -295,6 +295,7 @@ export const zhTWAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: '請關閉這個分頁的開發人員工具，然後再試一次。',
+    pageNotAnswering: '頁面在 {seconds} 秒內沒有回應，因此 Hronaut 重設了與它的連線。請再試一次；如果頁面仍然卡住，請重新載入。',
     pickOnHome: '選取元素前，請先開啟網站分頁',
     areaOnHome: '擷取區域前，請先開啟網站分頁',
     areaIncomplete: '所選的螢幕截圖區域不完整，請重新選取',

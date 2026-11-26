@@ -295,6 +295,7 @@ export const esESAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Cierra las herramientas de desarrollo de esta pestaña y vuelve a intentarlo.',
+    pageNotAnswering: 'La página no respondió durante {seconds} s, así que Hronaut restableció su conexión con ella. Vuelve a intentarlo; si la página sigue bloqueada, vuelve a cargarla.',
     pickOnHome: 'Abre una pestaña de un sitio web antes de seleccionar un elemento.',
     areaOnHome: 'Abre una pestaña de un sitio web antes de capturar un área.',
     areaIncomplete: 'El área de captura seleccionada estaba incompleta; vuelve a seleccionarla.',

@@ -295,6 +295,7 @@ export const koKRAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: '이 탭의 개발자 도구를 닫은 후 다시 시도하세요.',
+    pageNotAnswering: '페이지가 {seconds}초 동안 응답하지 않아 Hronaut가 페이지와의 연결을 재설정했습니다. 다시 시도하세요. 페이지가 계속 멈춰 있으면 새로고침하세요.',
     pickOnHome: '요소를 선택하기 전에 웹사이트 탭을 여세요',
     areaOnHome: '영역을 캡처하기 전에 웹사이트 탭을 여세요',
     areaIncomplete: '선택한 스크린샷 영역이 불완전합니다. 다시 선택하세요',

@@ -18,6 +18,17 @@ import { printDialogHolds } from '../print-dialog-guard.js'
 /** How long input may go unanswered before the page shows it is not responding, as long as Chrome's hang monitor waits. */
 export const HANG_DELAY_MS = 15_000
 
+/** Each page's hang check, which input the page receives starts, as does a debugger operation the page never answered. */
+const hangChecks = new WeakMap<WebContents, () => void>()
+
+/**
+ * Asks the page to show it still answers, as a person's input does: a page that does not within HANG_DELAY_MS shows
+ * that it is not responding, which a reload replaces. For a page that left a debugger command unanswered.
+ */
+export function checkPageResponds(webContents: WebContents): void {
+  hangChecks.get(webContents)?.()
+}
+
 /** The message explaining each reason Electron gives for a renderer exit. */
 const RENDERER_FAILURE_MESSAGES: Record<string, MessageKey> = {
   'abnormal-exit': 'native.pageProblem.abnormalExit',
@@ -52,9 +63,9 @@ function rendererFailureProblem(locale: SupportedLocale, url: string, reason: st
  * Chromium reports no hang while a debugger is attached to the page, and Hronaut keeps one attached to every tab, so
  * Electron's `unresponsive` never came for a page stuck in a loop. As Chrome's hang monitor does, input the page has
  * not answered within HANG_DELAY_MS shows the problem: each input that finds no check under way asks the page to
- * answer in a world of its own, which a stuck main thread cannot do. A page loading its document, holding an alert or
- * the print dialog, which keep its main thread waiting, or paused in the person's DevTools, is not checked, and a
- * check that a navigation overtook shows nothing.
+ * answer in a world of its own, which a stuck main thread cannot do; so does a debugger operation the page never
+ * answered. A page loading its document, holding an alert or the print dialog, which keep its main thread waiting, or
+ * paused in the person's DevTools, is not checked, and a check that a navigation overtook shows nothing.
  */
 export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, webContents: WebContents): void {
   webContents.on('render-process-gone', (_event, details) => {
@@ -111,7 +122,7 @@ export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, we
   let checkStartedAt: number | undefined
   const waitsOnPurpose = (): boolean => webContents.isDestroyed() || webContents.isCrashed() || webContents.isLoadingMainFrame()
     || webContents.isDevToolsOpened() || tab.dialog !== undefined || printDialogHolds(webContents)
-  webContents.on('input-event', () => {
+  const checkResponds = (): void => {
     if (checkStartedAt !== undefined && performance.now() - checkStartedAt < HANG_DELAY_MS) return
     if (waitsOnPurpose()) return
     const startedAt = performance.now()
@@ -128,5 +139,7 @@ export function attachRendererHealthEvents(browser: Browser, tab: BrowserTab, we
         clearTimeout(timer)
         if (checkStartedAt === startedAt) checkStartedAt = undefined
       })
-  })
+  }
+  webContents.on('input-event', checkResponds)
+  hangChecks.set(webContents, checkResponds)
 }

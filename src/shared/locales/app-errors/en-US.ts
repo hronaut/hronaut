@@ -299,6 +299,7 @@ export const enUSAppErrors = {
   },
   pageTools: {
     devToolsOpen: 'Close Developer Tools for this tab, then try again.',
+    pageNotAnswering: 'The page did not respond for {seconds} s, so Hronaut reset its connection to it. Try again; if the page stays stuck, reload it.',
     pickOnHome: 'Open a website tab before selecting an element',
     areaOnHome: 'Open a website tab before capturing an area',
     areaIncomplete: 'The selected screenshot area was incomplete; try selecting it again',
