@@ -226,8 +226,22 @@ describe('AppTopbarActions', () => {
   })
 })
 
+// A lock change waiting on a busy page kept the button disabled, so Lock and Unlock seemed to do nothing; a click while
+// one waits now queues the next change.
+it('queues a lock change asked for while one waits', async () => {
+  const view = renderActions({ interactionPending: true })
+  const button = view.container.querySelector('.all-lock-button') as HTMLButtonElement
+  expect(button).toBeEnabled()
+  expect(button).toHaveAttribute('aria-busy', 'true')
+  expect(button.getAttribute('aria-label')).toContain('Waiting…')
+  expect(button.querySelector('.state-spinner')).not.toBeNull()
+  button.click()
+  expect(view.emitted().toggleAllInteraction).toHaveLength(1)
+  await view.rerender({ interactionPending: false })
+  expect(button.querySelector('.state-spinner')).toBeNull()
+})
+
 it.each([
-  ['interactionPending', '.all-lock-button'],
   ['audioPending', '.all-tabs-audio-button']
 ])('shows waiting feedback for global %s', async (pending, selector) => {
   const view = renderActions({ [pending]: true })

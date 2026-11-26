@@ -1,10 +1,40 @@
 import type { BrowserState } from '../../../shared/types.js'
 import { LocalizedError } from '../../localized-error.js'
 import type { Browser } from '../browser.js'
+import type { BrowserTab } from '../browser-tab.js'
 import { findTab, getTab } from '../browser-core.js'
 import { browserState, publishChange } from '../browser-state/browser-state.js'
 import { syncHumanInteractionInputGuard } from './human-input-guard.js'
 import { tabInputLock } from './input-lock-state.js'
+
+/**
+ * How long a lock change waits for a page's native guard before it settles. The guard waits its turn behind the page's
+ * queued debugger work, as an agent's call that runs long, so a change that waited for it held every later lock and
+ * unlock, also of other tabs, until that work ended: Lock and Unlock seemed to do nothing. The tab shows the lock at
+ * once, and its guard still follows in the page's turn.
+ */
+export const INPUT_GUARD_WAIT_MS = 3_000
+
+/**
+ * The page's guard sync, settled for the lock change: it resolves once the sync does or after INPUT_GUARD_WAIT_MS, and
+ * rejects only when the sync failed within that time. A sync still running then is applied again after it ends, from
+ * the lock as it is by then, so a late failure leaves no guard behind the tab's lock.
+ */
+async function settleGuard(browser: Browser, tab: BrowserTab): Promise<void> {
+  const sync = syncHumanInteractionInputGuard(browser, tab)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const waited = new Promise<'waited'>((resolve) => {
+    timer = setTimeout(() => resolve('waited'), INPUT_GUARD_WAIT_MS)
+    timer.unref?.()
+  })
+  try {
+    if (await Promise.race([sync.then(() => 'synced' as const), waited]) === 'waited') {
+      void sync.catch(() => syncHumanInteractionInputGuard(browser, tab)).catch(() => undefined)
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 /** Runs the lock change after every earlier one, and its rollback, has settled. */
 function enqueueInteractionLockMutation(browser: Browser, operation: () => Promise<BrowserState>): Promise<BrowserState> {
@@ -19,8 +49,8 @@ function enqueueInteractionLockMutation(browser: Browser, operation: () => Promi
 
 /**
  * Locks or unlocks the person's input in a tab, as an exception to a global
- * lock when there is one. Changes run one at a time, and a failed native guard
- * update rolls the tab back. Key holds and sequences on the page stop at once,
+ * lock when there is one. Changes run one at a time in the order asked, and a
+ * failed native guard update rolls the tab back. Key holds and sequences on the page stop at once,
  * and native input tools on the page refuse until the change settles.
  */
 export function setTabHumanInteractionLocked(browser: Browser, tabId: string, locked: boolean): Promise<BrowserState> {
@@ -57,14 +87,14 @@ async function applyTabHumanInteractionLocked(browser: Browser, tabId: string, l
   }
   publishChange(browser)
   try {
-    // Waits its turn behind the page's queued debugger work, however long that takes, rather than failing.
-    await syncHumanInteractionInputGuard(browser, tab)
+    // Waits its turn behind the page's queued debugger work, for a bounded time, rather than failing.
+    await settleGuard(browser, tab)
   } catch (error) {
     tab.humanInteractionLocked = previousLocked
     if (wasGloballyUnlocked) browser.globallyUnlockedTabIds.add(tabId)
     else browser.globallyUnlockedTabIds.delete(tabId)
     try {
-      await syncHumanInteractionInputGuard(browser, tab)
+      await settleGuard(browser, tab)
     } catch (rollbackError) {
       publishChange(browser)
       // The message names the tab for logs; a person reads that this tab's lock is in doubt.
@@ -108,9 +138,9 @@ async function applyAllHumanInteractionLocked(browser: Browser, locked: boolean)
     }
   }
   publishChange(browser)
-  // Each page's guard waits its turn behind that page's queued debugger work, however long that takes.
+  // Each page's guard waits its turn behind that page's queued debugger work, for a bounded time.
   const results = await Promise.allSettled(
-    [...browser.tabs.values()].map((tab) => syncHumanInteractionInputGuard(browser, tab))
+    [...browser.tabs.values()].map((tab) => settleGuard(browser, tab))
   )
   const errors = results
     .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
@@ -120,7 +150,7 @@ async function applyAllHumanInteractionLocked(browser: Browser, locked: boolean)
     for (const tabId of previousGloballyUnlockedTabIds) browser.globallyUnlockedTabIds.add(tabId)
     browser.layout()
     const rollbackResults = await Promise.allSettled(
-      [...browser.tabs.values()].map((tab) => syncHumanInteractionInputGuard(browser, tab))
+      [...browser.tabs.values()].map((tab) => settleGuard(browser, tab))
     )
     const rollbackErrors = rollbackResults
       .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
