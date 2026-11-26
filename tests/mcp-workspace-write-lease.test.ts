@@ -83,6 +83,62 @@ describe('workspace write leases', () => {
     )
   })
 
+  // A call that never settles, such as one hung on a page after its agent went away, held the workspace until Hronaut
+  // restarted: no agent could claim or close it, and the BUSY result named no time to come back.
+  it('frees a workspace held by a call that never settles a bounded time after its claim ends', () => {
+    vi.useFakeTimers()
+    try {
+      const leases = new WorkspaceWriteLeaseRegistry()
+      const first = leases.claim(workspaceId, 'first')
+      const finishHung = leases.beginMutation(workspaceId, 'first')
+      leases.clearOwner('first')
+      let busy: unknown
+      try { leases.claim(workspaceId, 'second') } catch (error) { busy = error }
+      expect(busy).toMatchObject({ code: 'WORKSPACE_BUSY' })
+      expect(Date.parse((busy as WorkspaceWriteLeaseError).availableAt!))
+        .toBe(Date.now() + WorkspaceWriteLeaseRegistry.UNSETTLED_CALL_HOLD_MS)
+      expect(leases.status(workspaceId, 'second')).toMatchObject({ status: 'busy', holder: 'other' })
+      vi.advanceTimersByTime(WorkspaceWriteLeaseRegistry.UNSETTLED_CALL_HOLD_MS - 1)
+      expect(() => leases.claim(workspaceId, 'second')).toThrowError(
+        expect.objectContaining<Partial<WorkspaceWriteLeaseError>>({ code: 'WORKSPACE_BUSY' })
+      )
+      vi.advanceTimersByTime(1)
+      const second = leases.claim(workspaceId, 'second')
+      expect(second).toMatchObject({ status: 'owned', holder: 'self' })
+      // The hung call settling late takes nothing from the new holder.
+      finishHung()
+      expect(leases.require(workspaceId, 'second', second.generation)).toMatchObject({ status: 'owned' })
+      expect(() => leases.require(workspaceId, 'first', first.generation)).toThrowError(
+        expect.objectContaining<Partial<WorkspaceWriteLeaseError>>({ code: 'LEASE_LOST' })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('frees a workspace whose holder\'s own call hangs past the lease lifetime, and says when', () => {
+    vi.useFakeTimers()
+    try {
+      const leases = new WorkspaceWriteLeaseRegistry()
+      leases.claim(workspaceId, 'first')
+      leases.beginMutation(workspaceId, 'first')
+      let busy: unknown
+      try { leases.claim(workspaceId, 'second') } catch (error) { busy = error }
+      expect(Date.parse((busy as WorkspaceWriteLeaseError).availableAt!)).toBe(
+        Date.now() + WorkspaceWriteLeaseRegistry.LIFETIME_MS + WorkspaceWriteLeaseRegistry.UNSETTLED_CALL_HOLD_MS
+      )
+      vi.advanceTimersByTime(WorkspaceWriteLeaseRegistry.LIFETIME_MS)
+      // Its own holder cannot claim it again while that call may still act.
+      expect(() => leases.claim(workspaceId, 'first')).toThrowError(
+        expect.objectContaining<Partial<WorkspaceWriteLeaseError>>({ code: 'WORKSPACE_BUSY' })
+      )
+      vi.advanceTimersByTime(WorkspaceWriteLeaseRegistry.UNSETTLED_CALL_HOLD_MS)
+      expect(leases.claim(workspaceId, 'first')).toMatchObject({ status: 'owned', holder: 'self' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('expires an idle claim using the bounded monotonic lifetime', () => {
     vi.useFakeTimers()
     try {
@@ -201,6 +257,8 @@ describe('workspace write leases', () => {
       expect(conflict.structuredContent).toMatchObject({
         status: 'BUSY', reason: 'WORKSPACE_BUSY', dispatch: 'not-dispatched', effects: 'none'
       })
+      expect(Date.parse(String((conflict.structuredContent as { availableAt?: unknown }).availableAt))).toBeGreaterThan(Date.now())
+      expect(String((conflict.structuredContent as { nextAction?: unknown }).nextAction)).toContain('claim-ownership')
       expect(manager.click).not.toHaveBeenCalled()
       expect(JSON.stringify(conflict)).not.toContain('first-writer')
 
