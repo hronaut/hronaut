@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.14.42] - 2026-11-26
+
 ### Fixed
 
 - A page stuck in a script, or one that stopped answering Hronaut's debugger for another reason, held every later agent action on its tab that uses the debugger: the call never returned, and neither did the ones after it. Each such action now waits a minute at most (an evaluation, worker evaluation or heap snapshot also gets the time it asked for), then Hronaut resets its debugger connection to the page and the call fails with `PAGE_NOT_ANSWERING`. While the page stays stuck, the next actions fail within 10 seconds; the page is checked as a person's input checks it and shows that it is not responding, and **Reload** (or `browser_history` `action=reload`) replaces it. The reset ends the tab's emulation and request conditions, and the page's console notes it. **Lock input** comes back on such a page at once.
