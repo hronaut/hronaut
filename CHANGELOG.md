@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- Updated Electron to 45.5.0 with Chromium 156.0.8078.109.
+
 ## [3.14.40] - 2026-11-25
 
 ### Fixed
