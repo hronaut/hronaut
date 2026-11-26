@@ -32,6 +32,7 @@ export function attachPageDestroyedEvents(browser: Browser, tab: BrowserTab, web
     browser.tabOverviewPreviewCaptures.cancelPending(tab.id)
     browser.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
     cancelNativeSelectionSessions(browser, tab)
+    browser.debuggerQueue.forget(webContents.id)
     if (browser.expectedTabClosures.has(webContents)) {
       browser.dialogMonitorAttachPromises.delete(webContents.id)
       browser.defaultExecutionContexts.delete(webContents.id)

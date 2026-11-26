@@ -9,7 +9,7 @@ export function createHeapSnapshots(browser: Browser): HeapSnapshots<BrowserTab>
   return new HeapSnapshots<BrowserTab>({
     getTab: (tabId) => getTab(browser, tabId),
     findTab: (tabId) => browser.tabs.get(tabId),
-    withDebugger: (webContents, operation) => withDebugger(browser, webContents, operation),
+    withDebugger: (webContents, operation, options) => withDebugger(browser, webContents, operation, undefined, options),
     allocationSampling: (tab) => Boolean(tab.memoryAllocation?.recording)
   })
 }

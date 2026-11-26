@@ -295,6 +295,7 @@ export const itITAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Chiudi gli Strumenti per sviluppatori di questa scheda, poi riprova.',
+    pageNotAnswering: 'La pagina non ha risposto per {seconds} s, quindi Hronaut ha reimpostato la connessione con essa. Riprova; se la pagina resta bloccata, ricaricala.',
     pickOnHome: 'Apri una scheda di sito web prima di selezionare un elemento',
     areaOnHome: 'Apri una scheda di sito web prima di acquisire un’area',
     areaIncomplete: 'L’area dello screenshot selezionata era incompleta; prova a selezionarla di nuovo',

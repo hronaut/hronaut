@@ -295,6 +295,7 @@ export const idIDAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Tutup Alat Developer untuk tab ini, lalu coba lagi.',
+    pageNotAnswering: 'Halaman tidak merespons selama {seconds} detik, jadi Hronaut menyetel ulang koneksinya ke halaman itu. Coba lagi; jika halaman tetap macet, muat ulang halaman.',
     pickOnHome: 'Buka tab situs sebelum memilih elemen',
     areaOnHome: 'Buka tab situs sebelum mengambil area',
     areaIncomplete: 'Area screenshot yang dipilih tidak lengkap; coba pilih lagi',

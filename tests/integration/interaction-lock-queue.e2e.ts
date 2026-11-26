@@ -35,6 +35,9 @@ for (const [firstScope, secondScope] of [['tab', 'tab'], ['global', 'global'], [
             await new Promise<void>(resolve => {
               probe.release = resolve
               probe.waiting = true
+              // Fails well within the few seconds a lock change waits for its pages, which the test's polling and
+              // release on a loaded machine could outlast, turning the failure into a lock the page follows later.
+              setTimeout(resolve, 250)
             })
             throw new Error('Synthetic queued lock failure')
           }

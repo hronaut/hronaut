@@ -225,12 +225,15 @@ export function closeWebsiteDialogBoxOfDestroyedPage(webContents: WebContents): 
 }
 
 /**
- * Attaches the page's debugger, unless Developer Tools have it, and enables
- * the page, runtime, log, audit and network domains that website dialogs and
- * page diagnostics observe, then applies the human interaction lock. Concurrent
- * callers share one attachment, which page lifecycle and debugger operations
- * wait for. Once monitoring is in place it holds until the debugger detaches,
- * and a call does nothing.
+ * Attaches the page's debugger, unless Developer Tools have it, applies the
+ * human interaction lock, and enables the page, runtime, log, audit and
+ * network domains that website dialogs and page diagnostics observe. The
+ * browser process answers the lock's input barrier, so a page whose renderer
+ * does not answer, as one stuck in a script after Hronaut reset its debugger
+ * connection, is locked again at once. Concurrent callers share one
+ * attachment, which page lifecycle and debugger operations wait for. Once
+ * monitoring is in place it holds until the debugger detaches, and a call
+ * does nothing.
  */
 export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promise<void> {
   const webContents = tab.webContents
@@ -251,6 +254,11 @@ export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promi
     try {
       const attachedHere = !webContents.debugger.isAttached()
       if (attachedHere) webContents.debugger.attach('1.3')
+      const agentInput = browser.agentInputWebContents.has(webContents.id)
+      const ignore = browser.isHumanInteractionLocked(tab) && !agentInput
+      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore })
+      // An agent's input under way keeps the barrier lifted for itself; left unknown, its inputs lift and restore it by the lock.
+      recordNativeInputBarrier(tab, agentInput ? undefined : ignore)
       await webContents.debugger.sendCommand('Page.enable')
       // Network Document responses also include iframes. Establish the native
       // main-frame identity before recording any connection-security metadata.
@@ -270,11 +278,6 @@ export function ensureDialogMonitoring(browser: Browser, tab: BrowserTab): Promi
       // Reattachment never restores request conditions. A detached epoch
       // requires explicit recovery; dialog monitoring is independent.
       tab.networkDebuggerEnabled = true
-      const agentInput = browser.agentInputWebContents.has(webContents.id)
-      const ignore = browser.isHumanInteractionLocked(tab) && !agentInput
-      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore })
-      // An agent's input under way keeps the barrier lifted for itself; left unknown, its inputs lift and restore it by the lock.
-      recordNativeInputBarrier(tab, agentInput ? undefined : ignore)
       // Emulation uncertainty also requires explicit recovery; never reapply it here.
     } catch (error) {
       tab.networkDebuggerEnabled = false

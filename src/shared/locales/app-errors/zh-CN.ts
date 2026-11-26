@@ -295,6 +295,7 @@ export const zhCNAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: '请关闭此标签页的开发者工具，然后重试。',
+    pageNotAnswering: '页面 {seconds} 秒内没有响应，因此 Hronaut 重置了与它的连接。请重试；如果页面仍然卡住，请重新加载。',
     pickOnHome: '请先打开一个网站标签页，再选择元素',
     areaOnHome: '请先打开一个网站标签页，再截取区域',
     areaIncomplete: '所选的截图区域不完整；请重新选择',

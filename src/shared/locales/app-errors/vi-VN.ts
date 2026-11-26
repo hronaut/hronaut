@@ -295,6 +295,7 @@ export const viVNAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Hãy đóng Công cụ cho nhà phát triển của thẻ này, rồi thử lại.',
+    pageNotAnswering: 'Trang không phản hồi trong {seconds} giây nên Hronaut đã đặt lại kết nối với trang. Hãy thử lại; nếu trang vẫn bị treo, hãy tải lại trang.',
     pickOnHome: 'Hãy mở một thẻ trang web trước khi chọn phần tử',
     areaOnHome: 'Hãy mở một thẻ trang web trước khi chụp một vùng',
     areaIncomplete: 'Vùng chụp màn hình đã chọn chưa đầy đủ; hãy thử chọn lại',

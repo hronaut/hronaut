@@ -7,6 +7,7 @@ import {
   type HeapSnapshotSummary
 } from '../../../shared/heap-snapshot.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
+import type { DebuggerOperationOptions } from '../debugger-queue.js'
 import { isHronautHomeUrl } from '../url.js'
 import startHeapSnapshotWorker from './heap-snapshot.worker?nodeWorker'
 import type { HeapSnapshotWorkerReply, HeapSnapshotWorkerRequest } from './heap-snapshot.worker.js'
@@ -22,7 +23,7 @@ export interface HeapSnapshotTab {
 export interface HeapSnapshotHost<Tab extends HeapSnapshotTab> {
   getTab(tabId?: string): Tab
   findTab(tabId: string): Tab | undefined
-  withDebugger<T>(webContents: WebContents, operation: () => Promise<T>): Promise<T>
+  withDebugger<T>(webContents: WebContents, operation: () => Promise<T>, options?: DebuggerOperationOptions): Promise<T>
   /** Whether allocation sampling records in the tab, which keeps the HeapProfiler domain enabled. */
   allocationSampling(tab: Tab): boolean
 }
@@ -53,6 +54,12 @@ export interface HeapSnapshotReport {
 
 /** Starts a worker for one snapshot; a test passes its own. */
 export type StartWorker = () => Worker
+
+/**
+ * How long taking a heap snapshot may hold the page's debugger beyond the usual budget: Chromium streams a large
+ * page's heap, up to HEAP_SNAPSHOT_LIMITS.maxSnapshotBytes, over minutes.
+ */
+const HEAP_SNAPSHOT_WAIT_MS = 240_000
 
 const CAVEATS = [
   'Taking a heap snapshot collects garbage first and pauses the page for as long as it takes, often seconds on a large app.',
@@ -141,7 +148,7 @@ export class HeapSnapshots<Tab extends HeapSnapshotTab> {
           contents.debugger.removeListener('message', chunk)
           if (!keepEnabled && !this.host.allocationSampling(tab)) await contents.debugger.sendCommand('HeapProfiler.disable').catch(() => undefined)
         }
-      })
+      }, { waitMs: HEAP_SNAPSHOT_WAIT_MS })
       if (tooLarge) throw new Error(`The heap snapshot is larger than ${HEAP_SNAPSHOT_LIMITS.maxSnapshotBytes / 1024 / 1024} MiB, so it was not kept`)
       this.assertSamePage(tab, generation)
       worker.postMessage({ end: true } satisfies HeapSnapshotWorkerRequest)

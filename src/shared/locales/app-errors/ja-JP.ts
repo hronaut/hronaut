@@ -295,6 +295,7 @@ export const jaJPAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'このタブのデベロッパー ツールを閉じてから、もう一度お試しください。',
+    pageNotAnswering: 'ページが {seconds} 秒間応答しなかったため、Hronaut はページとの接続をリセットしました。もう一度お試しください。ページが固まったままの場合は、再読み込みしてください。',
     pickOnHome: '要素を選択する前に、ウェブサイトのタブを開いてください',
     areaOnHome: '範囲をキャプチャする前に、ウェブサイトのタブを開いてください',
     areaIncomplete: '選択したスクリーンショットの範囲が不完全でした。もう一度選択してください',

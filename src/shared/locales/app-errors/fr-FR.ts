@@ -295,6 +295,7 @@ export const frFRAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Fermez les outils de développement de cet onglet, puis réessayez.',
+    pageNotAnswering: 'La page n’a pas répondu pendant {seconds} s, Hronaut a donc réinitialisé sa connexion avec elle. Réessayez ; si la page reste bloquée, rechargez-la.',
     pickOnHome: 'Ouvrez un onglet de site web avant de sélectionner un élément.',
     areaOnHome: 'Ouvrez un onglet de site web avant de capturer une zone.',
     areaIncomplete: 'La zone de capture sélectionnée était incomplète ; sélectionnez-la de nouveau.',

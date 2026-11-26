@@ -295,6 +295,7 @@ export const plPLAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Zamknij narzędzia deweloperskie tej karty i spróbuj ponownie.',
+    pageNotAnswering: 'Strona nie odpowiadała przez {seconds} s, więc Hronaut zresetował połączenie z nią. Spróbuj ponownie; jeśli strona nadal się zawiesza, załaduj ją ponownie.',
     pickOnHome: 'Otwórz kartę z witryną, zanim wybierzesz element.',
     areaOnHome: 'Otwórz kartę z witryną, zanim przechwycisz obszar.',
     areaIncomplete: 'Wybrany obszar zrzutu był niepełny; spróbuj zaznaczyć go ponownie.',

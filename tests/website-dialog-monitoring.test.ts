@@ -5,6 +5,13 @@ import { ensureDialogMonitoring } from '../src/main/browser/website-dialogs/webs
 import { guardPageCallsDuringPrintDialog } from '../src/main/browser/print-dialog-guard.js'
 import { PAGE_IPC } from '../src/shared/ipc/page.js'
 
+// The input barrier comes first: the browser process answers it, so the person's lock holds on a page whose renderer
+// does not answer, as one stuck in a script after Hronaut reset its debugger connection.
+const MONITORING_COMMANDS = [
+  'Input.setIgnoreInputEvents', 'Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable',
+  'Audits.enable', 'Network.enable'
+]
+
 function fixture() {
   const state = { crashed: true, attached: false }
   const commands: string[] = []
@@ -44,11 +51,14 @@ describe('dialog monitoring on a page whose renderer exited', () => {
       expect(f.tab.networkDebuggerEnabled).toBe(false)
       expect(f.webContents.listenerCount('dom-ready')).toBe(1)
       expect(error).not.toHaveBeenCalled()
+      // The lock holds on the page meanwhile.
+      expect(f.commands).toEqual(['Input.setIgnoreInputEvents', 'Input.setIgnoreInputEvents'])
+      f.commands.length = 0
 
       f.state.crashed = false
       f.webContents.emit('dom-ready')
       await f.attachments.get(7)
-      expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+      expect(f.commands).toEqual(MONITORING_COMMANDS)
       expect(f.tab).toMatchObject({ networkDebuggerEnabled: true, mainFrameId: 'top' })
       expect(f.webContents.listenerCount('dom-ready')).toBe(0)
     } finally {
@@ -86,11 +96,12 @@ describe('dialog monitoring on a page its print dialog holds', () => {
       print(true)
       await ensureDialogMonitoring(f.browser, f.tab as never)
       expect(f.tab.networkDebuggerEnabled).toBe(false)
-      expect(f.commands).toEqual([])
+      expect(f.commands).toEqual(['Input.setIgnoreInputEvents'])
+      f.commands.length = 0
 
       print(false)
       await vi.waitFor(() => expect(f.tab.networkDebuggerEnabled).toBe(true))
-      expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+      expect(f.commands).toEqual(MONITORING_COMMANDS)
       expect(error).not.toHaveBeenCalled()
     } finally {
       error.mockRestore()
@@ -114,7 +125,7 @@ describe('dialog monitoring on a page that has not loaded yet', () => {
     firstLoadStarts(f.webContents)
     await ensureDialogMonitoring(f.browser, f.tab as never)
     expect(f.state.attached).toBe(true)
-    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+    expect(f.commands).toEqual(MONITORING_COMMANDS)
   })
 })
 
@@ -136,7 +147,7 @@ describe('dialog monitoring that is already in place', () => {
     f.state.attached = false
     f.tab.networkDebuggerEnabled = false
     await ensureDialogMonitoring(f.browser, f.tab as never)
-    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+    expect(f.commands).toEqual(MONITORING_COMMANDS)
   })
 
   it('sets monitoring up in full on a debugger another operation attached', async () => {
@@ -144,7 +155,7 @@ describe('dialog monitoring that is already in place', () => {
     f.state.crashed = false
     f.state.attached = true
     await ensureDialogMonitoring(f.browser, f.tab as never)
-    expect(f.commands).toEqual(['Page.enable', 'Page.getFrameTree', 'Runtime.enable', 'Runtime.setAsyncCallStackDepth', 'Log.enable', 'Audits.enable', 'Network.enable', 'Input.setIgnoreInputEvents'])
+    expect(f.commands).toEqual(MONITORING_COMMANDS)
     expect(f.tab.networkDebuggerEnabled).toBe(true)
   })
 })

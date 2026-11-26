@@ -24,7 +24,7 @@ import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
 import { createOcclusionSnapshot } from './trusted-chrome-occlusion/browser-occlusion-snapshot.js'
 import { HomeRefresh } from './home-refresh.js'
-import { BrowserDebuggerQueue } from './debugger-queue.js'
+import { createDebuggerQueue } from './debugger-lease/browser-debugger-queue.js'
 import { createDomRecorder } from './dom-recorder/browser-dom-recorder.js'
 import { createCssStatePreview } from './css-state-preview/browser-css-state-preview.js'
 import { createVirtualPasskeys } from './virtual-passkey/browser-virtual-passkeys.js'
@@ -431,7 +431,7 @@ export class Browser {
   readonly browserCookieImportSessions = new Set<Session>()
   readonly webContentsToTab = new Map<number, string>()
   readonly pwaLifecycleRecorder = createPwaLifecycleRecorder(this)
-  readonly debuggerQueue = new BrowserDebuggerQueue()
+  readonly debuggerQueue = createDebuggerQueue(this)
   readonly frameObservation = createFrameObservation(this)
 
   readonly sizingInspectionSlots = new ImageInspectionSlots('Sizing inputs')

@@ -2076,6 +2076,7 @@
   "storage-inspector-reads.e2e.ts › Storage inspector unsupported counts reads across pause ABA": 2.6,
   "storage-inspector-reads.e2e.ts › Storage inspector unsupported counts reads across unchanged": 2.9,
   "storage-inspector-reads.e2e.ts › storage usage retains the real Developer Tools fallback without a primary command": 4.5,
+  "stuck-page-debugger.e2e.ts › a page stuck in a script fails debugger actions in seconds, shows it is not responding, and a reload replaces it": 21.8,
   "tab-agent-activity.e2e.ts › keeps agent activity distinct from tab selection with left tabs": 9.3,
   "tab-agent-activity.e2e.ts › keeps agent activity distinct from tab selection with top tabs": 8.2,
   "tab-agent-control.e2e.ts › resumes only a selected tab during global pause and keeps Live/Frozen independent": 4.4,

@@ -295,6 +295,7 @@ export const trTRAppErrors: AppErrorMessages = {
   },
   pageTools: {
     devToolsOpen: 'Bu sekmenin Geliştirici araçlarını kapatıp tekrar deneyin.',
+    pageNotAnswering: 'Sayfa {seconds} sn boyunca yanıt vermedi, bu yüzden Hronaut sayfayla bağlantısını sıfırladı. Tekrar deneyin; sayfa takılı kalırsa yeniden yükleyin.',
     pickOnHome: 'Öğe seçmeden önce bir web sitesi sekmesi açın',
     areaOnHome: 'Alan yakalamadan önce bir web sitesi sekmesi açın',
     areaIncomplete: 'Seçilen ekran görüntüsü alanı eksikti; alanı tekrar seçmeyi deneyin',
