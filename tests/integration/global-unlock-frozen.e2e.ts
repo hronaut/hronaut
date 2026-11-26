@@ -29,7 +29,7 @@ test('global unlock preserves successful frozen-page behavior without thawing it
 })
 
 
-test('global unlock waits for a blocked debugger queue and applies once the page frees', async ({ capabilities, appWindow, electronApp }) => {
+test('global unlock settles while a debugger queue is blocked, keeps later changes moving and applies once the page frees', async ({ capabilities, appWindow, electronApp }) => {
   const { client, tabId, fixtureUrl } = capabilities
   await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
   await electronApp.evaluate(({ webContents }, url) => {
@@ -51,18 +51,17 @@ test('global unlock waits for a blocked debugger queue and applies once the page
   try {
     await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { held: boolean } }).unlockQueueProbe?.held)).toBe(true)
     await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
-    // The controls show the unlock at once and wait, with the page's barrier still on, for its turn behind the
-    // held command: well past the two seconds after which the unlock used to fail.
+    // The controls show the unlock at once and wait a bounded time, the button still taking clicks, for the page's
+    // turn behind the held command. Waiting for it with no end held every later lock change behind this page.
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state=>state.allHumanInteractionLocked)')).toBe(false)
-    await expect(appWindow.getByRole('button', { name: /Waiting.*Block human page input/ })).toBeDisabled()
-    await electronApp.evaluate(() => new Promise(resolve => setTimeout(resolve, 2500)))
-    await expect(appWindow.getByRole('button', { name: /Waiting.*Block human page input/ })).toBeDisabled()
+    await expect(appWindow.getByRole('button', { name: /Waiting.*Block human page input/ })).toBeEnabled()
+    await expect(appWindow.getByRole('button', { name: /Waiting/ })).toHaveCount(0, { timeout: 10_000 })
+    await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toBeEnabled()
+    // The page's barrier is still on until its turn comes.
     expect(await unlocks()).toBe(0)
     await electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { release: () => void } }).unlockQueueProbe?.release())
     await operation
-    await expect(appWindow.getByRole('button', { name: /Waiting/ })).toHaveCount(0)
-    await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toBeEnabled()
-    expect(await unlocks()).toBe(1)
+    await expect.poll(unlocks).toBe(1)
     expect(await appWindow.evaluate('window.hronaut.getState().then(state=>state.allHumanInteractionLocked)')).toBe(false)
   } finally {
     await electronApp.evaluate(() => {
