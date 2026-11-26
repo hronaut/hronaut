@@ -114,8 +114,12 @@ export const errorResult = (error: unknown): CallToolResult => {
       dispatch: 'not-dispatched',
       effects: 'none',
       retrySafe: error.code === 'WORKSPACE_BUSY',
+      ...(error.availableAt ? { availableAt: error.availableAt } : {}),
       nextAction: error.code === 'WORKSPACE_BUSY'
-        ? 'Inspect workspace ownership later or use a separate workspace. Do not retry the mutation blindly.'
+        ? `Another MCP session, or a call still running, holds this workspace's write lease${error.availableAt ? ` until ${error.availableAt}` : ''}`
+          + ' unless it keeps using it; a disconnected session\'s lease ends by itself then. Do not retry the mutation blindly:'
+          + ' after that time, inspect the workspace, call browser_workspaces action=claim-ownership, and retry.'
+          + ' Otherwise use a separate workspace. The person can close this workspace from the Hronaut sidebar at any time.'
         : 'Inspect current workspace state, claim a fresh write lease, and revalidate the target before issuing a new mutation.'
     }
     return { ...textResult(outcome), structuredContent: outcome, isError: true }
