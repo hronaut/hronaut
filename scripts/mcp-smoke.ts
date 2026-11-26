@@ -62,7 +62,8 @@ try {
   }) as CallToolResult
   if (typed.isError) fail(text(typed))
 
-  const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId } }) as CallToolResult
+  // The default is a compact JPEG; detail "full" returns the PNG whose encoder this checks.
+  const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, detail: 'full' } }) as CallToolResult
   const image = screenshot.content.find((item) => item.type === 'image')
   if (image?.type !== 'image' || !image.data || image.mimeType !== 'image/png') {
     fail('browser_screenshot did not return a PNG image')
