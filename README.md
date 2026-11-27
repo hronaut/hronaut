@@ -10,6 +10,8 @@ Hronaut is a visible desktop browser for coding agents, with a separate workspac
 
 For Windows, macOS and Linux. 10-day free trial, no card. Then $4/month or $24/year per named user.
 
+[![hronaut/hronaut MCP server](https://glama.ai/mcp/servers/hronaut/hronaut/badges/score.svg)](https://glama.ai/mcp/servers/hronaut/hronaut)
+
 [![Hronaut product tour: an agent checks a local cart, asks a person to confirm, and a second agent resumes the same workspace](https://raw.githubusercontent.com/hronaut/.github/main/profile/media/hronaut-tour-poster.jpg)](https://hronaut.dev/#demo)
 
 - **Your everyday Chrome stays out of it.** Agents work in Hronaut, not in the Chrome with your email and bank. They can use what you sign into in Hronaut.
