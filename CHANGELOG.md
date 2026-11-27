@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- After the 10-day trial, the license card has a link, **Not buying? Tell us why, in one question**, that opens a short page on hronaut.dev in your browser. The app sends nothing with it; the page keeps only the answer you choose to send.
+
 ## [3.14.42] - 2026-11-26
 
 ### Fixed
