@@ -12,6 +12,7 @@ export interface HelpShellControllerOptions {
   showSettings: () => void
   navigate: (url: string) => Promise<unknown>
   openPurchase: () => Promise<unknown>
+  openTrialFeedback: () => Promise<unknown>
   runAction: (action: () => unknown) => Promise<boolean>
 }
 
@@ -55,12 +56,17 @@ export function useHelpShellController(options: HelpShellControllerOptions) {
     void options.runAction(options.openPurchase)
   }
 
+  function openTrialFeedback(): void {
+    void options.runAction(options.openTrialFeedback)
+  }
+
   return {
     openDialog,
     openSupportSettings,
     handleRequested,
     openUrl,
-    purchaseCommercialLicense
+    purchaseCommercialLicense,
+    openTrialFeedback
   }
 }
 

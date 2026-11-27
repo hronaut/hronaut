@@ -497,7 +497,7 @@ const {
   openSupportSettings,
   handleHelpRequested,
   openSupport,
-  purchaseCommercialLicense,
+  purchaseCommercialLicense, openTrialFeedback,
   openApplicationHome,
   rememberWebsiteTab,
   newTabInWorkspace,
@@ -556,14 +556,13 @@ const {
   actions: {
     closeTransientPanels,
     toggleMcpPaused,
-    openPurchase: () => window.hronautLicense.openPurchase(),
+    license: window.hronautLicense,
     reportActionError: reportShellActionError,
     reportSplitViewError,
     reportWorkspaceError,
     reportShortcutError
   }
 })
-const openTrialFeedback = (): void => { void runShellAction(() => window.hronautLicense.openTrialFeedback()) }
 const {
   start: startAppStartupRecovery,
   dispose: disposeAppStartupFeatureController
@@ -868,8 +867,7 @@ useAppLifecycleController({
       v-if="!isDetachedPanelWindow"
       :reason="appSettingsFeatureController.licenseAskController.cardReason.value"
       @manage="openSupportSettings"
-      @purchase="purchaseCommercialLicense"
-      @feedback="openTrialFeedback"
+      @purchase="purchaseCommercialLicense" @feedback="openTrialFeedback"
       @dismiss="appSettingsFeatureController.licenseAskController.dismiss"
     />
     <AppPageToolsLayer

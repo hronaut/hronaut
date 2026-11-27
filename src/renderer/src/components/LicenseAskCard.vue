@@ -27,7 +27,14 @@ const benefits = computed(() => [t('licenseNotice.benefitWorkspaces'), t('licens
           <li v-for="benefit in benefits" :key="benefit"><IconCheck aria-hidden="true" />{{ benefit }}</li>
         </ul>
         <!-- Only after a trial: a person who decided not to buy can say why in one question; nothing about them is sent. -->
-        <button v-if="reason === 'trial-ended'" type="button" class="license-ask-feedback" @keydown="ignoreHeldEnter" @click="$emit('feedback')">{{ t('licenseNotice.feedback') }}</button>
+        <UiButton
+          v-if="reason === 'trial-ended'"
+          class="license-ask-feedback"
+          variant="ghost"
+          size="small"
+          @keydown="ignoreHeldEnter"
+          @click="$emit('feedback')"
+        >{{ t('licenseNotice.feedback') }}</UiButton>
       </div>
       <div class="license-ask-offer">
         <span class="license-ask-price">{{ t('licenseNotice.price') }}</span>
@@ -81,20 +88,7 @@ const benefits = computed(() => [t('licenseNotice.benefitWorkspaces'), t('licens
 .license-ask-benefits { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 3px 0 0; padding: 0; list-style: none; }
 .license-ask-benefits li { display: flex; align-items: center; gap: 4px; color: var(--text); font-size: var(--type-small-size); }
 .license-ask-benefits svg { flex: none; width: 15px; height: 15px; color: var(--accent-text); }
-.license-ask-feedback {
-  justify-self: start;
-  margin: 2px 0 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent-text);
-  font: inherit;
-  font-size: var(--type-small-size);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-.license-ask-feedback:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.license-ask-feedback { justify-self: start; margin-top: 2px; color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
 .license-ask-offer { display: grid; flex: 0 1 auto; justify-items: end; gap: 7px; }
 .license-ask-price { color: var(--text); font-size: var(--type-small-size); font-weight: var(--weight-strong); }
 .license-ask-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }

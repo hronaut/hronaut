@@ -14,6 +14,7 @@ function createController(overrides: Partial<Parameters<typeof useHelpShellContr
     showSettings: vi.fn(),
     navigate: vi.fn(async () => undefined),
     openPurchase: vi.fn(async () => undefined),
+    openTrialFeedback: vi.fn(async () => undefined),
     runAction: vi.fn(async (action: () => unknown) => {
       try {
         await action()
@@ -96,6 +97,15 @@ describe('Help shell controller', () => {
 
     controller.purchaseCommercialLicense()
     await vi.waitFor(() => expect(options.openPurchase).toHaveBeenCalledOnce())
+
+    expect(options.runAction).toHaveBeenCalledOnce()
+  })
+
+  it('opens the trial question through the shared action boundary', async () => {
+    const { options, controller } = createController()
+
+    controller.openTrialFeedback()
+    await vi.waitFor(() => expect(options.openTrialFeedback).toHaveBeenCalledOnce())
 
     expect(options.runAction).toHaveBeenCalledOnce()
   })
