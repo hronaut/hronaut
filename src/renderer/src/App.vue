@@ -497,7 +497,7 @@ const {
   openSupportSettings,
   handleHelpRequested,
   openSupport,
-  purchaseCommercialLicense,
+  purchaseCommercialLicense, openTrialFeedback,
   openApplicationHome,
   rememberWebsiteTab,
   newTabInWorkspace,
@@ -556,7 +556,7 @@ const {
   actions: {
     closeTransientPanels,
     toggleMcpPaused,
-    openPurchase: () => window.hronautLicense.openPurchase(),
+    license: window.hronautLicense,
     reportActionError: reportShellActionError,
     reportSplitViewError,
     reportWorkspaceError,
@@ -867,7 +867,7 @@ useAppLifecycleController({
       v-if="!isDetachedPanelWindow"
       :reason="appSettingsFeatureController.licenseAskController.cardReason.value"
       @manage="openSupportSettings"
-      @purchase="purchaseCommercialLicense"
+      @purchase="purchaseCommercialLicense" @feedback="openTrialFeedback"
       @dismiss="appSettingsFeatureController.licenseAskController.dismiss"
     />
     <AppPageToolsLayer

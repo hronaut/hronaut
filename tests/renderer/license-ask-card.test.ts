@@ -8,7 +8,8 @@ it('asks for a license after the trial with the price, buy, key and Not now acti
   const onManage = vi.fn()
   const onPurchase = vi.fn()
   const onDismiss = vi.fn()
-  const view = render(LicenseAskCard, { props: { reason: null, onManage, onPurchase, onDismiss }, global: { plugins: [createHronautI18n('en-US')] } })
+  const onFeedback = vi.fn()
+  const view = render(LicenseAskCard, { props: { reason: null, onManage, onPurchase, onDismiss, onFeedback }, global: { plugins: [createHronautI18n('en-US')] } })
   expect(screen.queryByRole('region')).not.toBeInTheDocument()
   // The announcement is in the page before access ends, so that screen readers read it when it changes.
   const announcement = screen.getByRole('status')
@@ -24,13 +25,15 @@ it('asks for a license after the trial with the price, buy, key and Not now acti
     'Agents stay out of your everyday browser',
     'Pause an agent and take over at any time'
   ])
-  expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Buy license ↗', 'Enter license key', 'Not now'])
+  expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Not buying? Tell us why, in one question ↗', 'Buy license ↗', 'Enter license key', 'Not now'])
+  await fireEvent.click(screen.getByRole('button', { name: 'Not buying? Tell us why, in one question ↗' }))
   await fireEvent.click(screen.getByRole('button', { name: 'Buy license ↗' }))
   await fireEvent.click(screen.getByRole('button', { name: 'Enter license key' }))
   await fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
   expect(onPurchase).toHaveBeenCalledOnce()
   expect(onManage).toHaveBeenCalledOnce()
   expect(onDismiss).toHaveBeenCalledOnce()
+  expect(onFeedback).toHaveBeenCalledOnce()
 })
 
 it('puts License settings first when a paid license has ended', () => {
@@ -41,6 +44,8 @@ it('puts License settings first when a paid license has ended', () => {
   expect(buttons.map((button) => button.textContent)).toEqual(['License settings', 'Buy license ↗', 'Not now'])
   expect(buttons[0]).toHaveClass('ui-button--primary')
   expect(screen.queryByRole('button', { name: 'Enter license key' })).not.toBeInTheDocument()
+  // A subscriber is not asked why they did not buy.
+  expect(screen.queryByRole('button', { name: /Tell us why/ })).not.toBeInTheDocument()
 })
 
 it('keeps a held Enter from pressing the card\'s buttons again', () => {

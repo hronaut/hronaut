@@ -87,6 +87,7 @@ export const viVN: MessageSchema = {
     enterKey: 'Nhập khóa giấy phép',
     manage: 'Cài đặt giấy phép',
     dismiss: 'Để sau',
+    feedback: 'Không mua? Cho chúng tôi biết lý do qua một câu hỏi ↗',
     reminder: 'Cần giấy phép',
     reminderTitle: 'Tính năng tự động hóa bằng tác nhân đang bị khóa. Mở Cài đặt giấy phép'
   },

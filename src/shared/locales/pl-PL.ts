@@ -87,6 +87,7 @@ export const plPL: MessageSchema = {
     enterKey: 'Wpisz klucz licencji',
     manage: 'Ustawienia licencji',
     dismiss: 'Nie teraz',
+    feedback: 'Nie kupujesz? Powiedz nam dlaczego, w jednym pytaniu ↗',
     reminder: 'Potrzebna licencja',
     reminderTitle: 'Automatyzacja agentów jest zablokowana. Otwórz ustawienia licencji'
   },

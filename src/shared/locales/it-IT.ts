@@ -87,6 +87,7 @@ export const itIT: MessageSchema = {
     enterKey: 'Inserisci chiave di licenza',
     manage: 'Impostazioni licenza',
     dismiss: 'Non ora',
+    feedback: 'Non acquisti? Dicci perché, con una sola domanda ↗',
     reminder: 'Licenza necessaria',
     reminderTitle: 'L’automazione degli agenti è bloccata. Apri Impostazioni licenza'
   },

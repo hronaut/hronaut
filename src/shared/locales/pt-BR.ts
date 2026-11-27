@@ -87,6 +87,7 @@ export const ptBR: MessageSchema = {
     enterKey: 'Inserir chave de licença',
     manage: 'Configurações de licença',
     dismiss: 'Agora não',
+    feedback: 'Não vai comprar? Conte o motivo em uma pergunta ↗',
     reminder: 'Licença necessária',
     reminderTitle: 'A automação de agentes está bloqueada. Abrir as configurações de licença'
   },

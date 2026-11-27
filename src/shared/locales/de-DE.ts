@@ -87,6 +87,7 @@ export const deDE: MessageSchema = {
     enterKey: 'Lizenzschlüssel eingeben',
     manage: 'Lizenzeinstellungen',
     dismiss: 'Nicht jetzt',
+    feedback: 'Kein Kauf? Sagen Sie uns in einer Frage, warum ↗',
     reminder: 'Lizenz erforderlich',
     reminderTitle: 'Die Agentenautomatisierung ist gesperrt. Lizenzeinstellungen öffnen'
   },

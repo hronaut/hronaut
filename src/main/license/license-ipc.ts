@@ -1,6 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron'
 import type { TypedIpcMain } from '../typed-ipc.js'
-import { commercialLicensePurchaseHandler } from './commercial-license-links.js'
+import { commercialLicensePurchaseHandler, trialFeedbackHandler } from './commercial-license-links.js'
 import type { CommercialLicenseState } from '../../shared/types.js'
 import { LICENSE_IPC } from '../../shared/ipc/license.js'
 
@@ -34,5 +34,9 @@ export function registerLicenseIpc(ipcMain: Pick<TypedIpcMain, 'handle'>, host: 
   ipcMain.handle(
     LICENSE_IPC.openPurchase,
     commercialLicensePurchaseHandler(host.assertTrustedSender, (url) => host.openExternal(url))
+  )
+  ipcMain.handle(
+    LICENSE_IPC.openTrialFeedback,
+    trialFeedbackHandler(host.assertTrustedSender, (url) => host.openExternal(url))
   )
 }

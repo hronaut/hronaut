@@ -87,6 +87,7 @@ export const zhTW: MessageSchema = {
     enterKey: '輸入授權金鑰',
     manage: '授權設定',
     dismiss: '稍後再說',
+    feedback: '不打算購買？用一個問題告訴我們原因 ↗',
     reminder: '需要授權',
     reminderTitle: '代理程式自動化已鎖定。開啟授權設定'
   },

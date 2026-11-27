@@ -85,6 +85,7 @@ export const enUS = {
     enterKey: 'Enter license key',
     manage: 'License settings',
     dismiss: 'Not now',
+    feedback: 'Not buying? Tell us why, in one question ↗',
     reminder: 'License needed',
     reminderTitle: 'Agent automation is locked. Open License settings'
   },

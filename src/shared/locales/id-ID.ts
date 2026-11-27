@@ -87,6 +87,7 @@ export const idID: MessageSchema = {
     enterKey: 'Masukkan kunci lisensi',
     manage: 'Setelan lisensi',
     dismiss: 'Lain kali',
+    feedback: 'Tidak membeli? Beri tahu kami alasannya dalam satu pertanyaan ↗',
     reminder: 'Lisensi diperlukan',
     reminderTitle: 'Otomatisasi agen terkunci. Buka Setelan lisensi'
   },

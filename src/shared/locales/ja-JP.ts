@@ -87,6 +87,7 @@ export const jaJP: MessageSchema = {
     enterKey: 'ライセンスキーを入力',
     manage: 'ライセンス設定',
     dismiss: '後で',
+    feedback: '購入しない理由を1問だけ教えてください ↗',
     reminder: 'ライセンスが必要です',
     reminderTitle: 'エージェントの自動操作はロックされています。ライセンス設定を開く'
   },

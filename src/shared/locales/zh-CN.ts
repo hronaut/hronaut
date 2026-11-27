@@ -87,6 +87,7 @@ export const zhCN: MessageSchema = {
     enterKey: '输入许可证密钥',
     manage: '许可证设置',
     dismiss: '以后再说',
+    feedback: '不打算购买？用一个问题告诉我们原因 ↗',
     reminder: '需要许可证',
     reminderTitle: '智能体自动化已锁定。打开许可证设置'
   },

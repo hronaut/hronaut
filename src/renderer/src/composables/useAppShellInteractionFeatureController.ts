@@ -6,7 +6,8 @@ import type {
   BrowserState,
   BrowserTabGroupState,
   BrowserTabState,
-  HronautApi
+  HronautApi,
+  HronautLicenseApi
 } from '../../../shared/types.js'
 import type { AppBrowserCollectionsFeatureController } from './useAppBrowserCollectionsFeatureController.js'
 import { useAppCommandPaletteFeatureController } from './useAppCommandPaletteFeatureController.js'
@@ -213,7 +214,8 @@ export interface AppShellInteractionFeatureControllerOptions {
   actions: {
     closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
     toggleMcpPaused: () => unknown
-    openPurchase: () => Promise<unknown>
+    /** Opens the purchase page, or the one question asked after a trial ends, in the person's browser. */
+    license: Pick<HronautLicenseApi, 'openPurchase' | 'openTrialFeedback'>
     reportActionError: (error: unknown) => void
     reportSplitViewError: (error: unknown, fallback: string) => void
     reportWorkspaceError: (workspace: BrowserTabGroupState, error: unknown) => void
@@ -265,7 +267,8 @@ export function useAppShellInteractionFeatureController(
     showSupportSettings: () => surfaces.settings.openSection('support'),
     showSettings: () => surfaces.settings.openSection('general'),
     navigate: (url) => options.syncState(options.browser.newTab({ url, active: true })),
-    openPurchase: actions.openPurchase,
+    openPurchase: () => actions.license.openPurchase(),
+    openTrialFeedback: () => actions.license.openTrialFeedback(),
     runAction: uiActions.run
   })
   const home = useHomeNavigationController({
@@ -480,6 +483,7 @@ export function useAppShellInteractionFeatureController(
     handleHelpRequested: help.handleRequested,
     openSupport: help.openUrl,
     purchaseCommercialLicense: help.purchaseCommercialLicense,
+    openTrialFeedback: help.openTrialFeedback,
     openApplicationHome: home.openHome,
     rememberWebsiteTab: home.rememberWebsiteTab,
     newTabInWorkspace: tabNavigation.newTabInWorkspace,

@@ -87,6 +87,7 @@ export const trTR: MessageSchema = {
     enterKey: 'Lisans anahtarı gir',
     manage: 'Lisans ayarları',
     dismiss: 'Şimdi değil',
+    feedback: 'Satın almıyor musunuz? Nedenini tek bir soruda söyleyin ↗',
     reminder: 'Lisans gerekli',
     reminderTitle: 'Ajan otomasyonu kilitli. Lisans ayarlarını açın'
   },

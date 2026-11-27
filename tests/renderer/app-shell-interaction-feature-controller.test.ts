@@ -219,7 +219,7 @@ function createHarness(extraNavigation: {
     actions: {
       closeTransientPanels: noop,
       toggleMcpPaused: asyncNoop,
-      openPurchase: asyncNoop,
+      license: { openPurchase: asyncNoop, openTrialFeedback: asyncNoop },
       reportActionError,
       reportSplitViewError: noop,
       reportWorkspaceError: noop,

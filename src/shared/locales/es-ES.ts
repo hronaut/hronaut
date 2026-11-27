@@ -87,6 +87,7 @@ export const esES: MessageSchema = {
     enterKey: 'Introducir clave de licencia',
     manage: 'Configuración de licencia',
     dismiss: 'Ahora no',
+    feedback: '¿No vas a comprar? Dinos por qué en una pregunta ↗',
     reminder: 'Se necesita licencia',
     reminderTitle: 'La automatización de agentes está bloqueada. Abrir configuración de licencia'
   },

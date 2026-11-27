@@ -13,6 +13,8 @@ export const LICENSE_IPC = {
   deactivate: 'license:deactivate' as InvokeChannel<[], CommercialLicenseState>,
   /** Shell → main: opens the purchase page in the person's browser. */
   openPurchase: 'license:open-purchase' as InvokeChannel<[], void>,
+  /** Shell → main: opens the one-question page about why the trial did not end in a purchase. */
+  openTrialFeedback: 'license:open-trial-feedback' as InvokeChannel<[], void>,
   /** Main → shells: the license state changed, by an action or by itself. */
   changed: 'license:changed' as EventChannel<[state: CommercialLicenseState]>
 } as const

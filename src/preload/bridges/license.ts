@@ -9,5 +9,6 @@ export const licenseApi: HronautLicenseApi = {
   refresh: () => invoke(LICENSE_IPC.refresh),
   deactivate: () => invoke(LICENSE_IPC.deactivate),
   openPurchase: () => invoke(LICENSE_IPC.openPurchase),
+  openTrialFeedback: () => invoke(LICENSE_IPC.openTrialFeedback),
   onChanged: (listener) => subscribe(LICENSE_IPC.changed, (state) => listener(state))
 }

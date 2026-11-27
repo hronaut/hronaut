@@ -229,6 +229,7 @@ const invokes: Array<[api: string, method: string, args: unknown[], channel: str
   ['hronautLicense', 'refresh', [], 'license:refresh', []],
   ['hronautLicense', 'deactivate', [], 'license:deactivate', []],
   ['hronautLicense', 'openPurchase', [], 'license:open-purchase', []],
+  ['hronautLicense', 'openTrialFeedback', [], 'license:open-trial-feedback', []],
   ['hronautUpdates', 'getState', [], 'updates:get-state', []],
   ['hronautUpdates', 'getReleaseHistory', [2, true], 'updates:get-release-history', [2, true]],
   ['hronautUpdates', 'check', [], 'updates:check', []],
