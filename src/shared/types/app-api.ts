@@ -380,5 +380,6 @@ export interface HronautLicenseApi {
   refresh(): Promise<CommercialLicenseState>
   deactivate(): Promise<CommercialLicenseState>
   openPurchase(): Promise<void>
+  openTrialFeedback(): Promise<void>
   onChanged(listener: (state: CommercialLicenseState) => void): () => void
 }

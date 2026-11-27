@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   COMMERCIAL_LICENSE_API_BASE_URL,
   COMMERCIAL_LICENSE_PURCHASE_URL,
-  commercialLicensePurchaseHandler
+  commercialLicensePurchaseHandler,
+  TRIAL_FEEDBACK_URL,
+  trialFeedbackHandler
 } from '../src/main/license/commercial-license-links.js'
 
 describe('commercial license purchase links', () => {
@@ -28,6 +30,17 @@ describe('commercial license purchase links', () => {
     const handler = commercialLicensePurchaseHandler(() => { throw new Error('Untrusted shell sender') }, openExternal)
 
     await expect(handler({})).rejects.toThrow('Untrusted shell sender')
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('opens the fixed trial question page for a trusted sender only', async () => {
+    expect(TRIAL_FEEDBACK_URL).toBe('https://hronaut.dev/go/desktop-trial-feedback')
+    const openExternal = vi.fn(async () => undefined)
+    const event = { sender: 'shell' }
+    await trialFeedbackHandler(vi.fn(), openExternal)(event)
+    expect(openExternal).toHaveBeenCalledWith(TRIAL_FEEDBACK_URL)
+    openExternal.mockClear()
+    await expect(trialFeedbackHandler(() => { throw new Error('Untrusted shell sender') }, openExternal)({})).rejects.toThrow('Untrusted shell sender')
     expect(openExternal).not.toHaveBeenCalled()
   })
 })

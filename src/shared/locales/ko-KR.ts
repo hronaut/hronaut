@@ -87,6 +87,7 @@ export const koKR: MessageSchema = {
     enterKey: '라이선스 키 입력',
     manage: '라이선스 설정',
     dismiss: '나중에',
+    feedback: '구매하지 않으시나요? 질문 하나로 이유를 알려 주세요 ↗',
     reminder: '라이선스 필요',
     reminderTitle: '에이전트 자동화가 잠겨 있습니다. 라이선스 설정 열기'
   },

@@ -87,6 +87,7 @@ export const hiIN: MessageSchema = {
     enterKey: 'लाइसेंस कुंजी डालें',
     manage: 'लाइसेंस सेटिंग',
     dismiss: 'अभी नहीं',
+    feedback: 'नहीं खरीद रहे? एक सवाल में बताएं क्यों ↗',
     reminder: 'लाइसेंस ज़रूरी है',
     reminderTitle: 'एजेंट ऑटोमेशन लॉक है। लाइसेंस सेटिंग खोलें'
   },

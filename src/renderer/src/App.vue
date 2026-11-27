@@ -563,6 +563,7 @@ const {
     reportShortcutError
   }
 })
+const openTrialFeedback = (): void => { void runShellAction(() => window.hronautLicense.openTrialFeedback()) }
 const {
   start: startAppStartupRecovery,
   dispose: disposeAppStartupFeatureController
@@ -868,6 +869,7 @@ useAppLifecycleController({
       :reason="appSettingsFeatureController.licenseAskController.cardReason.value"
       @manage="openSupportSettings"
       @purchase="purchaseCommercialLicense"
+      @feedback="openTrialFeedback"
       @dismiss="appSettingsFeatureController.licenseAskController.dismiss"
     />
     <AppPageToolsLayer

@@ -34,6 +34,7 @@ function renderPanel(initial = license()) {
     refresh,
     deactivate: vi.fn(async () => license()),
     openPurchase: vi.fn(async () => undefined),
+    openTrialFeedback: vi.fn(async () => undefined),
     onChanged: vi.fn(() => () => undefined)
   }
   const controller = useCommercialLicenseController({

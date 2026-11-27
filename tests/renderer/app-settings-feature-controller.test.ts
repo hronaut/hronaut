@@ -144,6 +144,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
         refresh: vi.fn(),
         deactivate: vi.fn(),
         openPurchase: vi.fn(),
+        openTrialFeedback: vi.fn(),
         onChanged: vi.fn(() => licenseUnsubscribe)
       },
       wallets: {

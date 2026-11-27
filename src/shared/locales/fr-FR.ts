@@ -87,6 +87,7 @@ export const frFR: MessageSchema = {
     enterKey: 'Saisir la clé de licence',
     manage: 'Paramètres de licence',
     dismiss: 'Plus tard',
+    feedback: 'Vous n’achetez pas ? Dites-nous pourquoi en une question ↗',
     reminder: 'Licence requise',
     reminderTitle: 'L’automatisation par les agents est bloquée. Ouvrir les paramètres de licence'
   },
